@@ -1,0 +1,539 @@
+@import 'tailwindcss';
+
+@source './**/*.{html,ts}';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-church-green-dark: #004b3d;
+  --color-church-green-medium: #2f5f54;
+  --color-church-green: #39704d;
+  --color-church-gray-warm: #988f83;
+  --color-church-cream: #e8e5e1;
+  --color-church-blue: #0047ab;
+  --color-church-blue-dark: #3e5266;
+  --color-church-navy: #1f2937;
+  --color-church-gold-dark: #b8860b;
+  --color-church-gold: #c9a961;
+  --color-church-gold-light: #f4c542;
+  --color-church-slate: #2b2b2b;
+
+  --color-primary-50: #f0f4f3;
+  --color-primary-100: #e8e5e1;
+  --color-primary-200: #d1ccc4;
+  --color-primary-300: #988f83;
+  --color-primary-400: #6b6256;
+  --color-primary-500: #2f5f54;
+  --color-primary-600: #39704d;
+  --color-primary-700: #004b3d;
+  --color-primary-800: #2b2b2b;
+  --color-primary-900: #1f2937;
+
+  --color-accent-50: #fef9e7;
+  --color-accent-100: #fdf4d3;
+  --color-accent-200: #f4c542;
+  --color-accent-300: #c9a961;
+  --color-accent-400: #b8860b;
+  --color-accent-500: #0047ab;
+  --color-accent-600: #3e5266;
+  --color-accent-700: #004b3d;
+  /* Shared header background colors for light/dark translucent header & safe area */
+  --header-bg-light: rgba(255, 255, 255, 0.5);
+  --header-bg-dark: rgba(31, 41, 55, 0.5);
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility bg-gray-50 {
+  /* Background colors - light theme */
+  @apply bg-[#F8F7F5]!;
+
+  /* Background colors - dark theme */
+  .dark & {
+    @apply bg-[#2B2B2B]!;
+  }
+}
+@utility bg-gray-100 {
+  @apply bg-[#E8E5E1]!;
+  .dark & {
+    @apply bg-[#3E5266]!;
+  }
+}
+@utility bg-gray-200 {
+  @apply bg-[#D1CCC4]!;
+  .dark & {
+    @apply bg-[#2F5F54]!;
+  }
+}
+@utility bg-gray-300 {
+  @apply bg-[#988F83]!;
+  .dark & {
+    @apply bg-[#3E5266]!;
+  }
+}
+@utility bg-gray-700 {
+  @apply bg-[#6B6256]!;
+  .dark & {
+    @apply bg-[#3E5266]!;
+  }
+}
+@utility bg-gray-800 {
+  @apply bg-white!;
+  .dark & {
+    @apply bg-[#1F2937]!;
+  }
+}
+@utility bg-gray-900 {
+  @apply bg-[#F8F7F5]!;
+  .dark & {
+    @apply bg-[#2B2B2B]!;
+  }
+}
+@utility dark {
+  /* Background colors - dark theme */
+  & .bg-gray-50 {
+    @apply bg-[#2B2B2B]!;
+  }
+  & .bg-gray-100 {
+    @apply bg-[#3E5266]!;
+  }
+  & .bg-gray-200 {
+    @apply bg-[#2F5F54]!;
+  }
+  & .bg-gray-300 {
+    @apply bg-[#3E5266]!;
+  }
+  & .bg-gray-600 {
+    @apply bg-[#2F5F54]!;
+  }
+  & .bg-gray-700 {
+    @apply bg-[#3E5266]!;
+  }
+  & .bg-gray-800 {
+    @apply bg-[#1F2937]!;
+  }
+  & .bg-gray-900 {
+    @apply bg-[#2B2B2B]!;
+  }
+
+  /* Text colors - dark theme */
+  & .text-gray-100 {
+    @apply text-[#E8E5E1]!;
+  }
+  & .text-gray-200 {
+    @apply text-[#D1CCC4]!;
+  }
+  & .text-gray-300 {
+    @apply text-[#D1CCC4]!;
+  }
+  & .text-gray-400 {
+    @apply text-[#988F83]!;
+  }
+  & .text-gray-500 {
+    @apply text-[#988F83]!;
+  }
+
+  /* Border colors - dark theme */
+  & .border-gray-600 {
+    @apply border-[#3E5266]!;
+  }
+  & .border-gray-700 {
+    @apply border-[#2F5F54]!;
+  }
+  & .border-gray-800 {
+    @apply border-[#2B2B2B]!;
+  }
+  & .bg-green-600 {
+    @apply bg-[#39704D]!;
+  }
+  & .bg-green-700 {
+    @apply bg-[#004B3D]!;
+  }
+  & .hover\:bg-green-700:hover {
+    @apply bg-[#004B3D]!;
+  }
+  & .bg-blue-600 {
+    @apply bg-[#0047AB]!;
+  }
+  & .bg-blue-700 {
+    @apply bg-[#3E5266]!;
+  }
+  & .hover\:bg-blue-700:hover {
+    @apply bg-[#3E5266]!;
+  }
+}
+@utility bg-gray-600 {
+  .dark & {
+    @apply bg-[#2F5F54]!;
+  }
+}
+@utility text-gray-400 {
+  /* Text colors - light theme */
+  @apply text-[#988F83]!;
+  .dark & {
+    @apply text-[#988F83]!;
+  }
+}
+@utility text-gray-500 {
+  @apply text-[#988F83]!;
+  .dark & {
+    @apply text-[#988F83]!;
+  }
+}
+@utility text-gray-600 {
+  @apply text-[#6B6256]!;
+}
+@utility text-gray-700 {
+  @apply text-[#2B2B2B]!;
+}
+@utility text-gray-800 {
+  @apply text-[#2B2B2B]!;
+}
+@utility text-gray-900 {
+  @apply text-[#2B2B2B]!;
+}
+@utility text-gray-100 {
+  /* Text colors - dark theme */
+  .dark & {
+    @apply text-[#E8E5E1]!;
+  }
+}
+@utility text-gray-200 {
+  .dark & {
+    @apply text-[#D1CCC4]!;
+  }
+}
+@utility text-gray-300 {
+  .dark & {
+    @apply text-[#D1CCC4]!;
+  }
+}
+@utility border-gray-100 {
+  /* Border colors - light theme */
+  @apply border-[#E8E5E1]!;
+}
+@utility border-gray-200 {
+  @apply border-[#D1CCC4]!;
+}
+@utility border-gray-300 {
+  @apply border-[#D1CCC4]!;
+}
+@utility border-gray-600 {
+  /* Border colors - dark theme */
+  .dark & {
+    @apply border-[#3E5266]!;
+  }
+}
+@utility border-gray-700 {
+  .dark & {
+    @apply border-[#2F5F54]!;
+  }
+}
+@utility border-gray-800 {
+  .dark & {
+    @apply border-[#2B2B2B]!;
+  }
+}
+@utility bg-green-600 {
+  /* Update green to use church green */
+  @apply bg-[#39704D]!;
+  .dark & {
+    @apply bg-[#39704D]!;
+  }
+}
+@utility bg-green-700 {
+  @apply bg-[#004B3D]!;
+  .dark & {
+    @apply bg-[#004B3D]!;
+  }
+}
+@utility bg-blue-600 {
+  /* Update blue to use church blue */
+  @apply bg-[#0047AB]!;
+  .dark & {
+    @apply bg-[#0047AB]!;
+  }
+}
+@utility bg-blue-700 {
+  @apply bg-[#3E5266]!;
+  .dark & {
+    @apply bg-[#3E5266]!;
+  }
+}
+@layer utilities {
+  /* Hover overrides for church green/blue (cannot be @utility in v4) */
+  .hover\:bg-green-700:hover {
+    background-color: #004B3D !important;
+  }
+  .dark .hover\:bg-green-700:hover {
+    background-color: #004B3D !important;
+  }
+  .hover\:bg-blue-700:hover {
+    background-color: #3E5266 !important;
+  }
+  .dark .hover\:bg-blue-700:hover {
+    background-color: #3E5266 !important;
+  }
+  /* Prevent layout shift when scrollbar appears/disappears */
+  html {
+    scrollbar-gutter: stable;
+  }
+
+  /* Church Theme Color Overrides - Maps Tailwind grays to church brand colors */
+}
+
+/* Church Theme Variables */
+:root {
+  --text-scale: 1;
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F8F7F5;
+  --bg-tertiary: #E8E5E1;
+  --text-primary: #2B2B2B;
+  --text-secondary: #6B6256;
+  --text-muted: #988F83;
+  --border-color: #D1CCC4;
+  --accent-primary: #39704D;
+  --accent-secondary: #C9A961;
+  --accent-gold: #B8860B;
+}
+
+html.dark {
+  --bg-primary: #1F2937;
+  --bg-secondary: #2B2B2B;
+  --bg-tertiary: #3E5266;
+  --text-primary: #E8E5E1;
+  --text-secondary: #D1CCC4;
+  --text-muted: #988F83;
+  --border-color: #3E5266;
+  --accent-primary: #39704D;
+  --accent-secondary: #C9A961;
+  --accent-gold: #F4C542;
+}
+
+/* Font optimization - base size scales with --text-scale (see TextSizeService) */
+html {
+  font-size: calc(16px * var(--text-scale, 1));
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-display: swap;
+}
+
+/* Base resets and global styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  line-height: 1.5;
+}
+
+/* Smooth transitions for theme changes */
+html, body {
+  transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+/* CDK Drag Drop Fixes for Wrapping Layouts */
+/* Use global styles since drag preview is attached to body */
+
+/* 1. Ensure drag preview (the item following cursor) is above everything */
+.cdk-drag-preview {
+  box-sizing: border-box;
+  border-radius: 0.5rem;
+  /* High contrast shadow for visibility */
+  box-shadow: 0 5px 5px -3px rgba(0, 0, 0, 0.2),
+              0 8px 10px 1px rgba(0, 0, 0, 0.14),
+              0 3px 14px 2px rgba(0, 0, 0, 0.12);
+  z-index: 10000 !important; /* Force on top of everything */
+  pointer-events: none !important; /* Let clicks pass through */
+}
+
+/* 2. Drag Placeholder: Visible indicator of where item will drop */
+.cdk-drag-placeholder {
+  opacity: 0.3;
+  border: 2px dashed rgba(0,0,0,0.2); /* Dotted border */
+  border-radius: 0.5rem;
+  background: rgba(0,0,0,0.05);
+}
+
+/* 3. Hide the original source element while dragging */
+/* This prevents the "duplicate" visual artifact */
+.cdk-drag-animating {
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.cdk-drop-list-dragging .cdk-drag:not(.cdk-drag-placeholder) {
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* Fix iOS/Safari specific interaction issues */
+.cdk-drag-handle {
+  touch-action: none; /* Important for iOS to prevent scroll while dragging */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Viewport scroll container: fallback when safe-area not supported (e.g. desktop) */
+.safe-area-viewport {
+  height: 100vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Safe area padding for notch/camera cutout - Capacitor only */
+@supports (padding: env(safe-area-inset-top)) {
+  html {
+    /* Ensure document scroll works in native WebView (iOS/Android) */
+    -webkit-overflow-scrolling: touch;
+  }
+  body {
+    /* Default (web/Safari): body owns top inset and we use a translucent
+       overlay that visually continues the header into the notch area. */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    /* Explicitly allow vertical touch scroll in native WebView */
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Web/Safari: separate safe-area strip above header (matches legacy look) */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: env(safe-area-inset-top);
+    /* Make safe-area strip opaque so content never shows through while scrolling */
+    background-color: #F8F7F5;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    z-index: 9999;
+  }
+  html.dark body::before {
+    background-color: #1F2937;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  /* Web/Safari: bottom safe-area strip above home indicator */
+  body::after {
+    content: '';
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: env(safe-area-inset-bottom);
+    background-color: #F8F7F5;
+    z-index: 9999;
+  }
+  html.dark body::after {
+    background-color: #1F2937;
+  }
+
+  /* Web/Safari: keep sticky header below safe area strip */
+  header.sticky {
+    top: env(safe-area-inset-top);
+  }
+
+  /* Native app override: let header own the safe area instead of body/overlay */
+  .native-app body {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  .native-app body::before {
+    display: none;
+  }
+  /* Native app: hide body::after (we use sticky footer in home instead) */
+  .native-app body::after {
+    display: none;
+  }
+  /* Bottom safe bar: sticky footer inside viewport (matches header - content scrolls behind, blur works) */
+  .bottom-safe-bar {
+    display: none;
+  }
+  .native-app .bottom-safe-bar {
+    display: block;
+    min-height: max(env(safe-area-inset-bottom, 0px), 34px);
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
+  .native-app header.sticky {
+    top: 0;
+    padding-top: env(safe-area-inset-top);
+  }
+  /* Utility class for full-screen overlays/modals to respect safe area */
+  .safe-area-overlay {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Viewport-sized scroll container that sits below safe area; header sticky inside it so content scrolls to top of header but never into safe area */
+  .safe-area-viewport {
+    height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .safe-area-viewport header.sticky {
+    top: 0;
+  }
+
+  /* Native app: full viewport so sticky footer can stick at bottom; content scrolls behind header & footer */
+  .native-app .safe-area-viewport {
+    height: 100vh;
+  }
+  .native-app .main-page-shell {
+    min-height: 0;
+    height: 100vh;
+  }
+  .native-app .main-page-shell .safe-area-viewport {
+    height: 100%;
+  }
+
+  /* Web: no bottom safe zone on main page - match admin portal (content extends to bottom) */
+  html:not(.native-app) body {
+    padding-bottom: 0;
+  }
+  html:not(.native-app) body::after {
+    display: none;
+  }
+  /* Prevent app-root wrapper from forcing extra height below main page content */
+  html:not(.native-app) app-root > div {
+    min-height: 0;
+    height: auto;
+  }
+  html:not(.native-app) .main-page-shell {
+    min-height: 0;
+    height: calc(100vh - env(safe-area-inset-top));
+  }
+  html:not(.native-app) .main-page-shell .safe-area-viewport {
+    height: 100%;
+  }
+}
+
+@media print {
+  @page {
+    margin: 0.5in;
+  }
+  
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

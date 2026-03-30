@@ -1,0 +1,190 @@
+name: Verify Backup Integrity
+
+on:
+  schedule:
+    # Run weekly on Mondays at 3 AM CST (9 AM UTC)
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Get recent backup workflow runs
+        id: check_backups
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Checking for recent backup workflow runs..."
+          
+          # Get the last 7 days of backup workflow runs
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/actions/workflows/backup-database-api.yml/runs?per_page=10" \
+            > workflow_runs.json
+          
+          # Count successful runs
+          SUCCESS_COUNT=$(jq '[.workflow_runs[] | select(.conclusion == "success")] | length' workflow_runs.json)
+          TOTAL_COUNT=$(jq '.workflow_runs | length' workflow_runs.json)
+          
+          echo "Found $SUCCESS_COUNT successful backups out of $TOTAL_COUNT total runs"
+          
+          if [ "$SUCCESS_COUNT" -eq 0 ]; then
+            echo "❌ No successful backup runs found"
+            exit 1
+          fi
+          
+          # Check for backup from last 48 hours
+          RECENT_DATE=$(jq -r '[.workflow_runs[] | select(.conclusion == "success")] | .[0].created_at' workflow_runs.json)
+          
+          if [ -z "$RECENT_DATE" ] || [ "$RECENT_DATE" = "null" ]; then
+            echo "❌ No recent successful backup found"
+            exit 1
+          fi
+          
+          # Convert to timestamp and check if within 48 hours
+          RECENT_TIMESTAMP=$(date -d "$RECENT_DATE" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "$RECENT_DATE" +%s 2>/dev/null)
+          CURRENT_TIMESTAMP=$(date +%s)
+          HOURS_AGO=$(( ($CURRENT_TIMESTAMP - $RECENT_TIMESTAMP) / 3600 ))
+          
+          echo "Most recent successful backup: $RECENT_DATE ($HOURS_AGO hours ago)"
+          
+          if [ "$HOURS_AGO" -gt 48 ]; then
+            echo "⚠️  Warning: No backup found from the last 48 hours"
+            exit 1
+          else
+            echo "✅ Recent backup found within 48 hours"
+          fi
+          
+          echo "SUCCESS_COUNT=$SUCCESS_COUNT" >> $GITHUB_OUTPUT
+          echo "RECENT_DATE=$RECENT_DATE" >> $GITHUB_OUTPUT
+          echo "HOURS_AGO=$HOURS_AGO" >> $GITHUB_OUTPUT
+      
+      - name: Check backup artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Checking backup artifacts..."
+          
+          # Get the most recent successful run
+          LATEST_RUN_ID=$(jq -r '[.workflow_runs[] | select(.conclusion == "success")] | .[0].id' workflow_runs.json)
+          
+          if [ -z "$LATEST_RUN_ID" ] || [ "$LATEST_RUN_ID" = "null" ]; then
+            echo "❌ No successful run found"
+            exit 1
+          fi
+          
+          echo "Checking artifacts for run ID: $LATEST_RUN_ID"
+          
+          # Get artifacts for this run
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/actions/runs/$LATEST_RUN_ID/artifacts" \
+            > artifacts.json
+          
+          ARTIFACT_COUNT=$(jq '.artifacts | length' artifacts.json)
+          echo "Found $ARTIFACT_COUNT artifact(s)"
+          
+          if [ "$ARTIFACT_COUNT" -eq 0 ]; then
+            echo "❌ No artifacts found for latest backup"
+            exit 1
+          fi
+          
+          # Show artifact details
+          jq -r '.artifacts[] | "✅ Artifact: \(.name) (Size: \(.size_in_bytes) bytes, Expires: \(.expires_at))"' artifacts.json
+      
+      - name: Verify artifact accessibility
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Verifying artifact can be downloaded..."
+          
+          # Get the latest artifact
+          ARTIFACT_ID=$(jq -r '.artifacts[0].id' artifacts.json)
+          ARTIFACT_NAME=$(jq -r '.artifacts[0].name' artifacts.json)
+          
+          if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" = "null" ]; then
+            echo "❌ No artifact ID found"
+            exit 1
+          fi
+          
+          echo "Artifact ID: $ARTIFACT_ID"
+          echo "Artifact Name: $ARTIFACT_NAME"
+          
+          # Try to get download URL (this verifies it's accessible)
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID" \
+            > artifact_details.json
+          
+          EXPIRED=$(jq -r '.expired' artifact_details.json)
+          
+          if [ "$EXPIRED" = "true" ]; then
+            echo "⚠️  Warning: Artifact has expired"
+            exit 1
+          else
+            echo "✅ Artifact is accessible and not expired"
+          fi
+      
+      - name: Create verification report
+        if: always()
+        run: |
+          echo "# Backup Verification Report" > verification_report.md
+          echo "" >> verification_report.md
+          echo "**Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> verification_report.md
+          echo "" >> verification_report.md
+          echo "## Summary" >> verification_report.md
+          echo "" >> verification_report.md
+          
+          if [ -f workflow_runs.json ]; then
+            SUCCESS_COUNT=$(jq '[.workflow_runs[] | select(.conclusion == "success")] | length' workflow_runs.json)
+            TOTAL_COUNT=$(jq '.workflow_runs | length' workflow_runs.json)
+            
+            echo "- Total successful backups (last 10): $SUCCESS_COUNT" >> verification_report.md
+            echo "- Total backup runs checked: $TOTAL_COUNT" >> verification_report.md
+            
+            if [ -f artifacts.json ]; then
+              ARTIFACT_COUNT=$(jq '.artifacts | length' artifacts.json)
+              echo "- Latest backup artifacts: $ARTIFACT_COUNT" >> verification_report.md
+              
+              if [ "$ARTIFACT_COUNT" -gt 0 ]; then
+                ARTIFACT_SIZE=$(jq -r '.artifacts[0].size_in_bytes' artifacts.json)
+                ARTIFACT_SIZE_MB=$(echo "scale=2; $ARTIFACT_SIZE / 1024 / 1024" | bc)
+                echo "- Latest artifact size: ${ARTIFACT_SIZE_MB} MB" >> verification_report.md
+              fi
+            fi
+            
+            echo "" >> verification_report.md
+            echo "## Recent Backups" >> verification_report.md
+            echo "" >> verification_report.md
+            
+            jq -r '[.workflow_runs[] | select(.conclusion == "success")] | .[:5] | .[] | "- \(.created_at | sub("T"; " ") | sub("Z"; " UTC")) - Run #\(.run_number)"' workflow_runs.json >> verification_report.md
+            
+            echo "" >> verification_report.md
+            echo "## Status" >> verification_report.md
+            echo "" >> verification_report.md
+            
+            if [ "$SUCCESS_COUNT" -gt 0 ]; then
+              echo "✅ Backup system is operational" >> verification_report.md
+            else
+              echo "❌ No successful backups found" >> verification_report.md
+            fi
+          else
+            echo "❌ Could not retrieve workflow runs" >> verification_report.md
+          fi
+          
+          cat verification_report.md
+      
+      - name: Upload verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-verification-report
+          path: verification_report.md

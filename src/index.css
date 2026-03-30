@@ -1,0 +1,402 @@
+@import 'tailwindcss';
+
+@source './**/*.{html,ts}';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-church-green-dark: #004b3d;
+  --color-church-green-medium: #2f5f54;
+  --color-church-green: #39704d;
+  --color-church-gray-warm: #988f83;
+  --color-church-cream: #e8e5e1;
+  --color-church-blue: #0047ab;
+  --color-church-blue-dark: #3e5266;
+  --color-church-navy: #1f2937;
+  --color-church-gold-dark: #b8860b;
+  --color-church-gold: #c9a961;
+  --color-church-gold-light: #f4c542;
+  --color-church-slate: #2b2b2b;
+
+  --color-primary-50: #f0f4f3;
+  --color-primary-100: #e8e5e1;
+  --color-primary-200: #d1ccc4;
+  --color-primary-300: #988f83;
+  --color-primary-400: #6b6256;
+  --color-primary-500: #2f5f54;
+  --color-primary-600: #39704d;
+  --color-primary-700: #004b3d;
+  --color-primary-800: #2b2b2b;
+  --color-primary-900: #1f2937;
+
+  --color-accent-50: #fef9e7;
+  --color-accent-100: #fdf4d3;
+  --color-accent-200: #f4c542;
+  --color-accent-300: #c9a961;
+  --color-accent-400: #b8860b;
+  --color-accent-500: #0047ab;
+  --color-accent-600: #3e5266;
+  --color-accent-700: #004b3d;
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+/* Church Theme Color Overrides - Maps Tailwind grays to church brand colors */
+@utility bg-gray-50 {
+  /* Background colors - light theme */
+  @apply bg-[#F8F7F5]!;
+
+  /* Background colors - dark theme */
+  .dark & {
+    @apply bg-[#2B2B2B]!;
+  }
+}
+@utility bg-gray-100 {
+  @apply bg-[#E8E5E1]!;
+  .dark & {
+    @apply bg-[#3E5266]!;
+  }
+}
+@utility bg-gray-200 {
+  @apply bg-[#D1CCC4]!;
+  .dark & {
+    @apply bg-[#2F5F54]!;
+  }
+}
+@utility bg-gray-300 {
+  @apply bg-[#988F83]!;
+  .dark & {
+    @apply bg-[#3E5266]!;
+  }
+}
+@utility bg-gray-700 {
+  @apply bg-[#6B6256]!;
+  .dark & {
+    @apply bg-[#3E5266]!;
+  }
+}
+@utility bg-gray-800 {
+  @apply bg-white!;
+  .dark & {
+    @apply bg-[#1F2937]!;
+  }
+}
+@utility bg-gray-900 {
+  @apply bg-[#F8F7F5]!;
+  .dark & {
+    @apply bg-[#2B2B2B]!;
+  }
+}
+@utility dark {
+  /* Background colors - dark theme */
+  & .bg-gray-50 {
+    @apply bg-[#2B2B2B]!;
+  }
+  & .bg-gray-100 {
+    @apply bg-[#3E5266]!;
+  }
+  & .bg-gray-200 {
+    @apply bg-[#2F5F54]!;
+  }
+  & .bg-gray-300 {
+    @apply bg-[#3E5266]!;
+  }
+  & .bg-gray-600 {
+    @apply bg-[#2F5F54]!;
+  }
+  & .bg-gray-700 {
+    @apply bg-[#3E5266]!;
+  }
+  & .bg-gray-800 {
+    @apply bg-[#1F2937]!;
+  }
+  & .bg-gray-900 {
+    @apply bg-[#2B2B2B]!;
+  }
+
+  /* Text colors - dark theme */
+  & .text-gray-100 {
+    @apply text-[#E8E5E1]!;
+  }
+  & .text-gray-200 {
+    @apply text-[#D1CCC4]!;
+  }
+  & .text-gray-300 {
+    @apply text-[#D1CCC4]!;
+  }
+  & .text-gray-400 {
+    @apply text-[#988F83]!;
+  }
+  & .text-gray-500 {
+    @apply text-[#988F83]!;
+  }
+
+  /* Border colors - dark theme */
+  & .border-gray-600 {
+    @apply border-[#3E5266]!;
+  }
+  & .border-gray-700 {
+    @apply border-[#2F5F54]!;
+  }
+  & .border-gray-800 {
+    @apply border-[#2B2B2B]!;
+  }
+  & .bg-green-600 {
+    @apply bg-[#39704D]!;
+  }
+  & .bg-green-700 {
+    @apply bg-[#004B3D]!;
+  }
+  & .hover\:bg-green-700:hover {
+    @apply bg-[#004B3D]!;
+  }
+  & .bg-blue-600 {
+    @apply bg-[#0047AB]!;
+  }
+  & .bg-blue-700 {
+    @apply bg-[#3E5266]!;
+  }
+  & .hover\:bg-blue-700:hover {
+    @apply bg-[#3E5266]!;
+  }
+}
+@utility bg-gray-600 {
+  .dark & {
+    @apply bg-[#2F5F54]!;
+  }
+}
+@utility text-gray-400 {
+  /* Text colors - light theme */
+  @apply text-[#988F83]!;
+  .dark & {
+    @apply text-[#988F83]!;
+  }
+}
+@utility text-gray-500 {
+  @apply text-[#988F83]!;
+  .dark & {
+    @apply text-[#988F83]!;
+  }
+}
+@utility text-gray-600 {
+  @apply text-[#6B6256]!;
+}
+@utility text-gray-700 {
+  @apply text-[#2B2B2B]!;
+}
+@utility text-gray-800 {
+  @apply text-[#2B2B2B]!;
+}
+@utility text-gray-900 {
+  @apply text-[#2B2B2B]!;
+}
+@utility text-gray-100 {
+  /* Text colors - dark theme */
+  .dark & {
+    @apply text-[#E8E5E1]!;
+  }
+}
+@utility text-gray-200 {
+  .dark & {
+    @apply text-[#D1CCC4]!;
+  }
+}
+@utility text-gray-300 {
+  .dark & {
+    @apply text-[#D1CCC4]!;
+  }
+}
+@utility border-gray-100 {
+  /* Border colors - light theme */
+  @apply border-[#E8E5E1]!;
+}
+@utility border-gray-200 {
+  @apply border-[#D1CCC4]!;
+}
+@utility border-gray-300 {
+  @apply border-[#D1CCC4]!;
+}
+@utility border-gray-600 {
+  /* Border colors - dark theme */
+  .dark & {
+    @apply border-[#3E5266]!;
+  }
+}
+@utility border-gray-700 {
+  .dark & {
+    @apply border-[#2F5F54]!;
+  }
+}
+@utility border-gray-800 {
+  .dark & {
+    @apply border-[#2B2B2B]!;
+  }
+}
+@utility bg-green-600 {
+  /* Update green to use church green */
+  @apply bg-[#39704D]!;
+  .dark & {
+    @apply bg-[#39704D]!;
+  }
+}
+@utility bg-green-700 {
+  @apply bg-[#004B3D]!;
+  .dark & {
+    @apply bg-[#004B3D]!;
+  }
+}
+@utility hover:bg-green-700 {
+  &:hover {
+    @apply bg-[#004B3D]!;
+  }
+  .dark &:hover {
+    @apply bg-[#004B3D]!;
+  }
+}
+@utility bg-blue-600 {
+  /* Update blue to use church blue */
+  @apply bg-[#0047AB]!;
+  .dark & {
+    @apply bg-[#0047AB]!;
+  }
+}
+@utility bg-blue-700 {
+  @apply bg-[#3E5266]!;
+  .dark & {
+    @apply bg-[#3E5266]!;
+  }
+}
+@utility hover:bg-blue-700 {
+  &:hover {
+    @apply bg-[#3E5266]!;
+  }
+  .dark &:hover {
+    @apply bg-[#3E5266]!;
+  }
+}
+
+/* Church Theme Variables */
+:root {
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F8F7F5;
+  --bg-tertiary: #E8E5E1;
+  --text-primary: #2B2B2B;
+  --text-secondary: #6B6256;
+  --text-muted: #988F83;
+  --border-color: #D1CCC4;
+  --accent-primary: #39704D;
+  --accent-secondary: #C9A961;
+  --accent-gold: #B8860B;
+}
+
+html.dark {
+  --bg-primary: #1F2937;
+  --bg-secondary: #2B2B2B;
+  --bg-tertiary: #3E5266;
+  --text-primary: #E8E5E1;
+  --text-secondary: #D1CCC4;
+  --text-muted: #988F83;
+  --border-color: #3E5266;
+  --accent-primary: #39704D;
+  --accent-secondary: #C9A961;
+  --accent-gold: #F4C542;
+}
+
+/* Font optimization */
+html {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-display: swap; /* Show fallback font immediately */
+}
+
+/* Override Tailwind base to fix overscroll background */
+html {
+  background-color: #FFFFFF !important;
+  /* Force scrollbar to always show to prevent layout shift */
+  overflow-y: scroll;
+}
+
+html.dark {
+  background-color: #1F2937 !important;
+}
+
+body {
+  background-color: #F8F7F5 !important;
+  overscroll-behavior: none;
+}
+
+.dark body {
+  background-color: #2B2B2B !important;
+}
+
+/* System preference fallback */
+@media (prefers-color-scheme: dark) {
+  html:not([class*="light"]) {
+    background-color: #1F2937 !important;
+  }
+  body {
+    background-color: #2B2B2B !important;
+  }
+}
+
+/* Optimize rendering for off-screen content */
+.prayer-card, .prompt-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 200px; /* Reserve approximate space */
+}
+
+/* Skeleton loader for reducing CLS */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.skeleton {
+  animation: shimmer 2s infinite linear;
+  background: linear-gradient(
+    to right,
+    #E8E5E1 0%,
+    #D1CCC4 20%,
+    #E8E5E1 40%,
+    #E8E5E1 100%
+  );
+  background-size: 1000px 100%;
+  border-radius: 0.5rem;
+}
+
+.dark .skeleton {
+  background: linear-gradient(
+    to right,
+    #3E5266 0%,
+    #2F5F54 20%,
+    #3E5266 40%,
+    #3E5266 100%
+  );
+  background-size: 1000px 100%;
+}
+
+/* Test Tailwind classes */
+.test-tailwind {
+  background-color: blue;
+  color: white;
+  padding: 1rem;
+}

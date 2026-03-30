@@ -1,0 +1,9 @@
+{
+  "outputDirectory": "dist/prayerapp/browser",
+  "devCommand": "npm start",
+  "installCommand": "npm install",
+  "framework": "angular",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

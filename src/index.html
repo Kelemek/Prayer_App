@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="msapplication-TileColor" content="#4F46E5" />
+    <!-- Viewport meta for responsive design -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
+    <meta name="description" content="Cross Pointe Church prayer request platform. Submit prayer requests, view community prayers, and stay connected with our church community." />
+    <!-- Align browser chrome/safe-area color with header background instead of green brand color -->
+    <meta name="theme-color" content="#F8F7F5" />
+    
+    <!-- Resource hints for performance -->
+    <link rel="preconnect" href="https://eqiafsygvfaifhoaewxi.supabase.co" />
+    <link rel="dns-prefetch" href="https://api.planningcenteronline.com" />
+    <!-- Inline critical CSS for faster FCP -->
+    <style>
+      :root { color-scheme: light dark; }
+      body { background-color: #f9fafb; margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
+      /* Align dark body background with app shell container so header and safe-area overlay blend consistently */
+      html.dark body { background-color: #2B2B2B; }
+      
+      /* Prevent iOS zoom on input focus */
+      input[type="text"], input[type="email"], textarea, select {
+        font-size: 16px;
+      }
+    </style>
+    <title>Cross Pointe Church - Prayer Requests</title>
+    <script>
+      // Apply theme immediately to prevent flash and sync theme-color with header
+      (function() {
+        const theme = localStorage.getItem('theme') || 'system';
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const isDark = theme === 'dark' || (theme === 'system' && prefersDark);
+
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+        }
+
+        // Update theme-color meta to match header background in light/dark
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) {
+          meta.setAttribute('content', isDark ? '#1F2937' : '#F8F7F5');
+        }
+      })();
+      
+      // Load cached logo URLs immediately to prevent flash
+      (function() {
+        const lightLogo = localStorage.getItem('branding_light_logo');
+        const darkLogo = localStorage.getItem('branding_dark_logo');
+        const useLogo = localStorage.getItem('branding_use_logo');
+        
+        if (lightLogo || darkLogo || useLogo) {
+          // Store in window object for Angular to access instantly
+          window.__cachedLogos = {
+            light: lightLogo,
+            dark: darkLogo,
+            useLogo: useLogo === 'true'
+          };
+          
+          // Add link preload hints for cached logos
+          // This tells browser to prioritize loading these images if they're data URLs
+          if (lightLogo && lightLogo.startsWith('data:')) {
+            const lightLink = document.createElement('link');
+            lightLink.rel = 'preload';
+            lightLink.as = 'image';
+            lightLink.href = lightLogo;
+            lightLink.media = '(prefers-color-scheme: light)';
+            document.head.appendChild(lightLink);
+          }
+          
+          if (darkLogo && darkLogo.startsWith('data:')) {
+            const darkLink = document.createElement('link');
+            darkLink.rel = 'preload';
+            darkLink.as = 'image';
+            darkLink.href = darkLogo;
+            darkLink.media = '(prefers-color-scheme: dark)';
+            document.head.appendChild(darkLink);
+          }
+        }
+      })();
+
+      // Mark native Capacitor app so we can scope safe-area behavior
+      (function() {
+        try {
+          if (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) {
+            document.documentElement.classList.add('native-app');
+          }
+        } catch (e) {
+          // Ignore - defaults to web behavior
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <app-root></app-root>
+  </body>
+</html>

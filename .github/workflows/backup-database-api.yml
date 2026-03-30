@@ -1,0 +1,220 @@
+name: Daily Database Backup (API Method)
+
+on:
+  schedule:
+    # Run daily at 2 AM CST (8 AM UTC)
+    - cron: '0 8 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Create backup directory
+        run: |
+          mkdir -p backups
+          echo "BACKUP_DATE=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_ENV
+      
+      - name: Install dependencies
+        run: |
+          npm install @supabase/supabase-js
+      
+      - name: Create backup script
+        run: |
+          cat > backup-script.mjs << 'EOF'
+          import { createClient } from '@supabase/supabase-js';
+          import fs from 'fs';
+
+          async function backupDatabase() {
+            const supabase = createClient(
+              process.env.SUPABASE_URL,
+              process.env.SUPABASE_SERVICE_KEY
+            );
+
+            const startTime = Date.now();
+            console.log('Discovering tables to backup...');
+            
+            // Auto-discover all tables from the database
+            const { data: tableList, error: tableError } = await supabase
+              .from('backup_tables')
+              .select('table_name')
+              .order('table_name');
+
+            if (tableError) {
+              console.error('Error fetching table list:', tableError);
+              // Fallback to hardcoded list if view doesn't exist yet
+              var tables = [
+                'admin_settings',
+                'analytics',
+                'backup_logs',
+                'email_subscribers',
+                'email_templates',
+                'prayer_prompts',
+                'prayer_types',
+                'prayer_updates',
+                'prayers',
+                'update_deletion_requests',
+                'user_preferences'
+              ];
+            } else {
+              var tables = tableList.map(t => t.table_name);
+            }
+
+            console.log(`Found ${tables.length} tables to backup:`, tables);
+
+            const backup = {
+              timestamp: new Date().toISOString(),
+              version: '1.0',
+              tables: {}
+            };
+
+            for (const table of tables) {
+              try {
+                console.log(`Backing up table: ${table}...`);
+                const { data, error } = await supabase
+                  .from(table)
+                  .select('*');
+                
+                if (error && error.code !== 'PGRST116') {
+                  console.error(`Error backing up ${table}:`, error);
+                  backup.tables[table] = { error: error.message, data: [] };
+                } else {
+                  backup.tables[table] = { count: data?.length || 0, data: data || [] };
+                  console.log(`✓ Backed up ${data?.length || 0} rows from ${table}`);
+                }
+              } catch (err) {
+                console.error(`Exception backing up ${table}:`, err);
+                backup.tables[table] = { error: err.message, data: [] };
+              }
+            }
+
+            // Save backup as JSON
+            const filename = `backups/backup_${process.env.BACKUP_DATE}.json`;
+            fs.writeFileSync(filename, JSON.stringify(backup, null, 2));
+            console.log(`\n✓ Backup saved to ${filename}`);
+
+            // Calculate duration
+            const endTime = Date.now();
+            const durationSeconds = Math.round((endTime - startTime) / 1000);
+
+            // Create summary
+            const summary = {
+              timestamp: backup.timestamp,
+              date: process.env.BACKUP_DATE,
+              type: 'api',
+              format: 'json',
+              tables: Object.keys(backup.tables).reduce((acc, table) => {
+                acc[table] = backup.tables[table].count || 0;
+                return acc;
+              }, {})
+            };
+
+            fs.writeFileSync(
+              `backups/backup_${process.env.BACKUP_DATE}_summary.json`,
+              JSON.stringify(summary, null, 2)
+            );
+
+            console.log('\nBackup Summary:');
+            console.log(JSON.stringify(summary, null, 2));
+
+            // Log backup to database (keeps free tier active)
+            const totalRecords = Object.values(summary.tables).reduce((sum, count) => sum + count, 0);
+            
+            try {
+              const { error: logError } = await supabase
+                .from('backup_logs')
+                .insert({
+                  backup_date: new Date().toISOString(),
+                  status: 'success',
+                  tables_backed_up: summary.tables,
+                  total_records: totalRecords,
+                  duration_seconds: durationSeconds
+                });
+
+              if (logError) {
+                console.error('Warning: Failed to log backup to database:', logError);
+              } else {
+                console.log('✓ Backup logged to database');
+              }
+            } catch (logErr) {
+              console.error('Warning: Exception logging backup:', logErr);
+            }
+
+            // Clean up old backup logs (keep last 30 days)
+            try {
+              const thirtyDaysAgo = new Date();
+              thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+              
+              const { data: deletedLogs, error: deleteError } = await supabase
+                .from('backup_logs')
+                .delete()
+                .lt('created_at', thirtyDaysAgo.toISOString())
+                .select('id');
+
+              if (deleteError) {
+                console.error('Warning: Failed to clean up old backup logs:', deleteError);
+              } else if (deletedLogs && deletedLogs.length > 0) {
+                console.log(`✓ Cleaned up ${deletedLogs.length} old backup log(s)`);
+              } else {
+                console.log('✓ No old backup logs to clean up');
+              }
+            } catch (cleanupErr) {
+              console.error('Warning: Exception cleaning up old logs:', cleanupErr);
+            }
+          }
+
+          backupDatabase().catch(async err => {
+            console.error('Backup failed:', err);
+            
+            // Try to log the failure
+            try {
+              const supabase = createClient(
+                process.env.SUPABASE_URL,
+                process.env.SUPABASE_SERVICE_KEY
+              );
+              
+              await supabase.from('backup_logs').insert({
+                backup_date: new Date().toISOString(),
+                status: 'failed',
+                error_message: err.message || String(err),
+                total_records: 0
+              });
+            } catch (logErr) {
+              console.error('Could not log failure:', logErr);
+            }
+            
+            process.exit(1);
+          });
+          EOF
+      
+      - name: Run backup
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          BACKUP_DATE: ${{ env.BACKUP_DATE }}
+        run: |
+          node backup-script.mjs
+      
+      - name: Compress backup
+        run: |
+          cd backups
+          gzip backup_${BACKUP_DATE}.json
+          echo "✓ Backup compressed"
+      
+      - name: Upload backup as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-backup-${{ env.BACKUP_DATE }}
+          path: backups/backup_${{ env.BACKUP_DATE }}.json.gz
+          retention-days: 30

@@ -1,0 +1,452 @@
+import { Component, OnInit, Injector, NgZone, ChangeDetectorRef, HostListener } from '@angular/core';
+import { Router, RouterOutlet, NavigationEnd } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { Capacitor } from '@capacitor/core';
+import { ToastContainerComponent } from './components/toast-container/toast-container.component';
+import { AdminDataService } from './services/admin-data.service';
+import { filter } from 'rxjs';
+
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [CommonModule, RouterOutlet, ToastContainerComponent],
+  template: `
+    <ng-container>
+      <div class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+        <router-outlet></router-outlet>
+        <app-toast-container></app-toast-container>
+      </div>
+    </ng-container>
+  `,
+  styles: []
+})
+export class AppComponent implements OnInit {
+  title = 'prayerapp';
+  private lastVisibilityState = !document.hidden;
+
+  constructor(
+    private router: Router,
+    private injector: Injector,
+    private ngZone: NgZone,
+    private cdr: ChangeDetectorRef
+  ) {
+    // Add native-app class immediately so bottom blur strip shows before first paint
+    if (Capacitor.isNativePlatform()) {
+      document.documentElement.classList.add('native-app');
+    }
+    // Set up global error handler for unhandled errors
+    this.setupGlobalErrorHandler();
+    // Listen for navigation events and scroll to top on mobile
+    this.setupScrollToTopOnNavigation();
+    // Initialize Capacitor for mobile apps
+    this.initializeCapacitor();
+  }
+
+  /**
+   * Initialize Capacitor service for mobile app features.
+   * Also inject PushNotificationService so it subscribes to pushToken$ and stores device tokens in the backend.
+   */
+  private async initializeCapacitor(): Promise<void> {
+    try {
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor.isNativePlatform()) {
+        document.documentElement.classList.add('native-app');
+      }
+      const { CapacitorService } = await import('./services/capacitor.service');
+      const { PushNotificationService } = await import('./services/push-notification.service');
+      this.injector.get(CapacitorService);
+      this.injector.get(PushNotificationService);
+    } catch (error) {
+      console.debug('Capacitor service not available (running on web)', error);
+    }
+  }
+
+  /**
+   * Setup router navigation listener to scroll to top
+   * Critical for mobile (iOS/Edge) where scroll position can get stuck
+   */
+  private setupScrollToTopOnNavigation(): void {
+    this.router.events
+      .pipe(filter(event => event instanceof NavigationEnd))
+      .subscribe(() => {
+        // Small delay to ensure DOM is updated
+        setTimeout(() => {
+          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          // Also try setting document scroll for older browsers
+          if (document.documentElement) {
+            document.documentElement.scrollTop = 0;
+          }
+          if (document.body) {
+            document.body.scrollTop = 0;
+          }
+        }, 0);
+      });
+  }
+
+  /**
+   * Set up a global error handler to catch uncaught errors and prevent blank pages
+   */
+  private setupGlobalErrorHandler(): void {
+    // Catch unhandled promise rejections
+    this.ngZone.run(() => {
+      window.addEventListener('unhandledrejection', (event) => {
+        console.error('[GlobalErrorHandler] Unhandled promise rejection:', event.reason);
+        // Don't auto-reload - let the app handle recovery gracefully
+      });
+
+      // Catch global errors
+      window.addEventListener('error', (event) => {
+        console.error('[GlobalErrorHandler] Global error:', event.error);
+        // Don't auto-reload - let the app handle recovery gracefully
+      });
+    });
+  }
+
+  /**
+   * Handle window focus event - Edge on iOS needs explicit change detection trigger
+   * Safari handles this automatically, but Edge doesn't always
+   */
+  @HostListener('window:focus')
+  onWindowFocus(): void {
+    console.log('[AppComponent] Window regained focus, triggering change detection');
+    this.lastVisibilityState = !document.hidden;
+    // Force change detection on focus
+    this.cdr.markForCheck();
+    this.cdr.detectChanges();
+    this.triggerDOMRecoveryIfNeeded();
+  }
+
+  /**
+   * Handle visibility change - critical for Edge on iOS
+   * When app returns from background, manually trigger recovery
+   */
+  @HostListener('document:visibilitychange')
+  onVisibilityChange(): void {
+    if (!document.hidden && this.lastVisibilityState === true) {
+      console.log('[AppComponent] Page became visible, triggering change detection and recovery');
+      this.lastVisibilityState = !document.hidden;
+      
+      // Force change detection
+      this.cdr.markForCheck();
+      this.cdr.detectChanges();
+      
+      // Check DOM integrity
+      this.triggerDOMRecoveryIfNeeded();
+    }
+    this.lastVisibilityState = !document.hidden;
+  }
+
+  /**
+   * Check if router-outlet is still attached to DOM
+   * On Edge/iOS, the DOM can be detached during background suspension
+   */
+  private triggerDOMRecoveryIfNeeded(): void {
+    try {
+      const appRoot = document.querySelector('app-root');
+      const routerOutlet = document.querySelector('router-outlet');
+      
+      if (appRoot && routerOutlet) {
+        // Check if router outlet is actually in the DOM tree
+        if (!appRoot.contains(routerOutlet)) {
+          console.warn('[AppComponent] RouterOutlet detached from DOM, triggering recovery');
+          // Dispatch recovery event for services to listen to
+          window.dispatchEvent(new CustomEvent('app-became-visible'));
+        }
+      }
+      
+      // Also check if any content is actually being rendered
+      const content = document.querySelector('[role="main"], main, .content, [class*="prayer"], [class*="card"]');
+      if (!content && !document.hidden) {
+        console.warn('[AppComponent] No content detected, may need recovery');
+        // Give a small delay for async data loading
+        setTimeout(() => {
+          this.cdr.detectChanges();
+        }, 100);
+      }
+    } catch (err) {
+      console.debug('[AppComponent] DOM recovery check failed:', err);
+    }
+  }
+
+  ngOnInit() {
+    this.handleApprovalCode();
+    this.setupPushRefreshListener();
+  }
+
+  /**
+   * Handle approval code in URL for one-time admin login
+   * Admin services are lazy loaded only when approval code is present
+   */
+  private async handleApprovalCode() {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+
+    if (!code) return;
+
+    // Check for account approval/denial codes first
+    if (code.startsWith('account_approve_') || code.startsWith('account_deny_')) {
+      await this.handleAccountApprovalCode(code);
+      return;
+    }
+
+    // For other approval codes, just navigate to admin
+    // Admin guard will redirect to login if not authenticated
+    window.history.replaceState({}, '', window.location.pathname);
+    this.router.navigate(['/admin']);
+  }
+
+  private async handleAccountApprovalCode(code: string) {
+    try {
+      // Lazy load required services
+      const { ApprovalLinksService } = await import('./services/approval-links.service');
+      const { SupabaseService } = await import('./services/supabase.service');
+      const { EmailNotificationService } = await import('./services/email-notification.service');
+      const { ToastService } = await import('./services/toast.service');
+      
+      const approvalLinks = this.injector.get(ApprovalLinksService);
+      const supabase = this.injector.get(SupabaseService);
+      const emailService = this.injector.get(EmailNotificationService);
+      const toast = this.injector.get(ToastService);
+      
+      // Decode the code to get email and action type
+      const decoded = approvalLinks.decodeAccountCode(code);
+      
+      if (!decoded) {
+        console.error('Invalid account approval code format');
+        toast.showToast('Invalid approval link', 'error');
+        this.router.navigate(['/login']);
+        return;
+      }
+
+      // Get the approval request from database
+      const { data: requests, error: fetchError } = await supabase.directQuery<{
+        id: string;
+        email: string;
+        first_name: string;
+        last_name: string;
+        approval_status: string;
+      }>(
+        'account_approval_requests',
+        {
+          select: 'id, email, first_name, last_name, approval_status',
+          eq: { email: decoded.email.toLowerCase() },
+          limit: 1
+        }
+      );
+
+      if (fetchError || !requests || !Array.isArray(requests) || requests.length === 0) {
+        console.error('Account approval request not found:', fetchError);
+        toast.showToast('Approval request not found', 'error');
+        this.router.navigate(['/login']);
+        return;
+      }
+
+      const request = requests[0];
+
+      if (request.approval_status !== 'pending') {
+        toast.showToast(`This request has already been ${request.approval_status}`, 'info');
+        this.router.navigate(['/login']);
+        return;
+      }
+
+      if (decoded.type === 'approve') {
+        // Check Planning Center status for the email
+        let inPlanningCenter: boolean | null = null;
+        let planningCenterCheckedAt: string | null = null;
+        
+        try {
+          const { lookupPersonByEmail } = await import('../lib/planning-center');
+          const { environment } = await import('../environments/environment');
+          
+          const pcResult = await lookupPersonByEmail(
+            request.email.toLowerCase(),
+            environment.supabaseUrl,
+            environment.supabaseAnonKey
+          );
+          inPlanningCenter = pcResult.count > 0;
+          planningCenterCheckedAt = new Date().toISOString();
+          console.log(`[AccountApproval] Planning Center check for ${request.email}: ${inPlanningCenter}`);
+        } catch (pcError) {
+          console.error('[AccountApproval] Planning Center lookup failed:', pcError);
+          // Continue with null values if check fails - don't block approval
+        }
+
+        // Approve the account - add to email_subscribers
+        const { error: insertError } = await supabase.directMutation(
+          'email_subscribers',
+          {
+            method: 'POST',
+            body: {
+              email: request.email.toLowerCase(),
+              name: `${request.first_name} ${request.last_name}`,
+              is_active: true,
+              is_admin: false,
+              receive_admin_emails: false,
+              in_planning_center: inPlanningCenter,
+              planning_center_checked_at: planningCenterCheckedAt
+            },
+            returning: false
+          }
+        );
+
+        if (insertError) {
+          console.error('Failed to create subscriber:', insertError);
+          toast.showToast('Failed to approve account', 'error');
+          this.router.navigate(['/login']);
+          return;
+        }
+
+        // Delete the approval request
+        await supabase.directMutation(
+          'account_approval_requests',
+          {
+            method: 'DELETE',
+            eq: { id: request.id },
+            returning: false
+          }
+        );
+
+        // Send approval email to user
+        try {
+          const template = await emailService.getTemplate('account_approved');
+          if (template) {
+            const subject = emailService.applyTemplateVariables(template.subject, {
+              firstName: request.first_name
+            });
+            const html = emailService.applyTemplateVariables(template.html_body, {
+              firstName: request.first_name,
+              lastName: request.last_name,
+              email: request.email,
+              loginLink: `${emailService.getEmailBaseUrl()}/login`
+            });
+            const text = emailService.applyTemplateVariables(template.text_body, {
+              firstName: request.first_name,
+              lastName: request.last_name,
+              email: request.email,
+              loginLink: `${emailService.getEmailBaseUrl()}/login`
+            });
+
+            await emailService.sendEmail({
+              to: request.email,
+              subject,
+              htmlBody: html,
+              textBody: text
+            });
+          }
+        } catch (emailError) {
+          console.error('Failed to send approval email:', emailError);
+        }
+
+        toast.showToast(`Account approved for ${request.first_name} ${request.last_name}`, 'success');
+      } else {
+        // Deny the account - delete the request
+        await supabase.directMutation(
+          'account_approval_requests',
+          {
+            method: 'DELETE',
+            eq: { id: request.id },
+            returning: false
+          }
+        );
+
+        // Send denial email to user
+        try {
+          const template = await emailService.getTemplate('account_denied');
+          if (template) {
+            const subject = emailService.applyTemplateVariables(template.subject, {
+              firstName: request.first_name
+            });
+            const html = emailService.applyTemplateVariables(template.html_body, {
+              firstName: request.first_name,
+              lastName: request.last_name,
+              supportEmail: 'support@example.com' // TODO: Get from settings
+            });
+            const text = emailService.applyTemplateVariables(template.text_body, {
+              firstName: request.first_name,
+              lastName: request.last_name,
+              supportEmail: 'support@example.com'
+            });
+
+            await emailService.sendEmail({
+              to: request.email,
+              subject,
+              htmlBody: html,
+              textBody: text
+            });
+          }
+        } catch (emailError) {
+          console.error('Failed to send denial email:', emailError);
+        }
+
+        toast.showToast(`Account denied for ${request.first_name} ${request.last_name}`, 'info');
+      }
+
+      // Clear URL params and navigate
+      window.history.replaceState({}, '', window.location.pathname);
+      this.router.navigate(['/login']);
+    } catch (error) {
+      console.error('Error handling account approval code:', error);
+      try {
+        const { ToastService } = await import('./services/toast.service');
+        const toast = this.injector.get(ToastService) as { showToast?: (msg: string, type: string) => void };
+        if (toast && typeof toast.showToast === 'function') {
+          toast.showToast('Failed to process approval', 'error');
+        }
+      } catch (toastError) {
+        console.error('Failed to show approval error toast:', toastError);
+      }
+      this.router.navigate(['/login']);
+    }
+  }
+
+  /**
+   * Subscribe to native push notification events and refresh prayers when relevant.
+   * This only has effect in the Capacitor (native) app where push notifications are active.
+   */
+  private async setupPushRefreshListener(): Promise<void> {
+    try {
+      const { CapacitorService } = await import('./services/capacitor.service');
+      const { PrayerService } = await import('./services/prayer.service');
+
+      const capacitorService = this.injector.get(CapacitorService);
+      const prayerService = this.injector.get(PrayerService);
+
+      capacitorService.notificationEvents$
+        .pipe(
+          filter((event) => event.source === 'tap'),
+          filter((event) =>
+            event.type === 'prayer_update' ||
+            event.type === 'prayer_approved' ||
+            event.type === 'update_approved'
+          )
+        )
+        .subscribe((event) => {
+          console.log('[AppComponent] Push notification tapped, refreshing prayers:', event);
+          prayerService.loadPrayers(false).catch((err) => {
+            console.error('[AppComponent] Failed to refresh prayers after push:', err);
+          });
+        });
+
+      // Navigate to admin when an admin push notification is tapped
+      capacitorService.notificationEvents$
+        .pipe(
+          filter((event) => event.source === 'tap'),
+          filter((event) => event.data?.['target'] === 'admin')
+        )
+        .subscribe(() => {
+          // Pre-fetch admin data so the approval list is ready when the page loads.
+          // Run in NgZone so change detection runs when the app was resumed from background.
+          const adminDataService = this.injector.get(AdminDataService);
+          adminDataService.fetchAdminData(false, true).catch((err) => {
+            console.error('[AppComponent] Failed to pre-fetch admin data after push tap:', err);
+          });
+          this.ngZone.run(() => {
+            this.router.navigate(['/admin']);
+          });
+        });
+    } catch (error) {
+      // Likely running on web where Capacitor/PrayerService lazy imports may not be needed
+      console.debug('[AppComponent] Push refresh listener not initialized (probably web):', error);
+    }
+  }
+}

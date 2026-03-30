@@ -1,0 +1,181 @@
+name: Restore Database from Backup
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_artifact_run_id:
+        description: 'Run ID of the backup workflow (find in Actions URL)'
+        required: true
+        type: string
+      confirm:
+        description: 'Type "RESTORE" to confirm (THIS WILL OVERWRITE YOUR DATABASE)'
+        required: true
+        type: string
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "RESTORE" ]; then
+            echo "❌ Confirmation failed. You must type 'RESTORE' to proceed."
+            exit 1
+          fi
+          echo "✅ Confirmation received"
+      
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: npm install @supabase/supabase-js
+      
+      - name: Download backup artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.inputs.backup_artifact_run_id }}
+          path: backups/
+      
+      - name: Find and decompress backup
+        run: |
+          echo "Looking for backup files..."
+          ls -R backups/
+          
+          # Find the .json.gz file
+          BACKUP_FILE=$(find backups -name "*.json.gz" -type f | head -n 1)
+          
+          if [ -z "$BACKUP_FILE" ]; then
+            echo "❌ No backup file found!"
+            exit 1
+          fi
+          
+          echo "Found backup: $BACKUP_FILE"
+          
+          # Decompress
+          gunzip -f "$BACKUP_FILE"
+          
+          # Get the decompressed filename
+          JSON_FILE="${BACKUP_FILE%.gz}"
+          echo "BACKUP_JSON=$JSON_FILE" >> $GITHUB_ENV
+          echo "✅ Backup decompressed to: $JSON_FILE"
+      
+      - name: Create restore script
+        run: |
+          cat > restore-script.mjs << 'EOF'
+          import { createClient } from '@supabase/supabase-js';
+          import fs from 'fs';
+
+          const supabaseUrl = process.env.SUPABASE_URL;
+          const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+          const backupFile = process.env.BACKUP_JSON;
+
+          if (!supabaseUrl || !supabaseKey || !backupFile) {
+            console.error('Missing required environment variables');
+            process.exit(1);
+          }
+
+          const supabase = createClient(supabaseUrl, supabaseKey);
+
+          async function restoreDatabase() {
+            console.log('🔄 Starting database restore...\n');
+            
+            const backupData = JSON.parse(fs.readFileSync(backupFile, 'utf8'));
+            
+            // Tables in order (respecting foreign key dependencies)
+            const tables = [
+              'prayer_types',
+              'prayers',
+              'prayer_updates',
+              'prayer_prompts',
+              'email_subscribers',
+              'user_preferences',
+              'update_deletion_requests',
+              'admin_settings',
+              'analytics'
+            ];
+
+            let totalRestored = 0;
+
+            for (const tableName of tables) {
+              if (!backupData[tableName] || !Array.isArray(backupData[tableName])) {
+                console.log(`⚠️  Skipping ${tableName} (no data)`);
+                continue;
+              }
+
+              const records = backupData[tableName];
+              
+              if (records.length === 0) {
+                console.log(`⚠️  Skipping ${tableName} (empty)`);
+                continue;
+              }
+
+              console.log(`\n📥 Restoring ${tableName}...`);
+              
+              // Delete existing data
+              console.log(`   Deleting existing records...`);
+              const { error: deleteError } = await supabase
+                .from(tableName)
+                .delete()
+                .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+
+              if (deleteError) {
+                console.error(`   ❌ Error deleting from ${tableName}:`, deleteError);
+                continue;
+              }
+
+              // Insert in batches of 100
+              const batchSize = 100;
+              let restored = 0;
+
+              for (let i = 0; i < records.length; i += batchSize) {
+                const batch = records.slice(i, i + batchSize);
+                
+                const { error: insertError } = await supabase
+                  .from(tableName)
+                  .insert(batch);
+
+                if (insertError) {
+                  console.error(`   ❌ Error inserting batch into ${tableName}:`, insertError);
+                  continue;
+                }
+
+                restored += batch.length;
+                process.stdout.write(`   Progress: ${restored}/${records.length} records\r`);
+              }
+
+              console.log(`   ✅ Restored ${restored} records`);
+              totalRestored += restored;
+            }
+
+            console.log(`\n✅ Restore complete! Total records: ${totalRestored}`);
+          }
+
+          restoreDatabase().catch(err => {
+            console.error('❌ Restore failed:', err);
+            process.exit(1);
+          });
+          EOF
+      
+      - name: Run restore
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          BACKUP_JSON: ${{ env.BACKUP_JSON }}
+        run: |
+          echo "🔄 Running restore..."
+          node restore-script.mjs
+          echo "✅ Database restore completed!"
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf backups/
+          rm -f restore-script.mjs
+          echo "✅ Cleanup complete"

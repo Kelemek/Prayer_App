@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Cross Pointe Church prayer request platform. Submit prayer requests, view community prayers, and stay connected with our church community." />
+    <meta name="theme-color" content="#ffffff" />
+    <!-- Resource hints for performance -->
+    <link rel="preconnect" href="https://eqiafsygvfaifhoaewxi.supabase.co" />
+    <link rel="dns-prefetch" href="https://api.planningcenteronline.com" />
+    <!-- Inline critical CSS for faster FCP -->
+    <style>
+      :root { color-scheme: light dark; }
+      body { background-color: #f9fafb; }
+      html.dark body { background-color: #111827; }
+    </style>
+    <title>Cross Pointe Church - Prayer Requests</title>
+    <script>
+      // Apply theme immediately to prevent flash
+      (function() {
+        const theme = localStorage.getItem('theme') || 'system';
+        if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+      
+      // Load cached logo URLs immediately to prevent flash
+      (function() {
+        const lightLogo = localStorage.getItem('branding_light_logo');
+        const darkLogo = localStorage.getItem('branding_dark_logo');
+        const useLogo = localStorage.getItem('branding_use_logo');
+        
+        if (lightLogo || darkLogo || useLogo) {
+          // Store in window object for React to access instantly
+          window.__cachedLogos = {
+            light: lightLogo,
+            dark: darkLogo,
+            useLogo: useLogo === 'true'
+          };
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

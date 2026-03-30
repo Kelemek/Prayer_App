@@ -1,0 +1,26 @@
+# robots.txt for Prayer App
+# Allow all search engines to crawl the site
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /.env
+Disallow: /.git
+Disallow: /node_modules
+
+# Specific rules for Googlebot
+User-agent: Googlebot
+Allow: /
+
+# Specific rules for Bingbot
+User-agent: Bingbot
+Allow: /
+
+# Specific rules for other crawlers
+User-agent: *
+Allow: /presentation
+Allow: /mobile-presentation
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://prayers.example.com/sitemap.xml

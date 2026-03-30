@@ -1,0 +1,49 @@
+import * as Sentry from '@sentry/angular';
+import { environment } from '../environments/environment';
+
+export function initializeSentry(): void {
+  const dsn = environment.sentryDsn;
+
+  if (!dsn) {
+    if (!environment.production) {
+      console.debug('Sentry DSN not configured');
+    }
+    return;
+  }
+
+  try {
+    Sentry.init({
+      dsn: dsn,
+      environment: environment.production ? 'production' : 'development',
+      tracesSampleRate: 0.1,
+      release: '1.0.0',
+      integrations: [
+        Sentry.browserTracingIntegration(),
+        Sentry.replayIntegration()
+      ],
+      replaysSessionSampleRate: 0.1,
+      replaysOnErrorSampleRate: 1.0,
+      ignoreErrors: [
+        'top.GLOBALS',
+        'chrome-extension://',
+        'moz-extension://',
+        'error:addon_install_cancelled',
+        'NetworkError',
+        'Failed to fetch',
+        'Permission denied',
+      ],
+      beforeSend(event) {
+        // Don't send errors in development
+        if (!environment.production) {
+          return null;
+        }
+        return event;
+      },
+    });
+    
+    // Expose Sentry globally for manual testing
+    (window as any).Sentry = Sentry;
+  } catch (error) {
+    console.error('❌ Failed to initialize Sentry:', error);
+  }
+}

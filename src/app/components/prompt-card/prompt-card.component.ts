@@ -1,0 +1,174 @@
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Observable, BehaviorSubject, Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
+import { BadgeService } from '../../services/badge.service';
+import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
+
+export interface PrayerPrompt {
+  id: string;
+  title: string;
+  type: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+@Component({
+  selector: 'app-prompt-card',
+  standalone: true,
+  imports: [CommonModule, ConfirmationDialogComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="prompt-card bg-white dark:bg-gray-800 rounded-lg shadow-md border-[2px] !border-[#988F83] dark:!border-[#988F83] p-6 mb-4 hover:shadow-lg transition-shadow relative">
+      <!-- Header -->
+      <div class="flex items-start justify-between mb-4">
+        <div class="flex items-center gap-2 flex-1">
+          <svg class="text-[#988F83] dark:text-[#988F83] w-[24px] h-[24px] flex-shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 18h6"></path>
+            <path d="M10 22h4"></path>
+            <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"></path>
+          </svg>
+          <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300">
+            {{ prompt.title }}
+          </h3>
+        </div>
+        <div class="flex items-center gap-2 ml-4">
+          <!-- Type Badge -->
+          <button
+            (click)="onTypeClick.emit(prompt.type)"
+            [class]="'inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors cursor-pointer ' + (isTypeSelected ? 'bg-[#988F83] text-white shadow-md hover:bg-[#7a6e67]' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600')"
+            [title]="isTypeSelected ? 'Remove ' + prompt.type + ' filter' : 'Filter by ' + prompt.type"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+              <line x1="7" y1="7" x2="7.01" y2="7"></line>
+            </svg>
+            {{ prompt.type }}
+          </button>
+          @if (isAdmin) {
+          <button
+            (click)="handleDelete()"
+            class="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors cursor-pointer"
+            title="Delete prompt"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+          </button>
+          }
+        </div>
+      </div>
+
+      <!-- Badge in top-right corner -->
+      @if ((promptBadge$ | async) && (badgeService.getBadgeFunctionalityEnabled$() | async)) {
+        <button
+          (click)="markPromptAsRead()"
+          class="absolute -top-2 -right-2 inline-flex items-center justify-center w-6 h-6 bg-[#39704D] dark:bg-[#39704D] text-white rounded-full text-xs font-bold hover:bg-[#2d5a3f] dark:hover:bg-[#2d5a3f] focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors"
+          title="Mark as read"
+          aria-label="Mark prompt as read"
+        >
+          1
+        </button>
+      }
+
+      <!-- Description -->
+      <p class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+        {{ prompt.description }}
+      </p>
+
+      <!-- Confirmation Dialog -->
+      @if (showConfirmationDialog) {
+      <app-confirmation-dialog
+        [title]="'Delete Prayer Prompt'"
+        [message]="'Are you sure you want to delete this prayer prompt?'"
+        [isDangerous]="true"
+        [confirmText]="'Delete'"
+        (confirm)="onConfirmDelete()"
+        (cancel)="onCancelDelete()">
+      </app-confirmation-dialog>
+      }
+    </div>
+  `,
+  styles: []
+})
+export class PromptCardComponent implements OnInit, OnDestroy {
+  @Input() prompt!: PrayerPrompt;
+  @Input() isAdmin = false;
+  @Input() isTypeSelected = false;
+  
+  @Output() delete = new EventEmitter<string>();
+  @Output() onTypeClick = new EventEmitter<string>();
+
+  promptBadge$: Observable<boolean> | null = null;
+  showConfirmationDialog = false;
+  private storageListener: ((event: StorageEvent) => void) | null = null;
+  private promptBadgeSubject$ = new BehaviorSubject<boolean>(false);
+  private destroy$ = new Subject<void>();
+
+  constructor(public badgeService: BadgeService) {}
+
+  ngOnInit(): void {
+    // Initialize badge by checking if prompt is unread
+    this.initializePromptBadge();
+    this.promptBadge$ = this.promptBadgeSubject$.asObservable();
+
+    // Listen to badge changes from badge service
+    this.badgeService.getUpdateBadgesChanged$()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.updatePromptBadge();
+      });
+
+    // Listen to storage changes to ensure badge updates
+    this.storageListener = (event: StorageEvent) => {
+      if (event.key === 'read_prompts_data') {
+        this.updatePromptBadge();
+      }
+    };
+
+    window.addEventListener('storage', this.storageListener);
+  }
+
+  ngOnDestroy(): void {
+    if (this.storageListener) {
+      window.removeEventListener('storage', this.storageListener);
+    }
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  /**
+   * Initialize the prompt badge based on badge service state
+   */
+  private initializePromptBadge(): void {
+    const isUnread = this.badgeService.isPromptUnread(this.prompt.id);
+    this.promptBadgeSubject$.next(isUnread);
+  }
+
+  /**
+   * Update the prompt badge based on current badge service state
+   */
+  private updatePromptBadge(): void {
+    const isUnread = this.badgeService.isPromptUnread(this.prompt.id);
+    this.promptBadgeSubject$.next(isUnread);
+  }
+
+  handleDelete(): void {
+    this.showConfirmationDialog = true;
+  }
+
+  onConfirmDelete(): void {
+    this.delete.emit(this.prompt.id);
+    this.showConfirmationDialog = false;
+  }
+
+  onCancelDelete(): void {
+    this.showConfirmationDialog = false;
+  }
+
+  markPromptAsRead(): void {
+    this.badgeService.markPromptAsRead(this.prompt.id);
+  }
+}
