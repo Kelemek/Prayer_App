@@ -340,17 +340,21 @@ export class AdminAuthService {
       }
 
       // Use existing send-verification-code function with admin_login action
-      const { data, error } = await this.supabase.client.functions.invoke('send-verification-code', {
-        body: {
-          email,
-          actionType: 'admin_login',
-          actionData: { timestamp: new Date().toISOString() }
+      const { data, error, response } = await this.supabase.client.functions.invoke(
+        'send-verification-code',
+        {
+          body: {
+            email,
+            actionType: 'admin_login',
+            actionData: { timestamp: new Date().toISOString() }
+          }
         }
-      });
+      );
 
       if (error) {
         console.error('[AdminAuth] Send verification code error:', error);
-        return { success: false, error: error.message };
+        const message = await this.supabase.describeFunctionInvokeFailure(error, response);
+        return { success: false, error: message };
       }
 
       if (data.error) {
@@ -381,12 +385,16 @@ export class AdminAuthService {
    */
   private async isEmailAdmin(email: string): Promise<boolean> {
     try {
-      const { data, error } = await this.supabase.client.functions.invoke('check-admin-status', {
-        body: { email }
-      });
+      const { data, error, response } = await this.supabase.client.functions.invoke(
+        'check-admin-status',
+        {
+          body: { email }
+        }
+      );
 
       if (error) {
-        console.error('[AdminAuth] Error checking admin status:', error);
+        const detail = await this.supabase.describeFunctionInvokeFailure(error, response);
+        console.error('[AdminAuth] Error checking admin status:', error, detail);
         return false;
       }
 
@@ -413,7 +421,7 @@ export class AdminAuthService {
       }
 
       // Use existing verify-code function
-      const { data, error } = await this.supabase.client.functions.invoke('verify-code', {
+      const { data, error, response } = await this.supabase.client.functions.invoke('verify-code', {
         body: {
           codeId,
           code
@@ -422,11 +430,7 @@ export class AdminAuthService {
 
       if (error) {
         console.error('[AdminAuth] Verify code error:', error);
-        // Provide user-friendly error message
-        let errorMessage = 'The verification code you entered is incorrect. Please try again.';
-        if (error.message && error.message.includes('non-2xx')) {
-          errorMessage = 'The verification code you entered is incorrect. Please try again.';
-        }
+        const errorMessage = await this.supabase.describeFunctionInvokeFailure(error, response);
         return { success: false, error: errorMessage };
       }
 

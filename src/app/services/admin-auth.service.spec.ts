@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { Router } from '@angular/router';
 import { Injector } from '@angular/core';
 import { SupabaseService } from './supabase.service';
+import { describeFunctionInvokeFailure } from '../utils/supabase-function-invoke-error';
 import { PrayerEncouragementService } from './prayer-encouragement.service';
 import { PushNotificationService } from './push-notification.service';
 import { firstValueFrom } from 'rxjs';
@@ -97,6 +98,7 @@ describe('AdminAuthService', () => {
     // Create mock SupabaseService
     mockSupabaseService = {
       client: mockSupabaseClient,
+      describeFunctionInvokeFailure,
       directQuery: vi.fn().mockResolvedValue({ data: null, error: null }),
       getSupabaseUrl: () => 'https://test.supabase.co',
       getPublishableKey: () => 'test-publishable-key-123'
@@ -407,15 +409,27 @@ describe('AdminAuthService', () => {
       localStorage.setItem('mfa_code_id', 'code123');
       localStorage.setItem('mfa_user_email', 'test@example.com');
 
+      const res = new Response(
+        JSON.stringify({
+          error: 'Invalid verification code',
+          details: 'The code you entered is incorrect'
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
       mockSupabaseClient.functions.invoke = vi.fn().mockResolvedValue({
         data: null,
-        error: { message: 'Edge Function returned a non-2xx status code' }
+        error: {
+          name: 'FunctionsHttpError',
+          message: 'Edge Function returned a non-2xx status code',
+          context: res
+        },
+        response: res
       });
 
       const result = await service.verifyMfaCode('000000');
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('The verification code you entered is incorrect. Please try again.');
+      expect(result.error).toBe('The code you entered is incorrect. Please check and try again.');
     });
 
     it('should handle service error with specific Invalid verification code message', async () => {

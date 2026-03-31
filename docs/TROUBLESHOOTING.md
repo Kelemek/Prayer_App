@@ -346,6 +346,62 @@ supabase functions deploy send-notification --no-verify-jwt
 }
 ```
 
+### HTTP 401 on `send-verification-code` (admin MFA / email codes)
+
+**Symptoms**: Browser Network tab shows `401` on `…/functions/v1/send-verification-code`. Logs may show `FunctionsHttpError`.
+
+**Cause**: Supabase is rejecting the request **before** your function code runs. Common cases:
+
+1. **JWT verification is enabled** on that function. Admin MFA runs **before** any Supabase Auth session, so there is no user JWT. This function must allow anonymous invokes.
+
+**Fix** — redeploy with JWT verification off (matches `supabase/functions/send-verification-code/deno.json` → `"verify_jwt": false`):
+
+```bash
+supabase functions deploy send-verification-code --no-verify-jwt
+```
+
+Or from the repo: `bash scripts/deploy-functions.sh send-verification-code`
+
+In the Supabase Dashboard you can also open **Edge Functions → send-verification-code → Settings** and disable enforcing JWT / verify the same behavior as `--no-verify-jwt` for your project.
+
+2. **Wrong API key** — `VITE_SUPABASE_PUBLISHABLE_KEY` / `environment.supabasePublishableKey` must be the **publishable (anon) key for the same project** as `VITE_SUPABASE_URL`. A key from another project or a revoked key can surface as 401.
+
+### HTTP 401 on `send-email` (logs inside `send-verification-code` or cron functions)
+
+**Symptoms**: `send-verification-code` returns success for storing the code, but logs show `Email send error: FunctionsHttpError` with **401** and URL `…/functions/v1/send-email`.
+
+**Cause**: `send-email` is invoked **from other Edge Functions** using the Supabase client + **service role** (no end-user JWT). If JWT verification is **enabled** on `send-email`, the gateway returns **401** before your handler runs.
+
+**Fix**: Deploy `send-email` with JWT verification off (see `supabase/functions/send-email/deno.json` → `"verify_jwt": false`):
+
+```bash
+supabase functions deploy send-email --no-verify-jwt
+```
+
+Or: `bash scripts/deploy-functions.sh send-email`
+
+The same applies if **`send-prayer-reminders`** or **`send-user-hourly-prayer-reminders`** fail when calling `send-email`.
+
+### "Failed to send a request to the Edge Function" (MFA / verification email)
+
+This message comes from the Supabase client when the **browser never got an HTTP response** from the Edge Function URL (network failure, blocked request, or wrong project host). It is **not** the same as "wrong MFA code" (that path returns HTTP 400 with a JSON body).
+
+**Check:**
+
+1. **`send-verification-code` is deployed** to the **same** Supabase project as `VITE_SUPABASE_URL` / `environment.supabaseUrl`:
+   ```bash
+   supabase functions deploy send-verification-code --no-verify-jwt
+   ```
+   Or use `scripts/deploy-functions.sh send-verification-code` (from the repo root).
+
+2. **App points at the right project** — local `environment.ts` and `.env.local` must match the project where you deployed functions (not an old or paused project).
+
+3. **Network / privacy tools** — ad blockers, VPNs, corporate proxies, or strict mobile filters sometimes block `*.supabase.co`. Try another network or disable blockers briefly.
+
+4. **Native (Capacitor)** — ensure the app can reach HTTPS endpoints to your Supabase host (ATS / cleartext rules). WebView should allow `https://*.supabase.co`.
+
+5. **See the underlying error** — after recent app changes, the UI may show a more specific line (e.g. `Failed to fetch`, timeout). Check the browser **Network** tab for the request to `.../functions/v1/send-verification-code`.
+
 ### Function Not Found (404)
 
 **Cause**: Function not deployed or wrong URL
@@ -353,7 +409,7 @@ supabase functions deploy send-notification --no-verify-jwt
 **Solutions**:
 1. Deploy function:
 ```bash
-./deploy-functions.sh send-notification
+scripts/deploy-functions.sh send-notification
 ```
 2. Verify URL in code matches deployed name
 3. Check Supabase project reference

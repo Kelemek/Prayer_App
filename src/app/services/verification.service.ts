@@ -135,7 +135,7 @@ export class VerificationService {
     }
 
     try {
-      const { data, error: functionError } = await this.supabase.client.functions.invoke(
+      const { data, error: functionError, response } = await this.supabase.client.functions.invoke(
         'send-verification-code',
         {
           body: {
@@ -147,7 +147,10 @@ export class VerificationService {
       );
 
       if (functionError) {
-        throw new Error(functionError.message || 'Failed to send verification code');
+        const msg = await this.supabase.describeFunctionInvokeFailure(functionError, response);
+        throw new Error(
+          msg && msg !== 'Unknown error' ? msg : 'Failed to send verification code'
+        );
       }
 
       if (data?.error) {
@@ -176,7 +179,7 @@ export class VerificationService {
     code: string
   ): Promise<{ success: boolean; actionData: any }> {
     try {
-      const { data, error: functionError } = await this.supabase.client.functions.invoke(
+      const { data, error: functionError, response } = await this.supabase.client.functions.invoke(
         'verify-code',
         {
           body: {
@@ -188,7 +191,8 @@ export class VerificationService {
       );
 
       if (functionError) {
-        throw new Error(functionError.message || 'Failed to verify code');
+        const msg = await this.supabase.describeFunctionInvokeFailure(functionError, response);
+        throw new Error(msg && msg !== 'Unknown error' ? msg : 'Failed to verify code');
       }
 
       if (data?.error) {

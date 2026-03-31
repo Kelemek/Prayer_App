@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { VerificationService } from './verification.service';
 import { SupabaseService } from './supabase.service';
+import { describeFunctionInvokeFailure } from '../utils/supabase-function-invoke-error';
 
 describe('VerificationService', () => {
   let service: VerificationService;
@@ -12,7 +13,8 @@ describe('VerificationService', () => {
     supabaseService = {
       client: {
         from: vi.fn()
-      }
+      },
+      describeFunctionInvokeFailure
     } as any;
 
     // Create service with mocked dependency

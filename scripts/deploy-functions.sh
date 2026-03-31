@@ -70,10 +70,19 @@ case $FUNCTION_NAME in
         echo "   - SUPABASE_URL"
         echo "   - SUPABASE_SERVICE_ROLE_KEY (platform name; value = secret API key, auto-set when hosted)"
         ;;
+    "send-email")
+        deploy_function "send-email" "--no-verify-jwt"
+        echo "💡 send-email must allow non-user JWT: it is invoked from other Edge Functions"
+        echo "   (send-verification-code, send-prayer-reminders, etc.) with the service role client."
+        echo "   Also invoked from the Angular app; protect abuse via app logic and RLS elsewhere."
+        echo ""
+        echo "📋 Secrets: RESEND_API_KEY, MAIL_SENDER_ADDRESS, MAIL_FROM_NAME (optional), SUPABASE_*"
+        ;;
     "all")
         echo "Deploying all functions..."
         echo ""
         deploy_function "send-notification" "--no-verify-jwt"
+        deploy_function "send-email" "--no-verify-jwt"
         deploy_function "send-verification-code" "--no-verify-jwt"
         deploy_function "send-prayer-reminders" ""
         deploy_function "send-user-hourly-prayer-reminders" ""
@@ -87,6 +96,7 @@ case $FUNCTION_NAME in
         echo ""
         echo "Available functions:"
         echo "  send-notification        - Email sending (no JWT)"
+        echo "  send-email               - Resend email API (no JWT; called from app + other functions)"
         echo "  send-verification-code   - Email verification codes (no JWT)"
         echo "  send-prayer-reminders    - Automated prayer reminders"
         echo "  send-user-hourly-prayer-reminders - User hourly self-reminders (cron)"

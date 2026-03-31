@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { environment } from '../../environments/environment';
+import { describeFunctionInvokeFailure as formatFunctionInvokeFailure } from '../utils/supabase-function-invoke-error';
 
 @Injectable({
   providedIn: 'root'
@@ -75,6 +76,13 @@ export class SupabaseService {
 
   getClient(): SupabaseClient {
     return this.supabase;
+  }
+
+  describeFunctionInvokeFailure(
+    error: unknown,
+    response?: Response | null
+  ): Promise<string> {
+    return formatFunctionInvokeFailure(error, response);
   }
 
   isNetworkError(error: unknown): boolean {
