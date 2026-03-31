@@ -17,12 +17,25 @@ function coerceToResponse(candidate: unknown): Response | null {
   return null;
 }
 
-const HTTP_401_FUNCTIONS_HINT =
-  'This usually means JWT verification is enabled on the deployed function (admin MFA is unauthenticated). Redeploy with: supabase functions deploy send-verification-code --no-verify-jwt. Also confirm your app’s Supabase publishable key matches this project.';
+/** @param functionName Supabase Edge Function slug (e.g. from `functions.invoke('verify-code')`). */
+function http401Hint(functionName?: string): string {
+  const slug = functionName?.trim();
+  const deploy =
+    slug !== undefined && slug.length > 0
+      ? `supabase functions deploy ${slug} --no-verify-jwt`
+      : 'supabase functions deploy <function-name> --no-verify-jwt';
+  return (
+    'This often means JWT verification is enabled on that function while the call has no valid user JWT ' +
+    '(e.g. admin MFA before login, or another Edge Function using the service role client). ' +
+    `If this function is meant to run without a logged-in user, redeploy with: ${deploy}. ` +
+    'Also confirm your app’s Supabase publishable key matches this project.'
+  );
+}
 
 export async function describeFunctionInvokeFailure(
   error: unknown,
-  response?: Response | null
+  response?: Response | null,
+  functionName?: string
 ): Promise<string> {
   if (!error) return 'Unknown error';
   if (typeof error !== 'object' || error === null) return String(error);
@@ -45,7 +58,7 @@ export async function describeFunctionInvokeFailure(
     const res = coerceToResponse(response ?? e.context);
     if (res) {
       if (res.status === 401) {
-        return `Unauthorized (401) calling Edge Function. ${HTTP_401_FUNCTIONS_HINT}`;
+        return `Unauthorized (401) calling Edge Function. ${http401Hint(functionName)}`;
       }
       try {
         const clone = res.clone();

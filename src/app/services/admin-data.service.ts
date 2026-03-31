@@ -156,39 +156,12 @@ export class AdminDataService {
         throw pendingAccountRequestsResult.error;
       }
 
-      // Collect all unique emails to look up Planning Center status
-      const emailsToLookup = new Set<string>();
-      
-      (pendingPrayersResult.data || []).forEach((prayer: any) => {
-        if (prayer.email) {
-          emailsToLookup.add(prayer.email.toLowerCase());
-        }
-      });
-      
-      (pendingUpdatesResult.data || []).forEach((update: any) => {
-        if (update.author_email) {
-          emailsToLookup.add(update.author_email.toLowerCase());
-        }
-      });
-
-      // Fetch Planning Center statuses in one batch
-      const pcStatusMap = await this.fetchPlanningCenterStatuses(Array.from(emailsToLookup));
-
-      // Transform data with Planning Center status
-      const pendingPrayers = (pendingPrayersResult.data || []).map((prayer: any) => ({
-        ...prayer,
-        in_planning_center: pcStatusMap.get(prayer.email?.toLowerCase()) ?? null
-      }));
+      const pendingPrayers = pendingPrayersResult.data || [];
 
       const pendingUpdates = (pendingUpdatesResult.data || []).map((u: any) => ({
         ...u,
         prayer_title: u.prayers?.title,
-        in_planning_center: pcStatusMap.get(u.author_email?.toLowerCase()) ?? null,
-        // Also add in_planning_center to the nested prayer object
-        prayers: u.prayers ? {
-          ...u.prayers,
-          in_planning_center: pcStatusMap.get(u.prayers.email?.toLowerCase()) ?? null
-        } : u.prayers
+        prayers: u.prayers
       }));
 
       const pendingDeletionRequests = (pendingDeletionRequestsResult.data || []).map((d: any) => ({
@@ -1015,26 +988,6 @@ export class AdminDataService {
     if (fetchError) throw fetchError;
     if (!request) throw new Error('Account approval request not found');
     
-    // Check Planning Center status for the email
-    let inPlanningCenter: boolean | null = null;
-    let planningCenterCheckedAt: string | null = null;
-    
-    try {
-      const { lookupPersonByEmail } = await import('../../lib/planning-center');
-      const { environment } = await import('../../environments/environment');
-      
-      const pcResult = await lookupPersonByEmail(
-        request.email.toLowerCase(),
-        environment.supabaseUrl,
-        environment.supabasePublishableKey
-      );
-      inPlanningCenter = pcResult.count > 0;
-      planningCenterCheckedAt = new Date().toISOString();
-    } catch (pcError) {
-      console.error('[AccountApproval] Planning Center lookup failed:', pcError);
-      // Continue with null values if check fails - don't block approval
-    }
-    
     // Create the email subscriber
     const { error: insertError } = await supabaseClient
       .from('email_subscribers')
@@ -1043,9 +996,7 @@ export class AdminDataService {
         name: `${request.first_name} ${request.last_name}`,
         is_active: true,
         is_admin: false,
-        receive_admin_emails: false,
-        in_planning_center: inPlanningCenter,
-        planning_center_checked_at: planningCenterCheckedAt
+        receive_admin_emails: false
       });
 
     if (insertError) throw insertError;
@@ -1173,40 +1124,4 @@ export class AdminDataService {
     }
   }
 
-  /**
-   * Fetch Planning Center status for multiple email addresses
-   * Returns a map of email -> in_planning_center status
-   */
-  private async fetchPlanningCenterStatuses(emails: string[]): Promise<Map<string, boolean>> {
-    const statusMap = new Map<string, boolean>();
-    
-    if (!emails || emails.length === 0) {
-      return statusMap;
-    }
-
-    try {
-      const supabaseClient = this.supabase.client;
-      
-      // Fetch all email_subscribers records for the given emails
-      const { data, error } = await supabaseClient
-        .from('email_subscribers')
-        .select('email, in_planning_center')
-        .in('email', emails.map(e => e.toLowerCase()));
-
-      if (error) {
-        console.error('Error fetching Planning Center statuses:', error);
-        return statusMap;
-      }
-
-      // Build the map
-      (data || []).forEach((record: any) => {
-        statusMap.set(record.email.toLowerCase(), record.in_planning_center === true);
-      });
-
-      return statusMap;
-    } catch (error) {
-      console.error('Error fetching Planning Center statuses:', error);
-      return statusMap;
-    }
-  }
 }

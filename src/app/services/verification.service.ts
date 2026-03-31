@@ -147,7 +147,11 @@ export class VerificationService {
       );
 
       if (functionError) {
-        const msg = await this.supabase.describeFunctionInvokeFailure(functionError, response);
+        const msg = await this.supabase.describeFunctionInvokeFailure(
+          functionError,
+          response,
+          'send-verification-code'
+        );
         throw new Error(
           msg && msg !== 'Unknown error' ? msg : 'Failed to send verification code'
         );
@@ -191,7 +195,11 @@ export class VerificationService {
       );
 
       if (functionError) {
-        const msg = await this.supabase.describeFunctionInvokeFailure(functionError, response);
+        const msg = await this.supabase.describeFunctionInvokeFailure(
+          functionError,
+          response,
+          'verify-code'
+        );
         throw new Error(msg && msg !== 'Unknown error' ? msg : 'Failed to verify code');
       }
 

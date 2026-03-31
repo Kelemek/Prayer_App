@@ -80,9 +80,10 @@ export class SupabaseService {
 
   describeFunctionInvokeFailure(
     error: unknown,
-    response?: Response | null
+    response?: Response | null,
+    functionName?: string
   ): Promise<string> {
-    return formatFunctionInvokeFailure(error, response);
+    return formatFunctionInvokeFailure(error, response, functionName);
   }
 
   isNetworkError(error: unknown): boolean {

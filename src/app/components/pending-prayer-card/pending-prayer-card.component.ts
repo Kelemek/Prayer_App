@@ -1,10 +1,6 @@
 import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, OnInit, ChangeDetectorRef, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import type { PrayerRequest } from '../../types/prayer';
-import { SupabaseService } from '../../services/supabase.service';
-import { lookupPersonByEmail, formatPersonName, type PlanningCenterPerson } from '../../../lib/planning-center';
-import { environment } from '../../../environments/environment';
-
 @Component({
   selector: 'app-pending-prayer-card',
   standalone: true,
@@ -28,43 +24,7 @@ import { environment } from '../../../environments/environment';
               }
             </p>
             @if (prayer.email && !prayer.is_anonymous) {
-            <p class="break-words">
-              Email: {{ prayer.email }}
-              <!-- Planning Center Verification Badge -->
-              @if (!pcLoading && pcPerson) {
-              <span class="inline-flex items-center gap-1 ml-2 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-medium">
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                </svg>
-                Planning Center: {{ formatPersonName(pcPerson) }}
-              </span>
-              }
-              @if (!pcLoading && !pcPerson && !pcError) {
-              <span class="inline-flex items-center gap-1 ml-2 px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-full text-xs font-medium">
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                </svg>
-                Not in Planning Center
-              </span>
-              }
-              @if (!pcLoading && pcError) {
-              <span class="inline-flex items-center gap-1 ml-2 px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full text-xs font-medium">
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                </svg>
-                Verification error
-              </span>
-              }
-              @if (pcLoading) {
-              <span class="inline-flex items-center gap-1 ml-2 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-xs font-medium">
-                <svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Verifying...
-              </span>
-              }
-            </p>
+            <p class="break-words">Email: {{ prayer.email }}</p>
             }
             <p>Status: {{ prayer.status }}</p>
             <p class="text-xs text-gray-400 dark:text-gray-500">
@@ -238,48 +198,10 @@ export class PendingPrayerCardComponent implements OnInit {
   denialReason = '';
   editedPrayer: any = {};
 
-  // Planning Center verification
-  pcPerson: PlanningCenterPerson | null = null;
-  pcLoading = false;
-  pcError = false;
-
-  private supabase = inject(SupabaseService);
   private cdr = inject(ChangeDetectorRef);
 
   ngOnInit() {
     this.resetEditedPrayer();
-    this.lookupPlanningCenterPerson();
-  }
-
-  private async lookupPlanningCenterPerson() {
-    // Only lookup if email exists and is not anonymous
-    if (!this.prayer?.email || this.prayer?.is_anonymous) {
-      return;
-    }
-
-    this.pcLoading = true;
-    this.pcError = false;
-
-    try {
-      const result = await lookupPersonByEmail(
-        this.prayer.email,
-        environment.supabaseUrl,
-        environment.supabasePublishableKey
-      );
-
-      if (result.error) {
-        console.error('Planning Center lookup error:', result.error);
-        this.pcError = true;
-      } else if (result.people && result.people.length > 0) {
-        this.pcPerson = result.people[0];
-      }
-    } catch (error) {
-      console.error('Unexpected error during Planning Center lookup:', error);
-      this.pcError = true;
-    } finally {
-      this.pcLoading = false;
-      this.cdr.markForCheck();
-    }
   }
 
   resetEditedPrayer() {
@@ -299,10 +221,6 @@ export class PendingPrayerCardComponent implements OnInit {
       hour: '2-digit',
       minute: '2-digit'
     });
-  }
-
-  formatPersonName(person: PlanningCenterPerson): string {
-    return formatPersonName(person);
   }
 
   async handleApprove() {

@@ -89,9 +89,6 @@ describe('PresentationSettingsModalComponent', () => {
       expect(component.pendingStatusFilter).toEqual([]);
     });
 
-    it('should have hasMappedList default to false', () => {
-      expect(component.hasMappedList).toBe(false);
-    });
   });
 
   describe('ngOnInit', () => {

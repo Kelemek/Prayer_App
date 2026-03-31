@@ -6,11 +6,6 @@ import { EmailNotificationService } from './email-notification.service';
 import { PushNotificationService } from './push-notification.service';
 import { firstValueFrom } from 'rxjs';
 
-// Mock the planning-center module
-vi.mock('../../lib/planning-center', () => ({
-  lookupPersonByEmail: vi.fn(() => Promise.resolve({ count: 0 }))
-}));
-
 // Mock the environment module
 vi.mock('../../environments/environment', () => ({
   environment: {
@@ -171,7 +166,7 @@ describe('AdminDataService', () => {
       await service.fetchAdminData();
 
       const data = await firstValueFrom(service.data$);
-      expect(data.pendingPrayers).toEqual([{ id: '1', title: 'Test Prayer', approval_status: 'pending', email: null, in_planning_center: null }]);
+      expect(data.pendingPrayers).toEqual([{ id: '1', title: 'Test Prayer', approval_status: 'pending', email: null }]);
       expect(data.pendingAccountRequests).toEqual(mockPendingAccounts);
       expect(data.loading).toBe(false);
       expect(data.error).toBeNull();
@@ -2066,7 +2061,7 @@ describe('AdminDataService', () => {
       await service.fetchAdminData();
 
       expect(emissions.length).toBeGreaterThan(0);
-      expect(emissions[emissions.length - 1].pendingPrayers).toEqual([{ id: '1', title: 'Test', approval_status: 'pending', email: null, in_planning_center: null }]);
+      expect(emissions[emissions.length - 1].pendingPrayers).toEqual([{ id: '1', title: 'Test', approval_status: 'pending', email: null }]);
 
       subscription.unsubscribe();
     });

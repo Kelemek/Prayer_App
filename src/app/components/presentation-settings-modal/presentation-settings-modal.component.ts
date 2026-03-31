@@ -2,7 +2,7 @@ import { Component, Input, Output, EventEmitter, OnInit, OnChanges } from '@angu
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
-type ContentType = 'prayers' | 'prompts' | 'personal' | 'members' | 'all';
+type ContentType = 'prayers' | 'prompts' | 'personal' | 'all';
 type ThemeOption = 'light' | 'dark' | 'system';
 type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
 
@@ -178,7 +178,6 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
                 <option value="prayers">Prayers</option>
                 <option value="prompts">Prompts</option>
                 <option value="personal">Personal</option>
-                @if (hasMappedList) { <option value="members">Members</option> }
                 <option value="all">All</option>
               </select>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-700 dark:text-gray-300 z-10">
@@ -404,7 +403,6 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
   @Input() prayerTimerMinutes = 10;
   @Input() availableCategories: string[] = [];
   @Input() selectedCategories: string[] = [];
-  @Input() hasMappedList = false;
   
   @Output() close = new EventEmitter<void>();
   @Output() themeChange = new EventEmitter<ThemeOption>();

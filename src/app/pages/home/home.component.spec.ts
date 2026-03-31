@@ -66,6 +66,7 @@ const makeMocks = () => {
     markAllAsRead: vi.fn()
   };
 
+  /** Legacy tests still assert against this mock; HomeComponent no longer injects CacheService. */
   const cacheService: any = {
     get: vi.fn(),
     set: vi.fn(),
@@ -175,7 +176,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -193,7 +193,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mockServiceWithEmail as any,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -211,7 +210,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -228,7 +226,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -246,7 +243,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -264,7 +260,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -283,7 +278,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -301,7 +295,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -345,7 +338,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -365,7 +357,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -384,7 +375,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -406,7 +396,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -426,7 +415,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -446,7 +434,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -466,7 +453,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -491,7 +477,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -514,7 +499,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -543,7 +527,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -561,7 +544,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -584,7 +566,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -628,7 +609,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -653,7 +633,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -675,7 +654,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -695,7 +673,6 @@ describe('HomeComponent', () => {
       adminServiceTrue,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -713,7 +690,6 @@ describe('HomeComponent', () => {
       adminServiceFalse,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -755,7 +731,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -792,7 +767,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -826,7 +800,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -863,7 +836,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -903,7 +875,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -930,7 +901,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       userSessionService as any,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -958,7 +928,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       userSessionService as any,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -991,7 +960,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       userSessionService as any,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -1026,7 +994,6 @@ describe('HomeComponent', () => {
       mocks.adminAuthService,
       userSessionService as any,
       mocks.badgeService,
-      mocks.cacheService,
       mocks.toastService,
       mocks.analyticsService,
       mocks.cdr,
@@ -1047,7 +1014,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1073,7 +1039,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1103,7 +1068,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1133,7 +1097,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1158,7 +1121,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1195,7 +1157,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1216,7 +1177,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1237,7 +1197,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1259,7 +1218,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1280,7 +1238,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1308,7 +1265,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1331,7 +1287,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1357,7 +1312,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         { getCurrentSession: vi.fn().mockReturnValue({ fullName: 'John', email: 'john@example.com' }) } as any,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1386,7 +1340,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         { getCurrentSession: vi.fn().mockReturnValue({ fullName: 'John', email: 'john@example.com' }) } as any,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1413,7 +1366,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         { getCurrentSession: vi.fn().mockReturnValue({ fullName: 'John', email: 'john@example.com' }) } as any,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1440,7 +1392,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1463,7 +1414,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1488,7 +1438,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1515,7 +1464,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1565,7 +1513,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1593,7 +1540,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1616,7 +1562,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1636,7 +1581,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1656,7 +1600,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1678,7 +1621,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1702,7 +1644,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1734,7 +1675,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1778,7 +1718,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1823,7 +1762,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1856,7 +1794,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1877,7 +1814,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1901,7 +1837,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1929,7 +1864,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -1963,7 +1897,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2001,7 +1934,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2030,7 +1962,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2062,7 +1993,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2103,7 +2033,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2139,7 +2068,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2172,7 +2100,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2212,7 +2139,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2248,7 +2174,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2271,7 +2196,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2293,7 +2217,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2313,7 +2236,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2332,7 +2254,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2351,7 +2272,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2372,7 +2292,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2395,7 +2314,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2421,7 +2339,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2444,7 +2361,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2463,70 +2379,6 @@ describe('HomeComponent', () => {
       expect(comp.editingUpdatePrayerId).toBe('');
       // Service automatically updates personal prayers via observable
     });
-
-    it('openEditMemberUpdateModal should set state', () => {
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.cacheService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      const update = { id: 'u1', text: 'Update' } as any;
-      comp.openEditMemberUpdateModal({ update, prayerId: 'pc-member-123' });
-
-      expect(comp.editingMemberUpdate).toEqual(update);
-      expect(comp.editingMemberUpdatePrayerId).toBe('pc-member-123');
-      expect(comp.showEditMemberUpdate).toBe(true);
-    });
-
-    it('onMemberUpdateSaved should clear state and reload member updates', async () => {
-      vi.useFakeTimers();
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.cacheService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      comp.editingMemberUpdate = { id: 'u1', text: 'Update' } as any;
-      comp.editingMemberUpdatePrayerId = 'pc-member-123';
-      comp.showEditMemberUpdate = true;
-      comp.planningCenterListMembers = [{ id: '123', name: 'Member' }] as any;
-      comp.filteredPlanningCenterPrayers = [{
-        id: 'pc-member-123',
-        prayer_for: 'Member',
-        title: 'Member Prayer',
-        updates: []
-      }] as any;
-
-      mocks.prayerService.getMemberPrayerUpdates = vi.fn().mockResolvedValue([{ id: 'u2', text: 'New update' }]);
-
-      comp.onMemberUpdateSaved();
-
-      expect(comp.showEditMemberUpdate).toBe(false);
-      expect(comp.editingMemberUpdate).toBeNull();
-      expect(comp.editingMemberUpdatePrayerId).toBe('');
-
-      // Wait for async operations
-      await vi.advanceTimersByTimeAsync(150);
-      expect(comp.filteredPlanningCenterPrayers[0].updates).toHaveLength(1);
-      vi.useRealTimers();
-    });
   });
 
   describe('Admin navigation', () => {
@@ -2539,7 +2391,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2562,7 +2413,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2588,7 +2438,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2602,112 +2451,6 @@ describe('HomeComponent', () => {
     });
   });
 
-  describe('Private member update reloading', () => {
-    it('onMemberUpdateSaved should handle missing member', async () => {
-      vi.useFakeTimers();
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.cacheService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      comp.editingMemberUpdate = { id: 'u1', text: 'Update' } as any;
-      comp.editingMemberUpdatePrayerId = 'pc-member-999';
-      comp.showEditMemberUpdate = true;
-      comp.planningCenterListMembers = [{ id: '123', name: 'Member' }] as any;
-      comp.filteredPlanningCenterPrayers = [] as any;
-
-      comp.onMemberUpdateSaved();
-
-      await vi.advanceTimersByTimeAsync(150);
-      expect(comp.editingMemberUpdate).toBeNull();
-      vi.useRealTimers();
-    });
-
-    it('onMemberUpdateSaved should handle missing prayer card', async () => {
-      vi.useFakeTimers();
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.cacheService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      comp.editingMemberUpdate = { id: 'u1', text: 'Update' } as any;
-      comp.editingMemberUpdatePrayerId = 'pc-member-123';
-      comp.showEditMemberUpdate = true;
-      comp.planningCenterListMembers = [{ id: '123', name: 'Member' }] as any;
-      comp.filteredPlanningCenterPrayers = [{
-        id: 'pc-member-999',
-        prayer_for: 'Other Member',
-        title: 'Other Prayer',
-        updates: []
-      }] as any;
-
-      mocks.prayerService.getMemberPrayerUpdates = vi.fn().mockResolvedValue([]);
-
-      comp.onMemberUpdateSaved();
-
-      await vi.advanceTimersByTimeAsync(150);
-      expect(comp.editingMemberUpdate).toBeNull();
-      vi.useRealTimers();
-    });
-
-    it('onMemberUpdateSaved should handle getMemberPrayerUpdates error', async () => {
-      vi.useFakeTimers();
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.cacheService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-      comp.editingMemberUpdate = { id: 'u1', text: 'Update' } as any;
-      comp.editingMemberUpdatePrayerId = 'pc-member-123';
-      comp.showEditMemberUpdate = true;
-      comp.planningCenterListMembers = [{ id: '123', name: 'Member' }] as any;
-      comp.filteredPlanningCenterPrayers = [{
-        id: 'pc-member-123',
-        prayer_for: 'Member',
-        title: 'Member Prayer',
-        updates: []
-      }] as any;
-
-      mocks.prayerService.getMemberPrayerUpdates = vi.fn().mockRejectedValue(new Error('Load failed'));
-
-      comp.onMemberUpdateSaved();
-
-      await vi.advanceTimersByTimeAsync(150);
-      expect(consoleSpy).toHaveBeenCalled();
-      consoleSpy.mockRestore();
-      vi.useRealTimers();
-    });
-  });
-
   describe('Show admin MFA modal', () => {
     it('showAdminMfaModal should navigate with userEmail from localStorage', () => {
       localStorage.setItem('userEmail', 'admin@example.com');
@@ -2718,7 +2461,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2747,7 +2489,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2771,7 +2512,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -2792,233 +2532,6 @@ describe('HomeComponent', () => {
     });
   });
 
-  describe('Filter search with search term', () => {
-    it('should return all prayers when no search term', () => {
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.cacheService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      comp.filteredPlanningCenterPrayers = [
-        { id: '1', prayer_for: 'John', title: 'Healing', description: '' } as any,
-        { id: '2', prayer_for: 'Jane', title: 'Wisdom', description: '' } as any
-      ];
-
-      comp.filters = { searchTerm: '' } as any;
-
-      const result = comp.getFilteredPlanningCenterPrayers();
-
-      expect(result).toHaveLength(2);
-    });
-
-    it('should search in prayer_for field', () => {
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.cacheService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      comp.filteredPlanningCenterPrayers = [
-        { id: '1', prayer_for: 'John Doe', title: 'Healing', description: 'Needs prayer' } as any,
-        { id: '2', prayer_for: 'Jane Smith', title: 'Wisdom', description: 'Job interview' } as any
-      ];
-
-      comp.filters = { searchTerm: 'John' } as any;
-
-      const result = comp.getFilteredPlanningCenterPrayers();
-
-      expect(result).toHaveLength(1);
-      expect(result[0].prayer_for).toBe('John Doe');
-    });
-
-    it('should search case-insensitively in prayer_for', () => {
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.cacheService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      comp.filteredPlanningCenterPrayers = [
-        { id: '1', prayer_for: 'John Doe', title: '', description: '' } as any
-      ];
-
-      comp.filters = { searchTerm: 'JOHN' } as any;
-
-      const result = comp.getFilteredPlanningCenterPrayers();
-
-      expect(result).toHaveLength(1);
-    });
-
-    it('should search in update content', () => {
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.cacheService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      comp.filteredPlanningCenterPrayers = [
-        { 
-          id: '1', 
-          prayer_for: 'John Doe', 
-          title: 'Healing', 
-          description: '', 
-          updates: [{ content: 'This is a specific update content' }] 
-        } as any,
-        { 
-          id: '2', 
-          prayer_for: 'Jane Smith', 
-          title: 'Wisdom', 
-          description: '', 
-          updates: [] 
-        } as any
-      ];
-
-      comp.filters = { searchTerm: 'specific update' } as any;
-
-      const result = comp.getFilteredPlanningCenterPrayers();
-
-      expect(result).toHaveLength(1);
-      expect(result[0].id).toBe('1');
-    });
-
-    it('should search in title field', () => {
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.cacheService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      comp.filteredPlanningCenterPrayers = [
-        { id: '1', prayer_for: 'John', title: 'Healing Surgery', description: '' } as any
-      ];
-
-      comp.filters = { searchTerm: 'Healing' } as any;
-
-      const result = comp.getFilteredPlanningCenterPrayers();
-
-      expect(result).toHaveLength(1);
-    });
-
-    it('should search in description field', () => {
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.cacheService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      comp.filteredPlanningCenterPrayers = [
-        { id: '1', prayer_for: 'Jane', title: 'Work Issues', description: 'Difficult project deadline' } as any
-      ];
-
-      comp.filters = { searchTerm: 'deadline' } as any;
-
-      const result = comp.getFilteredPlanningCenterPrayers();
-
-      expect(result).toHaveLength(1);
-    });
-
-    it('should return empty array when no matches found', () => {
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.cacheService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      comp.filteredPlanningCenterPrayers = [
-        { id: '1', prayer_for: 'John', title: 'Healing', description: '' } as any
-      ];
-
-      comp.filters = { searchTerm: 'xyz' } as any;
-
-      const result = comp.getFilteredPlanningCenterPrayers();
-
-      expect(result).toHaveLength(0);
-    });
-
-    it('should trim whitespace from search term', () => {
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.cacheService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      comp.filteredPlanningCenterPrayers = [
-        { id: '1', prayer_for: 'John', title: '', description: '' } as any
-      ];
-
-      comp.filters = { searchTerm: '  John  ' } as any;
-
-      const result = comp.getFilteredPlanningCenterPrayers();
-
-      expect(result).toHaveLength(1);
-    });
-  });
-
   describe('Personal category count', () => {
     it('getPersonalCategoryCount should count prayers by category', () => {
       const comp = new HomeComponent(
@@ -3027,7 +2540,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -3052,7 +2564,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -3074,7 +2585,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -3098,7 +2608,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -3121,7 +2630,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -3144,7 +2652,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -3159,53 +2666,6 @@ describe('HomeComponent', () => {
     });
   });
 
-  describe('Error handling in member update reload', () => {
-    it('should handle detectChanges errors gracefully', async () => {
-      vi.useFakeTimers();
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.cacheService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      
-      comp.editingMemberUpdate = { id: 'u1', text: 'Update' } as any;
-      comp.editingMemberUpdatePrayerId = 'pc-member-123';
-      comp.showEditMemberUpdate = true;
-      comp.planningCenterListMembers = [{ id: '123', name: 'Member' }] as any;
-      comp.filteredPlanningCenterPrayers = [{
-        id: 'pc-member-123',
-        prayer_for: 'Member',
-        title: 'Member Prayer',
-        updates: []
-      }] as any;
-
-      mocks.prayerService.getMemberPrayerUpdates = vi.fn().mockResolvedValue([
-        { id: 'u2', text: 'New update' }
-      ]);
-
-      mocks.cdr.detectChanges.mockImplementation(() => {
-        throw new Error('Change detection error');
-      });
-
-      comp.onMemberUpdateSaved();
-
-      await vi.advanceTimersByTimeAsync(150);
-      expect(consoleSpy).toHaveBeenCalled();
-      consoleSpy.mockRestore();
-      vi.useRealTimers();
-    });
-  });
-
   describe('getDisplayedPrompts', () => {
     it('should return empty array when activeFilter is not prompts', () => {
       const comp = new HomeComponent(
@@ -3214,7 +2674,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -3236,7 +2695,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -3270,7 +2728,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -3302,7 +2759,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -3322,7 +2778,7 @@ describe('HomeComponent', () => {
       expect(comp.activeFilter).toBe('personal');
     });
 
-    it('should load Planning Center data without blocking filter application', async () => {
+    it('should apply default filter without blocking on personal prayer load', async () => {
       const mocks = makeMocks();
       mocks.prayerService.getPersonalPrayers.mockResolvedValue([]);
       mocks.prayerService.getUniqueCategoriesForUser.mockResolvedValue([]);
@@ -3333,7 +2789,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -3367,7 +2822,6 @@ describe('HomeComponent', () => {
         mocks.adminAuthService,
         mocks.userSessionService,
         mocks.badgeService,
-        mocks.cacheService,
         mocks.toastService,
         mocks.analyticsService,
         mocks.cdr,
@@ -3389,38 +2843,5 @@ describe('HomeComponent', () => {
       expect(comp).toBeDefined();
     });
 
-    it('should call loadPlanningCenterListData independently', async () => {
-      const mocks = makeMocks();
-      mocks.prayerService.getPersonalPrayers.mockResolvedValue([]);
-      mocks.prayerService.getUniqueCategoriesForUser.mockResolvedValue([]);
-
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.cacheService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      // Mock the loadPlanningCenterListData to track if it's called
-      const loadPlanningCenterSpy = vi.spyOn(comp as any, 'loadPlanningCenterListData').mockResolvedValue(undefined);
-
-      comp.ngOnInit();
-
-      // Simulate user session emission
-      mocks.userSessionSubject.next({ defaultPrayerView: 'current' });
-
-      // Allow async operations
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // loadPlanningCenterListData should be called but independent of filter application
-      expect(loadPlanningCenterSpy).toHaveBeenCalled();
-    });
-  });;
+  });
 });

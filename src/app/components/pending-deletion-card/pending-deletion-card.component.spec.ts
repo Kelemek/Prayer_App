@@ -1,9 +1,9 @@
+import { ChangeDetectorRef } from '@angular/core';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/angular';
 import { userEvent } from '@testing-library/user-event';
 import { PendingDeletionCardComponent } from './pending-deletion-card.component';
 import { SupabaseService } from '../../services/supabase.service';
-import * as planningCenter from '../../../lib/planning-center';
 
 describe('PendingDeletionCardComponent', () => {
   const mockDeletionRequest = {
@@ -23,12 +23,6 @@ describe('PendingDeletionCardComponent', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Mock the lookupPersonByEmail function
-    vi.spyOn(planningCenter, 'lookupPersonByEmail').mockResolvedValue({
-      people: [],
-      error: null
-    });
-    vi.spyOn(planningCenter, 'formatPersonName').mockReturnValue('John Smith');
   });
 
   it('should create', async () => {
@@ -59,53 +53,6 @@ describe('PendingDeletionCardComponent', () => {
       expect(fixture.componentInstance.isDenying).toBe(false);
       expect(fixture.componentInstance.isDenyingInProgress).toBe(false);
       expect(fixture.componentInstance.denialReason).toBe('');
-      expect(fixture.componentInstance.pcPerson).toBeNull();
-      expect(fixture.componentInstance.pcError).toBe(false);
-    });
-
-    it('should call lookupPlanningCenterPerson on init', async () => {
-      const lookupSpy = vi.spyOn(planningCenter, 'lookupPersonByEmail').mockResolvedValue({
-        people: [],
-        error: null
-      });
-
-      await render(PendingDeletionCardComponent, {
-        componentProperties: {
-          deletionRequest: mockDeletionRequest
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      await waitFor(() => {
-        expect(lookupSpy).toHaveBeenCalledWith(
-          'john@example.com',
-          expect.any(String),
-          expect.any(String)
-        );
-      });
-    });
-
-    it('should not lookup Planning Center person when email is not provided', async () => {
-      const lookupSpy = vi.spyOn(planningCenter, 'lookupPersonByEmail');
-      const requestWithoutEmail = {
-        ...mockDeletionRequest,
-        requested_email: undefined
-      };
-
-      await render(PendingDeletionCardComponent, {
-        componentProperties: {
-          deletionRequest: requestWithoutEmail
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      await waitFor(() => {
-        expect(lookupSpy).not.toHaveBeenCalled();
-      });
     });
   });
 
@@ -230,136 +177,6 @@ describe('PendingDeletionCardComponent', () => {
     });
   });
 
-  describe('Planning Center verification', () => {
-    it('should show verifying status while loading', async () => {
-      vi.spyOn(planningCenter, 'lookupPersonByEmail').mockImplementation(() => 
-        new Promise(resolve => setTimeout(() => resolve({ people: [], error: null }), 100))
-      );
-
-      const { fixture } = await render(PendingDeletionCardComponent, {
-        componentProperties: {
-          deletionRequest: mockDeletionRequest
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      // Should show loading initially
-      expect(fixture.componentInstance.pcLoading).toBe(true);
-    });
-
-    it('should display verified badge when person is found', async () => {
-      const mockPerson = {
-        id: 'pc-123',
-        attributes: {
-          first_name: 'John',
-          last_name: 'Doe'
-        }
-      };
-
-      vi.spyOn(planningCenter, 'lookupPersonByEmail').mockResolvedValue({
-        people: [mockPerson],
-        error: null
-      });
-
-      const { fixture } = await render(PendingDeletionCardComponent, {
-        componentProperties: {
-          deletionRequest: mockDeletionRequest
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      await waitFor(() => {
-        expect(fixture.componentInstance.pcPerson).toEqual(mockPerson);
-        expect(fixture.componentInstance.pcLoading).toBe(false);
-        expect(fixture.componentInstance.pcError).toBe(false);
-      });
-
-      fixture.detectChanges();
-      await waitFor(() => {
-        expect(screen.getByText(/Planning Center:/)).toBeTruthy();
-      });
-    });
-
-    it('should display not found badge when person is not found', async () => {
-      vi.spyOn(planningCenter, 'lookupPersonByEmail').mockResolvedValue({
-        people: [],
-        error: null
-      });
-
-      const { fixture } = await render(PendingDeletionCardComponent, {
-        componentProperties: {
-          deletionRequest: mockDeletionRequest
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      await waitFor(() => {
-        expect(fixture.componentInstance.pcPerson).toBeNull();
-        expect(fixture.componentInstance.pcLoading).toBe(false);
-        expect(fixture.componentInstance.pcError).toBe(false);
-      });
-
-      fixture.detectChanges();
-      await waitFor(() => {
-        expect(screen.getByText('Not found')).toBeTruthy();
-      });
-    });
-
-    it('should display error badge when lookup fails', async () => {
-      vi.spyOn(planningCenter, 'lookupPersonByEmail').mockResolvedValue({
-        people: null,
-        error: 'API Error'
-      });
-
-      const { fixture } = await render(PendingDeletionCardComponent, {
-        componentProperties: {
-          deletionRequest: mockDeletionRequest
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      await waitFor(() => {
-        expect(fixture.componentInstance.pcError).toBe(true);
-        expect(fixture.componentInstance.pcLoading).toBe(false);
-      });
-
-      fixture.detectChanges();
-      await waitFor(() => {
-        expect(screen.getByText('Error')).toBeTruthy();
-      });
-    });
-
-    it('should handle unexpected errors during lookup', async () => {
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      vi.spyOn(planningCenter, 'lookupPersonByEmail').mockRejectedValue(new Error('Network error'));
-
-      const { fixture } = await render(PendingDeletionCardComponent, {
-        componentProperties: {
-          deletionRequest: mockDeletionRequest
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      await waitFor(() => {
-        expect(fixture.componentInstance.pcError).toBe(true);
-        expect(fixture.componentInstance.pcLoading).toBe(false);
-      });
-
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      consoleErrorSpy.mockRestore();
-    });
-  });
-
   describe('formatDate', () => {
     it('should format date correctly', async () => {
       const { fixture } = await render(PendingDeletionCardComponent, {
@@ -392,33 +209,6 @@ describe('PendingDeletionCardComponent', () => {
       expect(formatted).toContain('Dec');
       expect(formatted).toContain('25');
       expect(formatted).toContain('2024');
-    });
-  });
-
-  describe('formatPersonName', () => {
-    it('should call formatPersonName from planning center', async () => {
-      const mockPerson = {
-        id: 'pc-123',
-        attributes: {
-          first_name: 'John',
-          last_name: 'Doe'
-        }
-      };
-
-      const formatSpy = vi.spyOn(planningCenter, 'formatPersonName').mockReturnValue('John Doe');
-
-      const { fixture } = await render(PendingDeletionCardComponent, {
-        componentProperties: {
-          deletionRequest: mockDeletionRequest
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      const result = fixture.componentInstance.formatPersonName(mockPerson);
-      expect(formatSpy).toHaveBeenCalledWith(mockPerson);
-      expect(result).toBe('John Doe');
     });
   });
 
@@ -470,9 +260,9 @@ describe('PendingDeletionCardComponent', () => {
         ]
       });
 
-      // Manually set isApproving and trigger change detection
       fixture.componentInstance.isApproving = true;
-      fixture.componentRef.changeDetectorRef.detectChanges();
+      fixture.debugElement.injector.get(ChangeDetectorRef).markForCheck();
+      fixture.detectChanges();
       await fixture.whenStable();
 
       // The button text should change (with regex to handle whitespace)

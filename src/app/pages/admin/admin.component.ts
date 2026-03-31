@@ -26,7 +26,6 @@ import { TestAccountSettingsComponent } from '../../components/test-account-sett
 import { EmailVerificationSettingsComponent } from '../../components/email-verification-settings/email-verification-settings.component';
 import { GitHubSettingsComponent } from '../../components/github-settings/github-settings.component';
 import { PrayerEncouragementSettingsComponent } from '../../components/prayer-encouragement-settings/prayer-encouragement-settings.component';
-import { PlanningCenterListMapperComponent } from '../../components/planning-center-list-mapper/planning-center-list-mapper.component';
 import { ConfirmationDialogComponent } from '../../components/confirmation-dialog/confirmation-dialog.component';
 
 type AdminTab = 'prayers' | 'updates' | 'deletions' | 'accounts' | 'settings';
@@ -56,7 +55,6 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security';
     EmailVerificationSettingsComponent,
     GitHubSettingsComponent,
     PrayerEncouragementSettingsComponent,
-    PlanningCenterListMapperComponent,
     ConfirmationDialogComponent
   ],
   styles: `
@@ -617,9 +615,6 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security';
                 <div class="mb-4">
                 <app-prayer-types-manager></app-prayer-types-manager>
               </div>
-                <div class="mb-4">
-                  <app-planning-center-list-mapper></app-planning-center-list-mapper>
-                </div>
               </div>
             }
 

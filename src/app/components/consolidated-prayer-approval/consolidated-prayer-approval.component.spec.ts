@@ -74,7 +74,6 @@ describe('ConsolidatedPrayerApprovalComponent', () => {
           author_email: 'jane@example.com',
           created_at: new Date().toISOString(),
           is_anonymous: false,
-          in_planning_center: null,
           mark_as_answered: false
         }
       ];
@@ -211,22 +210,6 @@ describe('ConsolidatedPrayerApprovalComponent', () => {
     });
   });
 
-  describe('Planning Center Status Display', () => {
-    it('should display planning center status when available', () => {
-      component.prayer = makePrayer({
-        in_planning_center: true
-      });
-      expect(component.prayer.in_planning_center).toBe(true);
-    });
-
-    it('should handle null planning center status', () => {
-      component.prayer = makePrayer({
-        in_planning_center: null
-      });
-      expect(component.prayer.in_planning_center).toBeNull();
-    });
-  });
-
   describe('Answered Update Handling', () => {
     beforeEach(() => {
       component.pendingUpdates = [
@@ -253,12 +236,12 @@ describe('ConsolidatedPrayerApprovalComponent', () => {
       expect(component.getRequester()).toBe('John Smith');
     });
 
-    it('should return Planning Center when id starts with pc-member-', () => {
-      component.prayer = makePrayer({ 
+    it('should return Anonymous when requester missing even for legacy member ids', () => {
+      component.prayer = makePrayer({
         id: 'pc-member-12345',
         requester: undefined
       });
-      expect(component.getRequester()).toBe('Planning Center');
+      expect(component.getRequester()).toBe('Anonymous');
     });
 
     it('should return Anonymous as fallback', () => {

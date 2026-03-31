@@ -8,8 +8,6 @@ import { ToastService } from '../../services/toast.service';
 import { AdminDataService } from '../../services/admin-data.service';
 import { SendNotificationDialogComponent } from '../send-notification-dialog/send-notification-dialog.component';
 import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
-import { lookupPersonByEmail, batchLookupPlanningCenter, searchPlanningCenterByName, PlanningCenterPerson } from '../../../lib/planning-center';
-import { environment } from '../../../environments/environment';
 
 interface EmailSubscriber {
   id: string;
@@ -21,8 +19,6 @@ interface EmailSubscriber {
   is_admin?: boolean;
   created_at: string;
   last_activity_date?: string | null;
-  in_planning_center?: boolean | null;
-  planning_center_checked_at?: string | null;
 }
 
 interface CSVRow {
@@ -125,17 +121,6 @@ interface CSVRow {
         </svg>
         <div class="flex-1">
           <span class="text-green-800 dark:text-green-200 text-sm">{{ csvSuccess }}</span>
-          <!-- Planning Center Check Warnings -->
-          @if (csvImportWarnings.length > 0) {
-          <div class="mt-2 pt-2 border-t border-green-200 dark:border-green-800">
-            <p class="text-xs font-semibold text-orange-700 dark:text-orange-300 mb-1">⚠️ Planning Center Lookup Issues:</p>
-            <ul class="space-y-1">
-              @for (warning of csvImportWarnings; track warning) {
-              <li class="text-xs text-orange-700 dark:text-orange-300">• {{ warning }}</li>
-              }
-            </ul>
-          </div>
-          }
         </div>
       </div>
       }
@@ -156,24 +141,8 @@ interface CSVRow {
           </div>
         </div>
 
-        <!-- Upload Progress Bar -->
-        @if (uploadingCSV && csvImportTotal > 0) {
-        <div class="mb-4">
-          <div class="flex items-center justify-between mb-1">
-            <span class="text-xs font-medium text-gray-700 dark:text-gray-300">
-              Checking Planning Center: {{ csvImportProgress }}/{{ csvImportTotal }}
-            </span>
-            <span class="text-xs font-medium text-gray-600 dark:text-gray-400">
-              {{ Math.round((csvImportProgress / csvImportTotal) * 100) }}%
-            </span>
-          </div>
-          <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div 
-              class="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-300"
-              [style.width.%]="(csvImportProgress / csvImportTotal) * 100"
-            ></div>
-          </div>
-        </div>
+        @if (uploadingCSV) {
+        <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">Uploading subscribers…</div>
         }
 
         <input
@@ -231,28 +200,6 @@ interface CSVRow {
       <!-- Add Subscriber Form -->
       @if (showAddForm) {
       <div class="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 mb-4 border border-gray-200 dark:border-gray-700">
-        <!-- Search Planning Center Tab -->
-        <div class="mb-4">
-          <div class="flex gap-2 border-b border-gray-300 dark:border-gray-600">
-            <button
-              (click)="pcSearchTab = false"
-              [class]="!pcSearchTab ? 'px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-medium cursor-pointer' : 'px-4 py-2 border-b-2 border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 cursor-pointer'"
-              class="focus:outline-none"
-            >
-              Manual Entry
-            </button>
-            <button
-              (click)="pcSearchTab = true"
-              [class]="pcSearchTab ? 'px-4 py-2 border-b-2 border-blue-600 text-blue-600 font-medium cursor-pointer' : 'px-4 py-2 border-b-2 border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 cursor-pointer'"
-              class="focus:outline-none"
-            >
-              Search Planning Center
-            </button>
-          </div>
-        </div>
-
-        <!-- Manual Entry Tab -->
-        @if (!pcSearchTab) {
         <form (ngSubmit)="handleAddSubscriber()" class="space-y-3">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -295,99 +242,6 @@ interface CSVRow {
             </button>
           </div>
         </form>
-        }
-
-        <!-- Planning Center Search Tab -->
-        @if (pcSearchTab) {
-        <div class="space-y-3">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search Name</label>
-            <!-- Keep input + button on one line; allow input to shrink so the row stays within the header width -->
-            <div class="flex gap-2 max-w-full">
-              <input
-                type="text"
-                [(ngModel)]="pcSearchQuery"
-                (keyup.enter)="handleSearchPlanningCenter()"
-                placeholder="Enter name to search..."
-                class="flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                (click)="handleSearchPlanningCenter()"
-                [disabled]="pcSearching || !pcSearchQuery.trim()"
-                class="shrink-0 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 transition-colors text-sm cursor-pointer whitespace-nowrap"
-              >
-                @if (pcSearching) {
-                  Searching...
-                } @else {
-                  Search
-                }
-              </button>
-            </div>
-          </div>
-
-          <!-- Search Results -->
-          @if (pcSearching) {
-          <div class="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 text-center">
-            <p class="text-gray-500 dark:text-gray-400 text-sm">Searching Planning Center...</p>
-          </div>
-          }
-
-          @if (!pcSearching && pcSearchResults.length > 0) {
-          <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Found {{ pcSearchResults.length }} result(s):</p>
-            <div class="space-y-2 max-h-64 overflow-y-auto">
-              @for (person of pcSearchResults; track person.id) {
-              <div
-                (click)="selectPlanningCenterPerson(person)"
-                class="p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-              >
-                <p class="font-medium text-gray-900 dark:text-gray-100">{{ person.attributes.name }}</p>
-                @if (person.attributes.primary_email_address) {
-                <p class="text-sm text-blue-600 dark:text-blue-400">{{ person.attributes.primary_email_address }}</p>
-                }
-                @if (person.attributes.first_name && person.attributes.last_name) {
-                <p class="text-xs text-gray-600 dark:text-gray-400">{{ person.attributes.first_name }} {{ person.attributes.last_name }}</p>
-                }
-              </div>
-              }
-            </div>
-          </div>
-          }
-
-          @if (!pcSearching && pcSearchSearched && pcSearchResults.length === 0) {
-          <div class="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 text-center">
-            <p class="text-gray-500 dark:text-gray-400 text-sm">No results found</p>
-          </div>
-          }
-
-          <!-- Selected Person Info -->
-          @if (pcSelectedPerson) {
-          <div class="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-            <p class="text-sm font-medium text-green-900 dark:text-green-200">Selected:</p>
-            <p class="text-sm text-green-800 dark:text-green-300">{{ pcSelectedPerson.attributes.name }}</p>
-            @if (pcSelectedPerson.attributes.primary_email_address) {
-            <p class="text-sm text-green-700 dark:text-green-400">{{ pcSelectedPerson.attributes.primary_email_address }}</p>
-            }
-          </div>
-          }
-
-          <div class="flex gap-2">
-            <button
-              (click)="handleAddSelectedPlanningCenterPerson()"
-              [disabled]="submitting || !pcSelectedPerson"
-              class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-green-400 transition-colors text-sm cursor-pointer"
-            >
-              {{ submitting ? 'Adding...' : 'Add Selected Subscriber' }}
-            </button>
-            <button
-              (click)="toggleAddForm()"
-              class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm cursor-pointer"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-        }
       </div>
       }
 
@@ -450,19 +304,18 @@ interface CSVRow {
 
       @if (!searching && hasSearched && subscribers.length > 0) {
       <div>
-        <div class="hidden mb-3 gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-300 sm:grid sm:grid-cols-[repeat(16,minmax(0,1fr))]">
+        <div class="hidden mb-3 gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-300 sm:grid sm:grid-cols-[repeat(15,minmax(0,1fr))]">
           <button (click)="toggleSort('name')" class="col-span-4 text-left hover:text-gray-900 dark:hover:text-gray-100 transition-colors cursor-pointer" title="Click to sort by name">Name{{ getSortIndicator('name') }}</button>
           <button (click)="toggleSort('email')" class="col-span-2 text-left hover:text-gray-900 dark:hover:text-gray-100 transition-colors cursor-pointer" title="Click to sort by email">Email{{ getSortIndicator('email') }}</button>
           <button (click)="toggleSort('created_at')" class="col-span-2 text-left hover:text-gray-900 dark:hover:text-gray-100 transition-colors cursor-pointer" title="Click to sort by join date">Added{{ getSortIndicator('created_at') }}</button>
           <button (click)="toggleSort('last_activity_date')" class="col-span-2 text-left whitespace-nowrap hover:text-gray-900 dark:hover:text-gray-100 transition-colors cursor-pointer" title="Click to sort by last activity">Activity{{ getSortIndicator('last_activity_date') }}</button>
           <button (click)="toggleSort('is_active')" class="col-span-1 text-left hover:text-gray-900 dark:hover:text-gray-100 transition-colors cursor-pointer" title="Click to sort by email">Email{{ getSortIndicator('is_active') }}</button>
           <button (click)="toggleSort('receive_push')" class="col-span-1 text-left hover:text-gray-900 dark:hover:text-gray-100 transition-colors cursor-pointer" title="Click to sort by push">Push{{ getSortIndicator('receive_push') }}</button>
-          <button (click)="toggleSort('in_planning_center')" class="col-span-1 text-center hover:text-gray-900 dark:hover:text-gray-100 transition-colors cursor-pointer" title="Click to sort by PC status">PC{{ getSortIndicator('in_planning_center') }}</button>
           <button (click)="toggleSort('is_blocked')" class="col-span-1 text-center hover:text-gray-900 dark:hover:text-gray-100 transition-colors cursor-pointer" title="Click to sort by block status">Block{{ getSortIndicator('is_blocked') }}</button>
           <span class="col-span-2 text-left text-gray-700 dark:text-gray-300">Actions</span>
         </div>
         <div class="space-y-2">
-          @for (subscriber of subscribers; track subscriber.id) { <div class="grid gap-2 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 grid-cols-2 sm:grid-cols-[repeat(16,minmax(0,1fr))] sm:items-center">
+          @for (subscriber of subscribers; track subscriber.id) { <div class="grid gap-2 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 grid-cols-2 sm:grid-cols-[repeat(15,minmax(0,1fr))] sm:items-center">
             <!-- Name column -->
             <div class="text-left col-span-1 sm:col-span-4">
               <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 sm:hidden">Name</p>
@@ -539,18 +392,6 @@ interface CSVRow {
                 </svg>
                 }
               </button>
-            </div>
-
-            <!-- PC column -->
-            <div class="col-span-1 sm:col-span-1 flex items-center justify-start sm:justify-center gap-1">
-              <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 sm:hidden">PC</p>
-              @if (subscriber.in_planning_center === true) {
-              <span class="text-lg text-green-600 dark:text-green-400" title="This person is verified in Planning Center">✓</span>
-              } @else if (subscriber.in_planning_center === false) {
-              <span class="text-lg text-gray-400 dark:text-gray-600" title="This person is not verified in Planning Center">✓</span>
-              } @else {
-              <span class="text-lg text-gray-400 dark:text-gray-600" title="Planning Center status unknown">✓</span>
-              }
             </div>
 
             <!-- Blocked column -->
@@ -776,11 +617,6 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
   submitting = false;
   error: string | null = null;
   csvSuccess: string | null = null;
-  
-  // CSV import progress tracking
-  csvImportProgress = 0;
-  csvImportTotal = 0;
-  csvImportWarnings: string[] = [];
 
   // Pagination properties
   currentPage = 1;
@@ -793,16 +629,8 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
   private breakpointSub: Subscription | null = null;
 
   // Sorting properties
-  sortBy: 'name' | 'email' | 'created_at' | 'last_activity_date' | 'is_active' | 'receive_push' | 'is_blocked' | 'in_planning_center' = 'last_activity_date';
+  sortBy: 'name' | 'email' | 'created_at' | 'last_activity_date' | 'is_active' | 'receive_push' | 'is_blocked' = 'last_activity_date';
   sortDirection: 'asc' | 'desc' = 'desc';
-
-  // Planning Center search properties
-  pcSearchTab = false;
-  pcSearchQuery = '';
-  pcSearching = false;
-  pcSearchSearched = false;
-  pcSearchResults: PlanningCenterPerson[] = [];
-  pcSelectedPerson: PlanningCenterPerson | null = null;
 
   // Send notification dialog properties
   showSendWelcomeEmailDialog = false;
@@ -896,12 +724,6 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
     this.csvSuccess = null;
     this.newName = '';
     this.newEmail = '';
-    // Reset Planning Center search
-    this.pcSearchTab = false;
-    this.pcSearchQuery = '';
-    this.pcSearchResults = [];
-    this.pcSelectedPerson = null;
-    this.pcSearchSearched = false;
     this.cdr.markForCheck();
   }
 
@@ -1022,7 +844,7 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
     }
   }
 
-  toggleSort(column: 'name' | 'email' | 'created_at' | 'last_activity_date' | 'is_active' | 'receive_push' | 'is_blocked' | 'in_planning_center') {
+  toggleSort(column: 'name' | 'email' | 'created_at' | 'last_activity_date' | 'is_active' | 'receive_push' | 'is_blocked') {
     // If clicking the same column, toggle direction; otherwise set new column
     if (this.sortBy === column) {
       this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -1077,10 +899,6 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
         case 'is_blocked':
           aVal = a.is_blocked ? 1 : 0;
           bVal = b.is_blocked ? 1 : 0;
-          break;
-        case 'in_planning_center':
-          aVal = a.in_planning_center === true ? 1 : a.in_planning_center === false ? 0 : -1;
-          bVal = b.in_planning_center === true ? 1 : b.in_planning_center === false ? 0 : -1;
           break;
       }
 
@@ -1200,24 +1018,6 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
         return;
       }
 
-      // Check Planning Center status
-      let inPlanningCenter: boolean | null = null;
-      let planningCenterCheckedAt: string | null = null;
-      
-      try {
-        const pcResult = await lookupPersonByEmail(
-          this.newEmail.toLowerCase().trim(),
-          environment.supabaseUrl,
-          environment.supabasePublishableKey
-        );
-        inPlanningCenter = pcResult.count > 0;
-        planningCenterCheckedAt = new Date().toISOString();
-        console.log(`[Email Subscribers] Planning Center check for ${this.newEmail}: ${inPlanningCenter}`);
-      } catch (pcError) {
-        console.error('[Email Subscribers] Planning Center check failed:', pcError);
-        // Continue with null values if check fails
-      }
-
       const { error } = await this.supabase.client
         .from('email_subscribers')
         .insert({
@@ -1225,9 +1025,7 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
           email: this.newEmail.toLowerCase().trim(),
           is_active: true,
           is_admin: false,
-          receive_admin_emails: false,
-          in_planning_center: inPlanningCenter,
-          planning_center_checked_at: planningCenterCheckedAt
+          receive_admin_emails: false
         });
 
       if (error) throw error;
@@ -1563,9 +1361,6 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       this.uploadingCSV = true;
       this.error = null;
       this.csvSuccess = null;
-      this.csvImportWarnings = [];
-      this.csvImportProgress = 0;
-      this.csvImportTotal = validRows.length;
       this.cdr.markForCheck();
 
       // Check for existing emails
@@ -1585,61 +1380,14 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
         return;
       }
 
-      // Batch Planning Center lookups with progress tracking
-      console.log(`[CSV Import] Starting batched Planning Center lookups for ${newRows.length} new subscribers...`);
-      const newEmails = newRows.map(r => r.email.toLowerCase());
-      
-      const batchResults = await batchLookupPlanningCenter(
-        newEmails,
-        environment.supabaseUrl,
-        environment.supabasePublishableKey,
-        {
-          concurrency: 5, // Max 5 concurrent requests at a time
-          maxRetries: 3,
-          retryDelayMs: 500,
-          onProgress: (completed, total) => {
-            this.csvImportProgress = completed;
-            this.csvImportTotal = total;
-            this.cdr.markForCheck();
-          }
-        }
-      );
+      const subscribersToInsert = newRows.map((r) => ({
+        name: r.name,
+        email: r.email.toLowerCase(),
+        is_active: true,
+        is_admin: false,
+        receive_admin_emails: false
+      }));
 
-      // Create lookup map for easy access
-      const resultMap = new Map(batchResults.map(r => [r.email, r]));
-
-      // Track failures and warnings
-      let failedLookups = 0;
-      const subscribersToInsert = newRows.map((r) => {
-        const result = resultMap.get(r.email.toLowerCase());
-        let inPlanningCenter: boolean | null = null;
-        let planningCenterCheckedAt: string | null = null;
-
-        if (result) {
-          if (result.failed) {
-            failedLookups++;
-            const warning = `Planning Center check failed for ${r.email} (retried ${result.retries} times)`;
-            this.csvImportWarnings.push(warning);
-            console.warn(`[CSV Import] ${warning}`);
-          } else {
-            inPlanningCenter = result.result.count > 0;
-            planningCenterCheckedAt = new Date().toISOString();
-            console.log(`[CSV Import] Planning Center check for ${r.email}: ${inPlanningCenter}`);
-          }
-        }
-
-        return {
-          name: r.name,
-          email: r.email.toLowerCase(),
-          is_active: true,
-          is_admin: false,
-          receive_admin_emails: false,
-          in_planning_center: inPlanningCenter,
-          planning_center_checked_at: planningCenterCheckedAt
-        };
-      });
-
-      // Insert all subscribers
       const { error } = await this.supabase.client
         .from('email_subscribers')
         .insert(subscribersToInsert);
@@ -1648,13 +1396,8 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
 
       const skipped = validRows.length - newRows.length;
       let successMessage = `Successfully added ${newRows.length} subscriber(s)`;
-      
       if (skipped > 0) {
-        successMessage += `. Skipped ${skipped} duplicate(s)`;
-      }
-      
-      if (failedLookups > 0) {
-        successMessage += `. ⚠️ Planning Center checks failed for ${failedLookups} email(s) (see details below)`;
+        successMessage += `. Skipped ${skipped} duplicate(s).`;
       } else {
         successMessage += '!';
       }
@@ -1671,86 +1414,8 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
     } finally {
       this.uploadingCSV = false;
-      this.csvImportProgress = 0;
-      this.csvImportTotal = 0;
       this.cdr.markForCheck();
     }
-  }
-
-  async handleSearchPlanningCenter() {
-    if (!this.pcSearchQuery.trim()) {
-      this.error = 'Please enter a name to search';
-      this.cdr.markForCheck();
-      return;
-    }
-
-    this.pcSearching = true;
-    this.pcSearchSearched = true;
-    this.pcSearchResults = [];
-    this.pcSelectedPerson = null;
-    this.error = null;
-    this.cdr.markForCheck();
-
-    try {
-      const result = await searchPlanningCenterByName(
-        this.pcSearchQuery,
-        environment.supabaseUrl,
-        environment.supabasePublishableKey
-      );
-
-      if (result.error) {
-        this.error = result.error;
-        this.pcSearchResults = [];
-      } else {
-        this.pcSearchResults = result.people;
-        if (result.count === 0) {
-          this.error = null;
-        }
-      }
-    } catch (err: any) {
-      console.error('Error searching Planning Center:', err);
-      this.error = err.message || 'An error occurred while searching Planning Center';
-      this.pcSearchResults = [];
-    } finally {
-      this.pcSearching = false;
-      this.cdr.markForCheck();
-    }
-  }
-
-  selectPlanningCenterPerson(person: PlanningCenterPerson) {
-    this.pcSelectedPerson = person;
-    // Pre-fill the name field with the selected person's name
-    this.newName = person.attributes.name || `${person.attributes.first_name} ${person.attributes.last_name}`;
-    this.cdr.markForCheck();
-  }
-
-  async handleAddSelectedPlanningCenterPerson() {
-    if (!this.pcSelectedPerson) {
-      this.error = 'Please select a person from Planning Center';
-      this.cdr.markForCheck();
-      return;
-    }
-
-    // Fill in name and email from selected Planning Center person
-    const selectedName = this.pcSelectedPerson.attributes.name || 
-      `${this.pcSelectedPerson.attributes.first_name} ${this.pcSelectedPerson.attributes.last_name}`.trim();
-    
-    this.newName = selectedName;
-    this.newEmail = this.pcSelectedPerson.attributes.primary_email_address || '';
-    
-    this.error = null;
-    
-    // If we have both name and email, show success message and reset tab
-    if (this.newName && this.newEmail) {
-      this.toast.info('Name and email filled in! Click "Add Subscriber" to complete.');
-      this.pcSearchTab = false;
-    } else if (this.newName && !this.newEmail) {
-      // If we only have name, ask for email
-      this.toast.info('Name filled in! Please enter the email address for this contact.');
-      this.pcSearchTab = false;
-    }
-    
-    this.cdr.markForCheck();
   }
 
   /**

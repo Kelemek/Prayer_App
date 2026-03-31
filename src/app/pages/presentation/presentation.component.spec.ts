@@ -24,7 +24,6 @@ describe('PresentationComponent', () => {
   let mockSupabase: any;
   let mockThemeService: any;
   let mockPrayerService: any;
-  let mockCacheService: any;
   let cdr: any;
   let ngZone: any;
 
@@ -33,10 +32,9 @@ describe('PresentationComponent', () => {
     mockSupabase = { client: { from: vi.fn() } };
     mockThemeService = { getTheme: vi.fn() };
     mockPrayerService = { prayers$: { subscribe: vi.fn(), value: [] } };
-    mockCacheService = { get: vi.fn(), set: vi.fn(), invalidate: vi.fn() };
     cdr = { markForCheck: vi.fn(), detectChanges: vi.fn() };
     ngZone = { run: (cb: any) => cb() };
-    component = new PresentationComponent(mockRouter, mockSupabase, mockPrayerService, mockCacheService, mockThemeService, cdr, ngZone as any);
+    component = new PresentationComponent(mockRouter, mockSupabase, mockPrayerService, mockThemeService, cdr, ngZone as any);
   });
 
   afterEach(() => {
@@ -150,86 +148,6 @@ describe('PresentationComponent', () => {
   it('exitPresentation navigates to home', () => {
     component.exitPresentation();
     expect(mockRouter.navigate).toHaveBeenCalledWith(['/']);
-  });
-
-  describe('Members functionality', () => {
-    it('loadPlanningCenterMembers handles cache hit', async () => {
-      const mockCachedMembers = [{ id: '1', name: 'John' }];
-      mockCacheService.get.mockReturnValue({ members: mockCachedMembers });
-      
-      await component.loadPlanningCenterMembers();
-      
-      expect(component.planningCenterListMembers).toEqual(mockCachedMembers);
-      expect(component.hasPlanningCenterList).toBe(true);
-      expect(component.hasMembers).toBe(true);
-    });
-
-    it('loadPlanningCenterMembers handles no user session', async () => {
-      // Mock getSession instead of getUser as per my updated code
-      mockSupabase.client.auth = { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) };
-      mockCacheService.get.mockReturnValue(null);
-      
-      await component.loadPlanningCenterMembers();
-      
-      expect(component.planningCenterListMembers).toEqual([]);
-      expect(component.hasPlanningCenterList).toBe(false);
-    });
-
-    it('loadPlanningCenterMembers fetches from API when no cache and list ID exists', async () => {
-      const user = { email: 'test@example.com' };
-      mockSupabase.client.auth = { 
-        getSession: vi.fn().mockResolvedValue({ data: { session: { user } } }),
-        getUser: vi.fn().mockResolvedValue({ data: { user } }) 
-      };
-      mockCacheService.get.mockReturnValue(null);
-      
-      const mockResult = { planning_center_list_id: 'list123' };
-      mockSupabase.client.from.mockReturnValue({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        maybeSingle: vi.fn().mockResolvedValue({ data: mockResult, error: null })
-      });
-
-      // Global window fetch mock for fetchListMembers
-      const mockMembers = [{ id: 'm1', name: 'Member 1', avatar: 'url' }];
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ members: mockMembers })
-      });
-
-      await component.loadPlanningCenterMembers();
-      
-      expect(component.hasPlanningCenterList).toBe(true);
-      expect(component.planningCenterListMembers).toEqual(mockMembers);
-    });
-
-    it('fetchMemberPrayers populates prayers correctly', async () => {
-      component.planningCenterListMembers = [{ id: 'm1', name: 'Member 1', avatar: 'url' }];
-      mockPrayerService.getMemberPrayerUpdates = vi.fn().mockResolvedValue([{ id: 'u1', content: 'update' }]);
-      
-      await component.fetchMemberPrayers();
-      
-      expect(component.memberPrayers.length).toBe(1);
-      expect(component.memberPrayers[0].prayer_for).toBe('Member 1');
-      expect(component.memberPrayers[0].prayer_image).toBe('url');
-      expect((component.memberPrayers[0] as any).prayer_updates.length).toBe(1);
-    });
-
-    it('items getter returns member prayers when specified', () => {
-      component.contentType = 'members';
-      component.memberPrayers = [{ id: 'pc-member-1', prayer_for: 'Member' } as any];
-      
-      expect(component.items).toEqual(component.memberPrayers);
-    });
-
-    it('handleContentTypeChange fetches members when switched to "members"', async () => {
-      component.contentType = 'members';
-      const spy = vi.spyOn(component, 'fetchMemberPrayers');
-      
-      await component.handleContentTypeChange();
-      
-      expect(spy).toHaveBeenCalled();
-    });
   });
 
   it('setupControlsAutoHide hides controls after initial period on non-mobile', () => {
@@ -371,7 +289,6 @@ describe('PresentationComponent', () => {
   let mockSupabase: any;
   let mockThemeService: any;
   let mockPrayerService: any;
-  let mockCacheService: any;
   let mockCdr: any;
   let mockNgZone: any;
 
@@ -382,7 +299,6 @@ describe('PresentationComponent', () => {
     mockSupabase = { client: {} };
     mockThemeService = {};
     mockPrayerService = { prayers$: { subscribe: vi.fn(), value: [] } };
-    mockCacheService = { get: vi.fn(), set: vi.fn(), invalidate: vi.fn() };
     mockCdr = { markForCheck: vi.fn(), detectChanges: vi.fn() };
     mockNgZone = { run: (fn: Function) => fn() } as unknown as NgZone;
 
@@ -390,7 +306,6 @@ describe('PresentationComponent', () => {
       mockRouter as unknown as Router,
       mockSupabase as unknown as SupabaseService,
       mockPrayerService as any,
-      mockCacheService as any,
       mockThemeService as unknown as ThemeService,
       mockCdr as unknown as ChangeDetectorRef,
       mockNgZone as unknown as NgZone
@@ -407,18 +322,13 @@ describe('PresentationComponent', () => {
 
   it('ngOnInit calls loadTheme, loadContent and setupControlsAutoHide', async () => {
     const lt = vi.spyOn(component, 'loadTheme').mockImplementation(() => {});
-    const lpm = vi.spyOn(component, 'loadPlanningCenterMembers').mockImplementation(() => Promise.resolve());
     const lc = vi.spyOn(component, 'loadContent').mockImplementation(() => Promise.resolve());
     const sc = vi.spyOn(component, 'setupControlsAutoHide').mockImplementation(() => {});
 
     component.ngOnInit();
 
     expect(lt).toHaveBeenCalled();
-    expect(lpm).toHaveBeenCalled();
-    
-    // Wait for the promise chain to complete
-    await Promise.resolve(); // This handles the .then() block
-    
+    await Promise.resolve();
     expect(lc).toHaveBeenCalled();
     expect(sc).toHaveBeenCalled();
   });

@@ -37,25 +37,6 @@ import type { PrayerRequest } from '../../services/prayer.service';
               </span>
             }
           </p>
-          @if (prayer.in_planning_center !== null) {
-            <p class="text-xs mb-1">
-              @if (prayer.in_planning_center) {
-                <span class="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-medium">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 12l4 4 8-8"></path>
-                  </svg>
-                  In Planning Center
-                </span>
-              } @else {
-                <span class="inline-flex items-center gap-1 px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full text-xs font-medium">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                  </svg>
-                  Not in Planning Center
-                </span>
-              }
-            </p>
-          }
           <p class="text-xs text-gray-500 dark:text-gray-400">
             {{ formatDate(prayer.created_at) }}
           </p>
@@ -100,25 +81,6 @@ import type { PrayerRequest } from '../../services/prayer.service';
                         </span>
                       }
                     </p>
-                    @if (update.in_planning_center !== null) {
-                      <p class="text-xs mb-1">
-                        @if (update.in_planning_center) {
-                          <span class="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-medium">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                              <path d="M4 12l4 4 8-8"></path>
-                            </svg>
-                            In Planning Center
-                          </span>
-                        } @else {
-                          <span class="inline-flex items-center gap-1 px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full text-xs font-medium">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                            </svg>
-                            Not in Planning Center
-                          </span>
-                        }
-                      </p>
-                    }
                     @if (update.mark_as_answered) {
                       <p class="text-xs mb-1">
                         <span class="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-medium">
@@ -315,9 +277,6 @@ export class ConsolidatedPrayerApprovalComponent {
   getRequester(): string {
     if (this.prayer?.requester) {
       return this.prayer.requester;
-    }
-    if (this.prayer?.id?.startsWith('pc-member-')) {
-      return 'Planning Center';
     }
     return 'Anonymous';
   }

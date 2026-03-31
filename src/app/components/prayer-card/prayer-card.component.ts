@@ -25,20 +25,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
       }
       <!-- Header -->
       <div class="flex items-start justify-between mb-4 relative">
-        <div
-          class="flex gap-3 flex-1 min-w-0 pr-24"
-          [class.items-center]="activeFilter === 'planning_center_list'"
-          [class.items-start]="activeFilter !== 'planning_center_list'"
-        >
-          <!-- Avatar for Planning Center members -->
-          @if (prayer.prayer_image && prayer.id.startsWith('pc-member-')) {
-            <img 
-              [src]="prayer.prayer_image" 
-              [alt]="'Avatar for ' + prayer.prayer_for"
-              class="w-20 h-20 rounded-full object-cover border border-gray-300 dark:border-gray-600 flex-shrink-0"
-              loading="lazy"
-            />
-          }
+        <div class="flex gap-3 flex-1 min-w-0 pr-24 items-start">
           <div class="flex-1">
             <div class="relative flex items-center gap-2 flex-wrap">
               <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-0 inline">
@@ -54,7 +41,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
               {{ prayer.category }}
             </span>
             }
-            @if (!isPersonal && !prayer.id.startsWith('pc-member-')) {
+            @if (!isPersonal) {
             <span class="text-sm text-gray-600 dark:text-gray-400">
               Requested by: <span class="font-medium text-gray-800 dark:text-gray-100">{{ displayRequester() }}</span>
             </span>
@@ -107,7 +94,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
       </div>
 
       <!-- Badge in top-right corner -->
-      @if ((prayerBadge$ | async) && (badgeService.getBadgeFunctionalityEnabled$() | async) && activeFilter !== 'total' && !isPersonal && !prayer.id.startsWith('pc-member-')) {
+      @if ((prayerBadge$ | async) && (badgeService.getBadgeFunctionalityEnabled$() | async) && activeFilter !== 'total' && !isPersonal) {
         <button
           (click)="markPrayerAsRead()"
           class="absolute -top-2 -right-2 inline-flex items-center justify-center w-6 h-6 bg-[#39704D] dark:bg-[#39704D] text-white rounded-full text-xs font-bold hover:bg-[#2d5a3f] dark:hover:bg-[#2d5a3f] focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors"
@@ -118,12 +105,9 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
         </button>
       }
 
-      <!-- Centered timestamp (hidden for Planning Center member cards) -->
-      @if (!prayer.id.startsWith('pc-member-')) {
       <span class="absolute left-1/2 top-4 transform -translate-x-1/2 -translate-y-1/2 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
         {{ formatDate(prayer.created_at) }}
       </span>
-      }
       <!-- Prayer Description -->
       <p class="text-gray-600 dark:text-gray-300 mb-4">{{ prayer.description }}</p>
 
@@ -137,7 +121,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
         >
           Add Update
         </button>
-        @if ((prayerEncouragementService.getPrayerEncouragementEnabled$() | async) && !isPersonal && !prayer.id.startsWith('pc-member-')) {
+        @if ((prayerEncouragementService.getPrayerEncouragementEnabled$() | async) && !isPersonal) {
           @if (prayerEncouragementService.canPrayFor(prayer.id)) {
             <button
               (click)="onPrayForClick()"
@@ -181,7 +165,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
             class="w-full px-3 py-2 text-sm border border-[#39704D] dark:border-[#39704D] rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#39704D] h-20"
             required
           ></textarea>
-          @if (!isPersonal && !prayer.id.startsWith('pc-member-')) {
+          @if (!isPersonal) {
           <div class="flex items-center gap-2">
             <input
               type="checkbox"
@@ -292,13 +276,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
             <div class="relative mb-2">
               <div class="flex items-start relative min-h-8">
                 <div class="flex-1 min-w-0 pr-20">
-                  <!-- Answered badge for member updates -->
-                  @if (update.is_answered && prayer.id.startsWith('pc-member-')) {
-                  <span class="inline-flex items-center justify-center px-2 py-1 mr-2 bg-green-600 dark:bg-green-700 text-white rounded-full text-xs font-bold whitespace-nowrap">
-                    Answered
-                  </span>
-                  }
-                  @if (!isPersonal && !prayer.id.startsWith('pc-member-')) {
+                  @if (!isPersonal) {
                   <span class="text-sm text-gray-600 dark:text-gray-400">
                     Updated by: <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ update.is_anonymous ? 'Anonymous' : update.author }}</span>
                   </span>
@@ -315,29 +293,6 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                    </svg>
-                  </button>
-                  }
-                  @if (prayer.id.startsWith('pc-member-')) {
-                  <button
-                    (click)="editMemberUpdate.emit({update: update, prayerId: prayer.id})"
-                    aria-label="Edit member update"
-                    title="Edit update"
-                    class="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 p-1 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md cursor-pointer"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                    </svg>
-                  </button>
-                  <button
-                    (click)="toggleMemberUpdateAnswered(update)"
-                    [title]="update.is_answered ? 'Mark as unanswered' : 'Mark as answered'"
-                    [attr.aria-label]="update.is_answered ? 'Mark as unanswered' : 'Mark as answered'"
-                    [class]="'p-1 focus:outline-none focus:ring-2 focus:ring-green-500 rounded-md cursor-pointer ' + (update.is_answered ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400')"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
                   </button>
                   }
@@ -362,7 +317,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
             </div>
             
             <!-- Badge in top-right corner -->
-            @if ((updateBadges$.get(update.id) | async) && (badgeService.getBadgeFunctionalityEnabled$() | async) && activeFilter !== 'total' && !isPersonal && !prayer.id.startsWith('pc-member-')) {
+            @if ((updateBadges$.get(update.id) | async) && (badgeService.getBadgeFunctionalityEnabled$() | async) && activeFilter !== 'total' && !isPersonal) {
               <button
                 (click)="markUpdateAsRead(update.id)"
                 class="absolute -top-2 -right-2 inline-flex items-center justify-center w-6 h-6 bg-[#39704D] dark:bg-[#39704D] text-white rounded-full text-xs font-bold hover:bg-[#2d5a3f] dark:hover:bg-[#2d5a3f] focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors"
@@ -509,7 +464,7 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
   @Input() dragHandle: TemplateRef<any> | null = null;
   @Input() deletionsAllowed: 'everyone' | 'original-requestor' | 'admin-only' = 'everyone';
   @Input() updatesAllowed: 'everyone' | 'original-requestor' | 'admin-only' = 'everyone';
-  @Input() activeFilter: 'current' | 'answered' | 'archived' | 'total' | 'prompts' | 'personal' | 'planning_center_list' = 'total';
+  @Input() activeFilter: 'current' | 'answered' | 'archived' | 'total' | 'prompts' | 'personal' = 'total';
   
   @Output() delete = new EventEmitter<string>();
   @Output() addUpdate = new EventEmitter<any>();
@@ -518,8 +473,6 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
   @Output() requestUpdateDeletion = new EventEmitter<any>();
   @Output() editPersonalPrayer = new EventEmitter<PrayerRequest>();
   @Output() editPersonalUpdate = new EventEmitter<any>();
-  @Output() editMemberUpdate = new EventEmitter<any>();
-  @Output() toggleUpdateAnswered = new EventEmitter<any>();
 
   prayerBadge$: Observable<boolean> | null = null;
   updateBadges$: Map<string, BehaviorSubject<boolean>> = new Map();
@@ -727,8 +680,6 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
   // original-requestor: only prayer creator can delete
   // everyone: all users can request deletion
   showDeleteButton(): boolean {
-    // Don't show delete button for synthetic Planning Center member cards
-    if (this.prayer.id?.startsWith('pc-member-')) return false;
     // Personal prayers always allow deletion by owner
     if (this.isPersonal) return true;
     if (this.isAdmin) return true;
@@ -1016,14 +967,6 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
     } catch (error) {
       console.warn('Failed to mark update as read:', error);
     }
-  }
-
-  toggleMemberUpdateAnswered(update: any): void {
-    this.toggleUpdateAnswered.emit({
-      updateId: update.id,
-      prayerId: this.prayer.id,
-      isAnswered: !update.is_answered
-    });
   }
 
   async handleSharePrayer(): Promise<void> {

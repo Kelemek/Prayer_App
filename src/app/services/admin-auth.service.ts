@@ -353,7 +353,11 @@ export class AdminAuthService {
 
       if (error) {
         console.error('[AdminAuth] Send verification code error:', error);
-        const message = await this.supabase.describeFunctionInvokeFailure(error, response);
+        const message = await this.supabase.describeFunctionInvokeFailure(
+          error,
+          response,
+          'send-verification-code'
+        );
         return { success: false, error: message };
       }
 
@@ -393,7 +397,11 @@ export class AdminAuthService {
       );
 
       if (error) {
-        const detail = await this.supabase.describeFunctionInvokeFailure(error, response);
+        const detail = await this.supabase.describeFunctionInvokeFailure(
+          error,
+          response,
+          'check-admin-status'
+        );
         console.error('[AdminAuth] Error checking admin status:', error, detail);
         return false;
       }
@@ -430,7 +438,11 @@ export class AdminAuthService {
 
       if (error) {
         console.error('[AdminAuth] Verify code error:', error);
-        const errorMessage = await this.supabase.describeFunctionInvokeFailure(error, response);
+        const errorMessage = await this.supabase.describeFunctionInvokeFailure(
+          error,
+          response,
+          'verify-code'
+        );
         return { success: false, error: errorMessage };
       }
 
@@ -523,8 +535,6 @@ export class AdminAuthService {
       this.cacheService.invalidateCategory('personalPrayers');
       this.cacheService.invalidateCategory('prayers');
       this.cacheService.invalidateCategory('prompts');
-      this.cacheService.invalidateCategory('planningCenterListData');
-      this.cacheService.invalidateCategory('memberPrayerUpdates');
       
       // Clear badge read tracking (which prayers/prompts user has read)
       localStorage.removeItem('read_prayers_data');

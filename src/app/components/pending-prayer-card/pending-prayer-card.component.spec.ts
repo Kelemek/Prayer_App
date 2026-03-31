@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/angular';
+import { render, screen } from '@testing-library/angular';
 import { userEvent } from '@testing-library/user-event';
 import { PendingPrayerCardComponent } from './pending-prayer-card.component';
 import { PrayerRequest, PrayerStatus } from '../../types/prayer';
 import { SupabaseService } from '../../services/supabase.service';
-import * as planningCenter from '../../../lib/planning-center';
 
 describe('PendingPrayerCardComponent', () => {
   const mockPrayer: PrayerRequest = {
@@ -27,11 +26,6 @@ describe('PendingPrayerCardComponent', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Mock the lookupPersonByEmail function
-    vi.spyOn(planningCenter, 'lookupPersonByEmail').mockResolvedValue({
-      people: [],
-      error: null
-    });
   });
 
   it('should create', async () => {
@@ -173,152 +167,6 @@ describe('PendingPrayerCardComponent', () => {
       });
 
       expect(screen.getByText('Pending')).toBeTruthy();
-    });
-  });
-
-  describe('Planning Center verification', () => {
-    it('should not lookup Planning Center for anonymous prayers', async () => {
-      const anonymousPrayer = { ...mockPrayer, is_anonymous: true };
-      const lookupSpy = vi.spyOn(planningCenter, 'lookupPersonByEmail');
-
-      await render(PendingPrayerCardComponent, {
-        componentProperties: {
-          prayer: anonymousPrayer
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      expect(lookupSpy).not.toHaveBeenCalled();
-    });
-
-    it('should not lookup Planning Center when email is missing', async () => {
-      const noEmailPrayer = { ...mockPrayer, email: '' };
-      const lookupSpy = vi.spyOn(planningCenter, 'lookupPersonByEmail');
-
-      await render(PendingPrayerCardComponent, {
-        componentProperties: {
-          prayer: noEmailPrayer
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      expect(lookupSpy).not.toHaveBeenCalled();
-    });
-
-    it('should lookup Planning Center for non-anonymous prayers with email', async () => {
-      const lookupSpy = vi.spyOn(planningCenter, 'lookupPersonByEmail').mockResolvedValue({
-        people: [],
-        error: null
-      });
-
-      await render(PendingPrayerCardComponent, {
-        componentProperties: {
-          prayer: mockPrayer
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      await waitFor(() => {
-        expect(lookupSpy).toHaveBeenCalledWith(
-          mockPrayer.email,
-          expect.any(String),
-          expect.any(String)
-        );
-      });
-    });
-
-    it('should display Planning Center verification badge when person found', async () => {
-      const mockPerson = {
-        id: '1',
-        attributes: {
-          first_name: 'John',
-          last_name: 'Smith'
-        }
-      };
-      vi.spyOn(planningCenter, 'lookupPersonByEmail').mockResolvedValue({
-        people: [mockPerson],
-        error: null
-      });
-
-      const { fixture } = await render(PendingPrayerCardComponent, {
-        componentProperties: {
-          prayer: mockPrayer
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      await waitFor(() => {
-        expect(fixture.componentInstance.pcPerson).toEqual(mockPerson);
-        expect(fixture.componentInstance.pcLoading).toBe(false);
-      });
-    });
-
-    it('should display not found badge when person not found', async () => {
-      vi.spyOn(planningCenter, 'lookupPersonByEmail').mockResolvedValue({
-        people: [],
-        error: null
-      });
-
-      const { fixture } = await render(PendingPrayerCardComponent, {
-        componentProperties: {
-          prayer: mockPrayer
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      await waitFor(() => {
-        expect(fixture.componentInstance.pcPerson).toBeNull();
-        expect(fixture.componentInstance.pcLoading).toBe(false);
-      });
-    });
-
-    it('should display error badge when lookup fails', async () => {
-      vi.spyOn(planningCenter, 'lookupPersonByEmail').mockResolvedValue({
-        people: [],
-        error: 'API Error'
-      });
-
-      const { fixture } = await render(PendingPrayerCardComponent, {
-        componentProperties: {
-          prayer: mockPrayer
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      await waitFor(() => {
-        expect(fixture.componentInstance.pcError).toBe(true);
-        expect(fixture.componentInstance.pcLoading).toBe(false);
-      });
-    });
-
-    it('should handle lookup exception', async () => {
-      vi.spyOn(planningCenter, 'lookupPersonByEmail').mockRejectedValue(new Error('Network error'));
-
-      const { fixture } = await render(PendingPrayerCardComponent, {
-        componentProperties: {
-          prayer: mockPrayer
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      await waitFor(() => {
-        expect(fixture.componentInstance.pcError).toBe(true);
-        expect(fixture.componentInstance.pcLoading).toBe(false);
-      });
     });
   });
 
@@ -658,30 +506,6 @@ describe('PendingPrayerCardComponent', () => {
 
       const formatted = fixture.componentInstance.formatDate('2024-01-15T14:30:00Z');
       expect(formatted).toMatch(/Jan 15, 2024/);
-    });
-  });
-
-  describe('formatPersonName method', () => {
-    it('should format person name correctly', async () => {
-      const { fixture } = await render(PendingPrayerCardComponent, {
-        componentProperties: {
-          prayer: mockPrayer
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      const mockPerson = {
-        id: '1',
-        attributes: {
-          first_name: 'John',
-          last_name: 'Smith'
-        }
-      };
-
-      const formatted = fixture.componentInstance.formatPersonName(mockPerson);
-      expect(formatted).toBeTruthy();
     });
   });
 

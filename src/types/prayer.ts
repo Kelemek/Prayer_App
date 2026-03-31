@@ -17,7 +17,6 @@ export interface PrayerRequest {
   denial_reason?: string | null;
   approved_at?: string | null;
   denied_at?: string | null;
-  in_planning_center?: boolean | null;
   is_shared_personal_prayer?: boolean;
 }
 
@@ -36,7 +35,6 @@ export interface PrayerUpdate {
   denial_reason?: string | null;
   approved_at?: string | null;
   denied_at?: string | null;
-  in_planning_center?: boolean | null;
   prayers?: {
     id?: string;
     title?: string;

@@ -8,8 +8,6 @@ import { UserSessionService } from '../../services/user-session.service';
 import { EmailNotificationService } from '../../services/email-notification.service';
 import { BrandingService } from '../../services/branding.service';
 import { Subject, takeUntil } from 'rxjs';
-import { lookupPersonByEmail } from '../../../lib/planning-center';
-import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-login',
@@ -721,21 +719,7 @@ export class LoginComponent implements OnInit, OnDestroy {
       const isSubscriber = await this.checkEmailSubscriber(userEmail);
       
       if (!isSubscriber) {
-        // Check Planning Center
-        const pcResult = await lookupPersonByEmail(
-          userEmail,
-          environment.supabaseUrl,
-          environment.supabasePublishableKey
-        );
-        
-        const isInPlanningCenter = pcResult.count > 0;
-        
-        if (isInPlanningCenter) {
-          this.requiresApproval = false;
-        } else {
-          this.requiresApproval = true;
-        }
-        
+        this.requiresApproval = true;
         this.showSubscriberForm = true;
         this.loading = false;
         this.cdr?.markForCheck?.();
@@ -1132,7 +1116,7 @@ export class LoginComponent implements OnInit, OnDestroy {
         return true;
       }
 
-      // Normal subscriber flow - user is in Planning Center
+      // Normal subscriber flow
       const { data, error } = await this.supabaseService.directMutation<{
         id: string;
       }>(
@@ -1144,9 +1128,7 @@ export class LoginComponent implements OnInit, OnDestroy {
             name: `${this.firstName.trim()} ${this.lastName.trim()}`,
             is_active: true,
             is_admin: false,
-            receive_admin_emails: false,
-            in_planning_center: true,
-            planning_center_checked_at: new Date().toISOString()
+            receive_admin_emails: false
           },
           returning: true
         }

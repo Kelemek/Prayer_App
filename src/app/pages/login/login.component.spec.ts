@@ -4,7 +4,6 @@ import { LoginComponent } from './login.component';
 
 // Mock external helpers
 vi.mock('../../../utils/userInfoStorage', () => ({ saveUserInfo: vi.fn() }));
-vi.mock('../../../lib/planning-center', () => ({ lookupPersonByEmail: vi.fn() }));
 
 const makeMocks = () => {
   const requireSiteLogin$ = new BehaviorSubject(false);
@@ -262,9 +261,6 @@ describe('LoginComponent', () => {
     // mock verify to success and checkEmailSubscriber to true
     mocks.adminAuthService.verifyMfaCode = vi.fn(async () => ({ success: true, isAdmin: false }));
     mocks.supabaseService.directQuery = vi.fn(async () => ({ data: [{ id: 'sub' }], error: null }));
-    // mock lookupPersonByEmail to return no results
-    const pc = await import('../../../lib/planning-center');
-    (pc.lookupPersonByEmail as any).mockResolvedValue({ count: 0, people: [] });
 
     const comp = makeComponent(mocks);
     comp.email = 'test@example.com';
@@ -282,28 +278,8 @@ describe('LoginComponent', () => {
     expect(comp.error).toBeFalsy();
   });
 
-  it('verifyMfaCode shows subscriber form when not a subscriber and found in Planning Center', async () => {
+  it('verifyMfaCode shows subscriber form requiring approval when not a subscriber', async () => {
     mocks.adminAuthService.verifyMfaCode = vi.fn(async () => ({ success: true, isAdmin: false }));
-    vi.spyOn((await import('../../../lib/planning-center')), 'lookupPersonByEmail').mockResolvedValue({ count: 1, people: [] });
-    const comp = makeComponent(mocks);
-    comp.email = 'new@example.com';
-    comp.mfaCode = ['1', '2', '3', '4'];
-    comp.mfaCodeInput = comp.mfaCode.join('');
-    comp.codeLength = 4;
-    // make checkEmailSubscriber return false
-    vi.spyOn(comp as any, 'checkEmailSubscriber').mockResolvedValue(false);
-    vi.spyOn(comp as any, 'checkPendingApprovalRequest').mockResolvedValue(false);
-
-    await (comp as any).verifyMfaCode();
-    // Wait for setTimeout (1 second delay) to complete
-    await new Promise(resolve => setTimeout(resolve, 1100));
-    // subscriber form or an error state should be set
-    expect(comp.showSubscriberForm || comp.error).toBeTruthy();
-  });
-
-  it('verifyMfaCode shows subscriber form requiring approval when not in Planning Center', async () => {
-    mocks.adminAuthService.verifyMfaCode = vi.fn(async () => ({ success: true, isAdmin: false }));
-    vi.spyOn((await import('../../../lib/planning-center')), 'lookupPersonByEmail').mockResolvedValue({ count: 0, people: [] });
     const comp = makeComponentWithMocks(
       mocks.adminAuthService,
       mocks.supabaseService,
@@ -421,9 +397,7 @@ describe('LoginComponent', () => {
           name: 'A B',
           is_active: true,
           is_admin: false,
-          receive_admin_emails: false,
-          in_planning_center: true,
-          planning_center_checked_at: expect.any(String)
+          receive_admin_emails: false
         })
       })
     );

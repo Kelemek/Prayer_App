@@ -35,7 +35,6 @@ import { RouterModule } from '@angular/router';
               <li><strong>Preferences:</strong> Notification settings (email and push), theme preference, and default prayer view.</li>
               <li><strong>Push notifications (mobile app):</strong> If you enable push notifications, we store a device token and your email so we can send you notifications. You can turn this off in Settings.</li>
               <li><strong>Usage:</strong> We record page views and last activity date (for logged-in users) to support basic analytics and activity tracking within the app.</li>
-              <li><strong>Optional:</strong> If your organization uses Planning Center, we may link your app account to Planning Center for list mapping; that is configured by your administrators.</li>
             </ul>
           </section>
 

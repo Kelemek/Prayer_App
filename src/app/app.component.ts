@@ -250,27 +250,6 @@ export class AppComponent implements OnInit {
       }
 
       if (decoded.type === 'approve') {
-        // Check Planning Center status for the email
-        let inPlanningCenter: boolean | null = null;
-        let planningCenterCheckedAt: string | null = null;
-        
-        try {
-          const { lookupPersonByEmail } = await import('../lib/planning-center');
-          const { environment } = await import('../environments/environment');
-          
-          const pcResult = await lookupPersonByEmail(
-            request.email.toLowerCase(),
-            environment.supabaseUrl,
-            environment.supabasePublishableKey
-          );
-          inPlanningCenter = pcResult.count > 0;
-          planningCenterCheckedAt = new Date().toISOString();
-          console.log(`[AccountApproval] Planning Center check for ${request.email}: ${inPlanningCenter}`);
-        } catch (pcError) {
-          console.error('[AccountApproval] Planning Center lookup failed:', pcError);
-          // Continue with null values if check fails - don't block approval
-        }
-
         // Approve the account - add to email_subscribers
         const { error: insertError } = await supabase.directMutation(
           'email_subscribers',
@@ -281,9 +260,7 @@ export class AppComponent implements OnInit {
               name: `${request.first_name} ${request.last_name}`,
               is_active: true,
               is_admin: false,
-              receive_admin_emails: false,
-              in_planning_center: inPlanningCenter,
-              planning_center_checked_at: planningCenterCheckedAt
+              receive_admin_emails: false
             },
             returning: false
           }

@@ -32,7 +32,6 @@ import { Subject } from 'rxjs';
 const decodeAccountCodeMock = vi.fn();
 const supabaseDirectQueryMock = vi.fn();
 const supabaseDirectMutationMock = vi.fn();
-const lookupPersonByEmailMock = vi.fn();
 const emailGetTemplateMock = vi.fn();
 const emailApplyTemplateVariablesMock = vi.fn();
 const emailSendEmailMock = vi.fn();
@@ -89,17 +88,6 @@ vi.mock('./services/toast.service', () => {
     }
   };
 });
-
-vi.mock('../lib/planning-center', () => ({
-  lookupPersonByEmail: lookupPersonByEmailMock
-}));
-
-vi.mock('../environments/environment', () => ({
-  environment: {
-    supabaseUrl: 'https://example.supabase',
-    supabasePublishableKey: 'anon-key'
-  }
-}));
 
 describe('AppComponent', () => {
   let component: AppComponent;
@@ -1275,8 +1263,6 @@ describe('AppComponent', () => {
 
       supabaseDirectMutationMock.mockReset().mockResolvedValue({ error: null });
 
-      lookupPersonByEmailMock.mockReset().mockResolvedValue({ count: 0 });
-
       emailGetTemplateMock
         .mockReset()
         .mockResolvedValue({
@@ -1311,7 +1297,6 @@ describe('AppComponent', () => {
         'success'
       );
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/login']);
-      expect(lookupPersonByEmailMock).toHaveBeenCalled();
     }, 10000);
 
     it('denies a pending request and sends a denial email', async () => {
