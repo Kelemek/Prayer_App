@@ -264,7 +264,7 @@ export class PendingPrayerCardComponent implements OnInit {
       const result = await lookupPersonByEmail(
         this.prayer.email,
         environment.supabaseUrl,
-        environment.supabaseAnonKey
+        environment.supabasePublishableKey
       );
 
       if (result.error) {

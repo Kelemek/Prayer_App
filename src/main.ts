@@ -11,30 +11,6 @@ import { AdminAuthService } from './app/services/admin-auth.service';
 import { BrandingService } from './app/services/branding.service';
 import { BRANDING_SERVICE_TOKEN } from './app/components/app-logo/app-logo.component';
 
-// Initialize Sentry asynchronously to avoid blocking render
-const initSentryLater = async () => {
-  try {
-    const { initializeSentry } = await import('./lib/sentry');
-    initializeSentry();
-  } catch (error) {
-    console.error('Failed to load Sentry module:', error);
-  }
-};
-
-initSentryLater();
-
-// Initialize Microsoft Clarity for session replays
-const initClarityLater = async () => {
-  try {
-    const { initializeClarity } = await import('./lib/clarity');
-    initializeClarity();
-  } catch (error) {
-    console.error('Failed to load Clarity module:', error);
-  }
-};
-
-initClarityLater();
-
 // Initialize Vercel Analytics
 const initVercelAnalytics = async () => {
   try {

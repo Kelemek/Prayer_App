@@ -622,13 +622,13 @@ prayers$ = this.prayersSubject.asObservable();
 ### API Communication
 
 - **Database**: Supabase client (REST API under the hood)
-- **Email**: Microsoft Graph API via backend edge function
+- **Email**: Resend API via `send-email` Edge Function and GitHub Actions queue processor
 - **Planning Center**: REST API via Edge Functions (planning-center-lists, planning-center-lookup)
   - List fetching and member lookup
   - Cached on client-side for performance
   - Members sorted by last name (handles suffixes)
 - **Admin Auth**: check-admin-status Edge Function (verifies admin status using service role)
-- **Rate Limiting**: Email processor respects Microsoft Graph limits
+- **Rate Limiting**: Email processor paces sends to respect Resend plan limits
 
 ### Removed/Deprecated Features
 
@@ -894,7 +894,7 @@ The BrandingService implements a multi-tier caching strategy to eliminate logo f
 
 ### Monitoring
 
-- Clarity Analytics dashboard
+- Vercel Analytics and Speed Insights
 - Monitor Core Web Vitals
 - Check Vercel deployment logs
 - Supabase query performance
@@ -962,7 +962,7 @@ The **Pray For** feature lets community members indicate they have prayed for a 
 - **Service:** `PrayerEncouragementService` (`src/app/services/prayer-encouragement.service.ts`) — reads `prayer_encouragement_enabled` and `prayer_encouragement_cooldown_hours` from `admin_settings`, caches them, and provides `recordPrayedFor()` and count lookups.
 - **Admin UI:** `prayer-encouragement-settings` — toggle “Enable Prayer Encouragement” and cooldown (hours); cooldown control is shown only when the feature is enabled.
 - **Prayer card:** `prayer-card` — shows Pray For button and count when enabled; optional explanation modal with “Do not show again” (localStorage, cleared on logout).
-- **Database:** `admin_settings`: `prayer_encouragement_enabled` (boolean), `prayer_encouragement_cooldown_hours` (integer, default 4). `prayers`: `prayed_for_count`. Migrations: `20260224_prayer_encouragement.sql`, `20260225_prayer_encouragement_cooldown_hours.sql`.
+- **Database:** `admin_settings`: `prayer_encouragement_enabled` (boolean), `prayer_encouragement_cooldown_hours` (integer, default 4). `prayers`: `prayed_for_count`. Defined in consolidated [`supabase/migrations/20260123140820_remote_schema.sql`](../supabase/migrations/20260123140820_remote_schema.sql) (sections *Former file: 20260224…* and *20260225…*).
 - **Help:** In-app Help & Guidance includes a “Prayer Encouragement (Pray For)” section (`help-content.service.ts`).
 
 ---
@@ -992,7 +992,7 @@ A prayer is archived when **all** of the following conditions are met:
 
 ### Archiving Workflow
 
-Executed by **Supabase `pg_cron`** (migration `20260317120000_schedule_send_prayer_reminders_cron.sql`, job `invoke-send-prayer-reminders`, **daily 10:00 UTC** — e.g. 4:00 AM CST / 5:00 AM CDT depending on DST). Replaces the former GitHub Actions workflow for this job.
+Executed by **Supabase `pg_cron`** (consolidated migration `20260123140820_remote_schema.sql`, section *Former file: 20260317120000_schedule_send_prayer_reminders_cron.sql*; job `invoke-send-prayer-reminders`, **daily 10:00 UTC** — e.g. 4:00 AM CST / 5:00 AM CDT depending on DST). Replaces the former GitHub Actions workflow for this job.
 
 1. **Daily execution** at that UTC time
 2. For each prayer:
@@ -1008,13 +1008,13 @@ Executed by **Supabase `pg_cron`** (migration `20260317120000_schedule_send_pray
 **Get Archive Settings**:
 ```bash
 curl -s "https://[project].supabase.co/rest/v1/admin_settings?select=days_before_archive,enable_auto_archive" \
-  -H "apikey: YOUR_ANON_KEY" | jq '.[0]'
+  -H "apikey: YOUR_PUBLISHABLE_KEY" | jq '.[0]'
 ```
 
 **Get Prayers with Reminders**:
 ```bash
 curl -s "https://[project].supabase.co/rest/v1/prayers?select=id,title,last_reminder_sent,updated_at&order=last_reminder_sent.asc" \
-  -H "apikey: YOUR_ANON_KEY" | jq '.[] | select(.last_reminder_sent != null)'
+  -H "apikey: YOUR_PUBLISHABLE_KEY" | jq '.[] | select(.last_reminder_sent != null)'
 ```
 
 #### Predicting Next Archives
@@ -1074,9 +1074,9 @@ Update the prayer's `archived_at` timestamp in the Supabase dashboard (or use se
 
 Users can save one or more **local clock hours** (with an IANA time zone) in **Settings**. A separate process runs **every hour** and notifies matching users:
 
-- **Table**: `user_prayer_hour_reminders` (migration `20260315120000_user_prayer_hour_reminders.sql`: table, RLS, anon access, RPC, default `email_templates.user_hourly_prayer_reminder`). Each row stores an IANA zone (from the device when the user saved the slot) and a **local wall hour** 0–23. Matching uses `EXTRACT(HOUR FROM (NOW() AT TIME ZONE iana_timezone)) = local_hour`, so only due rows are selected (low egress). **DST**: Postgres applies the IANA rules (e.g. `America/Chicago`), so the reminder follows local civil time across spring/fall transitions (no separate DST flag). **RLS**: JWT-based `authenticated` policies enforce `user_email = auth.jwt() email`. The MFA/anon browser uses the **`anon`** role with a separate permissive policy (**not** `TO public`, so it does not override JWT ownership for real Supabase sessions). Anon clients have no `auth.jwt()` email, so row ownership cannot be enforced in Postgres for that path; inserts are still constrained by FK to `email_subscribers`. **App cannot change RLS** — only migrations/SQL.
+- **Table**: `user_prayer_hour_reminders` (in consolidated [`supabase/migrations/20260123140820_remote_schema.sql`](../supabase/migrations/20260123140820_remote_schema.sql), section *Former file: 20260315120000_user_prayer_hour_reminders.sql*: table, RLS, anon access, RPC, default `email_templates.user_hourly_prayer_reminder`). Each row stores an IANA zone (from the device when the user saved the slot) and a **local wall hour** 0–23. Matching uses `EXTRACT(HOUR FROM (NOW() AT TIME ZONE iana_timezone)) = local_hour`, so only due rows are selected (low egress). **DST**: Postgres applies the IANA rules (e.g. `America/Chicago`), so the reminder follows local civil time across spring/fall transitions (no separate DST flag). **RLS**: JWT-based `authenticated` policies enforce `user_email = auth.jwt() email`. The MFA/anon browser uses the **`anon`** role with a separate permissive policy (**not** `TO public`, so it does not override JWT ownership for real Supabase sessions). Anon clients have no `auth.jwt()` email, so row ownership cannot be enforced in Postgres for that path; inserts are still constrained by FK to `email_subscribers`. **App cannot change RLS** — only migrations/SQL.
 - **Edge function**: `supabase/functions/send-user-hourly-prayer-reminders/` — same auth model as **`send-prayer-reminders`**. Sends **email** when `email_subscribers.is_active` is not false (same idea as session `isActive`). Sends **push** when `receive_push` is true and a `device_tokens` row exists (session `receivePush` + native). **Both** when both apply. **Email** uses `email_templates` key **`user_hourly_prayer_reminder`** with **`{{appLink}}`** from Edge secret **`APP_URL`** (match **`environment.appUrl`** in prod). The function prefixes **`https://`** when **`APP_URL`** is host-only so links are not rewritten to **`x-webdoc://`** in Apple Mail. Invokes `send-email` and/or `send-push-notification`.
-- **Scheduling (Supabase)**: Migration `20260316130000_schedule_user_hourly_prayer_reminders_cron.sql` enables **`pg_net`** + **`pg_cron`** and registers **`invoke-user-hourly-prayer-reminders`** (`0 * * * *` UTC). The job POSTs to the Edge Function using Vault secrets **`project_url`** and **`service_role_key`** (same service_role JWT as GitHub `SUPABASE_SERVICE_KEY`). See [SETUP.md](SETUP.md) (User hourly prayer reminders). The GitHub workflow for this job was removed in favor of DB scheduling.
+- **Scheduling (Supabase)**: Same consolidated migration file (section *Former file: 20260316130000_schedule_user_hourly_prayer_reminders_cron.sql*) enables **`pg_net`** + **`pg_cron`** and registers **`invoke-user-hourly-prayer-reminders`** (`0 * * * *` UTC). The job POSTs to the Edge Function using Vault secrets **`project_url`** and **`service_role_key`** (same **secret** API key as GitHub `SUPABASE_SECRET_KEY`). See [SETUP.md](SETUP.md) (User hourly prayer reminders). The GitHub workflow for this job was removed in favor of DB scheduling.
 - **App**: `UserPrayerReminderService` + cache on `UserSessionData`; settings UI is hour-only and saves `Intl.DateTimeFormat().resolvedOptions().timeZone`. Rows created before a device time-zone change keep their stored IANA until removed.
 
 - **Documentation**: [CHANGELOG.md](CHANGELOG.md) (*Prayer reminders (hourly nudges)*), [docs/README.md](README.md) (Core Capabilities + Email/Push), in-app Help (`help_prayer_reminders` + App Settings). User-facing subsection: **Prayer reminders (hourly nudges) (Settings)** above.

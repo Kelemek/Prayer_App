@@ -18,7 +18,7 @@ A comprehensive prayer request management system for Cross Pointe Church built w
 - **Frontend**: Angular 19+ with standalone components
 - **Backend**: Supabase (PostgreSQL, Edge Functions)
 - **Auth**: Supabase Auth with email verification
-- **Email**: Microsoft 365 Graph API
+- **Email**: [Resend](https://resend.com) API (Edge Function + queue processor)
 - **Sync**: Planning Center integration
 - **Testing**: Vitest with 2840+ tests
 
@@ -94,7 +94,7 @@ src/
 - **Admin**: Can approve/deny, manage settings
 
 ### Email and Push Notifications
-- **Email:** Built on Microsoft 365 Graph API; queue-based processing; HTML templates; subscriber management. **`is_active`** on `email_subscribers` controls whether a user receives **mass email** (new/approved prayers, updates). Turning off "email notifications" only stops those bulk emails; direct emails (e.g. your prayer approved/denied) still go out.
+- **Email:** Sent via **Resend** from the `send-email` Edge Function; queue-based processing for template mail; HTML templates; subscriber management. **`is_active`** on `email_subscribers` controls whether a user receives **mass email** (new/approved prayers, updates). Turning off "email notifications" only stops those bulk emails; direct emails (e.g. your prayer approved/denied) still go out.
 - **Push (native app):** Controlled by **`receive_push`** on `email_subscribers`. Push is set to `true` only when the user installs the app and a device token is registered; default is `false`. Admins have a separate **`receive_admin_push`** for admin alerts. See [Capacitor docs](Capacitor/CAPACITOR_BACKEND_SETUP.md) for setup. When an admin approves a prayer or update, the requester/author receives a push notification if they have push enabled.
 - **Personal hourly prayer reminders (Settings):** Users can schedule **personal** “nudge” times (top of chosen hours, device time zone). Delivery uses **email** when mass email is on and/or **push** when the device is registered. The hourly trigger runs in **Supabase** (`pg_cron` + Vault); see [CHANGELOG](CHANGELOG.md) (*Prayer reminders (hourly nudges)*), [SETUP.md](SETUP.md) (User hourly prayer reminders), and [DEVELOPMENT.md](DEVELOPMENT.md) (*User hourly prayer reminders*). These are not the same as automated **community** prayer-update reminders configured by admins.
 
@@ -122,10 +122,10 @@ When enabled by an admin, community prayer cards show a **“Pray For”** butto
 | **Frontend** | Angular 19, TypeScript, TailwindCSS |
 | **Backend** | Supabase (PostgreSQL, Edge Functions) |
 | **Auth** | Supabase Auth, Email verification |
-| **Email** | Microsoft 365 Graph API |
-| **Testing** | Vitest, Playwright (E2E) |
+| **Email** | Resend |
+| **Testing** | Vitest |
 | **Hosting** | Vercel |
-| **Monitoring** | Clarity Analytics, Error logging |
+| **Monitoring** | Vercel Analytics, Speed Insights |
 
 ---
 

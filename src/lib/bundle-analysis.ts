@@ -16,7 +16,6 @@
  * - RxJS: ~30 KB
  * - @angular/router: ~20 KB
  * - Supabase JS: ~40 KB
- * - Sentry: ~15 KB
  * - Tailwind CSS: ~50 KB (if not purged)
  * - Other utilities: ~20 KB
  */
@@ -91,7 +90,7 @@ export const bundleAnalysis = {
       },
       'supabase.service': {
         size: 25000,
-        imports: ['@supabase/supabase-js', 'Sentry']
+        imports: ['@supabase/supabase-js']
       },
       'analytics.service': {
         size: 8000,
@@ -383,7 +382,7 @@ export const bundleAnalysis = {
         metric: 'API Response Time',
         baseline: '~200-500ms',
         target: '< 200ms',
-        tools: ['Chrome DevTools', 'Network Monitor', 'Sentry']
+        tools: ['Chrome DevTools', 'Network Monitor']
       }
     ];
   }

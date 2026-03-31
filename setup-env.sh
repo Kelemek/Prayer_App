@@ -34,7 +34,7 @@ echo "(You can find these in your Supabase Dashboard → Settings → API)"
 echo ""
 
 read -p "Enter your SUPABASE_URL: " SUPABASE_URL
-read -p "Enter your SUPABASE_ANON_KEY: " SUPABASE_ANON_KEY
+read -p "Enter your SUPABASE_PUBLISHABLE_KEY: " SUPABASE_PUBLISHABLE_KEY
 
 # Update .env file
 if [ -n "$SUPABASE_URL" ]; then
@@ -48,15 +48,15 @@ if [ -n "$SUPABASE_URL" ]; then
     echo "✅ Updated VITE_SUPABASE_URL"
 fi
 
-if [ -n "$SUPABASE_ANON_KEY" ]; then
+if [ -n "$SUPABASE_PUBLISHABLE_KEY" ]; then
     if [[ "$OSTYPE" == "darwin"* ]]; then
         # macOS
-        sed -i '' "s|VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY|" .env
+        sed -i '' "s|VITE_SUPABASE_PUBLISHABLE_KEY=.*|VITE_SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY|" .env
     else
         # Linux
-        sed -i "s|VITE_SUPABASE_ANON_KEY=.*|VITE_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY|" .env
+        sed -i "s|VITE_SUPABASE_PUBLISHABLE_KEY=.*|VITE_SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY|" .env
     fi
-    echo "✅ Updated VITE_SUPABASE_ANON_KEY"
+    echo "✅ Updated VITE_SUPABASE_PUBLISHABLE_KEY"
 fi
 
 echo ""

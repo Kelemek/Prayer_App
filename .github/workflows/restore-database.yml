@@ -73,7 +73,7 @@ jobs:
           import fs from 'fs';
 
           const supabaseUrl = process.env.SUPABASE_URL;
-          const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+          const supabaseKey = process.env.SUPABASE_SECRET_KEY;
           const backupFile = process.env.BACKUP_JSON;
 
           if (!supabaseUrl || !supabaseKey || !backupFile) {
@@ -166,7 +166,7 @@ jobs:
       - name: Run restore
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           BACKUP_JSON: ${{ env.BACKUP_JSON }}
         run: |
           echo "🔄 Running restore..."

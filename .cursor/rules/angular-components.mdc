@@ -24,7 +24,7 @@ alwaysApply: false
 
 - Use **`providedIn: 'root'`** for app-wide services.
 - Inject `SupabaseService` for database/auth; use `environment` for config (e.g. `environment.supabaseUrl`).
-- Report unexpected errors to **Sentry** (e.g. `Sentry.captureException(error)`).
+- Log unexpected errors appropriately (e.g. `console.error` in development; avoid leaking secrets in messages).
 
 ## Routing
 

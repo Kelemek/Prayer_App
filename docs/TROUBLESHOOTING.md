@@ -115,7 +115,7 @@ CHECK (requested_status IN ('current', 'answered', 'ongoing', 'closed'));
 2. Verify environment variables:
 ```bash
 echo $VITE_SUPABASE_URL
-echo $VITE_SUPABASE_ANON_KEY
+echo $VITE_SUPABASE_PUBLISHABLE_KEY
 ```
 3. Check internet connection
 4. Verify project isn't paused (free tier)
@@ -492,7 +492,7 @@ supabase secrets list # Verify
 **Solutions**:
 1. Check environment variable:
 ```bash
-echo $VITE_SUPABASE_ANON_KEY
+echo $VITE_SUPABASE_PUBLISHABLE_KEY
 ```
 2. Verify key in Supabase dashboard → Settings → API
 3. Re-deploy with correct key

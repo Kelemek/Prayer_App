@@ -39,7 +39,7 @@ jobs:
           async function backupDatabase() {
             const supabase = createClient(
               process.env.SUPABASE_URL,
-              process.env.SUPABASE_SERVICE_KEY
+              process.env.SUPABASE_SECRET_KEY
             );
 
             const startTime = Date.now();
@@ -181,7 +181,7 @@ jobs:
             try {
               const supabase = createClient(
                 process.env.SUPABASE_URL,
-                process.env.SUPABASE_SERVICE_KEY
+                process.env.SUPABASE_SECRET_KEY
               );
               
               await supabase.from('backup_logs').insert({
@@ -201,7 +201,7 @@ jobs:
       - name: Run backup
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           BACKUP_DATE: ${{ env.BACKUP_DATE }}
         run: |
           node backup-script.mjs

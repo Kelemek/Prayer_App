@@ -31,7 +31,7 @@ describe('PrayerSearchComponent', () => {
 
     mockSupabaseService = {
       getSupabaseUrl: vi.fn().mockReturnValue('https://test.supabase.co'),
-      getSupabaseKey: vi.fn().mockReturnValue('test-key'),
+      getPublishableKey: vi.fn().mockReturnValue('test-key'),
       getClient: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           select: vi.fn().mockResolvedValue({ data: [], error: null }),

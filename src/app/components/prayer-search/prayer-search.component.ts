@@ -1281,7 +1281,7 @@ export class PrayerSearchComponent implements OnInit {
       this.cdr.markForCheck();
 
       const supabaseUrl = this.supabaseService.getSupabaseUrl();
-      const supabaseKey = this.supabaseService.getSupabaseKey();
+      const supabaseKey = this.supabaseService.getPublishableKey();
 
       const params = new URLSearchParams();
       params.set('select', 'id,title,requester,email,status,created_at,denial_reason,description,approval_status,prayer_for,prayer_updates(id,content,author,author_email,created_at,denial_reason,approval_status)');

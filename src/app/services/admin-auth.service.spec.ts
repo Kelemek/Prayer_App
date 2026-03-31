@@ -11,13 +11,8 @@ import type { User } from '@supabase/supabase-js';
 vi.mock('../../environments/environment', () => ({
   environment: {
     supabaseUrl: 'https://test.supabase.co',
-    supabaseAnonKey: 'test-anon-key-123'
+    supabasePublishableKey: 'test-publishable-key-123'
   }
-}));
-
-// Mock Sentry
-vi.mock('@sentry/angular', () => ({
-  captureException: vi.fn()
 }));
 
 // Mock @supabase/supabase-js
@@ -104,7 +99,7 @@ describe('AdminAuthService', () => {
       client: mockSupabaseClient,
       directQuery: vi.fn().mockResolvedValue({ data: null, error: null }),
       getSupabaseUrl: () => 'https://test.supabase.co',
-      getSupabaseKey: () => 'test-anon-key-123'
+      getPublishableKey: () => 'test-publishable-key-123'
     };
 
     // Create mock CacheService

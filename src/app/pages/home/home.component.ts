@@ -936,7 +936,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       const result = await fetchListMembers(
         this.planningCenterListId!,
         environment.supabaseUrl,
-        environment.supabaseAnonKey
+        environment.supabasePublishableKey
       );
 
       if (result.error) {

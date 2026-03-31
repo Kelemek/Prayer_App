@@ -200,7 +200,7 @@ export class PendingDeletionCardComponent implements OnInit {
       const result = await lookupPersonByEmail(
         this.deletionRequest.requested_email,
         environment.supabaseUrl,
-        environment.supabaseAnonKey
+        environment.supabasePublishableKey
       );
 
       if (result.error) {

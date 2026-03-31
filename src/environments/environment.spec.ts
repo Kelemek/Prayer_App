@@ -13,40 +13,18 @@ describe('environment', () => {
   it('should have supabaseUrl defined', () => {
     expect(environment.supabaseUrl).toBeDefined();
     expect(typeof environment.supabaseUrl).toBe('string');
-    expect(environment.supabaseUrl).toBe('https://jcdhajfqtzipltvfslhu.supabase.co');
+    expect(environment.supabaseUrl).toMatch(/^https:\/\/.+\.supabase\.co$/);
   });
 
-  it('should have supabaseAnonKey defined', () => {
-    expect(environment.supabaseAnonKey).toBeDefined();
-    expect(typeof environment.supabaseAnonKey).toBe('string');
-    expect(environment.supabaseAnonKey.length).toBeGreaterThan(0);
-  });
-
-  it('should have sentryDsn defined', () => {
-    expect(environment.sentryDsn).toBeDefined();
-    expect(typeof environment.sentryDsn).toBe('string');
-    expect(environment.sentryDsn).toContain('sentry.io');
-  });
-
-  it('should have clarityProjectId defined', () => {
-    expect(environment.clarityProjectId).toBeDefined();
-    expect(typeof environment.clarityProjectId).toBe('string');
-    expect(environment.clarityProjectId).toBe('u9ubmxp15k');
+  it('should have supabasePublishableKey defined', () => {
+    expect(environment.supabasePublishableKey).toBeDefined();
+    expect(typeof environment.supabasePublishableKey).toBe('string');
+    expect(environment.supabasePublishableKey.length).toBeGreaterThan(0);
   });
 
   it('should have all required properties', () => {
     expect(environment).toHaveProperty('production');
     expect(environment).toHaveProperty('supabaseUrl');
-    expect(environment).toHaveProperty('supabaseAnonKey');
-    expect(environment).toHaveProperty('sentryDsn');
-    expect(environment).toHaveProperty('clarityProjectId');
-  });
-
-  it('should have valid Supabase URL format', () => {
-    expect(environment.supabaseUrl).toMatch(/^https:\/\/.+\.supabase\.co$/);
-  });
-
-  it('should have valid Sentry DSN format', () => {
-    expect(environment.sentryDsn).toMatch(/^https:\/\/.+@.+\.sentry\.io\/.+$/);
+    expect(environment).toHaveProperty('supabasePublishableKey');
   });
 });

@@ -296,7 +296,7 @@ export class PendingUpdateCardComponent implements OnInit {
       const result = await lookupPersonByEmail(
         this.update.author_email,
         environment.supabaseUrl,
-        environment.supabaseAnonKey
+        environment.supabasePublishableKey
       );
 
       if (result.error) {

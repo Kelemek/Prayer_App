@@ -4,9 +4,8 @@
 export const environment = {
   production: false,
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co',
-  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key',
-  sentryDsn: import.meta.env.VITE_SENTRY_DSN || '',
-  clarityProjectId: import.meta.env.VITE_CLARITY_PROJECT_ID || '',
+  supabasePublishableKey:
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'your-publishable-key',
   /** Public URL for links in emails (e.g. https://yourdomain.com). Leave empty to use current origin. Set for native/Capacitor builds so links are not capacitor://localhost. */
   appUrl: ''
 };

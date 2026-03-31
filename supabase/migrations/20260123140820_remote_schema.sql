@@ -1,3 +1,7 @@
+-- Prayer App database schema (single consolidated migration).
+-- Combines former baseline `20260123140820_remote_schema.sql` and all follow-up migrations.
+-- For fresh installs: `supabase db push` or apply this file once.
+
 drop extension if exists "pg_net";
 
 
@@ -2791,3 +2795,777 @@ grant select on table "public"."backup_tables" to "anon";
 grant select on table "public"."backup_tables" to "authenticated";
 grant select on table "public"."backup_tables" to "service_role";
 
+
+
+-- =====================================================================
+-- Former file: 20260125_add_planning_center_list_id.sql
+-- =====================================================================
+
+-- Add planning_center_list_id column to email_subscribers table
+ALTER TABLE "public"."email_subscribers"
+ADD COLUMN "planning_center_list_id" text;
+
+-- Add comment for documentation
+COMMENT ON COLUMN "public"."email_subscribers"."planning_center_list_id" IS 'Planning Center list ID that this user is mapped to for filtering prayers by list members';
+
+
+-- =====================================================================
+-- Former file: 20260126_consolidated_member_updates.sql
+-- =====================================================================
+
+-- Consolidated member_prayer_updates table setup
+-- Includes: table creation, RLS policies, trigger, and column additions
+
+-- Create member_prayer_updates table for updates on Planning Center member cards
+CREATE TABLE IF NOT EXISTS "public"."member_prayer_updates" (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  person_id text NOT NULL,
+  content text NOT NULL,
+  is_answered BOOLEAN DEFAULT false NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  PRIMARY KEY (id)
+);
+
+-- Enable RLS
+ALTER TABLE "public"."member_prayer_updates" ENABLE ROW LEVEL SECURITY;
+
+-- Create indexes for common queries
+CREATE INDEX IF NOT EXISTS idx_member_prayer_updates_person_id ON "public"."member_prayer_updates"(person_id);
+CREATE INDEX IF NOT EXISTS idx_member_prayer_updates_created_at ON "public"."member_prayer_updates"(created_at);
+
+-- Add table comment
+COMMENT ON TABLE "public"."member_prayer_updates" IS 'Stores updates/comments for Planning Center member prayer cards';
+COMMENT ON COLUMN "public"."member_prayer_updates"."person_id" IS 'Unique Planning Center person ID - persists even if name changes';
+COMMENT ON COLUMN "public"."member_prayer_updates"."is_answered" IS 'Whether this prayer update has been answered';
+
+-- Create RLS policies (permissive - security handled at application level)
+CREATE POLICY "Allow all select on member_prayer_updates" 
+ON "public"."member_prayer_updates" 
+FOR SELECT 
+USING (true);
+
+CREATE POLICY "Allow all insert on member_prayer_updates" 
+ON "public"."member_prayer_updates" 
+FOR INSERT 
+WITH CHECK (true);
+
+CREATE POLICY "Allow all update on member_prayer_updates" 
+ON "public"."member_prayer_updates" 
+FOR UPDATE 
+USING (true) 
+WITH CHECK (true);
+
+CREATE POLICY "Allow all delete on member_prayer_updates" 
+ON "public"."member_prayer_updates" 
+FOR DELETE 
+USING (true);
+
+-- Grant roles access to the table
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."member_prayer_updates" TO "anon";
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."member_prayer_updates" TO "authenticated";
+
+-- Create trigger to automatically update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_member_prayer_updates_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER member_prayer_updates_update_timestamp
+BEFORE UPDATE ON "public"."member_prayer_updates"
+FOR EACH ROW
+EXECUTE FUNCTION update_member_prayer_updates_timestamp();
+
+
+-- =====================================================================
+-- Former file: 20260128214421_drop_approval_codes_table.sql
+-- =====================================================================
+
+-- Drop the approval_codes table and related objects
+-- This table was used for one-time admin approval links but is no longer needed
+-- Admin notifications now link directly to /admin portal requiring standard login
+
+-- Drop the cleanup function first
+DROP FUNCTION IF EXISTS cleanup_expired_approval_codes();
+
+-- Drop the table (CASCADE will drop all dependent objects including indexes and constraints)
+DROP TABLE IF EXISTS approval_codes CASCADE;
+
+
+-- =====================================================================
+-- Former file: 20260128214944_restrict_backup_tables_view.sql
+-- =====================================================================
+
+-- Restrict access to backup_tables view
+-- This view lists all tables in the database and should only be accessible to service_role
+
+-- Revoke public access
+REVOKE ALL ON TABLE "public"."backup_tables" FROM "anon";
+REVOKE ALL ON TABLE "public"."backup_tables" FROM "authenticated";
+
+-- Only service_role should have access
+GRANT SELECT ON TABLE "public"."backup_tables" TO "service_role";
+
+
+-- =====================================================================
+-- Former file: 20260201_drop_status_change_requests.sql
+-- =====================================================================
+
+-- Drop status_change_requests table
+-- This table was created to handle prayer status change approval requests but the feature was never fully implemented.
+-- The admin UI never displays or handles these requests, so removing the table to simplify the schema.
+
+-- Drop the table and its associated indexes
+drop table if exists public.status_change_requests;
+
+
+-- =====================================================================
+-- Former file: 20260203_add_branding_last_modified.sql
+-- =====================================================================
+
+-- Add last_modified column to admin_settings for branding cache optimization
+ALTER TABLE "public"."admin_settings" ADD COLUMN "branding_last_modified" timestamp with time zone DEFAULT now();
+
+-- Create a function to automatically update branding_last_modified when branding fields change
+CREATE OR REPLACE FUNCTION update_branding_last_modified()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Only update branding_last_modified if branding-related fields actually changed
+  IF (
+    OLD.use_logo IS DISTINCT FROM NEW.use_logo OR
+    OLD.light_mode_logo_blob IS DISTINCT FROM NEW.light_mode_logo_blob OR
+    OLD.dark_mode_logo_blob IS DISTINCT FROM NEW.dark_mode_logo_blob OR
+    OLD.app_title IS DISTINCT FROM NEW.app_title OR
+    OLD.app_subtitle IS DISTINCT FROM NEW.app_subtitle
+  ) THEN
+    NEW.branding_last_modified = now();
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger to update branding_last_modified on admin_settings changes
+DROP TRIGGER IF EXISTS admin_settings_branding_modified_trigger ON "public"."admin_settings";
+
+CREATE TRIGGER admin_settings_branding_modified_trigger
+BEFORE UPDATE ON "public"."admin_settings"
+FOR EACH ROW
+EXECUTE FUNCTION update_branding_last_modified();
+
+
+-- =====================================================================
+-- Former file: 20260204_add_email_queue_processing_lock.sql
+-- =====================================================================
+
+-- Add processing_started_at column to email_queue for concurrent execution safety
+-- This allows multiple instances of the email processor to safely work without duplicates
+
+ALTER TABLE "public"."email_queue" ADD COLUMN "processing_started_at" timestamp with time zone;
+
+-- Add index on status for faster queries
+CREATE INDEX IF NOT EXISTS email_queue_status_idx ON "public"."email_queue"(status);
+
+-- Add comment explaining the processing workflow
+COMMENT ON COLUMN "public"."email_queue"."processing_started_at" IS 'Timestamp when email processing started. Used to prevent duplicate processing if multiple instances run concurrently. Workflow: pending -> processing -> success/failed';
+
+
+-- =====================================================================
+-- Former file: 20260204_fix_email_queue_status_constraint.sql
+-- =====================================================================
+
+-- Fix email_queue status check constraint to include 'processing' status
+-- This is needed for the concurrent execution safety feature
+
+-- Drop the old constraint
+ALTER TABLE "public"."email_queue" DROP CONSTRAINT IF EXISTS "email_queue_status_check";
+
+-- Add new constraint with 'processing' status included
+ALTER TABLE "public"."email_queue" ADD CONSTRAINT "email_queue_status_check" CHECK (status IN ('pending', 'processing', 'failed'));
+
+
+-- =====================================================================
+-- Former file: 20260208_add_is_shared_personal_prayer.sql
+-- =====================================================================
+
+-- Add is_shared_personal_prayer column to prayers table
+-- This column indicates when a prayer originated from a user's personal prayer share
+-- When true: the prayer and its updates are treated as a single approval unit
+
+ALTER TABLE "public"."prayers"
+ADD COLUMN "is_shared_personal_prayer" boolean DEFAULT false;
+
+-- Add comment for documentation
+COMMENT ON COLUMN "public"."prayers"."is_shared_personal_prayer" IS 'Indicates if this prayer was shared from a user''s personal prayer. When true, prayer and updates are approved as a single unit.';
+
+
+-- =====================================================================
+-- Former file: 20260218_capacitor_device_tokens_and_push_log.sql
+-- =====================================================================
+
+-- Capacitor push notifications: device_tokens, push_notification_log, grants, and RLS.
+-- Single migration for easier production rollout. Edge Function uses service_role (bypasses RLS).
+
+-- 1. Tables
+CREATE TABLE IF NOT EXISTS public.device_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_email VARCHAR(255) NOT NULL,
+  token VARCHAR(1000) NOT NULL UNIQUE,
+  platform VARCHAR(50) NOT NULL CHECK (platform IN ('ios', 'android', 'web')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_email) REFERENCES public.email_subscribers(email) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_device_tokens_user_email ON public.device_tokens(user_email);
+CREATE INDEX IF NOT EXISTS idx_device_tokens_platform ON public.device_tokens(platform);
+CREATE INDEX IF NOT EXISTS idx_device_tokens_last_seen ON public.device_tokens(last_seen_at);
+
+COMMENT ON TABLE public.device_tokens IS 'Stores device tokens for push notification delivery to native apps (iOS/Android)';
+COMMENT ON COLUMN public.device_tokens.token IS 'Unique device token from Firebase (Android) or APNs (iOS)';
+COMMENT ON COLUMN public.device_tokens.platform IS 'Platform of the device: ios, android, or web';
+COMMENT ON COLUMN public.device_tokens.last_seen_at IS 'Last time this device checked in or received a notification';
+
+CREATE TABLE IF NOT EXISTS public.push_notification_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  device_token_id UUID NOT NULL REFERENCES public.device_tokens(id) ON DELETE CASCADE,
+  title VARCHAR(255),
+  body TEXT,
+  data JSONB,
+  sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  delivery_status VARCHAR(50) DEFAULT 'pending',
+  error_message TEXT,
+  user_email VARCHAR(255) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_log_device_token ON public.push_notification_log(device_token_id);
+CREATE INDEX IF NOT EXISTS idx_push_log_sent_at ON public.push_notification_log(sent_at);
+CREATE INDEX IF NOT EXISTS idx_push_log_user_email ON public.push_notification_log(user_email);
+CREATE INDEX IF NOT EXISTS idx_push_log_status ON public.push_notification_log(delivery_status);
+
+COMMENT ON TABLE public.push_notification_log IS 'Log of push notifications sent via Firebase/APNs for monitoring and debugging';
+COMMENT ON COLUMN public.push_notification_log.delivery_status IS 'Status of notification delivery: pending, sent, or failed';
+
+-- 2. Grants (Edge Function uses service_role; anon/authenticated need table access for RLS policies)
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.device_tokens TO anon, authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.push_notification_log TO anon, authenticated, service_role;
+
+-- 3. RLS and policies (authenticated users see only their own rows; service_role bypasses RLS)
+-- Safe to re-run: tables/indexes/grants are IF NOT EXISTS or idempotent; policies are dropped then recreated.
+ALTER TABLE public.device_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.push_notification_log ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "device_tokens_select_own" ON public.device_tokens;
+CREATE POLICY "device_tokens_select_own"
+  ON public.device_tokens FOR SELECT TO authenticated
+  USING (lower(user_email) = lower(auth.jwt() ->> 'email'));
+
+DROP POLICY IF EXISTS "device_tokens_insert_own" ON public.device_tokens;
+CREATE POLICY "device_tokens_insert_own"
+  ON public.device_tokens FOR INSERT TO authenticated
+  WITH CHECK (lower(user_email) = lower(auth.jwt() ->> 'email'));
+
+DROP POLICY IF EXISTS "device_tokens_update_own" ON public.device_tokens;
+CREATE POLICY "device_tokens_update_own"
+  ON public.device_tokens FOR UPDATE TO authenticated
+  USING (lower(user_email) = lower(auth.jwt() ->> 'email'))
+  WITH CHECK (lower(user_email) = lower(auth.jwt() ->> 'email'));
+
+DROP POLICY IF EXISTS "device_tokens_delete_own" ON public.device_tokens;
+CREATE POLICY "device_tokens_delete_own"
+  ON public.device_tokens FOR DELETE TO authenticated
+  USING (lower(user_email) = lower(auth.jwt() ->> 'email'));
+
+DROP POLICY IF EXISTS "push_notification_log_select_own" ON public.push_notification_log;
+CREATE POLICY "push_notification_log_select_own"
+  ON public.push_notification_log FOR SELECT TO authenticated
+  USING (lower(user_email) = lower(auth.jwt() ->> 'email'));
+
+
+-- =====================================================================
+-- Former file: 20260219_device_tokens_anon_policies.sql
+-- =====================================================================
+
+-- Allow anon to SELECT, INSERT, UPDATE, DELETE on device_tokens so the app can register
+-- devices without a Supabase Auth session (e.g. MFA-only login). FK still requires
+-- user_email to exist in email_subscribers. Keeps original pre-RLS behavior for registration.
+-- Safe to re-run: policies are dropped then recreated.
+
+DROP POLICY IF EXISTS "device_tokens_anon_all" ON public.device_tokens;
+CREATE POLICY "device_tokens_anon_all"
+  ON public.device_tokens FOR ALL TO anon
+  USING (true)
+  WITH CHECK (true);
+
+
+-- =====================================================================
+-- Former file: 20260220_email_subscribers_receive_push.sql
+-- =====================================================================
+
+-- Add push notification preference to email_subscribers.
+-- Default true preserves existing behavior (all current subscribers receive push until they opt out).
+ALTER TABLE public.email_subscribers
+  ADD COLUMN IF NOT EXISTS receive_push boolean NOT NULL DEFAULT true;
+
+COMMENT ON COLUMN public.email_subscribers.receive_push IS 'Whether the subscriber wants to receive push notifications (Capacitor app).';
+
+
+-- =====================================================================
+-- Former file: 20260221_admin_not_tied_to_is_active.sql
+-- =====================================================================
+
+-- Decouple admin access from is_active. Admin is determined by is_admin only.
+-- is_active now controls only email subscriptions; admins can turn off email and still access admin.
+
+DROP POLICY IF EXISTS "Admins can see all personal prayer updates" ON public.personal_prayer_updates;
+CREATE POLICY "Admins can see all personal prayer updates"
+  ON public.personal_prayer_updates
+  AS PERMISSIVE
+  FOR SELECT
+  TO public
+  USING (
+    (auth.role() = 'authenticated')
+    AND (EXISTS (
+      SELECT 1 FROM public.email_subscribers
+      WHERE email_subscribers.email = (auth.jwt() ->> 'email')
+        AND email_subscribers.is_admin = true
+    ))
+  );
+
+DROP POLICY IF EXISTS "Admins can see all personal prayers" ON public.personal_prayers;
+CREATE POLICY "Admins can see all personal prayers"
+  ON public.personal_prayers
+  AS PERMISSIVE
+  FOR SELECT
+  TO public
+  USING (
+    (auth.role() = 'authenticated')
+    AND (EXISTS (
+      SELECT 1 FROM public.email_subscribers
+      WHERE email_subscribers.email = (auth.jwt() ->> 'email')
+        AND email_subscribers.is_admin = true
+    ))
+  );
+
+
+-- =====================================================================
+-- Former file: 20260222_email_subscribers_receive_admin_push.sql
+-- =====================================================================
+
+-- Add admin push notification preference to email_subscribers.
+-- Only applies when is_admin is true; default false so admins opt in or are opted in when added.
+ALTER TABLE public.email_subscribers
+  ADD COLUMN IF NOT EXISTS receive_admin_push boolean NOT NULL DEFAULT false;
+
+COMMENT ON COLUMN public.email_subscribers.receive_admin_push IS 'Whether the admin wants to receive admin alert push notifications (Capacitor app). Only applies when is_admin is true.';
+
+
+-- =====================================================================
+-- Former file: 20260223_receive_push_default_false.sql
+-- =====================================================================
+
+-- receive_push should be true only when the user has installed the app and has a device_token.
+-- Default to false for new subscribers; set to true only when a device token is registered (app code).
+ALTER TABLE public.email_subscribers
+  ALTER COLUMN receive_push SET DEFAULT false;
+
+-- Backfill: set receive_push = false for subscribers who have no device token.
+UPDATE public.email_subscribers es
+SET receive_push = false
+WHERE es.receive_push = true
+  AND NOT EXISTS (
+    SELECT 1 FROM public.device_tokens dt
+    WHERE dt.user_email = es.email
+  );
+
+COMMENT ON COLUMN public.email_subscribers.receive_push IS 'Whether the subscriber wants to receive push notifications (Capacitor app). Set true only when a device token is registered.';
+
+
+-- =====================================================================
+-- Former file: 20260224_prayer_encouragement.sql
+-- =====================================================================
+
+-- Prayer Encouragement: prayed_for count on prayers and admin toggle
+
+-- Add prayed_for_count to prayers (incremented when users click "Pray For")
+ALTER TABLE public.prayers
+  ADD COLUMN IF NOT EXISTS prayed_for_count integer NOT NULL DEFAULT 0;
+
+-- Add prayer_encouragement_enabled to admin_settings (single row id=1)
+ALTER TABLE public.admin_settings
+  ADD COLUMN IF NOT EXISTS prayer_encouragement_enabled boolean NOT NULL DEFAULT false;
+
+-- RPC so any user (including anon) can increment without direct UPDATE on prayers
+CREATE OR REPLACE FUNCTION public.increment_prayed_for_count(prayer_id uuid)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  new_count integer;
+BEGIN
+  UPDATE prayers
+  SET prayed_for_count = COALESCE(prayed_for_count, 0) + 1
+  WHERE id = prayer_id
+  RETURNING prayed_for_count INTO new_count;
+  RETURN COALESCE(new_count, 0);
+END;
+$$;
+
+-- Allow anon and authenticated to call the RPC
+GRANT EXECUTE ON FUNCTION public.increment_prayed_for_count(uuid) TO anon;
+GRANT EXECUTE ON FUNCTION public.increment_prayed_for_count(uuid) TO authenticated;
+
+
+-- =====================================================================
+-- Former file: 20260225_prayer_encouragement_cooldown_hours.sql
+-- =====================================================================
+
+-- Prayer Encouragement: configurable cooldown hours (how long before user can click Pray For again on same prayer)
+
+ALTER TABLE public.admin_settings
+  ADD COLUMN IF NOT EXISTS prayer_encouragement_cooldown_hours integer NOT NULL DEFAULT 4;
+
+-- Constrain to 1–168 hours (1 hour to 1 week)
+ALTER TABLE public.admin_settings
+  DROP CONSTRAINT IF EXISTS prayer_encouragement_cooldown_hours_range;
+
+ALTER TABLE public.admin_settings
+  ADD CONSTRAINT prayer_encouragement_cooldown_hours_range
+  CHECK (prayer_encouragement_cooldown_hours >= 1 AND prayer_encouragement_cooldown_hours <= 168);
+
+
+-- =====================================================================
+-- Former file: 20260226_prayers_updated_at_skip_prayed_for.sql
+-- =====================================================================
+
+-- Don't advance prayers.updated_at when only prayed_for_count changes,
+-- so reminder logic (based on last activity) isn't pushed out by "Pray For" clicks.
+
+CREATE OR REPLACE FUNCTION public.update_prayers_updated_at_skip_prayed_for()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  -- If the only change is prayed_for_count, keep the existing updated_at
+  IF (OLD.prayed_for_count IS DISTINCT FROM NEW.prayed_for_count)
+     AND (OLD.id IS NOT DISTINCT FROM NEW.id)
+     AND (OLD.title IS NOT DISTINCT FROM NEW.title)
+     AND (OLD.description IS NOT DISTINCT FROM NEW.description)
+     AND (OLD.status IS NOT DISTINCT FROM NEW.status)
+     AND (OLD.requester IS NOT DISTINCT FROM NEW.requester)
+     AND (OLD.date_requested IS NOT DISTINCT FROM NEW.date_requested)
+     AND (OLD.date_answered IS NOT DISTINCT FROM NEW.date_answered)
+     AND (OLD.created_at IS NOT DISTINCT FROM NEW.created_at)
+     AND (OLD.approval_status IS NOT DISTINCT FROM NEW.approval_status)
+     AND (OLD.approved_at IS NOT DISTINCT FROM NEW.approved_at)
+     AND (OLD.denial_reason IS NOT DISTINCT FROM NEW.denial_reason)
+     AND (OLD.email IS NOT DISTINCT FROM NEW.email)
+     AND (OLD.is_anonymous IS NOT DISTINCT FROM NEW.is_anonymous)
+     AND (OLD.prayer_for IS NOT DISTINCT FROM NEW.prayer_for)
+     AND (OLD.last_reminder_sent IS NOT DISTINCT FROM NEW.last_reminder_sent)
+     AND (OLD.is_seed_data IS NOT DISTINCT FROM NEW.is_seed_data)
+     AND (OLD.denied_at IS NOT DISTINCT FROM NEW.denied_at)
+  THEN
+    NEW.updated_at = OLD.updated_at;
+  ELSE
+    NEW.updated_at = now();
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS update_prayers_updated_at ON public.prayers;
+CREATE TRIGGER update_prayers_updated_at
+  BEFORE UPDATE ON public.prayers
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_prayers_updated_at_skip_prayed_for();
+
+
+-- =====================================================================
+-- Former file: 20260305_test_account_settings.sql
+-- =====================================================================
+
+-- Add test account settings to admin_settings for app testing (no email sent; configurable codes per MFA length)
+ALTER TABLE public.admin_settings
+  ADD COLUMN IF NOT EXISTS test_account_email text DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS test_account_code_4 text DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS test_account_code_6 text DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS test_account_code_8 text DEFAULT NULL;
+
+COMMENT ON COLUMN public.admin_settings.test_account_email IS 'Email of the account used for Apple/Android app testing; when set, no verification email is sent and codes come from test_account_code_4/6/8';
+COMMENT ON COLUMN public.admin_settings.test_account_code_4 IS 'Fixed MFA code for test account when verification_code_length is 4';
+COMMENT ON COLUMN public.admin_settings.test_account_code_6 IS 'Fixed MFA code for test account when verification_code_length is 6';
+COMMENT ON COLUMN public.admin_settings.test_account_code_8 IS 'Fixed MFA code for test account when verification_code_length is 8';
+
+
+-- =====================================================================
+-- Former file: 20260315120000_user_prayer_hour_reminders.sql
+-- =====================================================================
+
+-- Per-user hourly prayer reminders (self nudges), anon access for MFA clients, and default email template.
+-- Queried by Edge Function send-user-hourly-prayer-reminders (SQL-side hour match).
+
+CREATE TABLE IF NOT EXISTS public.user_prayer_hour_reminders (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_email text NOT NULL,
+  iana_timezone text NOT NULL,
+  local_hour smallint NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT user_prayer_hour_reminders_local_hour_check CHECK (
+    local_hour >= 0 AND local_hour <= 23
+  ),
+  CONSTRAINT user_prayer_hour_reminders_user_email_fkey
+    FOREIGN KEY (user_email) REFERENCES public.email_subscribers (email) ON DELETE CASCADE,
+  CONSTRAINT user_prayer_hour_reminders_unique_slot UNIQUE (user_email, iana_timezone, local_hour)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_prayer_hour_reminders_user_email
+  ON public.user_prayer_hour_reminders (user_email);
+
+COMMENT ON TABLE public.user_prayer_hour_reminders IS
+  'User-chosen local clock hours (per IANA timezone) for hourly prayer self-reminders; matched in SQL for minimal egress.';
+
+ALTER TABLE public.user_prayer_hour_reminders ENABLE ROW LEVEL SECURITY;
+
+-- Authenticated users: own rows only (match JWT email case-insensitively)
+-- DROP first so re-runs after a partial migration do not fail (42710 policy already exists).
+DROP POLICY IF EXISTS "user_prayer_hour_reminders_select_own" ON public.user_prayer_hour_reminders;
+CREATE POLICY "user_prayer_hour_reminders_select_own"
+  ON public.user_prayer_hour_reminders FOR SELECT TO authenticated
+  USING (lower(user_email) = lower((auth.jwt() ->> 'email')));
+
+DROP POLICY IF EXISTS "user_prayer_hour_reminders_insert_own" ON public.user_prayer_hour_reminders;
+CREATE POLICY "user_prayer_hour_reminders_insert_own"
+  ON public.user_prayer_hour_reminders FOR INSERT TO authenticated
+  WITH CHECK (lower(user_email) = lower((auth.jwt() ->> 'email')));
+
+DROP POLICY IF EXISTS "user_prayer_hour_reminders_delete_own" ON public.user_prayer_hour_reminders;
+CREATE POLICY "user_prayer_hour_reminders_delete_own"
+  ON public.user_prayer_hour_reminders FOR DELETE TO authenticated
+  USING (lower(user_email) = lower((auth.jwt() ->> 'email')));
+
+GRANT SELECT, INSERT, DELETE ON TABLE public.user_prayer_hour_reminders TO authenticated;
+GRANT ALL ON TABLE public.user_prayer_hour_reminders TO service_role;
+
+-- MFA / localStorage auth: browser uses anon key without Supabase JWT (same pattern as device_tokens).
+-- Do not use TO public — that applies to every role and ORs with JWT policies, bypassing ownership for
+-- authenticated sessions. Scope open access to role anon only. Anon has no auth.jwt() email for row checks.
+GRANT SELECT, INSERT, DELETE ON TABLE public.user_prayer_hour_reminders TO anon;
+
+DROP POLICY IF EXISTS "Allow all user_prayer_hour_reminders access" ON public.user_prayer_hour_reminders;
+DROP POLICY IF EXISTS "anon_user_prayer_hour_reminders_mfa_access" ON public.user_prayer_hour_reminders;
+
+CREATE POLICY "anon_user_prayer_hour_reminders_mfa_access"
+  ON public.user_prayer_hour_reminders
+  AS PERMISSIVE
+  FOR ALL
+  TO anon
+  USING (true)
+  WITH CHECK (true);
+
+COMMENT ON POLICY "anon_user_prayer_hour_reminders_mfa_access" ON public.user_prayer_hour_reminders IS
+  'MFA/localStorage clients use the anon API key (no user JWT). Scoped to role anon so authenticated users use JWT policies above.';
+
+-- Returns only rows whose local wall hour in iana_timezone equals local_hour right now (server UTC "now").
+CREATE OR REPLACE FUNCTION public.get_user_prayer_hour_reminders_due_now()
+RETURNS SETOF public.user_prayer_hour_reminders
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT r.*
+  FROM public.user_prayer_hour_reminders r
+  WHERE EXTRACT(HOUR FROM (NOW() AT TIME ZONE r.iana_timezone))::integer = r.local_hour;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_user_prayer_hour_reminders_due_now() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_user_prayer_hour_reminders_due_now() TO service_role;
+
+-- Email template: {{appLink}} from Edge Function secret APP_URL (match environment.appUrl in prod).
+INSERT INTO public.email_templates (template_key, name, subject, html_body, text_body, description)
+VALUES (
+  'user_hourly_prayer_reminder',
+  'User hourly prayer reminder',
+  'Time to pray',
+  $html$<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width:480px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+          <tr>
+            <td style="background:linear-gradient(135deg,#3b82f6,#2563eb);padding:20px 24px;text-align:center;">
+              <p style="margin:0;color:#ffffff;font-size:18px;font-weight:600;">Time to pray</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 24px 20px;">
+              <p style="margin:0 0 20px;color:#1f2937;font-size:16px;line-height:1.5;">Take a moment to pray.</p>
+              <div style="text-align:center;margin:8px 0 24px;">
+                <a href="{{appLink}}" style="background:#2563eb;color:#ffffff;padding:12px 28px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:600;font-size:15px;">Open prayer app</a>
+              </div>
+              <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.5;">You can turn off these reminders anytime in <strong style="color:#4b5563;">Settings</strong> → <strong style="color:#4b5563;">Prayer reminders</strong> in the app.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>$html$,
+  E'Time to pray\n\nTake a moment to pray.\n\nOpen the app:\n{{appLink}}\n\nTo stop these reminders: Settings → Prayer reminders in the app.\n',
+  'Hourly self-nudge from user settings. Uses {{appLink}} (Edge APP_URL / environment.appUrl).'
+)
+ON CONFLICT (template_key) DO UPDATE SET
+  name = EXCLUDED.name,
+  subject = EXCLUDED.subject,
+  html_body = EXCLUDED.html_body,
+  text_body = EXCLUDED.text_body,
+  description = EXCLUDED.description,
+  updated_at = now();
+
+-- =====================================================================
+-- Former file: 20260316130000_schedule_user_hourly_prayer_reminders_cron.sql
+-- =====================================================================
+
+-- Hourly invocation of Edge Function send-user-hourly-prayer-reminders via pg_cron + pg_net.
+-- Replaces GitHub Action .github/workflows/send-user-hourly-prayer-reminders.yml (removed from repo).
+--
+-- PREREQUISITE (run in Supabase SQL Editor if these Vault secrets do not exist yet):
+--   select vault.create_secret('https://YOUR_PROJECT_REF.supabase.co', 'project_url');
+--   select vault.create_secret('YOUR_SUPABASE_SECRET_KEY', 'service_role_key');
+-- Use the same secret API key as GitHub secret SUPABASE_SECRET_KEY / Dashboard Settings → API Keys.
+-- See docs/SETUP.md (Supabase Vault + user hourly prayer reminders cron).
+
+CREATE EXTENSION IF NOT EXISTS pg_net;
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+-- Idempotent: remove previous job when migration is re-applied
+DO $$
+DECLARE
+  jid bigint;
+BEGIN
+  SELECT j.jobid INTO jid
+  FROM cron.job j
+  WHERE j.jobname = 'invoke-user-hourly-prayer-reminders';
+  IF jid IS NOT NULL THEN
+    PERFORM cron.unschedule(jid);
+  END IF;
+END $$;
+
+SELECT cron.schedule(
+  'invoke-user-hourly-prayer-reminders',
+  '0 * * * *', -- every hour at minute 0 (UTC)
+  $$
+  SELECT net.http_post(
+    url := (SELECT ds.decrypted_secret FROM vault.decrypted_secrets ds WHERE ds.name = 'project_url' LIMIT 1)
+      || '/functions/v1/send-user-hourly-prayer-reminders',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization',
+      'Bearer ' || (SELECT ds.decrypted_secret FROM vault.decrypted_secrets ds WHERE ds.name = 'service_role_key' LIMIT 1)
+    ),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 120000
+  );
+  $$
+);
+
+
+-- =====================================================================
+-- Former file: 20260317120000_schedule_send_prayer_reminders_cron.sql
+-- =====================================================================
+
+-- Daily invocation of Edge Function send-prayer-reminders (community reminder emails + auto-archive) via pg_cron + pg_net.
+-- Replaces GitHub Action .github/workflows/send-prayer-reminders.yml (removed from repo).
+--
+-- Uses the same Vault secrets as user hourly reminders: project_url, service_role_key.
+-- See docs/SETUP.md (User hourly prayer reminders + Community prayer reminders).
+--
+-- timeout_milliseconds: batch work can exceed 2 minutes; increase if net._http_response shows timeouts
+-- or align with your Supabase Edge Function max duration.
+
+CREATE EXTENSION IF NOT EXISTS pg_net;
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+DO $$
+DECLARE
+  jid bigint;
+BEGIN
+  SELECT j.jobid INTO jid
+  FROM cron.job j
+  WHERE j.jobname = 'invoke-send-prayer-reminders';
+  IF jid IS NOT NULL THEN
+    PERFORM cron.unschedule(jid);
+  END IF;
+END $$;
+
+SELECT cron.schedule(
+  'invoke-send-prayer-reminders',
+  '0 10 * * *', -- daily 10:00 UTC (same as former GitHub workflow)
+  $$
+  SELECT net.http_post(
+    url := (SELECT ds.decrypted_secret FROM vault.decrypted_secrets ds WHERE ds.name = 'project_url' LIMIT 1)
+      || '/functions/v1/send-prayer-reminders',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization',
+      'Bearer ' || (SELECT ds.decrypted_secret FROM vault.decrypted_secrets ds WHERE ds.name = 'service_role_key' LIMIT 1)
+    ),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 300000
+  );
+  $$
+);
+
+
+-- =====================================================================
+-- Former file: 20260318120000_schedule_cleanup_device_tokens_cron.sql
+-- =====================================================================
+
+-- Daily invocation of Edge Function cleanup-device-tokens via pg_cron + pg_net.
+-- Replaces GitHub Action .github/workflows/cleanup-device-tokens.yml (removed from repo).
+--
+-- Same Vault secrets as other scheduled Edge invokes: project_url, service_role_key.
+-- See docs/SETUP.md (Device token cleanup).
+
+CREATE EXTENSION IF NOT EXISTS pg_net;
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+DO $$
+DECLARE
+  jid bigint;
+BEGIN
+  SELECT j.jobid INTO jid
+  FROM cron.job j
+  WHERE j.jobname = 'invoke-cleanup-device-tokens';
+  IF jid IS NOT NULL THEN
+    PERFORM cron.unschedule(jid);
+  END IF;
+END $$;
+
+SELECT cron.schedule(
+  'invoke-cleanup-device-tokens',
+  '0 3 * * *', -- daily 03:00 UTC (same as former GitHub workflow)
+  $$
+  SELECT net.http_post(
+    url := (SELECT ds.decrypted_secret FROM vault.decrypted_secrets ds WHERE ds.name = 'project_url' LIMIT 1)
+      || '/functions/v1/cleanup-device-tokens',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization',
+      'Bearer ' || (SELECT ds.decrypted_secret FROM vault.decrypted_secrets ds WHERE ds.name = 'service_role_key' LIMIT 1)
+    ),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 120000
+  );
+  $$
+);

@@ -16,7 +16,7 @@ describe('SupabaseService', () => {
     env = await import('../../environments/environment');
     // default valid env
     env.environment.supabaseUrl = 'https://supabase.example';
-    env.environment.supabaseAnonKey = 'anon-key';
+    env.environment.supabasePublishableKey = 'anon-key';
   });
 
   afterEach(() => {
@@ -26,7 +26,7 @@ describe('SupabaseService', () => {
 
   it('throws when environment variables are missing', async () => {
     env.environment.supabaseUrl = '';
-    env.environment.supabaseAnonKey = '';
+    env.environment.supabasePublishableKey = '';
     const mod = await import('./supabase.service');
     expect(() => new mod.SupabaseService()).toThrow();
   });
@@ -35,8 +35,11 @@ describe('SupabaseService', () => {
     const mod = await import('./supabase.service');
     const svc = new mod.SupabaseService();
     expect(svc.getSupabaseUrl()).toBe('https://supabase.example');
-    expect(svc.getSupabaseKey()).toBe('anon-key');
-    expect(svc.getConfig()).toEqual({ url: 'https://supabase.example', anonKey: 'anon-key' });
+    expect(svc.getPublishableKey()).toBe('anon-key');
+    expect(svc.getConfig()).toEqual({
+      url: 'https://supabase.example',
+      publishableKey: 'anon-key'
+    });
     expect(svc.client).toBeDefined();
     expect(svc.getClient()).toBe(svc.client);
   });
@@ -169,15 +172,15 @@ describe('SupabaseService', () => {
 
     const env = await import('../../environments/environment');
     const origUrl = env.environment.supabaseUrl;
-    const origKey = env.environment.supabaseAnonKey;
+    const origKey = env.environment.supabasePublishableKey;
 
     env.environment.supabaseUrl = '';
-    env.environment.supabaseAnonKey = '';
+    env.environment.supabasePublishableKey = '';
 
     await expect((svc as any).reconnect()).rejects.toThrow('Missing Supabase environment variables');
 
     env.environment.supabaseUrl = origUrl;
-    env.environment.supabaseAnonKey = origKey;
+    env.environment.supabasePublishableKey = origKey;
   });
 
   it('setupVisibilityRecovery calls ensureConnected on visibilitychange and custom event', async () => {

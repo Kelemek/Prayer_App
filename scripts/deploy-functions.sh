@@ -68,7 +68,7 @@ case $FUNCTION_NAME in
         echo "   - RESEND_API_KEY"
         echo "   - RESEND_FROM_EMAIL"
         echo "   - SUPABASE_URL"
-        echo "   - SUPABASE_SERVICE_ROLE_KEY"
+        echo "   - SUPABASE_SERVICE_ROLE_KEY (platform name; value = secret API key, auto-set when hosted)"
         ;;
     "all")
         echo "Deploying all functions..."

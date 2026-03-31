@@ -393,7 +393,7 @@ export class BackupStatusComponent implements OnInit {
     this.loading = true;
     try {
       const supabaseUrl = this.supabaseService.getSupabaseUrl();
-      const supabaseKey = this.supabaseService.getSupabaseKey();
+      const supabaseKey = this.supabaseService.getPublishableKey();
 
       const params = new URLSearchParams();
       params.set('select', '*');
@@ -468,7 +468,7 @@ export class BackupStatusComponent implements OnInit {
     try {
       // Auto-discover tables from the database
       const supabaseUrl = this.supabaseService.getSupabaseUrl();
-      const supabaseKey = this.supabaseService.getSupabaseKey();
+      const supabaseKey = this.supabaseService.getPublishableKey();
 
       let tables: string[];
 

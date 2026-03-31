@@ -1208,7 +1208,7 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
         const pcResult = await lookupPersonByEmail(
           this.newEmail.toLowerCase().trim(),
           environment.supabaseUrl,
-          environment.supabaseAnonKey
+          environment.supabasePublishableKey
         );
         inPlanningCenter = pcResult.count > 0;
         planningCenterCheckedAt = new Date().toISOString();
@@ -1592,7 +1592,7 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       const batchResults = await batchLookupPlanningCenter(
         newEmails,
         environment.supabaseUrl,
-        environment.supabaseAnonKey,
+        environment.supabasePublishableKey,
         {
           concurrency: 5, // Max 5 concurrent requests at a time
           maxRetries: 3,
@@ -1695,7 +1695,7 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       const result = await searchPlanningCenterByName(
         this.pcSearchQuery,
         environment.supabaseUrl,
-        environment.supabaseAnonKey
+        environment.supabasePublishableKey
       );
 
       if (result.error) {

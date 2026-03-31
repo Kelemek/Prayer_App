@@ -234,7 +234,10 @@ export class PlanningCenterListMapperComponent implements OnInit {
     this.cdr.markForCheck();
     
     try {
-      const result = await fetchPlanningCenterLists(environment.supabaseUrl, environment.supabaseAnonKey);
+      const result = await fetchPlanningCenterLists(
+        environment.supabaseUrl,
+        environment.supabasePublishableKey
+      );
       if (result.error) {
         throw new Error(result.error);
       }

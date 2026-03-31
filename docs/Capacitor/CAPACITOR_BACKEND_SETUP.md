@@ -4,12 +4,7 @@ This checklist guides you through setting up the backend to support push notific
 
 ## Phase 1: Database Setup
 
-- [ ] **Run the Capacitor database migrations** (in order)
-  - **Device tokens and push log:** `supabase/migrations/20260218_capacitor_device_tokens_and_push_log.sql` — creates `device_tokens` and `push_notification_log`, grants, RLS, and policies. The Edge Function uses `service_role` and bypasses RLS. Without this, you get **500 "Failed to retrieve device tokens"** when sending push.
-  - **Subscriber push preference:** `supabase/migrations/20260220_email_subscribers_receive_push.sql` — adds `receive_push` to `email_subscribers` (whether the subscriber wants app push notifications).
-  - **Admin push preference:** `supabase/migrations/20260221_admin_not_tied_to_is_active.sql` — decouples admin access from `is_active`; `supabase/migrations/20260222_email_subscribers_receive_admin_push.sql` — adds `receive_admin_push` for admin-only push.
-  - **receive_push default false:** `supabase/migrations/20260223_receive_push_default_false.sql` — sets default `receive_push = false` and backfills so only subscribers with a device token keep push on. **Push is turned on only when the user installs the app and a device token is registered** (see Phase 5).
-  - In Supabase Dashboard → **SQL Editor**, run each file's contents in order, or run `supabase db push` if you use Supabase CLI.
+- [ ] **Run database migrations** — Push-related schema lives in the single consolidated file [`supabase/migrations/20260123140820_remote_schema.sql`](../../supabase/migrations/20260123140820_remote_schema.sql). Search inside it for sections *Former file: 20260218…* through *20260223…* (device tokens, `push_notification_log`, `receive_push`, `receive_admin_push`, admin RLS tweaks, defaults/backfill). The Edge Function uses `service_role` and bypasses RLS. Without those objects, you get **500 "Failed to retrieve device tokens"** when sending push. Apply with `supabase db push` or run the full migration SQL once in the Dashboard **SQL Editor**.
 
 - [ ] **Email vs push preferences (reference)**
   - **`is_active`** — Email only: whether the subscriber receives **mass email** notifications (new/approved prayers, approved updates). Independent of push.
@@ -138,7 +133,7 @@ The function sends **Android** via **FCM HTTP v1** (service account) and **iOS**
   - **Why it's optional:** You can send push notifications without this; it's mainly for admins to see who has the app installed and how many devices.
 
 - [x] **Automatic token cleanup**
-  - Implemented via Edge Function `cleanup-device-tokens`, invoked daily by **Supabase `pg_cron`** (migration `20260318120000_schedule_cleanup_device_tokens_cron.sql`, `0 3 * * *` UTC; Vault `project_url` + `service_role_key`). Removes `device_tokens` where `last_seen_at` is older than 30 days (related `push_notification_log` rows removed by CASCADE). Also removes `push_notification_log` rows where `sent_at` is older than 7 days. Deploy with `./scripts/deploy-functions.sh cleanup-device-tokens` or `all`.
+  - Implemented via Edge Function `cleanup-device-tokens`, invoked daily by **Supabase `pg_cron`** (consolidated migration `20260123140820_remote_schema.sql`, section *Former file: 20260318120000_schedule_cleanup_device_tokens_cron.sql*; `0 3 * * *` UTC; Vault `project_url` + `service_role_key`). Removes `device_tokens` where `last_seen_at` is older than 30 days (related `push_notification_log` rows removed by CASCADE). Also removes `push_notification_log` rows where `sent_at` is older than 7 days. Deploy with `./scripts/deploy-functions.sh cleanup-device-tokens` or `all`.
 
 ## Phase 6: Send Notifications from Admin
 
@@ -278,7 +273,7 @@ The function sends **Android** via **FCM HTTP v1** (service account) and **iOS**
 - [ ] Check platform (iOS/Android) in device_tokens; review device logs in Xcode/Android Studio if still nothing.
 
 **"Failed to retrieve device tokens" (500)**
-- [ ] Run the full Capacitor migration: Supabase Dashboard → **SQL Editor** → paste contents of `supabase/migrations/20260218_capacitor_device_tokens_and_push_log.sql` → Run (or `supabase db push`). It creates tables, grants, and RLS in one go.
+- [ ] Ensure migrations are applied: `supabase db push`, or paste/run the consolidated [`supabase/migrations/20260123140820_remote_schema.sql`](../../supabase/migrations/20260123140820_remote_schema.sql) (includes the former `20260218_capacitor_device_tokens_and_push_log.sql` section).
 - [ ] In **Table Editor**, confirm `device_tokens` and `push_notification_log` exist.
 - [ ] If the tables exist and you still get 500, check the response body for `detail` and `code`, or function logs in Supabase Dashboard → Functions → send-push-notification → Logs.
 

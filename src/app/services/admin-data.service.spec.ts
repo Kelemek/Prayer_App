@@ -15,7 +15,7 @@ vi.mock('../../lib/planning-center', () => ({
 vi.mock('../../environments/environment', () => ({
   environment: {
     supabaseUrl: 'https://test.supabase.co',
-    supabaseAnonKey: 'test-key'
+    supabasePublishableKey: 'test-key'
   }
 }));
 

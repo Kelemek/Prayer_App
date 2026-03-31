@@ -430,7 +430,7 @@ export class PresentationComponent implements OnInit, OnDestroy {
         const result = await fetchListMembers(
           subscriber.planning_center_list_id,
           environment.supabaseUrl,
-          environment.supabaseAnonKey
+          environment.supabasePublishableKey
         );
         
         if (!result.error && result.members) {

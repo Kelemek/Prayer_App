@@ -10,8 +10,9 @@ alwaysApply: false
 
 - Each function lives in `supabase/functions/<name>/index.ts`.
 - Use **Deno** runtime. Entry point: `serve(async (req) => { ... })` from `https://deno.land/std@0.168.0/http/server.ts`.
-- Create Supabase client with `createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)` from `https://esm.sh/@supabase/supabase-js@2`.
-- Read env at top level: `const SUPABASE_URL = Deno.env.get('SUPABASE_URL');` and `SUPABASE_SERVICE_ROLE_KEY`.
+- Create admin Supabase client with `createClient(SUPABASE_URL, secretKey)` from `https://esm.sh/@supabase/supabase-js@2`, where `secretKey` is `Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')`.
+- **Naming:** Supabase still injects **`SUPABASE_SERVICE_ROLE_KEY`** and **`SUPABASE_ANON_KEY`** on hosted Edge Functions. The **values** are your project’s **secret** and **publishable** API keys (`sb_secret_…` / `sb_publishable_…` or legacy JWTs)—do not rename these env vars to match dashboard labels.
+- Read env at top level: `const SUPABASE_URL = Deno.env.get('SUPABASE_URL');` and `Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')` for privileged clients.
 
 ## CORS
 

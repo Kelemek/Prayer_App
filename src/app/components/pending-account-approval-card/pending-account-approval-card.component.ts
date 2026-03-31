@@ -180,7 +180,7 @@ export class PendingAccountApprovalCardComponent implements OnInit {
       const result = await lookupPersonByEmail(
         this.request.email,
         environment.supabaseUrl,
-        environment.supabaseAnonKey
+        environment.supabasePublishableKey
       );
 
       if (result.error) {

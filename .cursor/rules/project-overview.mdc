@@ -6,8 +6,8 @@ alwaysApply: true
 # Prayer App – Project Overview
 
 - **Frontend**: Angular 21, standalone components, Tailwind v4, Capacitor (iOS/Android).
-- **Backend**: Supabase (auth, Postgres, Edge Functions). Edge Functions are Deno in `supabase/functions/`.
+- **Backend**: Supabase (auth, Postgres, Edge Functions). Edge Functions are Deno in `supabase/functions/`. The Angular app uses **`VITE_SUPABASE_PUBLISHABLE_KEY`** + `environment.supabasePublishableKey`; GitHub Actions and local scripts use **`SUPABASE_SECRET_KEY`**. Hosted Edge Functions use platform env names **`SUPABASE_SERVICE_ROLE_KEY`** / **`SUPABASE_ANON_KEY`** (values = secret / publishable keys from the dashboard).
 - **Testing**: Vitest + @testing-library/angular for unit tests.
 - **Key paths**: `src/app/` (components, pages, services, guards, types), `src/styles.css` (Tailwind + theme), `src/environments/` (env config), `supabase/functions/<name>/index.ts` (Edge Functions).
-- **Notable deps**: @supabase/supabase-js, @sentry/angular, @capacitor/*, lucide-angular, @planningcenter/api-client.
+- **Notable deps**: @supabase/supabase-js, @capacitor/*, lucide-angular, @planningcenter/api-client.
 - Prefer existing services (`SupabaseService`, `ToastService`, etc.) and shared types in `src/app/types/` when adding features.

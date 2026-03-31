@@ -67,9 +67,9 @@ import { RouterModule } from '@angular/router';
             <p class="mb-2">The app uses the following third-party services that may process data:</p>
             <ul class="list-disc pl-6 space-y-1">
               <li><strong>Hosting and database:</strong> Data is stored and processed by our hosting and database provider (e.g., Supabase) in accordance with their privacy and security practices.</li>
-              <li><strong>Email:</strong> Email notifications are sent via a trusted email provider (e.g., Microsoft 365).</li>
+              <li><strong>Email:</strong> Email notifications are sent via a transactional email provider (e.g., Resend).</li>
               <li><strong>Push notifications:</strong> Delivered via Apple (APNs) and Google (FCM) when you use the mobile app.</li>
-              <li><strong>Error and analytics:</strong> We may use Sentry for error reporting and Microsoft Clarity or similar tools for usage analytics (e.g., session replay, page usage). These may collect identifiers and usage data to help us fix bugs and improve the app.</li>
+              <li><strong>Analytics:</strong> We may use our hosting provider’s analytics and performance tools (e.g., page views, Web Vitals) to understand usage and improve the app. Those services may collect limited technical or usage data according to their policies.</li>
             </ul>
             <p class="mt-2">
               Each of these providers has its own privacy policy. We choose providers that are committed to

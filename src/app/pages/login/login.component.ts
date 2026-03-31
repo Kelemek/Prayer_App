@@ -725,7 +725,7 @@ export class LoginComponent implements OnInit, OnDestroy {
         const pcResult = await lookupPersonByEmail(
           userEmail,
           environment.supabaseUrl,
-          environment.supabaseAnonKey
+          environment.supabasePublishableKey
         );
         
         const isInPlanningCenter = pcResult.count > 0;

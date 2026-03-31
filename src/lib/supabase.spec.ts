@@ -15,7 +15,7 @@ vi.mock('../environments/environment', () => ({
   environment: {
     production: false,
     supabaseUrl: 'https://test.supabase.co',
-    supabaseAnonKey: 'test-anon-key',
+    supabasePublishableKey: 'test-publishable-key',
   },
 }));
 
@@ -28,7 +28,7 @@ describe('supabase', () => {
     // Verify createClient was called with correct parameters
     expect(createClient).toHaveBeenCalledWith(
       'https://test.supabase.co',
-      'test-anon-key',
+      'test-publishable-key',
       expect.objectContaining({
         auth: expect.objectContaining({
           autoRefreshToken: true,
@@ -42,7 +42,7 @@ describe('supabase', () => {
     // Verify the exported client exists
     expect(supabase).toBeDefined();
     expect(supabase).toHaveProperty('_url', 'https://test.supabase.co');
-    expect(supabase).toHaveProperty('_key', 'test-anon-key');
+    expect(supabase).toHaveProperty('_key', 'test-publishable-key');
   });
 
   it('should execute lock function without acquiring locks', async () => {

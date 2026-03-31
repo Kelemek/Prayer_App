@@ -1400,7 +1400,7 @@ export class PrayerService {
   /**
    * Migrate existing personal prayers to category-scoped display_order ranges
    * NOTE: This migration is handled by Supabase SQL migration file instead
-   * File: supabase/migrations/20260121_migrate_personal_prayers_to_category_ranges.sql
+   * Schema: see consolidated `supabase/migrations/20260123140820_remote_schema.sql` (personal_prayers / categories).
    */
   private async migratePersonalPrayersToRanges(): Promise<void> {
     // This function is kept for reference but not called

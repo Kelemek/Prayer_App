@@ -30,15 +30,13 @@ interface EmailTemplate {
 const BATCH_SIZE = 20;
 const MAX_RETRIES = 5;
 const RETRY_DELAY_MS = 1000; // Start with 1 second
-const GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0';
+const RESEND_API = 'https://api.resend.com';
 
 // Validation
 const requiredEnvVars = [
   'SUPABASE_URL',
-  'SUPABASE_SERVICE_KEY',
-  'AZURE_TENANT_ID',
-  'AZURE_CLIENT_ID',
-  'AZURE_CLIENT_SECRET',
+  'SUPABASE_SECRET_KEY',
+  'RESEND_API_KEY',
   'MAIL_SENDER_ADDRESS'
 ];
 
@@ -51,128 +49,68 @@ for (const envVar of requiredEnvVars) {
 // Initialize Supabase with service role key
 const supabase = createClient(
   process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
+  process.env.SUPABASE_SECRET_KEY!
 );
 
-let cachedToken: { token: string; expires: number } | null = null;
 const templateCache = new Map<string, EmailTemplate>();
 
-/**
- * Get OAuth access token from Microsoft Identity Platform
- */
-async function getAccessToken(): Promise<string> {
-  // Return cached token if still valid (with 5 min buffer)
-  if (cachedToken && Date.now() < cachedToken.expires - 300000) {
-    console.log('✅ Using cached access token');
-    return cachedToken.token;
-  }
-
-  console.log('🔑 Acquiring new access token...');
-
-  const tokenUrl = `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/oauth2/v2.0/token`;
-
-  const body = new URLSearchParams({
-    client_id: process.env.AZURE_CLIENT_ID!,
-    client_secret: process.env.AZURE_CLIENT_SECRET!,
-    scope: 'https://graph.microsoft.com/.default',
-    grant_type: 'client_credentials'
-  });
-
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString()
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to acquire token: ${response.status} ${error}`);
-  }
-
-  const data = await response.json() as { access_token: string; expires_in: number };
-
-  // Cache token (expires_in is in seconds, typically 3600)
-  cachedToken = {
-    token: data.access_token,
-    expires: Date.now() + data.expires_in * 1000
-  };
-
-  console.log('✅ Access token acquired');
-  return data.access_token;
+function buildFromHeader(): string {
+  const name = process.env.MAIL_FROM_NAME || 'Prayer Ministry';
+  return `${name} <${process.env.MAIL_SENDER_ADDRESS}>`;
 }
 
 /**
- * Send single email via Microsoft Graph API
+ * Send a single transactional email via Resend
  */
-async function sendViaGraphAPI(
-  token: string,
+async function sendViaResend(
   recipient: string,
   subject: string,
   htmlBody: string,
   textBody: string
 ): Promise<void> {
-  const message = {
-    message: {
-      subject,
-      body: {
-        contentType: htmlBody ? 'html' : 'text',
-        content: htmlBody || textBody || ''
-      },
-      from: {
-        emailAddress: {
-          address: process.env.MAIL_SENDER_ADDRESS,
-          name: process.env.MAIL_FROM_NAME || 'Prayer Ministry'
-        }
-      },
-      toRecipients: [
-        {
-          emailAddress: { address: recipient }
-        }
-      ],
-      // Add List-Unsubscribe header for compliance (RFC 8058)
-      // Must be prefixed with 'x-' for Microsoft Graph API
-      // Email clients will show an "Unsubscribe" button
-      internetMessageHeaders: [
-        {
-          name: 'x-List-Unsubscribe',
-          value: `<mailto:${process.env.MAIL_SENDER_ADDRESS}?subject=unsubscribe>`
-        }
-      ]
-    },
-    saveToSentItems: true
+  const sender = process.env.MAIL_SENDER_ADDRESS!;
+  const payload: Record<string, unknown> = {
+    from: buildFromHeader(),
+    to: [recipient],
+    subject,
+    headers: {
+      'List-Unsubscribe': `<mailto:${sender}?subject=unsubscribe>`
+    }
   };
 
-  const url = `${GRAPH_API_BASE}/users/${encodeURIComponent(
-    process.env.MAIL_SENDER_ADDRESS!
-  )}/sendMail`;
+  if (htmlBody) {
+    payload.html = htmlBody;
+    if (textBody) payload.text = textBody;
+  } else {
+    payload.text = textBody || '';
+  }
 
-  const response = await fetch(url, {
+  const response = await fetch(`${RESEND_API}/emails`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(message)
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
     const error = await response.text();
-    console.error(`❌ Graph API error for ${recipient}:`, {
+    console.error(`❌ Resend API error for ${recipient}:`, {
       status: response.status,
       statusText: response.statusText,
       error
     });
 
-    // Check for rate limiting
     if (response.status === 429) {
       const retryAfter = response.headers.get('Retry-After');
-      const delay = retryAfter ? parseInt(retryAfter) * 1000 : 30000;
-      console.log(`⏳ Rate limited. Retrying after ${delay}ms`);
+      const delay = retryAfter ? parseInt(retryAfter, 10) * 1000 : 5000;
+      console.log(`⏳ Rate limited. Waiting ${delay}ms before retry path`);
       await new Promise(resolve => setTimeout(resolve, delay));
-      throw new Error(`Graph API rate limited (429)`);
+      throw new Error(`Resend rate limited (429)`);
     }
 
-    throw new Error(`Graph API sendMail failed: ${response.status} ${error}`);
+    throw new Error(`Resend send failed: ${response.status} ${error}`);
   }
 
   console.log(`✅ Email sent to ${recipient}`);
@@ -297,10 +235,7 @@ function getBackoffDelay(attempts: number): number {
 /**
  * Process a single email from the queue
  */
-async function processEmail(
-  token: string,
-  email: EmailQueueItem
-): Promise<boolean> {
+async function processEmail(email: EmailQueueItem): Promise<boolean> {
   try {
     console.log(
       `📧 Processing email ${email.id} to ${email.recipient} (attempt ${email.attempts + 1}/${MAX_RETRIES})`
@@ -324,7 +259,7 @@ async function processEmail(
     );
 
     // Send email
-    await sendViaGraphAPI(token, email.recipient, subject, htmlBody, textBody);
+    await sendViaResend(email.recipient, subject, htmlBody, textBody);
 
     // Delete from queue on success
     const { error: deleteError } = await supabase
@@ -393,9 +328,6 @@ async function processEmailQueue(): Promise<void> {
   console.log('🚀 Starting email queue processor...');
 
   try {
-    // Get access token
-    const token = await getAccessToken();
-
     let totalSuccessCount = 0;
     let totalFailureCount = 0;
     let batchNumber = 0;
@@ -438,14 +370,14 @@ async function processEmailQueue(): Promise<void> {
       let batchFailureCount = 0;
 
       for (const email of queueItems) {
-        const success = await processEmail(token, email as EmailQueueItem);
+        const success = await processEmail(email as EmailQueueItem);
         if (success) {
           batchSuccessCount++;
         } else {
           batchFailureCount++;
         }
 
-        // Small delay between emails to avoid rate limiting
+        // Small delay between sends to stay under Resend rate limits
         await new Promise(resolve => setTimeout(resolve, 100));
       }
 
@@ -462,10 +394,8 @@ async function processEmailQueue(): Promise<void> {
         break;
       }
 
-      // Pause between batches to respect Graph API rate limits
-      // Microsoft Graph API allows up to 2000 requests per minute per app
-      // A 2 second delay between batches is reasonable and shouldn't impact processing speed
-      const pauseDuration = 2000; // 2 seconds
+      // Brief pause between queue batches (Resend account limits vary by plan)
+      const pauseDuration = 2000;
       console.log(`⏸️  Pausing ${pauseDuration}ms between batches...`);
       await new Promise(resolve => setTimeout(resolve, pauseDuration));
     }

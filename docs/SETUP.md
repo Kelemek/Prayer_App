@@ -21,7 +21,7 @@ Complete guide to setting up, configuring, and deploying the Prayer App.
 - Node.js 18+ and npm 9+
 - Git
 - Supabase account (free tier available)
-- Microsoft 365 account (for email)
+- [Resend](https://resend.com) account (for transactional and bulk email)
 - Planning Center account (optional, for contact lookup)
 
 ### Installation
@@ -50,7 +50,7 @@ supabase db push
 
 # Or through Supabase Dashboard:
 # 1. Go to SQL Editor
-# 2. Run migration files in supabase/migrations/
+# 2. Run supabase/migrations/20260123140820_remote_schema.sql (single consolidated migration)
 ```
 
 ### PWA Icons & Favicon
@@ -88,22 +88,12 @@ The PWA manifest (`public/manifest.json`) and `src/index.html` reference these f
 ### Create `.env.local`
 
 ```bash
-# Supabase
+# Supabase (Dashboard → Settings → API Keys)
 VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGc...
-
-# Azure/Microsoft
-VITE_AZURE_TENANT_ID=your-tenant-id
-VITE_AZURE_CLIENT_ID=your-client-id
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 
 # Planning Center (optional)
 VITE_PLANNING_CENTER_API_TOKEN=your-token
-
-# Analytics
-VITE_CLARITY_PROJECT_ID=your-clarity-id
-
-# Production only
-VITE_SENTRY_DSN=https://...
 ```
 
 ### GitHub Secrets
@@ -112,11 +102,10 @@ For GitHub Actions to work, add these secrets (still required for workflows that
 
 ```
 SUPABASE_URL
-SUPABASE_SERVICE_KEY
-AZURE_TENANT_ID
-AZURE_CLIENT_ID
-AZURE_CLIENT_SECRET
+SUPABASE_SECRET_KEY
+RESEND_API_KEY
 MAIL_SENDER_ADDRESS
+MAIL_FROM_NAME (optional; defaults to Prayer Ministry)
 GITHUB_PAT (for workflow dispatch)
 VAPID_PUBLIC_KEY (for push notifications, if enabled)
 VAPID_PRIVATE_KEY
@@ -146,18 +135,18 @@ supabase db push
 
 ### User hourly prayer reminders (Vault + pg_cron)
 
-Migration `20260316130000_schedule_user_hourly_prayer_reminders_cron.sql` enables **`pg_net`** and **`pg_cron`** and registers an hourly job (`invoke-user-hourly-prayer-reminders`, `0 * * * *` UTC) that POSTs to the Edge Function `send-user-hourly-prayer-reminders` using secrets from **Supabase Vault** (same behavior as the former GitHub Action).
+The consolidated migration [`supabase/migrations/20260123140820_remote_schema.sql`](../supabase/migrations/20260123140820_remote_schema.sql) (section *Former file: 20260316130000_schedule_user_hourly_prayer_reminders_cron.sql*) enables **`pg_net`** and **`pg_cron`** and registers an hourly job (`invoke-user-hourly-prayer-reminders`, `0 * * * *` UTC) that POSTs to the Edge Function `send-user-hourly-prayer-reminders` using secrets from **Supabase Vault** (same behavior as the former GitHub Action).
 
 **1. Create Vault secrets** (Supabase Dashboard → **Project Settings** → **Vault**, or SQL Editor). Required names:
 
 | Secret name | Value |
 |---------------|--------|
 | `project_url` | Your project API URL, e.g. `https://YOUR_PROJECT_REF.supabase.co` (no trailing slash) |
-| `service_role_key` | **service_role** JWT from **Settings → API** (same value as GitHub secret `SUPABASE_SERVICE_KEY`) |
+| `service_role_key` | **Secret** API key from **Settings → API Keys** (same value as GitHub secret `SUPABASE_SECRET_KEY`; Vault name is historical) |
 
 ```sql
 select vault.create_secret('https://YOUR_PROJECT_REF.supabase.co', 'project_url');
-select vault.create_secret('YOUR_SERVICE_ROLE_JWT', 'service_role_key');
+select vault.create_secret('YOUR_SUPABASE_SECRET_KEY', 'service_role_key');
 ```
 
 If these already exist from another setup, do not duplicate them—only the names must match.
@@ -189,7 +178,7 @@ Confirm the Edge Function logs in **Supabase → Edge Functions → send-user-ho
 
 ### Community prayer reminders (`send-prayer-reminders`)
 
-Migration `20260317120000_schedule_send_prayer_reminders_cron.sql` registers a **daily** job (`invoke-send-prayer-reminders`, **`0 10 * * *` UTC**) that POSTs to the Edge Function **`send-prayer-reminders`** (reminder emails + auto-archive per `admin_settings`). Uses the **same Vault secrets** as above (`project_url`, `service_role_key`).
+The consolidated migration (section *Former file: 20260317120000_schedule_send_prayer_reminders_cron.sql*) registers a **daily** job (`invoke-send-prayer-reminders`, **`0 10 * * *` UTC**) that POSTs to the Edge Function **`send-prayer-reminders`** (reminder emails + auto-archive per `admin_settings`). Uses the **same Vault secrets** as above (`project_url`, `service_role_key`).
 
 **Verify manually** (after secrets exist):
 
@@ -215,7 +204,7 @@ Check **Edge Functions → send-prayer-reminders → Logs**. Confirm schedule: `
 
 ### Device token cleanup (`cleanup-device-tokens`)
 
-Migration `20260318120000_schedule_cleanup_device_tokens_cron.sql` registers a **daily** job (`invoke-cleanup-device-tokens`, **`0 3 * * *` UTC**) that POSTs to the Edge Function **`cleanup-device-tokens`** (stale `device_tokens` and old `push_notification_log` rows). Uses the **same Vault secrets** (`project_url`, `service_role_key`).
+The consolidated migration (section *Former file: 20260318120000_schedule_cleanup_device_tokens_cron.sql*) registers a **daily** job (`invoke-cleanup-device-tokens`, **`0 3 * * *` UTC**) that POSTs to the Edge Function **`cleanup-device-tokens`** (stale `device_tokens` and old `push_notification_log` rows). Uses the **same Vault secrets** (`project_url`, `service_role_key`).
 
 **Verify manually** (after secrets exist):
 
@@ -256,29 +245,24 @@ Key tables created by migrations:
 
 ## Email Configuration
 
-### Microsoft 365 Setup
+### Resend setup
 
-1. **Register Azure App**
-   - Go to [Azure Portal](https://portal.azure.com)
-   - Azure Active Directory > App Registrations > New registration
-   - Name: "Prayer App"
-   - Redirect: (leave blank for backend)
-   - Click Register
+1. **Account and domain**
+   - Sign up at [Resend](https://resend.com) and add your sending domain.
+   - Add the DNS records Resend provides until the domain shows as verified.
 
-2. **Create Client Secret**
-   - Certificates & Secrets > New client secret
-   - Expiry: 24 months
-   - Copy secret value to `AZURE_CLIENT_SECRET`
+2. **API key**
+   - Create an API key in the Resend dashboard.
+   - Store it as **`RESEND_API_KEY`** in:
+     - **Supabase** → Project Settings → Edge Functions → Secrets (required for the `send-email` function)
+     - **GitHub** repository secrets (required for the `process-email-queue` workflow)
 
-3. **Grant Mail Permissions**
-   - API Permissions > Add permission
-   - Microsoft Graph > Application permissions
-   - Search "Mail.Send"
-   - Grant admin consent
+3. **From address**
+   - Set **`MAIL_SENDER_ADDRESS`** to a sender address on your verified domain (e.g. `noreply@yourdomain.com`).
+   - Optionally set **`MAIL_FROM_NAME`** (display name; defaults to `Prayer Ministry` if omitted).
 
-4. **Configure in App**
-   - Copy `AZURE_TENANT_ID` and `AZURE_CLIENT_ID` to `.env.local`
-   - Email sender address to `MAIL_SENDER_ADDRESS`
+4. **Deploy**
+   - After changing secrets, redeploy the `send-email` Edge Function so it picks up `RESEND_API_KEY`.
 
 ### Email Templates
 
@@ -299,7 +283,7 @@ Email queue is processed by GitHub Actions workflow:
 # .github/workflows/process-email-queue.yml
 # Runs every 5 minutes
 # Processes up to 20 emails per run
-# Respects Microsoft Graph rate limits
+# Uses Resend; pacing helps stay within plan rate limits
 ```
 
 ---
@@ -375,14 +359,13 @@ vercel link
 
 1. Go to Vercel dashboard
 2. Project settings > Environment Variables
-3. Add all variables from `.env.local` (without VITE_ prefix)
+3. Add frontend variables (Vite requires the `VITE_` prefix), e.g. `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
 
 Example:
 ```
-SUPABASE_URL=...
-SUPABASE_ANON_KEY=...
-AZURE_TENANT_ID=...
-# etc
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+# Email (Resend) uses Supabase Edge secrets and GitHub Actions, not Vercel env for send-email.
 ```
 
 #### Step 3: Configure Build
@@ -432,8 +415,7 @@ Vercel automatically provides free SSL. No additional setup needed.
 
 ### Monitoring
 
-- **Clarity**: View analytics at [clarity.microsoft.com](https://clarity.microsoft.com)
-- **Sentry**: View errors at [sentry.io](https://sentry.io) (if configured)
+- **Vercel**: Analytics and Speed Insights in the project dashboard
 - **Supabase**: Monitor database at project dashboard
 
 ### Backups
@@ -461,7 +443,7 @@ npm run build
 
 1. Check email queue: `SELECT * FROM email_queue WHERE status = 'failed'`
 2. Check logs: GitHub Actions > process-email-queue workflow
-3. Verify Microsoft 365 credentials in `.env`
+3. Verify **Resend** (`RESEND_API_KEY`) and **`MAIL_SENDER_ADDRESS`** in Supabase Edge secrets and GitHub Actions secrets
 4. Check email templates exist in database
 
 ---

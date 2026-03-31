@@ -365,7 +365,7 @@ export class AdminAuthService {
         localStorage.setItem('mfa_user_email', email);
       }
 
-      console.log('[AdminAuth] MFA code sent successfully via Graph API');
+      console.log('[AdminAuth] MFA code sent successfully');
       return { success: true, codeId };
     } catch (error) {
       console.error('[AdminAuth] Unexpected error sending MFA code:', error);

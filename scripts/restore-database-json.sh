@@ -21,7 +21,7 @@ if [ ! -f .env ]; then
     echo -e "${RED}Error: .env file not found${NC}"
     echo "Please create a .env file with the following variables:"
     echo "  VITE_SUPABASE_URL=your_supabase_url"
-    echo "  SUPABASE_SERVICE_KEY=your_service_key"
+    echo "  SUPABASE_SECRET_KEY=your_service_key"
     exit 1
 fi
 
@@ -31,9 +31,9 @@ source .env
 set +a
 
 # Validate required variables
-if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_KEY" ]; then
+if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$SUPABASE_SECRET_KEY" ]; then
     echo -e "${RED}Error: Missing required environment variables${NC}"
-    echo "Please set VITE_SUPABASE_URL and SUPABASE_SERVICE_KEY in .env"
+    echo "Please set VITE_SUPABASE_URL and SUPABASE_SECRET_KEY in .env"
     exit 1
 fi
 
@@ -105,7 +105,7 @@ async function restoreDatabase() {
 
   const supabase = createClient(
     process.env.VITE_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
+    process.env.SUPABASE_SECRET_KEY
   );
 
   console.log(`Restoring backup from: ${backup.timestamp}`);
@@ -173,7 +173,7 @@ EOFJS
 echo -e "${YELLOW}Starting restore...${NC}\n"
 
 VITE_SUPABASE_URL="$VITE_SUPABASE_URL" \
-SUPABASE_SERVICE_KEY="$SUPABASE_SERVICE_KEY" \
+SUPABASE_SECRET_KEY="$SUPABASE_SECRET_KEY" \
 node /tmp/restore-script.js "$JSON_FILE"
 
 if [ $? -eq 0 ]; then

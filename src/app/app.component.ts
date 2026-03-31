@@ -261,7 +261,7 @@ export class AppComponent implements OnInit {
           const pcResult = await lookupPersonByEmail(
             request.email.toLowerCase(),
             environment.supabaseUrl,
-            environment.supabaseAnonKey
+            environment.supabasePublishableKey
           );
           inPlanningCenter = pcResult.count > 0;
           planningCenterCheckedAt = new Date().toISOString();

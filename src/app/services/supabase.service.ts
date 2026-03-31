@@ -1,7 +1,6 @@
 import { Injectable } from '@angular/core';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { environment } from '../../environments/environment';
-import * as Sentry from '@sentry/angular';
 
 @Injectable({
   providedIn: 'root'
@@ -11,19 +10,17 @@ export class SupabaseService {
 
   constructor() {
     const supabaseUrl = environment.supabaseUrl;
-    const supabaseAnonKey = environment.supabaseAnonKey;
+    const supabasePublishableKey = environment.supabasePublishableKey;
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl || !supabasePublishableKey) {
       console.error('Supabase environment variables missing:', {
         hasUrl: !!supabaseUrl,
-        hasKey: !!supabaseAnonKey
+        hasKey: !!supabasePublishableKey
       });
-      const error = new Error('Missing Supabase environment variables');
-      Sentry.captureException(error);
-      throw error;
+      throw new Error('Missing Supabase environment variables');
     }
 
-    this.supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    this.supabase = createClient(supabaseUrl, supabasePublishableKey, {
       auth: {
         autoRefreshToken: true,
         persistSession: true,
@@ -64,7 +61,7 @@ export class SupabaseService {
   getConfig() {
     return {
       url: environment.supabaseUrl,
-      anonKey: environment.supabaseAnonKey
+      publishableKey: environment.supabasePublishableKey
     };
   }
 
@@ -72,8 +69,8 @@ export class SupabaseService {
     return environment.supabaseUrl;
   }
 
-  getSupabaseKey(): string {
-    return environment.supabaseAnonKey;
+  getPublishableKey(): string {
+    return environment.supabasePublishableKey;
   }
 
   getClient(): SupabaseClient {
@@ -129,14 +126,14 @@ export class SupabaseService {
       console.log('[SupabaseService] Reconnecting to Supabase...');
       
       const supabaseUrl = environment.supabaseUrl;
-      const supabaseAnonKey = environment.supabaseAnonKey;
+      const supabasePublishableKey = environment.supabasePublishableKey;
 
-      if (!supabaseUrl || !supabaseAnonKey) {
+      if (!supabaseUrl || !supabasePublishableKey) {
         throw new Error('Missing Supabase environment variables');
       }
 
       // Create a new client instance to reset all connections
-      this.supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      this.supabase = createClient(supabaseUrl, supabasePublishableKey, {
         auth: {
           autoRefreshToken: true,
           persistSession: true,
@@ -296,8 +293,8 @@ export class SupabaseService {
     
     // Add count preference
     const headers: Record<string, string> = {
-      'apikey': environment.supabaseAnonKey,
-      'Authorization': `Bearer ${environment.supabaseAnonKey}`
+      'apikey': environment.supabasePublishableKey,
+      'Authorization': `Bearer ${environment.supabasePublishableKey}`
     };
     
     if (count) {
@@ -363,8 +360,8 @@ export class SupabaseService {
     }
     
     const headers: Record<string, string> = {
-      'apikey': environment.supabaseAnonKey,
-      'Authorization': `Bearer ${environment.supabaseAnonKey}`,
+      'apikey': environment.supabasePublishableKey,
+      'Authorization': `Bearer ${environment.supabasePublishableKey}`,
       'Content-Type': 'application/json'
     };
     
