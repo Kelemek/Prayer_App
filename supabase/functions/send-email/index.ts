@@ -34,6 +34,9 @@ function basePayload(
   const payload: Record<string, unknown> = {
     from,
     subject,
+    headers: {
+      'List-Unsubscribe': `<mailto:${MAIL_SENDER_ADDRESS}?subject=unsubscribe>`,
+    },
   }
   if (htmlBody) payload.html = htmlBody
   if (textBody !== undefined) payload.text = textBody
