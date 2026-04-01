@@ -2235,12 +2235,26 @@ describe('EmailNotificationService - Additional Logic', () => {
     describe('Email Processor Triggering', () => {
       it('should trigger email processor via edge function', async () => {
         mockSupabase.client.functions.invoke.mockResolvedValue({
-          data: { success: true },
+          data: { success: true, pendingRemaining: 0 },
           error: null
         });
 
         await (service as any).triggerEmailProcessor();
         expect(mockSupabase.client.functions.invoke).toHaveBeenCalledWith('trigger-email-processor', { method: 'POST' });
+      });
+
+      it('should chain invocations until pendingRemaining is zero', async () => {
+        let n = 0;
+        mockSupabase.client.functions.invoke.mockImplementation(async () => {
+          n++;
+          return {
+            data: { pendingRemaining: n < 2 ? 40 : 0, sent: 20 },
+            error: null
+          };
+        });
+
+        await (service as any).triggerEmailProcessor();
+        expect(mockSupabase.client.functions.invoke).toHaveBeenCalledTimes(2);
       });
 
       it('should handle edge function error gracefully', async () => {

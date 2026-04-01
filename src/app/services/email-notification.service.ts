@@ -202,21 +202,41 @@ export class EmailNotificationService {
    */
   private async triggerEmailProcessor(): Promise<void> {
     try {
-      console.log('🚀 Triggering email processor via Edge Function...');
-      
-      const response = await this.supabase.client.functions.invoke('trigger-email-processor', {
-        method: 'POST',
-      });
+      console.log('🚀 Processing email queue via Edge Function...');
 
-      if (response.error) {
-        console.error('❌ Edge Function error:', response.error);
-        return;
+      /** One invocation processes up to MAX_BATCHES × batch size; chain until queue is empty. */
+      const maxInvocations = 25;
+      for (let i = 0; i < maxInvocations; i++) {
+        const response = await this.supabase.client.functions.invoke('trigger-email-processor', {
+          method: 'POST',
+        });
+
+        if (response.error) {
+          console.error('❌ Email processor Edge Function error:', response.error);
+          return;
+        }
+
+        const data = response.data as {
+          sent?: number;
+          failedOrRetry?: number;
+          pendingRemaining?: number;
+          batches?: number;
+        } | null;
+
+        console.log('📊 Email processor round:', data);
+
+        const pending = data?.pendingRemaining ?? 0;
+        if (pending <= 0) {
+          console.log('✅ Email queue empty');
+          return;
+        }
       }
 
-      console.log('📊 Edge Function response:', response.data);
-      console.log('✅ Email processor workflow triggered successfully');
+      console.warn(
+        '⚠️ Email queue still has pending items after max processor invocations; remaining will send on next approval-trigger or manual run.'
+      );
     } catch (error) {
-      console.error('❌ Failed to trigger email processor:', error instanceof Error ? error.message : error);
+      console.error('❌ Failed to run email processor:', error instanceof Error ? error.message : error);
     }
   }
 

@@ -1,3 +1,5 @@
+# Optional: manual backup to drain email_queue (same script the app used to rely on via GITHUB_PAT).
+# The app now processes the queue inside the trigger-email-processor Edge Function after approvals.
 name: Process Email Queue
 
 on:
