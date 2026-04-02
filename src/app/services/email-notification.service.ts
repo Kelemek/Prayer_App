@@ -10,6 +10,8 @@ export interface SendEmailOptions {
   textBody?: string;
   replyTo?: string;
   fromName?: string;
+  /** HTTPS one-click unsubscribe (Supabase Edge); enables List-Unsubscribe-Post. */
+  listUnsubscribeHttpsUrl?: string;
 }
 
 export interface EmailTemplate {
@@ -109,19 +111,69 @@ export class EmailNotificationService {
     return origin;
   }
 
+  private oneClickUnsubscribeUrl(token: string): string {
+    const base = (environment.supabaseUrl ?? '').replace(/\/+$/, '');
+    return `${base}/functions/v1/email-unsubscribe?token=${encodeURIComponent(token)}`;
+  }
+
+  private appUnsubscribeUrl(token: string): string {
+    return `${this.getEmailBaseUrl()}/unsubscribe?token=${encodeURIComponent(token)}`;
+  }
+
+  /** Variables for queued mass mail (template + Resend headers via token). */
+  private queueUnsubscribeVars(token: string | null | undefined): Record<string, string> {
+    const t = token?.trim() ?? '';
+    if (!t) {
+      return { unsubscribe_token: '', unsubscribe_url: '' };
+    }
+    return {
+      unsubscribe_token: t,
+      unsubscribe_url: this.appUnsubscribeUrl(t),
+    };
+  }
+
+  private async listUnsubscribeForEmail(
+    email: string | undefined
+  ): Promise<{ listUnsubscribeHttpsUrl: string; unsubscribe_url: string } | null> {
+    if (!email?.trim()) {
+      return null;
+    }
+    try {
+      const { data } = await this.supabase.client
+        .from('email_subscribers')
+        .select('unsubscribe_token')
+        .eq('email', email.trim())
+        .maybeSingle();
+      const tok = data?.unsubscribe_token?.trim();
+      if (!tok) {
+        return null;
+      }
+      return {
+        listUnsubscribeHttpsUrl: this.oneClickUnsubscribeUrl(tok),
+        unsubscribe_url: this.appUnsubscribeUrl(tok),
+      };
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Send a single email using Supabase edge function
    */
   async sendEmail(options: SendEmailOptions): Promise<void> {
+    const body: Record<string, unknown> = {
+      to: options.to,
+      subject: options.subject,
+      htmlBody: options.htmlBody,
+      textBody: options.textBody,
+      replyTo: options.replyTo,
+      fromName: options.fromName,
+    };
+    if (options.listUnsubscribeHttpsUrl) {
+      body['listUnsubscribeHttpsUrl'] = options.listUnsubscribeHttpsUrl;
+    }
     const { data, error } = await this.supabase.client.functions.invoke('send-email', {
-      body: {
-        to: options.to,
-        subject: options.subject,
-        htmlBody: options.htmlBody,
-        textBody: options.textBody,
-        replyTo: options.replyTo,
-        fromName: options.fromName
-      }
+      body,
     });
 
     if (error) {
@@ -293,7 +345,7 @@ export class EmailNotificationService {
       // Fetch all active subscribers
       const { data: subscribers, error: fetchError } = await this.supabase.client
         .from('email_subscribers')
-        .select('email')
+        .select('email, unsubscribe_token')
         .eq('is_active', true)
         .eq('is_blocked', false);
 
@@ -308,9 +360,10 @@ export class EmailNotificationService {
 
       // Queue an email for each subscriber
       const queuePromises = subscribers.map(sub =>
-        this.enqueueEmail(sub.email, templateKey, variables).catch(err =>
-          console.error(`Failed to queue email for ${sub.email}:`, err)
-        )
+        this.enqueueEmail(sub.email, templateKey, {
+          ...variables,
+          ...this.queueUnsubscribeVars(sub.unsubscribe_token),
+        }).catch(err => console.error(`Failed to queue email for ${sub.email}:`, err))
       );
 
       await Promise.all(queuePromises);
@@ -347,7 +400,7 @@ export class EmailNotificationService {
       // Fetch all active subscribers
       const { data: subscribers, error: fetchError } = await this.supabase.client
         .from('email_subscribers')
-        .select('email')
+        .select('email, unsubscribe_token')
         .eq('is_active', true)
         .eq('is_blocked', false);
 
@@ -362,9 +415,10 @@ export class EmailNotificationService {
 
       // Queue an email for each subscriber
       const queuePromises = subscribers.map(sub =>
-        this.enqueueEmail(sub.email, templateKey, variables).catch(err =>
-          console.error(`Failed to queue email for ${sub.email}:`, err)
-        )
+        this.enqueueEmail(sub.email, templateKey, {
+          ...variables,
+          ...this.queueUnsubscribeVars(sub.unsubscribe_token),
+        }).catch(err => console.error(`Failed to queue email for ${sub.email}:`, err))
       );
 
       await Promise.all(queuePromises);
@@ -389,6 +443,9 @@ export class EmailNotificationService {
         return;
       }
 
+      const unsub = await this.listUnsubscribeForEmail(payload.requesterEmail);
+      const unsubVars = { unsubscribe_url: unsub?.unsubscribe_url ?? '' };
+
       let subject: string;
       let body: string;
       let html: string;
@@ -400,7 +457,8 @@ export class EmailNotificationService {
             prayerTitle: payload.title,
             prayerFor: payload.prayerFor,
             prayerDescription: payload.description,
-            appLink: `${this.getEmailBaseUrl()}/`
+            appLink: `${this.getEmailBaseUrl()}/`,
+            ...unsubVars,
           };
           console.log('[EmailNotificationService.sendRequesterApprovalNotification] Template variables:', variables);
           console.log('[EmailNotificationService.sendRequesterApprovalNotification] Template HTML before substitution:', template.html_body.substring(0, 200));
@@ -417,13 +475,20 @@ export class EmailNotificationService {
         body = `Great news! Your prayer request has been approved and is now live on the prayer app.\n\nTitle: ${payload.title}\nFor: ${payload.prayerFor}\n\nYour prayer is now being lifted up by our community. You will receive updates via email when the prayer status changes or when updates are posted.`;
         html = this.generateRequesterApprovalHTML(payload);
         console.log('[EmailNotificationService.sendRequesterApprovalNotification] Using fallback HTML, html contains prayerFor:', html.includes(payload.prayerFor));
+        if (unsub) {
+          body += `\n\nUnsubscribe from these emails: ${unsub.unsubscribe_url}\n`;
+          const footer =
+            `<p style="margin-top:16px;font-size:12px;color:#6b7280;"><a href="${unsub.unsubscribe_url}" style="color:#2563eb;">Unsubscribe from these emails</a></p>`;
+          html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${footer}</body>`) : html + footer;
+        }
       }
 
       await this.sendEmail({
         to: [payload.requesterEmail],
         subject,
         textBody: body,
-        htmlBody: html
+        htmlBody: html,
+        listUnsubscribeHttpsUrl: unsub?.listUnsubscribeHttpsUrl,
       });
     } catch (error) {
       console.error('Error in sendRequesterApprovalNotification:', error);
@@ -440,6 +505,9 @@ export class EmailNotificationService {
         return;
       }
 
+      const unsub = await this.listUnsubscribeForEmail(payload.requesterEmail);
+      const unsubVars = { unsubscribe_url: unsub?.unsubscribe_url ?? '' };
+
       let subject = `Prayer Request Not Approved: ${payload.title}`;
       let body = `Unfortunately, your prayer request could not be approved at this time.\n\nTitle: ${payload.title}\nRequested by: ${payload.requester}\n\nReason: ${payload.denialReason}\n\nIf you have questions, please contact the administrator.`;
       let html = this.generateDeniedPrayerHTML(payload);
@@ -451,7 +519,8 @@ export class EmailNotificationService {
             prayerTitle: payload.title,
             prayerDescription: payload.description,
             denialReason: payload.denialReason,
-            appLink: `${this.getEmailBaseUrl()}/`
+            appLink: `${this.getEmailBaseUrl()}/`,
+            ...unsubVars,
           };
           subject = this.applyTemplateVariables(template.subject, variables);
           body = this.applyTemplateVariables(template.text_body, variables);
@@ -461,11 +530,19 @@ export class EmailNotificationService {
         console.warn('Failed to fetch denied_prayer template, using fallback:', templateError);
       }
 
+      if (unsub && !html.includes(unsub.unsubscribe_url)) {
+        body += `\n\nUnsubscribe from these emails: ${unsub.unsubscribe_url}\n`;
+        const footer =
+          `<p style="margin-top:16px;font-size:12px;color:#6b7280;"><a href="${unsub.unsubscribe_url}" style="color:#2563eb;">Unsubscribe from these emails</a></p>`;
+        html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${footer}</body>`) : html + footer;
+      }
+
       await this.sendEmail({
         to: [payload.requesterEmail],
         subject,
         textBody: body,
-        htmlBody: html
+        htmlBody: html,
+        listUnsubscribeHttpsUrl: unsub?.listUnsubscribeHttpsUrl,
       });
     } catch (error) {
       console.error('Error in sendDeniedPrayerNotification:', error);
@@ -482,6 +559,9 @@ export class EmailNotificationService {
         return;
       }
 
+      const unsub = await this.listUnsubscribeForEmail(payload.authorEmail);
+      const unsubVars = { unsubscribe_url: unsub?.unsubscribe_url ?? '' };
+
       let subject = `Prayer Update Not Approved: ${payload.prayerTitle}`;
       let body = `Unfortunately, your update for "${payload.prayerTitle}" could not be approved at this time.\n\nUpdate by: ${payload.author}\n\nReason: ${payload.denialReason}\n\nIf you have questions, please contact the administrator.`;
       let html = this.generateDeniedUpdateHTML(payload);
@@ -493,7 +573,8 @@ export class EmailNotificationService {
             prayerTitle: payload.prayerTitle,
             updateContent: payload.content,
             denialReason: payload.denialReason,
-            appLink: `${this.getEmailBaseUrl()}/`
+            appLink: `${this.getEmailBaseUrl()}/`,
+            ...unsubVars,
           };
           subject = this.applyTemplateVariables(template.subject, variables);
           body = this.applyTemplateVariables(template.text_body, variables);
@@ -503,11 +584,19 @@ export class EmailNotificationService {
         console.warn('Failed to fetch denied_update template, using fallback:', templateError);
       }
 
+      if (unsub && !html.includes(unsub.unsubscribe_url)) {
+        body += `\n\nUnsubscribe from these emails: ${unsub.unsubscribe_url}\n`;
+        const footer =
+          `<p style="margin-top:16px;font-size:12px;color:#6b7280;"><a href="${unsub.unsubscribe_url}" style="color:#2563eb;">Unsubscribe from these emails</a></p>`;
+        html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${footer}</body>`) : html + footer;
+      }
+
       await this.sendEmail({
         to: [payload.authorEmail],
         subject,
         textBody: body,
-        htmlBody: html
+        htmlBody: html,
+        listUnsubscribeHttpsUrl: unsub?.listUnsubscribeHttpsUrl,
       });
     } catch (error) {
       console.error('Error in sendDeniedUpdateNotification:', error);
@@ -524,6 +613,9 @@ export class EmailNotificationService {
         return;
       }
 
+      const unsub = await this.listUnsubscribeForEmail(payload.authorEmail);
+      const unsubVars = { unsubscribe_url: unsub?.unsubscribe_url ?? '' };
+
       let subject: string;
       let body: string;
       let html: string;
@@ -535,7 +627,8 @@ export class EmailNotificationService {
             prayerTitle: payload.prayerTitle,
             updateContent: payload.content,
             author: payload.author,
-            appLink: `${this.getEmailBaseUrl()}/`
+            appLink: `${this.getEmailBaseUrl()}/`,
+            ...unsubVars,
           };
           subject = this.applyTemplateVariables(template.subject, variables);
           body = this.applyTemplateVariables(template.text_body, variables);
@@ -548,13 +641,20 @@ export class EmailNotificationService {
         subject = `Your Update Has Been Approved: ${payload.prayerTitle}`;
         body = `Great news! Your update for "${payload.prayerTitle}" has been approved and is now live on the prayer app.\n\nUpdate: ${payload.content}\n\nThank you for keeping our community updated!`;
         html = this.generateUpdateAuthorApprovalHTML(payload);
+        if (unsub) {
+          body += `\n\nUnsubscribe from these emails: ${unsub.unsubscribe_url}\n`;
+          const footer =
+            `<p style="margin-top:16px;font-size:12px;color:#6b7280;"><a href="${unsub.unsubscribe_url}" style="color:#2563eb;">Unsubscribe from these emails</a></p>`;
+          html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${footer}</body>`) : html + footer;
+        }
       }
 
       await this.sendEmail({
         to: [payload.authorEmail],
         subject,
         textBody: body,
-        htmlBody: html
+        htmlBody: html,
+        listUnsubscribeHttpsUrl: unsub?.listUnsubscribeHttpsUrl,
       });
     } catch (error) {
       console.error('Error in sendUpdateAuthorApprovalNotification:', error);
@@ -663,52 +763,57 @@ export class EmailNotificationService {
       // Link to admin site - admins will log in normally
       const baseUrl = this.getEmailBaseUrl();
       const adminLink = `${baseUrl}/admin`;
-      
+      const unsub = await this.listUnsubscribeForEmail(adminEmail);
+      const unsubVars = { unsubscribe_url: unsub?.unsubscribe_url ?? '' };
+
       // Get template from database
       const template = await this.getTemplate('account_approval_request');
-      
+
       if (!template) {
         console.error('Account approval request template not found');
         return;
       }
-      
+
       const requestedDate = new Date().toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
         day: 'numeric'
       });
-      
+
       // Replace variables in template
       const subject = this.applyTemplateVariables(template.subject, {
         firstName,
         lastName,
         email
       });
-      
+
       const html = this.applyTemplateVariables(template.html_body, {
         firstName,
         lastName,
         email,
         affiliationReason,
         requestedDate,
-        adminLink
+        adminLink,
+        ...unsubVars,
       });
-      
+
       const body = this.applyTemplateVariables(template.text_body, {
         firstName,
         lastName,
         email,
         affiliationReason,
         requestedDate,
-        adminLink
+        adminLink,
+        ...unsubVars,
       });
-      
+
       await this.sendEmail({
         to: [adminEmail],
         subject,
         textBody: body,
-        htmlBody: html
+        htmlBody: html,
+        listUnsubscribeHttpsUrl: unsub?.listUnsubscribeHttpsUrl,
       });
     } catch (error) {
       console.error('Error in sendAccountApprovalNotificationToEmail:', error);
@@ -723,6 +828,8 @@ export class EmailNotificationService {
     try {
       // Link to admin site - admins will log in normally to handle approvals
       const adminLink = `${this.getEmailBaseUrl()}/admin`;
+      const unsub = await this.listUnsubscribeForEmail(adminEmail);
+      const unsubVars = { unsubscribe_url: unsub?.unsubscribe_url ?? '' };
 
       let subject: string;
       let body: string;
@@ -732,7 +839,7 @@ export class EmailNotificationService {
       try {
         let templateKey: string;
         let variables: Record<string, string>;
-        
+
         switch (payload.type) {
           case 'prayer':
             templateKey = 'admin_notification_prayer';
@@ -740,30 +847,33 @@ export class EmailNotificationService {
               prayerTitle: payload.title,
               requesterName: payload.requester || 'Anonymous',
               prayerDescription: payload.description || 'No description provided',
-              adminLink
+              adminLink,
+              ...unsubVars,
             };
             break;
-            
+
           case 'update':
             templateKey = 'admin_notification_update';
             variables = {
               prayerTitle: payload.title,
               authorName: payload.author || 'Anonymous',
               updateContent: payload.content || 'No content provided',
-              adminLink
+              adminLink,
+              ...unsubVars,
             };
             break;
-            
+
           case 'deletion':
             templateKey = 'admin_notification_deletion';
             variables = {
               prayerTitle: payload.title,
               requestedBy: payload.requester || 'Anonymous',
               reason: payload.reason || 'No reason provided',
-              adminLink
+              adminLink,
+              ...unsubVars,
             };
             break;
-            
+
           default:
             subject = `New Admin Action Required: ${payload.title}`;
             body = `A new item requires your attention in the admin portal.`;
@@ -797,6 +907,12 @@ export class EmailNotificationService {
           subject = `New Admin Action Required`;
           body = `A new item requires your attention in the admin portal: ${adminLink}`;
         }
+        if (unsub && html && !html.includes(unsub.unsubscribe_url)) {
+          body += `\n\nUnsubscribe from these emails: ${unsub.unsubscribe_url}\n`;
+          const footer =
+            `<p style="margin-top:16px;font-size:12px;color:#6b7280;"><a href="${unsub.unsubscribe_url}" style="color:#2563eb;">Unsubscribe from these emails</a></p>`;
+          html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${footer}</body>`) : html + footer;
+        }
       }
 
       // Send email
@@ -804,7 +920,8 @@ export class EmailNotificationService {
         to: [adminEmail],
         subject,
         textBody: body,
-        htmlBody: html
+        htmlBody: html,
+        listUnsubscribeHttpsUrl: unsub?.listUnsubscribeHttpsUrl,
       });
     } catch (error) {
       console.error('Error in sendAdminNotificationToEmail:', error);
@@ -1189,6 +1306,9 @@ export class EmailNotificationService {
         return;
       }
 
+      const unsub = await this.listUnsubscribeForEmail(email);
+      const unsubVars = { unsubscribe_url: unsub?.unsubscribe_url ?? '' };
+
       const template = await this.getTemplate('subscriber_welcome');
       let subject: string;
       let htmlContent: string;
@@ -1196,7 +1316,8 @@ export class EmailNotificationService {
 
       if (template) {
         const variables = {
-          appLink: `${this.getEmailBaseUrl()}/`
+          appLink: `${this.getEmailBaseUrl()}/`,
+          ...unsubVars,
         };
         subject = this.applyTemplateVariables(template.subject, variables);
         htmlContent = this.applyTemplateVariables(template.html_body, variables);
@@ -1206,13 +1327,22 @@ export class EmailNotificationService {
         subject = 'Welcome to Our Prayer Community! 🙏';
         htmlContent = this.generateWelcomeEmailHTML();
         textContent = 'Welcome to our prayer community! We are thrilled to have you join us. Visit the app to learn more about how you can participate.';
+        if (unsub) {
+          textContent += `\n\nUnsubscribe from these emails: ${unsub.unsubscribe_url}\n`;
+          const footer =
+            `<p style="margin-top:16px;font-size:12px;color:#6b7280;"><a href="${unsub.unsubscribe_url}" style="color:#2563eb;">Unsubscribe from these emails</a></p>`;
+          htmlContent = /<\/body>/i.test(htmlContent)
+            ? htmlContent.replace(/<\/body>/i, `${footer}</body>`)
+            : htmlContent + footer;
+        }
       }
 
       await this.sendEmail({
         to: [email],
         subject,
         htmlBody: htmlContent,
-        textBody: textContent
+        textBody: textContent,
+        listUnsubscribeHttpsUrl: unsub?.listUnsubscribeHttpsUrl,
       });
     } catch (error) {
       console.error('Error in sendSubscriberWelcomeNotification:', error);

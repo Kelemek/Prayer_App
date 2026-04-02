@@ -81,7 +81,7 @@ describe('AppRoutes', () => {
   });
 
   it('should have all essential routes', () => {
-    const essentialPaths = ['', 'info', 'login', 'admin', 'presentation', 'privacy', 'support', '**'];
+    const essentialPaths = ['', 'info', 'login', 'admin', 'presentation', 'privacy', 'support', 'unsubscribe', '**'];
     const routePaths = routes.map(r => r.path);
     essentialPaths.forEach(path => {
       expect(routePaths).toContain(path);
@@ -104,6 +104,13 @@ describe('AppRoutes', () => {
     const supportRoute = routes.find(r => r.path === 'support');
     expect(supportRoute).toBeDefined();
     expect(supportRoute?.loadComponent).toBeInstanceOf(Function);
+  });
+
+  it('should have unsubscribe route without canActivate', () => {
+    const unsubRoute = routes.find(r => r.path === 'unsubscribe');
+    expect(unsubRoute).toBeDefined();
+    expect(unsubRoute?.loadComponent).toBeInstanceOf(Function);
+    expect(unsubRoute?.canActivate).toBeUndefined();
   });
 
   it('should have admin route with preload hint', () => {

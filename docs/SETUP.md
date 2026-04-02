@@ -96,13 +96,25 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 VITE_PLANNING_CENTER_API_TOKEN=your-token
 ```
 
+### Supabase secret key (server-side)
+
+Use the **Secret** API key from **Dashboard → Settings → API Keys** (usually `sb_secret_...`). That is what Supabase recommends instead of the legacy **service_role** JWT; both still work with `@supabase/supabase-js`, but **prefer Secret** for new setup and rotation.
+
+| Where | Environment / Vault name | What to paste |
+|--------|---------------------------|----------------|
+| Local scripts, GitHub Actions | `SUPABASE_SECRET_KEY` | Secret key |
+| Hosted Edge Functions (Dashboard → Edge Function secrets) | `SUPABASE_SERVICE_ROLE_KEY` | **Same** Secret key (Supabase keeps this variable name on the platform) |
+| Vault for `pg_cron` → Edge (see below) | `service_role_key` | **Same** Secret key (name is historical) |
+
+Do not put the Secret key in any `VITE_*` variable or client bundles.
+
 ### GitHub Secrets
 
 For GitHub Actions to work, add these secrets (still required for workflows that invoke Supabase, e.g. `process-email-queue`, backup/restore):
 
 ```
 SUPABASE_URL
-SUPABASE_SECRET_KEY
+SUPABASE_SECRET_KEY   # Dashboard Secret key (sb_secret_...), not the publishable key
 RESEND_API_KEY
 MAIL_SENDER_ADDRESS
 MAIL_FROM_NAME (optional; defaults to Prayer Ministry)
@@ -142,7 +154,7 @@ The consolidated migration [`supabase/migrations/20260123140820_remote_schema.sq
 | Secret name | Value |
 |---------------|--------|
 | `project_url` | Your project API URL, e.g. `https://YOUR_PROJECT_REF.supabase.co` (no trailing slash) |
-| `service_role_key` | **Secret** API key from **Settings → API Keys** (same value as GitHub secret `SUPABASE_SECRET_KEY`; Vault name is historical) |
+| `service_role_key` | **Secret** key (`sb_secret_...`) from **Settings → API Keys** — same value as `SUPABASE_SECRET_KEY`. (Legacy `service_role` JWT still works if you have not migrated; prefer Secret.) Vault name is historical. |
 
 ```sql
 select vault.create_secret('https://YOUR_PROJECT_REF.supabase.co', 'project_url');
@@ -263,6 +275,13 @@ Key tables created by migrations:
 
 4. **Deploy**
    - After changing secrets, redeploy the `send-email` Edge Function so it picks up `RESEND_API_KEY`.
+
+5. **HTTPS unsubscribe (one-click)**
+   - Run migrations so `email_subscribers` has `unsubscribe_token` and `email_templates` footers include `{{unsubscribe_url}}` where applicable.
+   - Deploy the **`email-unsubscribe`** Edge Function (`./scripts/deploy-functions.sh email-unsubscribe` or `all`). It uses **`verify_jwt: false`**; the secret is the per-row `unsubscribe_token`.
+   - Set **`APP_URL`** on the **`send-email`** function (same host as your web app) so **`send_to_all_subscribers`** can substitute readable unsubscribe links in bulk HTML. If unset, the footer uses the Supabase function URL.
+   - Optionally set **`APP_URL`** on **`email-unsubscribe`** for consistent copy in the standalone HTML response.
+   - **Latency:** Pretty links (`/unsubscribe?token=…`) load the SPA first, then **POST** to the Edge function (the browser may send a CORS preflight first). The first Edge request after idle can add a **cold-start** delay. For the fastest click-to-done from email only, point footer links at `…/functions/v1/email-unsubscribe?token=…` (skips the SPA hop and shows the function’s HTML page).
 
 ### Email Templates
 

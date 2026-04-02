@@ -55,6 +55,28 @@ function buildFromHeader(mailFromName: string, mailSender: string): string {
   return `${mailFromName} <${mailSender}>`;
 }
 
+function listUnsubscribeHeaders(
+  mailSender: string,
+  listUnsubscribeHttpsUrl?: string,
+): Record<string, string> {
+  const mailto = `<mailto:${mailSender}?subject=unsubscribe>`;
+  const u = listUnsubscribeHttpsUrl?.trim();
+  if (u) {
+    return {
+      "List-Unsubscribe": `<${u}>, ${mailto}`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    };
+  }
+  return { "List-Unsubscribe": mailto };
+}
+
+function oneClickUnsubscribeUrl(supabaseUrl: string, token: string): string {
+  const base = supabaseUrl.replace(/\/+$/, "");
+  return `${base}/functions/v1/email-unsubscribe?token=${
+    encodeURIComponent(token)
+  }`;
+}
+
 async function sendViaResend(
   recipient: string,
   subject: string,
@@ -63,14 +85,13 @@ async function sendViaResend(
   resendKey: string,
   mailSender: string,
   mailFromName: string,
+  listUnsubscribeHttpsUrl?: string,
 ): Promise<void> {
   const payload: Record<string, unknown> = {
     from: buildFromHeader(mailFromName, mailSender),
     to: [recipient],
     subject,
-    headers: {
-      "List-Unsubscribe": `<mailto:${mailSender}?subject=unsubscribe>`,
-    },
+    headers: listUnsubscribeHeaders(mailSender, listUnsubscribeHttpsUrl),
   };
   if (htmlBody) {
     payload.html = htmlBody;
@@ -147,6 +168,7 @@ async function processOne(
   resendKey: string,
   mailSender: string,
   mailFromName: string,
+  supabaseUrl: string,
 ): Promise<boolean> {
   try {
     const template = cache.get(email.template_key);
@@ -167,6 +189,16 @@ async function processOne(
       email.template_variables,
     );
 
+    const rawTok = email.template_variables?.unsubscribe_token;
+    const token =
+      rawTok !== null && rawTok !== undefined && String(rawTok).trim() !== ""
+        ? String(rawTok).trim()
+        : undefined;
+    const listUnsubscribeHttpsUrl =
+      token && supabaseUrl
+        ? oneClickUnsubscribeUrl(supabaseUrl, token)
+        : undefined;
+
     await sendViaResend(
       email.recipient,
       subject,
@@ -175,6 +207,7 @@ async function processOne(
       resendKey,
       mailSender,
       mailFromName,
+      listUnsubscribeHttpsUrl,
     );
 
     const { error: delErr } = await supabase
@@ -241,6 +274,7 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, serviceKey);
+    const supabasePublicUrl = supabaseUrl.replace(/\/+$/, "");
     const templateCache = new Map<string, EmailTemplate>();
 
     let totalSent = 0;
@@ -284,6 +318,7 @@ serve(async (req) => {
           resendKey,
           mailSender,
           mailFromName,
+          supabasePublicUrl,
         );
         if (ok) totalSent++;
         else totalFailed++;

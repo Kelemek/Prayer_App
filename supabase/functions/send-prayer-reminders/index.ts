@@ -232,17 +232,50 @@ serve(async (req) => {
         const baseUrl = normalizeAppUrl(Deno.env.get('APP_URL'), 'http://localhost:5173')
         const appLink = `${baseUrl}/`
 
+        const { data: subRow } = await supabaseClient
+          .from('email_subscribers')
+          .select('unsubscribe_token')
+          .eq('email', prayer.email)
+          .maybeSingle()
+
+        const unsubTok =
+          typeof subRow?.unsubscribe_token === 'string'
+            ? subRow.unsubscribe_token.trim()
+            : ''
+        const appBase = baseUrl.replace(/\/+$/, '')
+        const unsubscribeUrl = unsubTok
+          ? `${appBase}/unsubscribe?token=${encodeURIComponent(unsubTok)}`
+          : ''
+        const supabasePublic = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/+$/, '')
+        const listUnsubscribeHttpsUrl = unsubTok && supabasePublic
+          ? `${supabasePublic}/functions/v1/email-unsubscribe?token=${
+            encodeURIComponent(unsubTok)
+          }`
+          : undefined
+
         const variables: Record<string, string> = {
           requesterName,
           prayerTitle: prayer.title,
           prayerFor: prayer.prayer_for,
-          appLink
+          appLink,
         }
 
         // Apply variables to template
-        const subject = applyTemplateVariables(template.subject, variables)
-        const textBody = applyTemplateVariables(template.text_body, variables)
-        const htmlBody = applyTemplateVariables(template.html_body, variables)
+        let subject = applyTemplateVariables(template.subject, variables)
+        let textBody = applyTemplateVariables(template.text_body, variables)
+        let htmlBody = applyTemplateVariables(template.html_body, variables)
+
+        if (unsubTok && unsubscribeUrl) {
+          const footerText = `\n\nUnsubscribe from these emails: ${unsubscribeUrl}\n`
+          const footerHtml =
+            `<p style="margin-top:16px;font-size:12px;color:#6b7280;"><a href="${unsubscribeUrl}" style="color:#2563eb;">Unsubscribe from these emails</a></p>`
+          textBody += footerText
+          if (/<\/body>/i.test(htmlBody)) {
+            htmlBody = htmlBody.replace(/<\/body>/i, `${footerHtml}</body>`)
+          } else {
+            htmlBody += footerHtml
+          }
+        }
 
         // Send the reminder email using send-email function
         const { error: emailError } = await supabaseClient.functions.invoke('send-email', {
@@ -250,7 +283,8 @@ serve(async (req) => {
             to: prayer.email,
             subject,
             textBody,
-            htmlBody
+            htmlBody,
+            ...(listUnsubscribeHttpsUrl ? { listUnsubscribeHttpsUrl } : {}),
           }
         })
 

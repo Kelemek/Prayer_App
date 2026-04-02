@@ -1,7 +1,8 @@
 /**
  * Unified email service using the Resend API
  *
- * SUPABASE_SERVICE_ROLE_KEY is Supabase’s fixed Edge env name; its value is the project secret API key.
+ * SUPABASE_SERVICE_ROLE_KEY is Supabase’s fixed Edge env name; its value should be the Dashboard **Secret** key
+ * (sb_secret_...). Legacy service_role JWT still works; prefer Secret when creating or rotating keys.
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -24,24 +25,81 @@ function buildFrom(fromName?: string): string {
   return `${name} <${MAIL_SENDER_ADDRESS}>`
 }
 
+function listUnsubscribeHeaders(listUnsubscribeHttpsUrl?: string): Record<string, string> {
+  const mailto = `<mailto:${MAIL_SENDER_ADDRESS}?subject=unsubscribe>`
+  const u = listUnsubscribeHttpsUrl?.trim()
+  if (u) {
+    return {
+      'List-Unsubscribe': `<${u}>, ${mailto}`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    }
+  }
+  return { 'List-Unsubscribe': mailto }
+}
+
 function basePayload(
   from: string,
   subject: string,
   htmlBody?: string,
   textBody?: string,
-  replyTo?: string
+  replyTo?: string,
+  listUnsubscribeHttpsUrl?: string
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     from,
     subject,
-    headers: {
-      'List-Unsubscribe': `<mailto:${MAIL_SENDER_ADDRESS}?subject=unsubscribe>`,
-    },
+    headers: listUnsubscribeHeaders(listUnsubscribeHttpsUrl),
   }
   if (htmlBody) payload.html = htmlBody
   if (textBody !== undefined) payload.text = textBody
   if (replyTo) payload.reply_to = replyTo
   return payload
+}
+
+function oneClickUnsubscribeUrl(supabaseUrl: string, token: string): string {
+  const base = supabaseUrl.replace(/\/+$/, '')
+  return `${base}/functions/v1/email-unsubscribe?token=${encodeURIComponent(token)}`
+}
+
+/** Match Edge APP_URL / Angular appUrl for readable unsubscribe links in bulk mail. */
+function normalizeAppUrl(raw: string | undefined, fallback: string): string {
+  let u = (raw ?? fallback).trim().replace(/\/+$/, '')
+  if (!/^https?:\/\//i.test(u)) {
+    if (/^localhost\b/i.test(u) || /^127\.0\.0\.1\b/.test(u)) {
+      u = `http://${u}`
+    } else {
+      u = `https://${u}`
+    }
+  }
+  return u
+}
+
+function prettyUnsubscribeUrl(supabaseUrl: string, token: string): string {
+  const appRaw = Deno.env.get('APP_URL')?.trim()
+  if (appRaw) {
+    const base = normalizeAppUrl(appRaw, '').replace(/\/+$/, '')
+    return `${base}/unsubscribe?token=${encodeURIComponent(token)}`
+  }
+  return oneClickUnsubscribeUrl(supabaseUrl, token)
+}
+
+function injectUnsubscribeUrl(
+  htmlBody: string | undefined,
+  textBody: string | undefined,
+  token: string,
+  supabaseUrl: string
+): { htmlBody?: string; textBody?: string } {
+  const pretty = prettyUnsubscribeUrl(supabaseUrl, token)
+  return {
+    htmlBody:
+      htmlBody !== undefined
+        ? htmlBody.split('{{unsubscribe_url}}').join(pretty)
+        : undefined,
+    textBody:
+      textBody !== undefined
+        ? textBody.split('{{unsubscribe_url}}').join(pretty)
+        : undefined,
+  }
 }
 
 async function postResend(path: string, body: unknown): Promise<Response> {
@@ -65,6 +123,7 @@ async function sendEmail(options: {
   textBody?: string
   replyTo?: string
   fromName?: string
+  listUnsubscribeHttpsUrl?: string
 }): Promise<void> {
   const recipients = Array.isArray(options.to) ? options.to : [options.to]
   const from = buildFrom(options.fromName)
@@ -88,7 +147,8 @@ async function sendEmail(options: {
         options.subject,
         options.htmlBody,
         options.textBody,
-        options.replyTo
+        options.replyTo,
+        options.listUnsubscribeHttpsUrl
       ),
       to: chunk,
     }
@@ -113,7 +173,8 @@ async function sendEmail(options: {
  * Send to many subscribers: one recipient per message via /emails/batch (privacy + Resend limits).
  */
 async function sendBulkToSubscribers(
-  recipients: string[],
+  recipients: { email: string; unsubscribe_token: string }[],
+  supabaseUrl: string,
   options: {
     subject: string
     htmlBody?: string
@@ -131,16 +192,25 @@ async function sendBulkToSubscribers(
 
   for (let i = 0; i < recipients.length; i += RESEND_BATCH_SIZE) {
     const slice = recipients.slice(i, i + RESEND_BATCH_SIZE)
-    const batchPayload = slice.map((email) => ({
-      ...basePayload(
-        from,
-        options.subject,
+    const batchPayload = slice.map((row) => {
+      const injected = injectUnsubscribeUrl(
         options.htmlBody,
         options.textBody,
-        options.replyTo
-      ),
-      to: [email],
-    }))
+        row.unsubscribe_token,
+        supabaseUrl
+      )
+      return {
+        ...basePayload(
+          from,
+          options.subject,
+          injected.htmlBody ?? options.htmlBody,
+          injected.textBody ?? options.textBody,
+          options.replyTo,
+          oneClickUnsubscribeUrl(supabaseUrl, row.unsubscribe_token)
+        ),
+        to: [row.email],
+      }
+    })
 
     const response = await postResend('/emails/batch', batchPayload)
 
@@ -197,7 +267,16 @@ serve(async (req) => {
     }
 
     const body = await req.json()
-    const { action, to, subject, htmlBody, textBody, replyTo, fromName } = body
+    const {
+      action,
+      to,
+      subject,
+      htmlBody,
+      textBody,
+      replyTo,
+      fromName,
+      listUnsubscribeHttpsUrl,
+    } = body
 
     if (action === 'send_to_all_subscribers') {
       console.log('📧 Action: Send to all subscribers')
@@ -206,7 +285,7 @@ serve(async (req) => {
 
       const { data: subscribers, error } = await supabase
         .from('email_subscribers')
-        .select('email')
+        .select('email, unsubscribe_token')
         .eq('is_active', true)
         .eq('is_blocked', false)
 
@@ -229,8 +308,8 @@ serve(async (req) => {
         )
       }
 
-      const emails = subscribers.map((s) => s.email)
-      const result = await sendBulkToSubscribers(emails, {
+      const rows = subscribers as { email: string; unsubscribe_token: string }[]
+      const result = await sendBulkToSubscribers(rows, SUPABASE_URL, {
         subject,
         htmlBody,
         textBody,
@@ -263,6 +342,10 @@ serve(async (req) => {
       textBody,
       replyTo,
       fromName,
+      listUnsubscribeHttpsUrl:
+        typeof listUnsubscribeHttpsUrl === 'string'
+          ? listUnsubscribeHttpsUrl
+          : undefined,
     })
 
     return new Response(

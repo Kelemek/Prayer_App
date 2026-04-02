@@ -46,7 +46,7 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
-// Initialize Supabase with service role key
+// Initialize Supabase with the Secret API key (sb_secret_...; same privilege as legacy service_role JWT)
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SECRET_KEY!
@@ -59,6 +59,21 @@ function buildFromHeader(): string {
   return `${name} <${process.env.MAIL_SENDER_ADDRESS}>`;
 }
 
+function listUnsubscribeHeaders(
+  sender: string,
+  listUnsubscribeHttpsUrl?: string
+): Record<string, string> {
+  const mailto = `<mailto:${sender}?subject=unsubscribe>`;
+  const u = listUnsubscribeHttpsUrl?.trim();
+  if (u) {
+    return {
+      'List-Unsubscribe': `<${u}>, ${mailto}`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click'
+    };
+  }
+  return { 'List-Unsubscribe': mailto };
+}
+
 /**
  * Send a single transactional email via Resend
  */
@@ -66,16 +81,15 @@ async function sendViaResend(
   recipient: string,
   subject: string,
   htmlBody: string,
-  textBody: string
+  textBody: string,
+  listUnsubscribeHttpsUrl?: string
 ): Promise<void> {
   const sender = process.env.MAIL_SENDER_ADDRESS!;
   const payload: Record<string, unknown> = {
     from: buildFromHeader(),
     to: [recipient],
     subject,
-    headers: {
-      'List-Unsubscribe': `<mailto:${sender}?subject=unsubscribe>`
-    }
+    headers: listUnsubscribeHeaders(sender, listUnsubscribeHttpsUrl)
   };
 
   if (htmlBody) {
@@ -258,8 +272,23 @@ async function processEmail(email: EmailQueueItem): Promise<boolean> {
       email.template_variables
     );
 
+    const rawTok = email.template_variables?.unsubscribe_token;
+    const token =
+      rawTok != null && String(rawTok).trim() !== '' ? String(rawTok).trim() : undefined;
+    const supabaseBase = process.env.SUPABASE_URL!.replace(/\/+$/, '');
+    const listUnsubscribeHttpsUrl =
+      token !== undefined
+        ? `${supabaseBase}/functions/v1/email-unsubscribe?token=${encodeURIComponent(token)}`
+        : undefined;
+
     // Send email
-    await sendViaResend(email.recipient, subject, htmlBody, textBody);
+    await sendViaResend(
+      email.recipient,
+      subject,
+      htmlBody,
+      textBody,
+      listUnsubscribeHttpsUrl
+    );
 
     // Delete from queue on success
     const { error: deleteError } = await supabase

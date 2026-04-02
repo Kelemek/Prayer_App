@@ -40,15 +40,21 @@ function normalizeAppUrl(raw: string | undefined, fallback: string): string {
 }
 
 /** When email_templates row is missing (migration not applied). */
-function hourlyReminderFallbackParts(appLink: string): {
+function hourlyReminderFallbackParts(appLink: string, unsubscribeUrl: string): {
   subject: string;
   textBody: string;
   htmlBody: string;
 } {
+  const unsubText = unsubscribeUrl
+    ? `\n\nUnsubscribe from these emails: ${unsubscribeUrl}\n`
+    : '';
+  const unsubHtml = unsubscribeUrl
+    ? `<p style="margin-top:16px;font-size:12px;color:#6b7280;"><a href="${unsubscribeUrl}" style="color:#2563eb;">Unsubscribe from these emails</a></p>`
+    : '';
   return {
     subject: 'Prayer reminder',
-    textBody: `Take a moment to pray.\n\nOpen the app: ${appLink}\n`,
-    htmlBody: `<p>Take a moment to pray.</p><p><a href="${appLink}">Open the prayer app</a></p>`,
+    textBody: `Take a moment to pray.\n\nOpen the app: ${appLink}\n${unsubText}`,
+    htmlBody: `<p>Take a moment to pray.</p><p><a href="${appLink}">Open the prayer app</a></p>${unsubHtml}`,
   };
 }
 
@@ -79,6 +85,7 @@ serve(async (req) => {
 
   const appUrl = normalizeAppUrl(Deno.env.get('APP_URL'), 'http://localhost:4200');
   const appLink = `${appUrl}/`;
+  const supabasePublic = supabaseUrl.replace(/\/+$/, '');
   const pushTitle = 'Prayer reminder';
   const pushBody = 'Take a moment to pray.';
 
@@ -129,7 +136,7 @@ serve(async (req) => {
 
     const { data: subscribers, error: subErr } = await supabase
       .from('email_subscribers')
-      .select('email, receive_push, is_active, is_blocked')
+      .select('email, receive_push, is_active, is_blocked, unsubscribe_token')
       .in('email', uniqueEmails);
 
     if (subErr) {
@@ -167,7 +174,13 @@ serve(async (req) => {
 
     for (const canonicalEmail of uniqueEmails) {
       const sub = subByLower.get(canonicalEmail.toLowerCase()) as
-        | { email: string; receive_push: boolean | null; is_active: boolean | null; is_blocked: boolean | null }
+        | {
+          email: string;
+          receive_push: boolean | null;
+          is_active: boolean | null;
+          is_blocked: boolean | null;
+          unsubscribe_token: string;
+        }
         | undefined;
 
       if (!sub || sub.is_blocked) {
@@ -205,7 +218,21 @@ serve(async (req) => {
       }
 
       if (wantEmail) {
-        const variables: Record<string, string> = { appLink };
+        const unsubTok = sub.unsubscribe_token?.trim() ?? '';
+        const appBase = appUrl.replace(/\/+$/, '');
+        const unsubscribeUrl = unsubTok
+          ? `${appBase}/unsubscribe?token=${encodeURIComponent(unsubTok)}`
+          : '';
+        const listUnsubscribeHttpsUrl = unsubTok
+          ? `${supabasePublic}/functions/v1/email-unsubscribe?token=${
+            encodeURIComponent(unsubTok)
+          }`
+          : undefined;
+
+        const variables: Record<string, string> = {
+          appLink,
+          unsubscribe_url: unsubscribeUrl,
+        };
         let subject: string;
         let textBody: string;
         let htmlBody: string;
@@ -214,7 +241,7 @@ serve(async (req) => {
           textBody = applyTemplateVariables(hourlyTemplate.text_body, variables);
           htmlBody = applyTemplateVariables(hourlyTemplate.html_body, variables);
         } else {
-          const fb = hourlyReminderFallbackParts(appLink);
+          const fb = hourlyReminderFallbackParts(appLink, unsubscribeUrl);
           subject = fb.subject;
           textBody = fb.textBody;
           htmlBody = fb.htmlBody;
@@ -226,6 +253,9 @@ serve(async (req) => {
             subject,
             textBody,
             htmlBody,
+            ...(listUnsubscribeHttpsUrl
+              ? { listUnsubscribeHttpsUrl }
+              : {}),
           },
         });
         if (mailErr) {

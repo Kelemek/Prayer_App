@@ -73,16 +73,27 @@ case $FUNCTION_NAME in
     "send-email")
         deploy_function "send-email" "--no-verify-jwt"
         echo "💡 send-email must allow non-user JWT: it is invoked from other Edge Functions"
-        echo "   (send-verification-code, send-prayer-reminders, etc.) with the service role client."
+        echo "   (send-verification-code, send-prayer-reminders, etc.) with the admin Supabase client."
         echo "   Also invoked from the Angular app; protect abuse via app logic and RLS elsewhere."
         echo ""
         echo "📋 Secrets: RESEND_API_KEY, MAIL_SENDER_ADDRESS, MAIL_FROM_NAME (optional), SUPABASE_*"
+        ;;
+    "email-unsubscribe")
+        deploy_function "email-unsubscribe" "--no-verify-jwt"
+        echo "💡 Public one-click / GET unsubscribe; uses admin client (SUPABASE_SERVICE_ROLE_KEY = Secret key) to set is_active = false."
+        echo "   Set APP_URL for friendly redirects/copy. List-Unsubscribe POST targets this function URL."
+        ;;
+    "trigger-email-processor")
+        deploy_function "trigger-email-processor" "--no-verify-jwt"
+        echo "💡 Processes email_queue via Resend; invoked from Angular after approvals."
         ;;
     "all")
         echo "Deploying all functions..."
         echo ""
         deploy_function "send-notification" "--no-verify-jwt"
         deploy_function "send-email" "--no-verify-jwt"
+        deploy_function "email-unsubscribe" "--no-verify-jwt"
+        deploy_function "trigger-email-processor" "--no-verify-jwt"
         deploy_function "send-verification-code" "--no-verify-jwt"
         deploy_function "send-prayer-reminders" ""
         deploy_function "send-user-hourly-prayer-reminders" ""
@@ -97,6 +108,8 @@ case $FUNCTION_NAME in
         echo "Available functions:"
         echo "  send-notification        - Email sending (no JWT)"
         echo "  send-email               - Resend email API (no JWT; called from app + other functions)"
+        echo "  email-unsubscribe        - Public unsubscribe (no JWT; token in URL/body)"
+        echo "  trigger-email-processor  - Drain email_queue via Resend (no JWT)"
         echo "  send-verification-code   - Email verification codes (no JWT)"
         echo "  send-prayer-reminders    - Automated prayer reminders"
         echo "  send-user-hourly-prayer-reminders - User hourly self-reminders (cron)"

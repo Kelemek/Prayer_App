@@ -37,6 +37,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/support/support.component').then(m => m.SupportComponent)
   },
   {
+    path: 'unsubscribe',
+    loadComponent: () => import('./pages/unsubscribe/unsubscribe.component').then(m => m.UnsubscribeComponent)
+  },
+  {
     path: '**',
     redirectTo: ''
   }

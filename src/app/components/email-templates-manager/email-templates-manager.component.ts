@@ -229,6 +229,7 @@ interface EmailTemplate {
                     <li>• {{'{{denialReason}}'}} - Reason for denial/rejection</li>
                     <li>• {{'{{adminLink}}'}} - Link to admin portal</li>
                     <li>• {{'{{appLink}}'}} - Link to main app (Edge <code class="text-[10px]">APP_URL</code>; prayer reminders + <strong>user_hourly_prayer_reminder</strong>)</li>
+                    <li>• {{'{{unsubscribe_url}}'}} - Personalized unsubscribe link (queued + most transactional emails; omit from templates that should not offer list unsubscribe)</li>
                   </ul>
                 </div>
               </div>
