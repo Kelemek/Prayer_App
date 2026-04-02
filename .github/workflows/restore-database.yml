@@ -33,9 +33,13 @@ jobs:
         with:
           node-version: '22'
       
-      - name: Install dependencies
-        run: npm install @supabase/supabase-js
-      
+      - name: Install Supabase client (isolated)
+        run: |
+          mkdir -p .ci-backup-deps
+          cd .ci-backup-deps
+          printf '%s\n' '{"name":"ci-backup-deps","private":true,"type":"module"}' > package.json
+          npm install @supabase/supabase-js@2 --omit=dev --no-audit --no-fund
+
       - name: Download backup artifact
         uses: actions/download-artifact@v4
         with:
@@ -68,7 +72,7 @@ jobs:
       
       - name: Create restore script
         run: |
-          cat > restore-script.mjs << 'EOF'
+          cat > .ci-backup-deps/restore-script.mjs << 'EOF'
           import { createClient } from '@supabase/supabase-js';
           import fs from 'fs';
 
@@ -170,12 +174,12 @@ jobs:
           BACKUP_JSON: ${{ env.BACKUP_JSON }}
         run: |
           echo "🔄 Running restore..."
-          node restore-script.mjs
+          node .ci-backup-deps/restore-script.mjs
           echo "✅ Database restore completed!"
-      
+
       - name: Cleanup
         if: always()
         run: |
           rm -rf backups/
-          rm -f restore-script.mjs
+          rm -rf .ci-backup-deps
           echo "✅ Cleanup complete"

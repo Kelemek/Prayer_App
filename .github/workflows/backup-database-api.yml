@@ -30,15 +30,24 @@ jobs:
           echo "date=$STAMP" >> "$GITHUB_OUTPUT"
           echo "BACKUP_DATE=$STAMP" >> "$GITHUB_ENV"
 
-      - name: Install dependencies
+      # Isolated install: root `npm install @supabase/supabase-js` pulls the whole app (1000+ pkgs, deprecations, audit noise).
+      - name: Install Supabase client (isolated)
         run: |
-          npm install @supabase/supabase-js
-      
+          mkdir -p .ci-backup-deps
+          cd .ci-backup-deps
+          printf '%s\n' '{"name":"ci-backup-deps","private":true,"type":"module"}' > package.json
+          npm install @supabase/supabase-js@2 --omit=dev --no-audit --no-fund
+
       - name: Create backup script
         run: |
-          cat > backup-script.mjs << 'EOF'
+          cat > .ci-backup-deps/backup-script.mjs << 'EOF'
           import { createClient } from '@supabase/supabase-js';
           import fs from 'fs';
+          import path from 'path';
+          import { fileURLToPath } from 'url';
+
+          const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+          const backupsDir = path.join(repoRoot, 'backups');
 
           async function backupDatabase() {
             const supabase = createClient(
@@ -104,7 +113,7 @@ jobs:
             }
 
             // Save backup as JSON
-            const filename = `backups/backup_${process.env.BACKUP_DATE}.json`;
+            const filename = path.join(backupsDir, `backup_${process.env.BACKUP_DATE}.json`);
             fs.writeFileSync(filename, JSON.stringify(backup, null, 2));
             console.log(`\n✓ Backup saved to ${filename}`);
 
@@ -125,7 +134,7 @@ jobs:
             };
 
             fs.writeFileSync(
-              `backups/backup_${process.env.BACKUP_DATE}_summary.json`,
+              path.join(backupsDir, `backup_${process.env.BACKUP_DATE}_summary.json`),
               JSON.stringify(summary, null, 2)
             );
 
@@ -208,7 +217,7 @@ jobs:
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           BACKUP_DATE: ${{ steps.backup_stamp.outputs.date }}
         run: |
-          node backup-script.mjs
+          node .ci-backup-deps/backup-script.mjs
 
       - name: Compress backup
         run: |
