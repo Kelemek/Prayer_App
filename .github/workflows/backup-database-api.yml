@@ -19,13 +19,17 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # Match @capacitor/cli (and lockfile) engines; npm install in repo root validates the full tree
+          node-version: '22'
       
       - name: Create backup directory
+        id: backup_stamp
         run: |
           mkdir -p backups
-          echo "BACKUP_DATE=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_ENV
-      
+          STAMP=$(date +'%Y-%m-%d_%H-%M-%S')
+          echo "date=$STAMP" >> "$GITHUB_OUTPUT"
+          echo "BACKUP_DATE=$STAMP" >> "$GITHUB_ENV"
+
       - name: Install dependencies
         run: |
           npm install @supabase/supabase-js
@@ -202,19 +206,19 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          BACKUP_DATE: ${{ env.BACKUP_DATE }}
+          BACKUP_DATE: ${{ steps.backup_stamp.outputs.date }}
         run: |
           node backup-script.mjs
-      
+
       - name: Compress backup
         run: |
           cd backups
-          gzip backup_${BACKUP_DATE}.json
+          gzip "backup_${{ steps.backup_stamp.outputs.date }}.json"
           echo "✓ Backup compressed"
-      
+
       - name: Upload backup as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: database-backup-${{ env.BACKUP_DATE }}
-          path: backups/backup_${{ env.BACKUP_DATE }}.json.gz
+          name: database-backup-${{ steps.backup_stamp.outputs.date }}
+          path: backups/backup_${{ steps.backup_stamp.outputs.date }}.json.gz
           retention-days: 30
