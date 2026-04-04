@@ -5,6 +5,7 @@ import { ToastService } from './toast.service';
 import { CacheService } from './cache.service';
 import { BadgeService } from './badge.service';
 import { PrayerPrompt } from '../components/prompt-card/prompt-card.component';
+import { TenantContextService } from './tenant-context.service';
 
 @Injectable({
   providedIn: 'root'
@@ -22,7 +23,8 @@ export class PromptService {
     private supabase: SupabaseService,
     private toast: ToastService,
     private cache: CacheService,
-    private badgeService: BadgeService
+    private badgeService: BadgeService,
+    private tenantContext?: TenantContextService
   ) {
     this.loadPrompts();
   }
@@ -34,17 +36,23 @@ export class PromptService {
     try {
       this.loadingSubject.next(true);
       this.errorSubject.next(null);
+      const tenantId = this.tenantContext?.getActiveTenant()?.id;
 
       // Try to get from cache first
-      let sortedPrompts = this.cache.get<PrayerPrompt[]>('prompts');
+      const cacheKey = tenantId ? `prompts:${tenantId}` : 'prompts';
+      let sortedPrompts = this.cache.get<PrayerPrompt[]>(cacheKey);
 
       if (!sortedPrompts) {
         // Fetch prayer types for ordering
-        const { data: typesData, error: typesError } = await this.supabase.client
+        let typesQuery = this.supabase.client
           .from('prayer_types')
           .select('name, display_order')
           .eq('is_active', true)
           .order('display_order', { ascending: true });
+        if (tenantId) {
+          typesQuery = typesQuery.eq('tenant_id', tenantId);
+        }
+        const { data: typesData, error: typesError } = await typesQuery;
 
         if (typesError) throw typesError;
 
@@ -55,10 +63,14 @@ export class PromptService {
         const typeOrderMap = new Map(typesData?.map((t: any) => [t.name, t.display_order]) || []);
 
         // Fetch all prompts
-        const { data, error } = await this.supabase.client
+        let promptsQuery = this.supabase.client
           .from('prayer_prompts')
           .select('*')
           .order('created_at', { ascending: false });
+        if (tenantId) {
+          promptsQuery = promptsQuery.eq('tenant_id', tenantId);
+        }
+        const { data, error } = await promptsQuery;
 
         if (error) throw error;
 
@@ -72,7 +84,7 @@ export class PromptService {
           });
 
         // Cache the results
-        this.cache.set('prompts', sortedPrompts);
+        this.cache.set(cacheKey, sortedPrompts);
       }
 
       this.promptsSubject.next(sortedPrompts);
@@ -99,7 +111,8 @@ export class PromptService {
         .insert({
           title: prompt.title,
           type: prompt.type,
-          description: prompt.description
+          description: prompt.description,
+          ...(this.tenantContext?.getActiveTenant()?.id ? { tenant_id: this.tenantContext.getActiveTenant()?.id } : {})
         });
 
       if (error) throw error;

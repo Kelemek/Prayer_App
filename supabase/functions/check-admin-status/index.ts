@@ -10,11 +10,14 @@ const corsHeaders = {
 
 interface CheckAdminRequest {
   email: string;
+  tenantId?: string;
 }
 
 interface CheckAdminResponse {
   success: boolean;
   is_admin: boolean;
+  is_super_admin?: boolean;
+  is_tenant_admin?: boolean;
   error?: string;
 }
 
@@ -31,7 +34,7 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""
     );
 
-    const { email } = (await req.json()) as CheckAdminRequest;
+    const { email, tenantId } = (await req.json()) as CheckAdminRequest;
 
     if (!email) {
       return new Response(
@@ -43,15 +46,33 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Check if user is an admin
-    const { data, error } = await supabase
-      .from("email_subscribers")
-      .select("is_admin")
-      .eq("email", email.toLowerCase().trim())
-      .eq("is_admin", true)
-      .maybeSingle();
+    const normalizedEmail = email.toLowerCase().trim();
 
-    if (error) {
+    const [superAdminResult, tenantAdminResult, legacyAdminResult] = await Promise.all([
+      supabase
+        .from('global_roles')
+        .select('role')
+        .eq('user_email', normalizedEmail)
+        .eq('role', 'super_admin')
+        .maybeSingle(),
+      tenantId
+        ? supabase
+            .from('tenant_memberships')
+            .select('role')
+            .eq('tenant_id', tenantId)
+            .eq('user_email', normalizedEmail)
+            .eq('role', 'tenant_admin')
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      supabase
+        .from("email_subscribers")
+        .select("is_admin")
+        .eq("email", normalizedEmail)
+        .eq("is_admin", true)
+        .maybeSingle()
+    ]);
+
+    if (superAdminResult.error || tenantAdminResult.error || legacyAdminResult.error) {
       return new Response(
         JSON.stringify({
           success: false,
@@ -65,12 +86,17 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const isAdmin = !!data;
+    const isSuperAdmin = !!superAdminResult.data;
+    const isTenantAdmin = !!tenantAdminResult.data;
+    const hasLegacyAdmin = !!legacyAdminResult.data;
+    const isAdmin = isSuperAdmin || isTenantAdmin || hasLegacyAdmin;
 
     return new Response(
       JSON.stringify({
         success: true,
         is_admin: isAdmin,
+        is_super_admin: isSuperAdmin,
+        is_tenant_admin: isTenantAdmin
       }),
       {
         status: 200,

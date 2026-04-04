@@ -1,10 +1,12 @@
 import { Injectable, inject, Injector } from '@angular/core';
 import { Router } from '@angular/router';
 import { BehaviorSubject, Observable, Subscription, interval, timer } from 'rxjs';
+import { distinctUntilChanged } from 'rxjs/operators';
 import { SupabaseService } from './supabase.service';
 import { CacheService } from './cache.service';
 import { PushNotificationService } from './push-notification.service';
 import { PrayerEncouragementService } from './prayer-encouragement.service';
+import { TenantContextService } from './tenant-context.service';
 import type { User } from '@supabase/supabase-js';
 
 @Injectable({
@@ -34,7 +36,25 @@ export class AdminAuthService {
   private router = inject(Router);
   private injector = inject(Injector);
 
-  constructor(private supabase: SupabaseService, private cacheService: CacheService) {
+  constructor(
+    private supabase: SupabaseService,
+    private cacheService: CacheService,
+    private tenantContext: TenantContextService
+  ) {
+    this.tenantContext.activeTenant$
+      .pipe(distinctUntilChanged((prev, curr) => prev?.id === curr?.id))
+      .subscribe(() => {
+        const currentUser = this.userSubject.value;
+        if (!currentUser) {
+          return;
+        }
+        this.checkAdminStatus(currentUser).catch((error) => {
+          console.error('[AdminAuth] Error checking admin status on tenant change:', error);
+          this.isAdminSubject.next(false);
+          this.hasAdminEmailSubject.next(false);
+        });
+      });
+
     this.initializeAuth().catch(error => {
       console.error('[AdminAuth] initializeAuth failed:', error);
       this.loadingSubject.next(false);
@@ -208,20 +228,32 @@ export class AdminAuthService {
     }
 
     try {
-      const { data, error } = await this.supabase.directQuery<Array<{ is_admin: boolean }>>('email_subscribers', {
-        select: 'is_admin',
-        eq: { email: user.email, is_admin: true },
-        limit: 1,
-        timeout: 10000
-      });
+      const email = user.email.toLowerCase().trim();
+      const activeTenantId = this.tenantContext.getActiveTenant()?.id || localStorage.getItem('active_tenant_id');
 
-      if (!error && data && data.length > 0) {
-        this.isAdminSubject.next(true);
-        this.hasAdminEmailSubject.next(true);
-      } else {
-        this.isAdminSubject.next(false);
-        this.hasAdminEmailSubject.next(false);
-      }
+      const [superAdminResult, tenantAdminResult] = await Promise.all([
+        this.supabase.client
+          .from('global_roles')
+          .select('role')
+          .eq('user_email', email)
+          .eq('role', 'super_admin')
+          .maybeSingle(),
+        activeTenantId
+          ? this.supabase.client
+              .from('tenant_memberships')
+              .select('role')
+              .eq('tenant_id', activeTenantId)
+              .eq('user_email', email)
+              .eq('role', 'tenant_admin')
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null } as any)
+      ]);
+
+      const isSuperAdmin = !!superAdminResult.data;
+      const isTenantAdmin = !!tenantAdminResult.data;
+      const isAdmin = isSuperAdmin || isTenantAdmin;
+      this.isAdminSubject.next(isAdmin);
+      this.hasAdminEmailSubject.next(isAdmin);
     } catch (error) {
       console.error('Error checking admin status:', error);
       this.isAdminSubject.next(false);
@@ -389,10 +421,11 @@ export class AdminAuthService {
    */
   private async isEmailAdmin(email: string): Promise<boolean> {
     try {
+      const tenantId = this.tenantContext.getActiveTenant()?.id || localStorage.getItem('active_tenant_id') || undefined;
       const { data, error, response } = await this.supabase.client.functions.invoke(
         'check-admin-status',
         {
-          body: { email }
+          body: { email, tenantId }
         }
       );
 
@@ -407,7 +440,7 @@ export class AdminAuthService {
       }
 
       console.log('[AdminAuth] Admin check result:', data);
-      return data?.is_admin === true;
+      return data?.is_admin === true || data?.is_super_admin === true || data?.is_tenant_admin === true;
     } catch (error) {
       console.error('[AdminAuth] Exception checking admin status:', error);
       return false;

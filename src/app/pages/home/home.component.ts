@@ -25,6 +25,9 @@ import { Observable, take, Subject, takeUntil, filter } from 'rxjs';
 import { ToastService } from '../../services/toast.service';
 import { AnalyticsService } from '../../services/analytics.service';
 import { PullToRefreshDirective } from '../../directives/pull-to-refresh.directive';
+import { TenantPermissionService } from '../../services/tenant-permission.service';
+import { TenantContextService } from '../../services/tenant-context.service';
+import type { TenantMembership } from '../../types/tenant';
 @Component({
   selector: 'app-home',
   standalone: true,
@@ -69,6 +72,19 @@ import { PullToRefreshDirective } from '../../directives/pull-to-refresh.directi
               </button>
             }
           </div>
+          @if (tenantMemberships.length > 1) {
+            <div class="sm:hidden mb-3">
+              <select
+                [value]="activeTenantId || ''"
+                (change)="onTenantSelect($any($event.target).value)"
+                class="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-xs text-gray-700 dark:text-gray-200"
+              >
+                @for (membership of tenantMemberships; track membership.tenant_id) {
+                  <option [value]="membership.tenant_id">{{ getTenantName(membership) }}</option>
+                }
+              </select>
+            </div>
+          }
           
           <!-- Mobile buttons row - flex-nowrap so title/buttons stay on one line on smallest screens -->
           <div class="sm:hidden flex items-center gap-2 flex-nowrap">
@@ -105,7 +121,7 @@ import { PullToRefreshDirective } from '../../directives/pull-to-refresh.directi
             >
               <span>Request</span>
             </button>
-            @if (hasAdminEmail$ | async) {
+            @if (canAccessAdminFeatures) {
               <button
                 (click)="navigateToAdmin()"
                 class="flex items-center gap-1 border border-red-600 dark:border-red-500 text-red-600 dark:text-red-500 px-2 py-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors text-sm cursor-pointer"
@@ -127,7 +143,19 @@ import { PullToRefreshDirective } from '../../directives/pull-to-refresh.directi
             <div class="flex flex-col items-end gap-2">
               <!-- Top row: Admin button and Email Indicator -->
               <div class="flex items-center gap-2">
-                @if (hasAdminEmail$ | async) {
+                @if (tenantMemberships.length > 1) {
+                  <select
+                    [value]="activeTenantId || ''"
+                    (change)="onTenantSelect($any($event.target).value)"
+                    class="text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-gray-700 dark:text-gray-200"
+                    title="Switch active tenant"
+                  >
+                    @for (membership of tenantMemberships; track membership.tenant_id) {
+                      <option [value]="membership.tenant_id">{{ getTenantName(membership) }}</option>
+                    }
+                  </select>
+                }
+                @if (canAccessAdminFeatures) {
                 <button
                   (click)="navigateToAdmin()"
                   class="flex items-center gap-1 border border-red-600 dark:border-red-500 text-red-600 dark:text-red-500 px-2 py-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors text-xs cursor-pointer"
@@ -283,6 +311,7 @@ import { PullToRefreshDirective } from '../../directives/pull-to-refresh.directi
         ></app-prayer-filters>
         <!-- Stats Cards -->
         <div class="grid gap-4 mb-6 grid-cols-3 sm:grid-cols-5">
+          @if (canAccessShared) {
           <button
             (click)="setFilter('current')"
             title="Show current prayers"
@@ -356,6 +385,7 @@ import { PullToRefreshDirective } from '../../directives/pull-to-refresh.directi
             </div>
             <div class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Prompts</div>
           </button>
+          }
 
           <!-- Personal Prayers Filter -->
           <button
@@ -624,7 +654,6 @@ export class HomeComponent implements OnInit, OnDestroy {
   loading$!: Observable<boolean>;
   error$!: Observable<string | null>;
   isAdmin$!: Observable<boolean>;
-  hasAdminEmail$!: Observable<boolean>;
 
   // Current prayers array for filtering
   currentPrayers: PrayerRequest[] = [];
@@ -664,6 +693,10 @@ export class HomeComponent implements OnInit, OnDestroy {
   isSwappingCategories = false;
   isRefreshing = false;
   private lastExplicitRefreshAt = 0;
+  canAccessShared = false;
+  canAccessAdminFeatures = false;
+  tenantMemberships: TenantMembership[] = [];
+  activeTenantId: string | null = null;
   
   isAdmin = false;
   // Admin settings for access control policies
@@ -684,7 +717,9 @@ export class HomeComponent implements OnInit, OnDestroy {
     private analyticsService: AnalyticsService,
     private cdr: ChangeDetectorRef,
     private router: Router,
-    private supabaseService: SupabaseService
+    private supabaseService: SupabaseService,
+    private tenantPermissionService: TenantPermissionService,
+    private tenantContextService: TenantContextService
   ) {
     // Load logo state from cache immediately to prevent flash
     const windowCache = (window as any).__cachedLogos;
@@ -701,7 +736,6 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.loading$ = this.prayerService.loading$;
     this.error$ = this.prayerService.error$;
     this.isAdmin$ = this.adminAuthService.isAdmin$;
-    this.hasAdminEmail$ = this.adminAuthService.hasAdminEmail$;
 
     // Initialize badge observables immediately so badges can show on first load
     // (no longer waiting for prompts$; refreshBadgeCounts runs when prayers/prompts load and once below)
@@ -712,6 +746,29 @@ export class HomeComponent implements OnInit, OnDestroy {
     // logout invalidates prompts_cache, but PromptService does not re-run loadPrompts() until
     // next full page load; calling loadPrompts() here repopulates cache so badge counts are correct.
     this.promptService.loadPrompts();
+    if (this.tenantContextService?.activeTenant$) {
+      this.tenantContextService.activeTenant$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(() => {
+          this.canAccessShared = this.tenantPermissionService.canAccessShared();
+          this.canAccessAdminFeatures = this.tenantPermissionService.canAccessAdmin();
+          if (!this.canAccessShared && this.activeFilter !== 'personal') {
+            this.setFilter('personal');
+          }
+          this.cdr.markForCheck();
+        });
+    }
+
+    if (this.tenantContextService?.memberships$) {
+      this.tenantContextService.memberships$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe((memberships) => {
+          this.tenantMemberships = memberships;
+          this.activeTenantId = this.tenantContextService.getActiveTenant()?.id || null;
+          this.cdr.markForCheck();
+        });
+    }
+
     this.badgeService.refreshBadgeCounts();
     this.cdr.markForCheck();
 
@@ -872,6 +929,11 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   setFilter(filter: 'current' | 'answered' | 'total' | 'prompts' | 'personal'): void {
+    if (!this.canAccessShared && filter !== 'personal') {
+      this.activeFilter = 'personal';
+      this.prayerService.applyFilters({ search: this.filters.searchTerm });
+      return;
+    }
     this.activeFilter = filter;
     
     if (filter === 'prompts') {
@@ -1353,42 +1415,35 @@ export class HomeComponent implements OnInit, OnDestroy {
     await this.logout();
   }
 
-  navigateToAdmin(): void {
-    // Check if admin session is still active
-    this.adminAuthService.isAdmin$.pipe(take(1)).subscribe(isAdmin => {
-      if (isAdmin) {
-        // Session is active, navigate to admin panel
-        this.router.navigate(['/admin']);
-      } else {
-        // Admin session has expired - show MFA modal to re-authenticate
-        // Trigger verification flow similar to requestDeletion
-        this.showAdminMfaModal();
-      }
-    });
-  }
-
-  private showAdminMfaModal(): void {
-    // Get user email from localStorage
-    let userEmail = localStorage.getItem('userEmail');
-    if (!userEmail) {
-      userEmail = localStorage.getItem('prayerapp_user_email');
+  async onTenantSelect(tenantId: string): Promise<void> {
+    if (!this.tenantContextService) {
+      return;
     }
-    if (!userEmail) {
-      userEmail = localStorage.getItem('approvalAdminEmail');
-    }
-
-    if (!userEmail) {
-      this.toastService.error('Email not found. Please log in again.');
+    const changed = await this.tenantContextService.switchTenant(tenantId);
+    if (!changed) {
+      this.toastService.error('Unable to switch tenant');
       return;
     }
 
-    // Navigate to admin login to re-authenticate with MFA
-    this.router.navigate(['/login'], {
-      queryParams: { 
-        email: userEmail,
-        sessionExpired: true
-      }
-    });
+    this.canAccessShared = this.tenantPermissionService.canAccessShared();
+    this.canAccessAdminFeatures = this.tenantPermissionService.canAccessAdmin();
+    if (!this.canAccessShared) {
+      this.activeFilter = 'personal';
+    }
+    await Promise.all([
+      this.prayerService.loadPrayers(),
+      this.promptService.loadPrompts()
+    ]);
+    this.activeTenantId = tenantId;
+    this.cdr.markForCheck();
+  }
+
+  navigateToAdmin(): void {
+    if (!this.canAccessAdminFeatures && this.tenantMemberships.length > 0) {
+      this.toastService.error('Admin access is not available for this account');
+      return;
+    }
+    this.router.navigate(['/admin']);
   }
 
   getUserEmail(): string {
@@ -1407,6 +1462,13 @@ export class HomeComponent implements OnInit, OnDestroy {
     if (prayerappEmail) return prayerappEmail;
     
     return 'Not logged in';
+  }
+
+  getTenantName(membership: TenantMembership): string {
+    if (Array.isArray(membership.tenants)) {
+      return membership.tenants[0]?.name || membership.tenant_id;
+    }
+    return membership.tenants?.name || membership.tenant_id;
   }
 
   markAllCurrentAsRead(): void {

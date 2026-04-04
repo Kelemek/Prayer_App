@@ -4,6 +4,7 @@ import { interval, Subscription } from 'rxjs';
 import { SupabaseService } from '../../services/supabase.service';
 import { PrayerService } from '../../services/prayer.service';
 import { ThemeService } from '../../services/theme.service';
+import { TenantPermissionService } from '../../services/tenant-permission.service';
 import { PresentationToolbarComponent } from '../../components/presentation-toolbar/presentation-toolbar.component';
 import { PrayerDisplayCardComponent } from '../../components/prayer-display-card/prayer-display-card.component';
 import { PresentationSettingsModalComponent } from '../../components/presentation-settings-modal/presentation-settings-modal.component';
@@ -199,6 +200,7 @@ export class PresentationComponent implements OnInit, OnDestroy {
   prayerTimerRemaining = 0;
   showTimerNotification = false;
   showSmartModeDetails = false;
+  canAccessSharedContent = false;
   
   private autoAdvanceInterval: any;
   private countdownSubscription: Subscription | null = null;
@@ -218,11 +220,16 @@ export class PresentationComponent implements OnInit, OnDestroy {
     private supabase: SupabaseService,
     private prayerService: PrayerService,
     private themeService: ThemeService,
+    private tenantPermissions: TenantPermissionService,
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone
   ) {}
 
   ngOnInit(): void {
+    this.canAccessSharedContent = this.tenantPermissions.canAccessShared();
+    if (!this.canAccessSharedContent) {
+      this.contentType = 'personal';
+    }
     this.loadTheme();
     this.loadContent();
     this.setupControlsAutoHide();
@@ -363,6 +370,10 @@ export class PresentationComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
     
     try {
+      if (!this.canAccessSharedContent && this.contentType !== 'personal') {
+        this.contentType = 'personal';
+      }
+
       if (this.contentType === 'prayers') {
         await this.fetchPrayers();
       } else if (this.contentType === 'prompts') {
@@ -386,6 +397,12 @@ export class PresentationComponent implements OnInit, OnDestroy {
 
   async fetchPrayers(): Promise<void> {
     try {
+      if (!this.canAccessSharedContent) {
+        this.prayers = [];
+        this.cdr.markForCheck();
+        return;
+      }
+
       let query = this.supabase.client
         .from('prayers')
         .select(`
@@ -485,6 +502,12 @@ export class PresentationComponent implements OnInit, OnDestroy {
 
   async fetchPrompts(): Promise<void> {
     try {
+      if (!this.canAccessSharedContent) {
+        this.prompts = [];
+        this.cdr.markForCheck();
+        return;
+      }
+
       // Execute both queries in parallel for better performance
       const [typesResult, promptsResult] = await Promise.all([
         this.supabase.client

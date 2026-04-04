@@ -7,6 +7,7 @@ import { VerificationService } from './verification.service';
 import { CacheService } from './cache.service';
 import { BadgeService } from './badge.service';
 import { UserSessionService } from './user-session.service';
+import { TenantContextService } from './tenant-context.service';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export type PrayerStatus = 'current' | 'answered' | 'archived';
@@ -97,7 +98,8 @@ export class PrayerService {
     private verificationService: VerificationService,
     private cache: CacheService,
     private badgeService: BadgeService,
-    private userSessionService: UserSessionService
+    private userSessionService: UserSessionService,
+    private tenantContext: TenantContextService
   ) {
     this.initializePrayers();
   }
@@ -125,6 +127,17 @@ export class PrayerService {
           this.cache.invalidate('personalPrayers');
         }
       });
+
+    // Reload shared prayers when tenant context resolves or changes.
+    this.tenantContext.activeTenant$
+      .pipe(
+        distinctUntilChanged((prev, curr) => prev?.id === curr?.id)
+      )
+      .subscribe(() => {
+        this.loadPrayers(true).catch(err =>
+          console.error('[PrayerService] Error loading prayers on tenant change:', err)
+        );
+      });
     
     this.setupRealtimeSubscription();
     this.setupVisibilityListener();
@@ -141,6 +154,14 @@ export class PrayerService {
   async loadPrayers(silentRefresh = false): Promise<void> {
     try {
       console.log('[PrayerService] Loading prayers...');
+      const tenantId = this.getActiveTenantId();
+      if (!tenantId) {
+        // No active tenant means shared prayers are unavailable in current context.
+        this.allPrayersSubject.next([]);
+        this.applyFilters(this.currentFilters);
+        this.errorSubject.next(null);
+        return;
+      }
       // ✅ TIER 1: Check cache first
       const cachedPrayers = this.cache.get<PrayerRequest[]>('prayers');
       if (cachedPrayers && cachedPrayers.length > 0) {
@@ -162,7 +183,7 @@ export class PrayerService {
       }
       this.errorSubject.next(null);
 
-      const { data: prayersData, error } = await this.supabase.client
+      let prayersQuery = this.supabase.client
         .from('prayers')
         .select(`
           *,
@@ -170,6 +191,10 @@ export class PrayerService {
         `)
         .eq('approval_status', 'approved')
         .order('created_at', { ascending: false });
+      if (tenantId) {
+        prayersQuery = prayersQuery.eq('tenant_id', tenantId);
+      }
+      const { data: prayersData, error } = await prayersQuery;
 
       if (error) throw error;
 
@@ -374,11 +399,12 @@ export class PrayerService {
   }
   async getPrayersByMonth(year: number, month: number): Promise<PrayerRequest[]> {
     try {
+      const tenantId = this.getActiveTenantId();
       // Create date range for the month
       const startDate = new Date(year, month - 1, 1).toISOString();
       const endDate = new Date(year, month, 1).toISOString();
 
-      const { data: prayersData, error } = await this.supabase.client
+      let monthlyQuery = this.supabase.client
         .from('prayers')
         .select(`
           *,
@@ -386,6 +412,10 @@ export class PrayerService {
         `)
         .or(`(updated_at.gte.${startDate},updated_at.lt.${endDate}),(created_at.gte.${startDate},created_at.lt.${endDate})`)
         .order('updated_at', { ascending: false });
+      if (tenantId) {
+        monthlyQuery = monthlyQuery.eq('tenant_id', tenantId);
+      }
+      const { data: prayersData, error } = await monthlyQuery;
 
       if (error) throw error;
 
@@ -588,6 +618,7 @@ export class PrayerService {
    */
   async addPrayer(prayer: Omit<PrayerRequest, 'id' | 'date_requested' | 'created_at' | 'updated_at' | 'updates'>): Promise<boolean> {
     try {
+      const tenantId = this.getActiveTenantId();
       const prayerData: any = {
         title: prayer.title,
         description: prayer.description,
@@ -598,6 +629,9 @@ export class PrayerService {
         email: prayer.email || null,
         is_anonymous: prayer.is_anonymous || false
       };
+      if (tenantId) {
+        prayerData.tenant_id = tenantId;
+      }
 
       const { data, error } = await this.supabase.client
         .from('prayers')
@@ -654,13 +688,18 @@ export class PrayerService {
    */
   async updatePrayerStatus(id: string, status: PrayerStatus): Promise<boolean> {
     try {
-      const { error } = await this.supabase.client
+      const tenantId = this.getActiveTenantId();
+      let updateQuery = this.supabase.client
         .from('prayers')
         .update({ 
           status,
           date_answered: status === 'answered' ? new Date().toISOString() : null
         })
         .eq('id', id);
+      if (tenantId) {
+        updateQuery = updateQuery.eq('tenant_id', tenantId);
+      }
+      const { error } = await updateQuery;
 
       if (error) throw error;
 
@@ -711,13 +750,15 @@ export class PrayerService {
    */
   async addPrayerUpdate(prayerId: string, content: string, author: string): Promise<boolean> {
     try {
+      const tenantId = this.getActiveTenantId();
       const { data, error } = await this.supabase.client
         .from('prayer_updates')
         .insert({
           prayer_id: prayerId,
           content,
           author,
-          approval_status: 'pending'
+          approval_status: 'pending',
+          ...(tenantId ? { tenant_id: tenantId } : {})
         })
         .select()
         .single();
@@ -756,10 +797,15 @@ export class PrayerService {
    */
   async deletePrayer(id: string): Promise<boolean> {
     try {
-      const { error } = await this.supabase.client
+      const tenantId = this.getActiveTenantId();
+      let deleteQuery = this.supabase.client
         .from('prayers')
         .delete()
         .eq('id', id);
+      if (tenantId) {
+        deleteQuery = deleteQuery.eq('tenant_id', tenantId);
+      }
+      const { error } = await deleteQuery;
 
       if (error) throw error;
 
@@ -788,10 +834,15 @@ export class PrayerService {
    */
   async deletePrayerUpdate(updateId: string): Promise<boolean> {
     try {
-      const { error } = await this.supabase.client
+      const tenantId = this.getActiveTenantId();
+      let deleteQuery = this.supabase.client
         .from('prayer_updates')
         .delete()
         .eq('id', updateId);
+      if (tenantId) {
+        deleteQuery = deleteQuery.eq('tenant_id', tenantId);
+      }
+      const { error } = await deleteQuery;
 
       if (error) throw error;
 
@@ -923,6 +974,7 @@ export class PrayerService {
    */
   async addUpdate(updateData: any): Promise<boolean> {
     try {
+      const tenantId = this.getActiveTenantId();
       const { data, error } = await this.supabase.client
         .from('prayer_updates')
         .insert({
@@ -932,7 +984,8 @@ export class PrayerService {
           author_email: updateData.author_email,
           is_anonymous: updateData.is_anonymous,
           mark_as_answered: updateData.mark_as_answered,
-          approval_status: 'pending'
+          approval_status: 'pending',
+          ...(tenantId ? { tenant_id: tenantId } : {})
         })
         .select()
         .single();
@@ -971,10 +1024,15 @@ export class PrayerService {
    */
   async deleteUpdate(updateId: string): Promise<boolean> {
     try {
-      const { error } = await this.supabase.client
+      const tenantId = this.getActiveTenantId();
+      let deleteQuery = this.supabase.client
         .from('prayer_updates')
         .delete()
         .eq('id', updateId);
+      if (tenantId) {
+        deleteQuery = deleteQuery.eq('tenant_id', tenantId);
+      }
+      const { error } = await deleteQuery;
 
       if (error) throw error;
 
@@ -993,6 +1051,7 @@ export class PrayerService {
    */
   async requestDeletion(requestData: any): Promise<boolean> {
     try {
+      const tenantId = this.getActiveTenantId();
       const fullName = `${requestData.requester_first_name} ${requestData.requester_last_name}`;
       
       const { data, error } = await this.supabase.client
@@ -1001,7 +1060,8 @@ export class PrayerService {
           prayer_id: requestData.prayer_id,
           requested_by: fullName,
           requested_email: requestData.requester_email,
-          reason: requestData.reason
+          reason: requestData.reason,
+          ...(tenantId ? { tenant_id: tenantId } : {})
         })
         .select('id')
         .single();
@@ -1010,11 +1070,14 @@ export class PrayerService {
 
       // Fetch the prayer info for admin notification (best-effort)
       try {
-        const { data: prayerRow } = await this.supabase.client
+        let prayerLookup = this.supabase.client
           .from('prayers')
           .select('title')
-          .eq('id', requestData.prayer_id)
-          .single();
+          .eq('id', requestData.prayer_id);
+        if (tenantId) {
+          prayerLookup = prayerLookup.eq('tenant_id', tenantId);
+        }
+        const { data: prayerRow } = await prayerLookup.single();
 
         const title = prayerRow?.title || 'Unknown Prayer';
 
@@ -1044,6 +1107,7 @@ export class PrayerService {
    */
   async requestUpdateDeletion(requestData: any): Promise<boolean> {
     try {
+      const tenantId = this.getActiveTenantId();
       const fullName = `${requestData.requester_first_name} ${requestData.requester_last_name}`;
       
       const { data, error } = await this.supabase.client
@@ -1052,7 +1116,8 @@ export class PrayerService {
           update_id: requestData.update_id,
           requested_by: fullName,
           requested_email: requestData.requester_email,
-          reason: requestData.reason
+          reason: requestData.reason,
+          ...(tenantId ? { tenant_id: tenantId } : {})
         })
         .select('id')
         .single();
@@ -1061,11 +1126,14 @@ export class PrayerService {
 
       // Fetch the update/prayer info for admin notification (best-effort)
       try {
-        const { data: updateRow } = await this.supabase.client
+        let updateLookup = this.supabase.client
           .from('prayer_updates')
           .select('*, prayers!inner(title)')
-          .eq('id', requestData.update_id)
-          .single();
+          .eq('id', requestData.update_id);
+        if (tenantId) {
+          updateLookup = updateLookup.eq('tenant_id', tenantId);
+        }
+        const { data: updateRow } = await updateLookup.single();
 
         const title = updateRow?.prayers?.title || 'Unknown Prayer';
         const author = updateRow?.author || undefined;
@@ -2240,6 +2308,7 @@ export class PrayerService {
    */
   async sharePrayerForApproval(personalPrayerId: string): Promise<string> {
     try {
+      const tenantId = this.getActiveTenantId();
       // Step 1: Fetch the personal prayer with its updates
       const { data: personalPrayer, error: fetchError } = await this.supabase.client
         .from('personal_prayers')
@@ -2290,7 +2359,8 @@ export class PrayerService {
         email: personalPrayer.user_email,
         is_anonymous: false,
         approval_status: 'pending' as const,
-        is_shared_personal_prayer: true
+        is_shared_personal_prayer: true,
+        ...(tenantId ? { tenant_id: tenantId } : {})
       };
 
       const { data: newPrayer, error: createError } = await this.supabase.client
@@ -2312,7 +2382,8 @@ export class PrayerService {
           author_email: update.author_email || null,
           is_anonymous: false,
           approval_status: 'pending' as const,
-          created_at: update.created_at
+          created_at: update.created_at,
+          ...(tenantId ? { tenant_id: tenantId } : {})
         }));
 
         const { error: updatesCopyError } = await this.supabase.client
@@ -2355,5 +2426,9 @@ export class PrayerService {
     if (this.realtimeChannel) {
       this.supabase.client.removeChannel(this.realtimeChannel);
     }
+  }
+
+  private getActiveTenantId(): string | null {
+    return this.tenantContext.getActiveTenant()?.id || null;
   }
 }

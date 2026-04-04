@@ -27,6 +27,8 @@ import { EmailVerificationSettingsComponent } from '../../components/email-verif
 import { GitHubSettingsComponent } from '../../components/github-settings/github-settings.component';
 import { PrayerEncouragementSettingsComponent } from '../../components/prayer-encouragement-settings/prayer-encouragement-settings.component';
 import { ConfirmationDialogComponent } from '../../components/confirmation-dialog/confirmation-dialog.component';
+import { TenantManagementComponent } from '../../components/tenant-management/tenant-management.component';
+import { TenantContextService } from '../../services/tenant-context.service';
 
 type AdminTab = 'prayers' | 'updates' | 'deletions' | 'accounts' | 'settings';
 type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security';
@@ -55,7 +57,8 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security';
     EmailVerificationSettingsComponent,
     GitHubSettingsComponent,
     PrayerEncouragementSettingsComponent,
-    ConfirmationDialogComponent
+    ConfirmationDialogComponent,
+    TenantManagementComponent
   ],
   styles: `
     /* Safe area support for notched/dynamic island devices */
@@ -635,9 +638,11 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security';
                 <div class="mb-4">
                   <app-prayer-archive-timeline></app-prayer-archive-timeline>
                 </div>
-                <div class="mb-4">
-                  <app-backup-status></app-backup-status>
-                </div>
+                @if (isSuperAdmin) {
+                  <div class="mb-4">
+                    <app-backup-status></app-backup-status>
+                  </div>
+                }
               </div>
             }
 
@@ -655,6 +660,9 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security';
                 </div>
                 <div class="mb-4">
                   <app-test-account-settings></app-test-account-settings>
+                </div>
+                <div class="mb-4">
+                  <app-tenant-management></app-tenant-management>
                 </div>
               </div>
             }
@@ -729,6 +737,7 @@ export class AdminComponent implements OnInit, OnDestroy {
   
   private destroy$ = new Subject<void>();
   private hasFetchStarted = false;
+  isSuperAdmin = false;
 
   constructor(
     private router: Router,
@@ -736,6 +745,7 @@ export class AdminComponent implements OnInit, OnDestroy {
     private analyticsService: AnalyticsService,
     public adminAuthService: AdminAuthService,
     public userSessionService: UserSessionService,
+    private tenantContextService: TenantContextService,
     private ngZone: NgZone,
     public cdr: ChangeDetectorRef
   ) {}
@@ -753,6 +763,13 @@ export class AdminComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.tenantContextService.isSuperAdmin$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((isSuperAdmin) => {
+        this.isSuperAdmin = isSuperAdmin;
+        this.cdr.markForCheck();
+      });
+
     // Subscribe to admin data. Run updates inside NgZone so change detection runs when
     // the app was resumed from background (e.g. tap on approval push notification).
     this.adminDataService.data$

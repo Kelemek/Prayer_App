@@ -4,6 +4,7 @@ import { SupabaseService } from './supabase.service';
 import { PrayerService } from './prayer.service';
 import { EmailNotificationService } from './email-notification.service';
 import { PushNotificationService } from './push-notification.service';
+import { TenantContextService } from './tenant-context.service';
 import type { 
   PrayerRequest, 
   PrayerUpdate, 
@@ -83,7 +84,8 @@ export class AdminDataService {
     private supabase: SupabaseService,
     private prayerService: PrayerService,
     private emailNotification: EmailNotificationService,
-    private pushNotification: PushNotificationService
+    private pushNotification: PushNotificationService,
+    private tenantContext: TenantContextService
   ) {}
 
   async fetchAdminData(silent = false, force = false): Promise<void> {
@@ -103,6 +105,15 @@ export class AdminDataService {
       }
 
       const supabaseClient = this.supabase.client;
+      const tenantId = this.getRequiredTenantId();
+      if (!tenantId) {
+        this.dataSubject.next({
+          ...this.dataSubject.value,
+          loading: false,
+          error: 'Admin features require an active churches tenant'
+        });
+        return;
+      }
 
       // PHASE 1: Fetch only pending items immediately (6 quick queries)
       // These are what users see first and most importantly need on initial load
@@ -117,6 +128,7 @@ export class AdminDataService {
         supabaseClient
           .from('prayers')
           .select('*')
+          .eq('tenant_id', tenantId)
           .eq('approval_status', 'pending')
           .order('created_at', { ascending: false }),
         
@@ -124,6 +136,7 @@ export class AdminDataService {
         supabaseClient
           .from('prayer_updates')
           .select('*, prayers!inner(id, title, description, requester, prayer_for, status, email)')
+          .eq('tenant_id', tenantId)
           .eq('approval_status', 'pending')
           .order('created_at', { ascending: false }),
         
@@ -131,6 +144,7 @@ export class AdminDataService {
         supabaseClient
           .from('deletion_requests')
           .select('*, prayers!inner(title)')
+          .eq('tenant_id', tenantId)
           .eq('approval_status', 'pending')
           .order('created_at', { ascending: false }),
         
@@ -138,6 +152,7 @@ export class AdminDataService {
         supabaseClient
           .from('update_deletion_requests')
           .select('*, prayer_updates(*, prayers(title))')
+          .eq('tenant_id', tenantId)
           .eq('approval_status', 'pending')
           .order('created_at', { ascending: false }),
         
@@ -145,6 +160,7 @@ export class AdminDataService {
         supabaseClient
           .from('account_approval_requests')
           .select('*')
+          .eq('tenant_id', tenantId)
           .eq('approval_status', 'pending')
           .order('created_at', { ascending: false })
       ]);
@@ -213,6 +229,10 @@ export class AdminDataService {
   async loadApprovedAndDeniedDataAsync(): Promise<void> {
     try {
       const supabaseClient = this.supabase.client;
+      const tenantId = this.getRequiredTenantId();
+      if (!tenantId) {
+        return;
+      }
 
       const [
         approvedPrayersCountResult,
@@ -230,34 +250,40 @@ export class AdminDataService {
         supabaseClient
           .from('prayers')
           .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
           .eq('approval_status', 'approved'),
         
         supabaseClient
           .from('prayer_updates')
           .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
           .eq('approval_status', 'approved'),
         
         // Denied counts
         supabaseClient
           .from('prayers')
           .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
           .eq('approval_status', 'denied'),
         
         supabaseClient
           .from('prayer_updates')
           .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
           .eq('approval_status', 'denied'),
         
         // Approved lists
         supabaseClient
           .from('prayers')
           .select('*')
+          .eq('tenant_id', tenantId)
           .eq('approval_status', 'approved')
           .order('approved_at', { ascending: false }),
         
         supabaseClient
           .from('prayer_updates')
           .select('*, prayers!inner(title)')
+          .eq('tenant_id', tenantId)
           .eq('approval_status', 'approved')
           .order('approved_at', { ascending: false }),
         
@@ -265,24 +291,28 @@ export class AdminDataService {
         supabaseClient
           .from('prayers')
           .select('*')
+          .eq('tenant_id', tenantId)
           .eq('approval_status', 'denied')
           .order('denied_at', { ascending: false }),
         
         supabaseClient
           .from('prayer_updates')
           .select('*, prayers!inner(title)')
+          .eq('tenant_id', tenantId)
           .eq('approval_status', 'denied')
           .order('denied_at', { ascending: false }),
         
         supabaseClient
           .from('deletion_requests')
           .select('*, prayers!inner(title)')
+          .eq('tenant_id', tenantId)
           .eq('approval_status', 'denied')
           .order('reviewed_at', { ascending: false }),
         
         supabaseClient
           .from('update_deletion_requests')
           .select('*, prayer_updates(*, prayers(title))')
+          .eq('tenant_id', tenantId)
           .eq('approval_status', 'denied')
           .order('reviewed_at', { ascending: false })
       ]);
@@ -326,6 +356,8 @@ export class AdminDataService {
 
   async approvePrayer(id: string): Promise<void> {
     const supabaseClient = this.supabase.client;
+    const tenantId = this.getRequiredTenantId();
+    if (!tenantId) return;
     
     // Update approval status in the database
     const { error } = await supabaseClient
@@ -334,7 +366,8 @@ export class AdminDataService {
         approval_status: 'approved',
         approved_at: new Date().toISOString()
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
 
     if (error) throw error;
     
@@ -345,6 +378,7 @@ export class AdminDataService {
         approval_status: 'approved',
         approved_at: new Date().toISOString()
       })
+      .eq('tenant_id', tenantId)
       .eq('prayer_id', id)
       .eq('approval_status', 'pending');
 
@@ -359,6 +393,7 @@ export class AdminDataService {
       .from('prayers')
       .select('*')
       .eq('id', id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchError || !prayer) {
@@ -490,12 +525,15 @@ export class AdminDataService {
 
   async denyPrayer(id: string, reason: string): Promise<void> {
     const supabaseClient = this.supabase.client;
+    const tenantId = this.getRequiredTenantId();
+    if (!tenantId) return;
     
     // First get the prayer details before denying
     const { data: prayer, error: fetchError } = await supabaseClient
       .from('prayers')
       .select('*')
       .eq('id', id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchError) throw fetchError;
@@ -508,7 +546,8 @@ export class AdminDataService {
         denied_at: new Date().toISOString(),
         denial_reason: reason
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
 
     if (error) throw error;
     
@@ -519,6 +558,7 @@ export class AdminDataService {
         approval_status: 'denied',
         denied_at: new Date().toISOString()
       })
+      .eq('tenant_id', tenantId)
       .eq('prayer_id', id)
       .eq('approval_status', 'pending');
 
@@ -545,6 +585,8 @@ export class AdminDataService {
 
   async editPrayer(id: string, updates: Partial<PrayerRequest>): Promise<void> {
     const supabaseClient = this.supabase.client;
+    const tenantId = this.getRequiredTenantId();
+    if (!tenantId) return;
     
     // If prayer_for is being updated, also update title to keep them in sync
     const dataToUpdate = { ...updates };
@@ -555,7 +597,8 @@ export class AdminDataService {
     const { error } = await supabaseClient
       .from('prayers')
       .update(dataToUpdate)
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
 
     if (error) throw error;
     await this.fetchAdminData(true, true);
@@ -603,12 +646,15 @@ export class AdminDataService {
 
   async approveUpdate(id: string): Promise<void> {
     const supabaseClient = this.supabase.client;
+    const tenantId = this.getRequiredTenantId();
+    if (!tenantId) return;
     
     // First get the update details, prayer title, and prayer status to check initial state
     const { data: updateInitial, error: fetchInitialError } = await supabaseClient
       .from('prayer_updates')
       .select('*, prayers(title, status)')
       .eq('id', id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchInitialError) throw fetchInitialError;
@@ -620,7 +666,8 @@ export class AdminDataService {
         approval_status: 'approved',
         approved_at: new Date().toISOString()
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
 
     if (error) throw error;
 
@@ -645,7 +692,8 @@ export class AdminDataService {
       const { error: prayerError } = await supabaseClient
         .from('prayers')
         .update({ status: newPrayerStatus })
-        .eq('id', updateInitial.prayer_id);
+        .eq('id', updateInitial.prayer_id)
+        .eq('tenant_id', tenantId);
       
       if (prayerError) {
         console.error('Failed to update prayer status:', prayerError);
@@ -658,6 +706,7 @@ export class AdminDataService {
       .from('prayer_updates')
       .select('*, prayers(title)')
       .eq('id', id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (!fetchError && update) {
@@ -742,12 +791,15 @@ export class AdminDataService {
 
   async denyUpdate(id: string, reason: string): Promise<void> {
     const supabaseClient = this.supabase.client;
+    const tenantId = this.getRequiredTenantId();
+    if (!tenantId) return;
     
     // First get the update details and prayer title before denying
     const { data: update, error: fetchError } = await supabaseClient
       .from('prayer_updates')
       .select('*, prayers(title, description)')
       .eq('id', id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchError) throw fetchError;
@@ -760,7 +812,8 @@ export class AdminDataService {
         denied_at: new Date().toISOString(),
         denial_reason: reason
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
 
     if (error) throw error;
     
@@ -784,11 +837,14 @@ export class AdminDataService {
 
   async editUpdate(id: string, updates: Partial<PrayerUpdate>): Promise<void> {
     const supabaseClient = this.supabase.client;
+    const tenantId = this.getRequiredTenantId();
+    if (!tenantId) return;
     
     const { error } = await supabaseClient
       .from('prayer_updates')
       .update(updates)
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
 
     if (error) throw error;
     await this.fetchAdminData(true);
@@ -871,12 +927,15 @@ export class AdminDataService {
 
   async approveDeletionRequest(id: string): Promise<void> {
     const supabaseClient = this.supabase.client;
+    const tenantId = this.getRequiredTenantId();
+    if (!tenantId) return;
     
     // First, get the prayer_id from the deletion request
     const { data: deletionRequest, error: fetchError } = await supabaseClient
       .from('deletion_requests')
       .select('prayer_id')
       .eq('id', id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchError) throw fetchError;
@@ -889,7 +948,8 @@ export class AdminDataService {
         approval_status: 'approved',
         reviewed_at: new Date().toISOString()
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
 
     if (approveError) throw approveError;
     
@@ -907,6 +967,8 @@ export class AdminDataService {
 
   async denyDeletionRequest(id: string, reason: string): Promise<void> {
     const supabaseClient = this.supabase.client;
+    const tenantId = this.getRequiredTenantId();
+    if (!tenantId) return;
     
     const { error } = await supabaseClient
       .from('deletion_requests')
@@ -915,7 +977,8 @@ export class AdminDataService {
         reviewed_at: new Date().toISOString(),
         denial_reason: reason
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
 
     if (error) throw error;
     await this.fetchAdminData(true, true);
@@ -924,12 +987,15 @@ export class AdminDataService {
 
   async approveUpdateDeletionRequest(id: string): Promise<void> {
     const supabaseClient = this.supabase.client;
+    const tenantId = this.getRequiredTenantId();
+    if (!tenantId) return;
     
     // First, get the update_id from the deletion request
     const { data: deletionRequest, error: fetchError } = await supabaseClient
       .from('update_deletion_requests')
       .select('update_id')
       .eq('id', id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchError) throw fetchError;
@@ -942,7 +1008,8 @@ export class AdminDataService {
         approval_status: 'approved',
         reviewed_at: new Date().toISOString()
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
 
     if (approveError) throw approveError;
     
@@ -960,6 +1027,8 @@ export class AdminDataService {
 
   async denyUpdateDeletionRequest(id: string, reason: string): Promise<void> {
     const supabaseClient = this.supabase.client;
+    const tenantId = this.getRequiredTenantId();
+    if (!tenantId) return;
     
     const { error } = await supabaseClient
       .from('update_deletion_requests')
@@ -968,7 +1037,8 @@ export class AdminDataService {
         reviewed_at: new Date().toISOString(),
         denial_reason: reason
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenantId);
 
     if (error) throw error;
     await this.fetchAdminData(true, true);
@@ -977,12 +1047,15 @@ export class AdminDataService {
 
   async approveAccountRequest(id: string): Promise<void> {
     const supabaseClient = this.supabase.client;
+    const tenantId = this.getRequiredTenantId();
+    if (!tenantId) return;
     
     // Get the account request
     const { data: request, error: fetchError } = await supabaseClient
       .from('account_approval_requests')
       .select('*')
       .eq('id', id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchError) throw fetchError;
@@ -1053,12 +1126,15 @@ export class AdminDataService {
 
   async denyAccountRequest(id: string, reason: string): Promise<void> {
     const supabaseClient = this.supabase.client;
+    const tenantId = this.getRequiredTenantId();
+    if (!tenantId) return;
     
     // Get the account request
     const { data: request, error: fetchError } = await supabaseClient
       .from('account_approval_requests')
       .select('*')
       .eq('id', id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (fetchError) throw fetchError;
@@ -1122,6 +1198,10 @@ export class AdminDataService {
       console.error('Error sending subscriber welcome email:', error);
       throw error;
     }
+  }
+
+  private getRequiredTenantId(): string | null {
+    return this.tenantContext.getActiveTenant()?.id || null;
   }
 
 }
