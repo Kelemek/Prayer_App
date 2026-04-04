@@ -24,6 +24,7 @@ export class AdminAuthService {
   private sessionStart: number | null = null;
   private adminSessionStart: number | null = null;
   private lastBlockedCheck = 0;
+  private hasLoggedMissingJwtForAdminCheck = false;
 
   public user$ = this.userSubject.asObservable();
   public isAdmin$ = this.isAdminSubject.asObservable();
@@ -230,28 +231,20 @@ export class AdminAuthService {
     try {
       const email = user.email.toLowerCase().trim();
       const activeTenantId = this.tenantContext.getActiveTenant()?.id || localStorage.getItem('active_tenant_id');
+      const memberships = this.tenantContext.getMemberships();
+      const isSuperAdminFromContext = this.tenantContext.getIsSuperAdmin();
+      const isTenantAdminFromContext = !!activeTenantId && memberships.some(
+        (membership) =>
+          membership.tenant_id === activeTenantId &&
+          membership.user_email?.toLowerCase().trim() === email &&
+          membership.role === 'tenant_admin'
+      );
 
-      const [superAdminResult, tenantAdminResult] = await Promise.all([
-        this.supabase.client
-          .from('global_roles')
-          .select('role')
-          .eq('user_email', email)
-          .eq('role', 'super_admin')
-          .maybeSingle(),
-        activeTenantId
-          ? this.supabase.client
-              .from('tenant_memberships')
-              .select('role')
-              .eq('tenant_id', activeTenantId)
-              .eq('user_email', email)
-              .eq('role', 'tenant_admin')
-              .maybeSingle()
-          : Promise.resolve({ data: null, error: null } as any)
-      ]);
-
-      const isSuperAdmin = !!superAdminResult.data;
-      const isTenantAdmin = !!tenantAdminResult.data;
-      const isAdmin = isSuperAdmin || isTenantAdmin;
+      // Prefer local tenant context first to avoid extra network calls.
+      let isAdmin = isSuperAdminFromContext || isTenantAdminFromContext;
+      if (!isAdmin) {
+        isAdmin = await this.isEmailAdmin(email);
+      }
       this.isAdminSubject.next(isAdmin);
       this.hasAdminEmailSubject.next(isAdmin);
     } catch (error) {
@@ -421,11 +414,38 @@ export class AdminAuthService {
    */
   private async isEmailAdmin(email: string): Promise<boolean> {
     try {
+      const normalizedEmail = email.toLowerCase().trim();
       const tenantId = this.tenantContext.getActiveTenant()?.id || localStorage.getItem('active_tenant_id') || undefined;
+      const memberships = this.tenantContext.getMemberships();
+      const isSuperAdminFromContext = this.tenantContext.getIsSuperAdmin();
+      const isTenantAdminFromContext = !!tenantId && memberships.some(
+        (membership) =>
+          membership.tenant_id === tenantId &&
+          membership.user_email?.toLowerCase().trim() === normalizedEmail &&
+          membership.role === 'tenant_admin'
+      );
+
+      // Always prefer local tenant context first (works for MFA-local sessions and avoids network calls).
+      if (isSuperAdminFromContext || isTenantAdminFromContext) {
+        return true;
+      }
+
+      // In MFA-local mode there is no Supabase auth JWT; calling the Edge Function would 401 noisily.
+      const { data: { session } } = await this.supabase.client.auth.getSession();
+      const hasSupabaseJwt = !!session?.access_token;
+      if (!hasSupabaseJwt) {
+        if (!this.hasLoggedMissingJwtForAdminCheck) {
+          console.debug('[AdminAuth] Skipping check-admin-status Edge call (no Supabase JWT); relying on tenant context');
+          this.hasLoggedMissingJwtForAdminCheck = true;
+        }
+        return false;
+      }
+      this.hasLoggedMissingJwtForAdminCheck = false;
+
       const { data, error, response } = await this.supabase.client.functions.invoke(
         'check-admin-status',
         {
-          body: { email, tenantId }
+          body: { email: normalizedEmail, tenantId }
         }
       );
 

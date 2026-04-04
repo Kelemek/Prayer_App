@@ -185,10 +185,7 @@ export class PrayerService {
 
       let prayersQuery = this.supabase.client
         .from('prayers')
-        .select(`
-          *,
-          prayer_updates!prayer_updates_prayer_id_fkey(*)
-        `)
+        .select('*')
         .eq('approval_status', 'approved')
         .order('created_at', { ascending: false });
       if (tenantId) {
@@ -200,9 +197,34 @@ export class PrayerService {
 
       console.log(`[PrayerService] Loaded ${prayersData?.length || 0} approved prayers from database`);
 
+      // Fetch approved updates in a second query to avoid expensive/fragile nested joins.
+      const prayerIds = (prayersData || []).map((p: any) => p.id).filter(Boolean);
+      const updatesByPrayerId = new Map<string, any[]>();
+      if (prayerIds.length > 0) {
+        let updatesQuery = this.supabase.client
+          .from('prayer_updates')
+          .select('*')
+          .in('prayer_id', prayerIds)
+          .eq('approval_status', 'approved')
+          .order('created_at', { ascending: false });
+        if (tenantId) {
+          updatesQuery = updatesQuery.eq('tenant_id', tenantId);
+        }
+
+        const { data: updatesData, error: updatesError } = await updatesQuery;
+        if (updatesError) {
+          console.error('[PrayerService] Failed to load prayer updates (continuing with prayers only):', updatesError);
+        } else {
+          (updatesData || []).forEach((update: any) => {
+            const existing = updatesByPrayerId.get(update.prayer_id) || [];
+            existing.push(update);
+            updatesByPrayerId.set(update.prayer_id, existing);
+          });
+        }
+      }
+
       const formattedPrayers = (prayersData || []).map((prayer: any) => {
-        const updates = (prayer.prayer_updates || [])
-          .filter((u: any) => u && u.approval_status === 'approved')
+        const updates = (updatesByPrayerId.get(prayer.id) || [])
           .sort((a: any, b: any) => 
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
           );
@@ -255,7 +277,9 @@ export class PrayerService {
       // Refresh badge counts to ensure badges show up for new updates
       this.badgeService.refreshBadgeCounts();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load prayers';
+      const errorMessage = typeof err === 'object' && err !== null && 'message' in err
+        ? String((err as { message?: unknown }).message ?? 'Failed to load prayers')
+        : (err instanceof Error ? err.message : 'Failed to load prayers');
       console.error('[PrayerService] Failed to load prayers:', err);
       
       // Try to load from cache as fallback
@@ -406,10 +430,7 @@ export class PrayerService {
 
       let monthlyQuery = this.supabase.client
         .from('prayers')
-        .select(`
-          *,
-          prayer_updates!prayer_updates_prayer_id_fkey(*)
-        `)
+        .select('*')
         .or(`(updated_at.gte.${startDate},updated_at.lt.${endDate}),(created_at.gte.${startDate},created_at.lt.${endDate})`)
         .order('updated_at', { ascending: false });
       if (tenantId) {
@@ -419,10 +440,34 @@ export class PrayerService {
 
       if (error) throw error;
 
+      const prayerIds = (prayersData || []).map((p: any) => p.id).filter(Boolean);
+      const updatesByPrayerId = new Map<string, any[]>();
+      if (prayerIds.length > 0) {
+        let updatesQuery = this.supabase.client
+          .from('prayer_updates')
+          .select('*')
+          .in('prayer_id', prayerIds)
+          .eq('approval_status', 'approved')
+          .order('created_at', { ascending: false });
+        if (tenantId) {
+          updatesQuery = updatesQuery.eq('tenant_id', tenantId);
+        }
+        const { data: updatesData, error: updatesError } = await updatesQuery;
+        if (updatesError) {
+          console.error('[PrayerService] Failed to load monthly prayer updates:', updatesError);
+        } else {
+          (updatesData || []).forEach((update: any) => {
+            const existing = updatesByPrayerId.get(update.prayer_id) || [];
+            existing.push(update);
+            updatesByPrayerId.set(update.prayer_id, existing);
+          });
+        }
+      }
+
       // Format the data same as loadPrayers
       const formattedPrayers = (prayersData || []).map((prayer: any) => ({
         ...prayer,
-        updates: prayer.prayer_updates || []
+        updates: updatesByPrayerId.get(prayer.id) || []
       }));
 
       // Sort by latest activity

@@ -115,7 +115,25 @@ export class AdminDataService {
         return;
       }
 
-      // PHASE 1: Fetch only pending items immediately (6 quick queries)
+      // PHASE 1: Fetch only pending items immediately.
+      // Guard each query with a timeout so one stalled request doesn't block the entire admin screen.
+      const withTimeout = async <T>(
+        promise: PromiseLike<T>,
+        label: string,
+        timeoutMs = 8000
+      ): Promise<T> => {
+        return Promise.race([
+          promise,
+          new Promise<T>((resolve) => {
+            setTimeout(() => {
+              console.error(`[AdminDataService] ${label} timed out after ${timeoutMs}ms`);
+              resolve(({ data: null, error: new Error(`${label} timed out`) } as unknown) as T);
+            }, timeoutMs);
+          })
+        ]);
+      };
+
+      // These are what users see first and most importantly need on initial load
       // These are what users see first and most importantly need on initial load
       const [
         pendingPrayersResult,
@@ -123,51 +141,74 @@ export class AdminDataService {
         pendingDeletionRequestsResult,
         pendingUpdateDeletionRequestsResult,
         pendingAccountRequestsResult
-      ] = await Promise.all([
+      ] = (await Promise.all([
         // Pending prayers
-        supabaseClient
+        withTimeout(
+          supabaseClient
           .from('prayers')
           .select('*')
           .eq('tenant_id', tenantId)
           .eq('approval_status', 'pending')
           .order('created_at', { ascending: false }),
+          'Pending prayers query'
+        ),
         
         // Pending updates with full prayer details
-        supabaseClient
+        withTimeout(
+          supabaseClient
           .from('prayer_updates')
-          .select('*, prayers!inner(id, title, description, requester, prayer_for, status, email)')
+          .select('*')
           .eq('tenant_id', tenantId)
           .eq('approval_status', 'pending')
           .order('created_at', { ascending: false }),
+          'Pending updates query'
+        ),
         
         // Pending deletion requests
-        supabaseClient
+        withTimeout(
+          supabaseClient
           .from('deletion_requests')
           .select('*, prayers!inner(title)')
           .eq('tenant_id', tenantId)
           .eq('approval_status', 'pending')
           .order('created_at', { ascending: false }),
+          'Pending deletion requests query'
+        ),
         
         // Pending update deletion requests
-        supabaseClient
+        withTimeout(
+          supabaseClient
           .from('update_deletion_requests')
           .select('*, prayer_updates(*, prayers(title))')
           .eq('tenant_id', tenantId)
           .eq('approval_status', 'pending')
           .order('created_at', { ascending: false }),
+          'Pending update deletion requests query'
+        ),
         
         // Pending account approval requests
-        supabaseClient
+        withTimeout(
+          supabaseClient
           .from('account_approval_requests')
           .select('*')
           .eq('tenant_id', tenantId)
           .eq('approval_status', 'pending')
-          .order('created_at', { ascending: false })
-      ]);
+          .order('created_at', { ascending: false }),
+          'Pending account approval requests query'
+        )
+      ])) as any[];
 
       // Check for errors
       if (pendingPrayersResult.error) throw pendingPrayersResult.error;
-      if (pendingUpdatesResult.error) throw pendingUpdatesResult.error;
+      if (pendingUpdatesResult.error) {
+        console.error('[AdminDataService] Pending updates query failed:', pendingUpdatesResult.error);
+      }
+      if (pendingDeletionRequestsResult.error) {
+        console.error('[AdminDataService] Pending deletion requests query failed:', pendingDeletionRequestsResult.error);
+      }
+      if (pendingUpdateDeletionRequestsResult.error) {
+        console.error('[AdminDataService] Pending update deletion requests query failed:', pendingUpdateDeletionRequestsResult.error);
+      }
       if (pendingAccountRequestsResult.error) {
         throw pendingAccountRequestsResult.error;
       }
@@ -176,8 +217,7 @@ export class AdminDataService {
 
       const pendingUpdates = (pendingUpdatesResult.data || []).map((u: any) => ({
         ...u,
-        prayer_title: u.prayers?.title,
-        prayers: u.prayers
+        prayer_title: undefined
       }));
 
       const pendingDeletionRequests = (pendingDeletionRequestsResult.data || []).map((d: any) => ({

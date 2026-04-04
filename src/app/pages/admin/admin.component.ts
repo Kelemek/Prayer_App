@@ -31,7 +31,7 @@ import { TenantManagementComponent } from '../../components/tenant-management/te
 import { TenantContextService } from '../../services/tenant-context.service';
 
 type AdminTab = 'prayers' | 'updates' | 'deletions' | 'accounts' | 'settings';
-type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security';
+type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 'tenant_manager';
 
 @Component({
   selector: 'app-admin',
@@ -402,6 +402,20 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security';
                 </svg>
                 Security
               </button>
+              @if (isSuperAdmin) {
+              <button
+                (click)="onSettingsTabChange('tenant_manager')"
+                [class]="'px-4 py-2 font-medium rounded-t-lg transition-colors flex items-center gap-2 cursor-pointer ' + (activeSettingsTab === 'tenant_manager' ? 'bg-blue-600 text-white border-b-2 border-blue-600' : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200')"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="8.5" cy="7" r="4"></circle>
+                  <path d="M20 8v6"></path>
+                  <path d="M23 11h-6"></path>
+                </svg>
+                Tenant Manager
+              </button>
+              }
             </div>
 
             <!-- Analytics Tab -->
@@ -638,11 +652,6 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security';
                 <div class="mb-4">
                   <app-prayer-archive-timeline></app-prayer-archive-timeline>
                 </div>
-                @if (isSuperAdmin) {
-                  <div class="mb-4">
-                    <app-backup-status></app-backup-status>
-                  </div>
-                }
               </div>
             }
 
@@ -658,16 +667,24 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security';
                 <div class="mb-4">
                   <app-security-policy-settings></app-security-policy-settings>
                 </div>
+              </div>
+            }
+
+            @if (activeSettingsTab === 'tenant_manager' && isSuperAdmin) {
+              <div>
+                <div class="mb-4">
+                  <app-tenant-management></app-tenant-management>
+                </div>
                 <div class="mb-4">
                   <app-test-account-settings></app-test-account-settings>
                 </div>
                 <div class="mb-4">
-                  <app-tenant-management></app-tenant-management>
+                  <app-backup-status></app-backup-status>
                 </div>
               </div>
             }
 
-            @if (activeSettingsTab !== 'analytics' && activeSettingsTab !== 'content' && activeSettingsTab !== 'email' && activeSettingsTab !== 'tools' && activeSettingsTab !== 'security') {
+            @if (activeSettingsTab !== 'analytics' && activeSettingsTab !== 'content' && activeSettingsTab !== 'email' && activeSettingsTab !== 'tools' && activeSettingsTab !== 'security' && activeSettingsTab !== 'tenant_manager') {
               <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center border border-gray-200 dark:border-gray-700">
                 <h3 class="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2">
                   {{ activeSettingsTab | titlecase }} Settings
@@ -767,6 +784,9 @@ export class AdminComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe((isSuperAdmin) => {
         this.isSuperAdmin = isSuperAdmin;
+        if (!this.isSuperAdmin && this.activeSettingsTab === 'tenant_manager') {
+          this.activeSettingsTab = 'security';
+        }
         this.cdr.markForCheck();
       });
 
