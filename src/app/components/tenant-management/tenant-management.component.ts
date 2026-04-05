@@ -1,11 +1,12 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subject, takeUntil } from 'rxjs';
 import { TenantContextService } from '../../services/tenant-context.service';
 import { TenantManagementService } from '../../services/tenant-management.service';
 import { TenantPermissionService } from '../../services/tenant-permission.service';
 import { ToastService } from '../../services/toast.service';
-import type { PlanTier, PlanStatus, TenantMembership } from '../../types/tenant';
+import type { PlanTier, PlanStatus, Tenant, TenantMembership } from '../../types/tenant';
 
 @Component({
   selector: 'app-tenant-management',
@@ -77,11 +78,58 @@ import type { PlanTier, PlanStatus, TenantMembership } from '../../types/tenant'
             <button (click)="removeSuperAdmin()" class="px-3 py-2 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700">Revoke</button>
           </div>
         </div>
+
+        <div class="mt-4 p-4 rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50/60 dark:bg-blue-900/20">
+          <h4 class="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">Tenant View / Impersonation</h4>
+          <p class="text-xs text-blue-700 dark:text-blue-200 mb-3">
+            Choose a tenant to view and perform actions exactly in that tenant context.
+          </p>
+
+          @if (availableTenants.length === 0) {
+            <p class="text-xs text-gray-500 dark:text-gray-400">No tenants available.</p>
+          } @else {
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-3">
+              <input
+                [(ngModel)]="tenantSearch"
+                type="text"
+                placeholder="Search tenants by name or slug"
+                class="lg:col-span-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+              />
+              <select
+                [(ngModel)]="selectedTenantId"
+                class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+              >
+                @for (tenant of filteredTenants; track tenant.id) {
+                  <option [value]="tenant.id">{{ tenant.name }} ({{ tenant.slug }})</option>
+                }
+              </select>
+            </div>
+
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <div class="text-xs text-gray-700 dark:text-gray-300">
+                Active: <span class="font-semibold">{{ activeTenantName }}</span>
+              </div>
+              @if (isImpersonatingTenant) {
+                <span class="text-[11px] px-2 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                  Impersonating
+                </span>
+              }
+            </div>
+
+            <button
+              (click)="switchTenantView()"
+              [disabled]="isSwitchingTenant || !selectedTenantId"
+              class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {{ isSwitchingTenant ? 'Switching...' : 'Switch Tenant View' }}
+            </button>
+          }
+        </div>
       }
     </div>
   `
 })
-export class TenantManagementComponent implements OnInit {
+export class TenantManagementComponent implements OnInit, OnDestroy {
   activeTenantId: string | null = null;
   activeTenantName = '';
   planTier: PlanTier = 'groups';
@@ -91,6 +139,12 @@ export class TenantManagementComponent implements OnInit {
   memberships: TenantMembership[] = [];
   isSuperAdmin = false;
   superAdminEmail = '';
+  availableTenants: Tenant[] = [];
+  selectedTenantId = '';
+  tenantSearch = '';
+  isSwitchingTenant = false;
+  isImpersonatingTenant = false;
+  private destroy$ = new Subject<void>();
 
   constructor(
     private tenantContext: TenantContextService,
@@ -101,10 +155,27 @@ export class TenantManagementComponent implements OnInit {
 
   ngOnInit(): void {
     this.hydrateFromContext();
-    this.tenantContext.activeTenant$.subscribe(() => this.hydrateFromContext());
-    this.tenantContext.isSuperAdmin$.subscribe((isSuperAdmin) => {
-      this.isSuperAdmin = isSuperAdmin;
-    });
+    this.tenantContext.activeTenant$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.hydrateFromContext());
+    this.tenantContext.isSuperAdmin$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((isSuperAdmin) => {
+        this.isSuperAdmin = isSuperAdmin;
+      });
+    this.tenantContext.availableTenants$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((tenants) => {
+        this.availableTenants = tenants;
+        if (!this.selectedTenantId && tenants.length > 0) {
+          this.selectedTenantId = tenants[0].id;
+        }
+      });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   async createInvite(): Promise<void> {
@@ -155,12 +226,51 @@ export class TenantManagementComponent implements OnInit {
     }
   }
 
+  async switchTenantView(): Promise<void> {
+    if (!this.isSuperAdmin || !this.selectedTenantId) {
+      return;
+    }
+    const selectedTenant = this.availableTenants.find((tenant) => tenant.id === this.selectedTenantId);
+    const selectedTenantName = selectedTenant?.name || 'selected tenant';
+    if (this.selectedTenantId === this.activeTenantId) {
+      this.toast.success(`Already viewing ${this.activeTenantName}`);
+      return;
+    }
+
+    this.isSwitchingTenant = true;
+    try {
+      const changed = await this.tenantContext.switchTenant(this.selectedTenantId);
+      if (!changed) {
+        this.toast.error('Unable to switch tenant view');
+        return;
+      }
+      void this.hydrateFromContext();
+      this.toast.success(`Now viewing ${selectedTenantName}`);
+    } finally {
+      this.isSwitchingTenant = false;
+    }
+  }
+
+  get filteredTenants(): Tenant[] {
+    const query = this.tenantSearch.trim().toLowerCase();
+    if (!query) {
+      return this.availableTenants;
+    }
+    return this.availableTenants.filter(
+      (tenant) =>
+        tenant.name.toLowerCase().includes(query) ||
+        tenant.slug.toLowerCase().includes(query)
+    );
+  }
+
   private async hydrateFromContext(): Promise<void> {
     const activeTenant = this.tenantContext.getActiveTenant();
     this.activeTenantId = activeTenant?.id || null;
     this.activeTenantName = activeTenant?.name || 'Personal-only';
     this.planTier = activeTenant?.plan_tier || 'groups';
     this.planStatus = activeTenant?.plan_status || 'active';
+    this.selectedTenantId = this.activeTenantId || this.selectedTenantId;
+    this.isImpersonatingTenant = this.tenantContext.getIsImpersonatingTenant();
     if (this.activeTenantId) {
       try {
         this.memberships = await this.tenantManagement.getMembershipsForActiveTenant();

@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, HostListener, ChangeDetectionStrategy, ChangeDetectorRef, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, distinctUntilChanged, filter, map, skip, take, takeUntil } from 'rxjs';
 import { AdminDataService } from '../../services/admin-data.service';
 import { AdminAuthService } from '../../services/admin-auth.service';
 import { UserSessionService } from '../../services/user-session.service';
@@ -355,6 +355,7 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
               
               <!-- Settings Sub-Navigation -->
             <div class="flex flex-wrap gap-2 mb-6 border-b border-gray-200 dark:border-gray-700">
+              @if (canAccessAnalytics()) {
               <button
                 (click)="onSettingsTabChange('analytics')"
                 [class]="'px-4 py-2 font-medium rounded-t-lg transition-colors flex items-center gap-2 cursor-pointer ' + (activeSettingsTab === 'analytics' ? 'bg-blue-600 text-white border-b-2 border-blue-600' : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200')"
@@ -365,6 +366,7 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
                 </svg>
                 Analytics
               </button>
+              }
               <button
                 (click)="onSettingsTabChange('content')"
                 [class]="'px-4 py-2 font-medium rounded-t-lg transition-colors flex items-center gap-2 cursor-pointer ' + (activeSettingsTab === 'content' ? 'bg-blue-600 text-white border-b-2 border-blue-600' : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200')"
@@ -578,7 +580,7 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
                     <div class="text-xs text-[#6B5D45] dark:text-[#D4AF85] mt-1 opacity-70">archived prayers</div>
                   </div>
 
-                  <!-- Email Subscribers -->
+                  <!-- Tenant members -->
                   <div class="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-4 border border-cyan-200 dark:border-cyan-700">
                     <div class="flex items-center gap-2 mb-2">
                       <svg class="text-cyan-600 dark:text-cyan-400" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -586,27 +588,27 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
                         <circle cx="8.5" cy="7" r="4"></circle>
                         <polyline points="17 11 19 13 23 9"></polyline>
                       </svg>
-                      <div class="text-sm font-medium text-cyan-900 dark:text-cyan-100">Email Subscribers</div>
+                      <div class="text-sm font-medium text-cyan-900 dark:text-cyan-100">Tenant members</div>
                     </div>
                     <div class="text-3xl font-bold text-cyan-600 dark:text-cyan-400">
-                      {{ analyticsStats.totalSubscribers.toLocaleString() }}
+                      {{ analyticsStats.totalTenantMembers.toLocaleString() }}
                     </div>
-                    <div class="text-xs text-cyan-600/70 dark:text-cyan-400/70 mt-1">total email subscribers</div>
+                    <div class="text-xs text-cyan-600/70 dark:text-cyan-400/70 mt-1">users in this tenant</div>
                   </div>
 
-                  <!-- Active Email Subscribers -->
+                  <!-- Leaders and admins -->
                   <div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 border border-amber-200 dark:border-amber-700">
                     <div class="flex items-center gap-2 mb-2">
                       <svg class="text-amber-600 dark:text-amber-400" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
                         <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
                       </svg>
-                      <div class="text-sm font-medium text-amber-900 dark:text-amber-100">Active Email Subscribers</div>
+                      <div class="text-sm font-medium text-amber-900 dark:text-amber-100">Leaders and admins</div>
                     </div>
                     <div class="text-3xl font-bold text-amber-600 dark:text-amber-400">
-                      {{ analyticsStats.activeEmailSubscribers.toLocaleString() }}
+                      {{ analyticsStats.tenantLeadersAndAdmins.toLocaleString() }}
                     </div>
-                    <div class="text-xs text-amber-600/70 dark:text-amber-400/70 mt-1">active email subscribers</div>
+                    <div class="text-xs text-amber-600/70 dark:text-amber-400/70 mt-1">leader or tenant_admin roles</div>
                   </div>
                 </div>
               }
@@ -739,8 +741,8 @@ export class AdminComponent implements OnInit, OnDestroy {
     currentPrayers: 0,
     answeredPrayers: 0,
     archivedPrayers: 0,
-    totalSubscribers: 0,
-    activeEmailSubscribers: 0,
+    totalTenantMembers: 0,
+    tenantLeadersAndAdmins: 0,
     loading: false
   };
 
@@ -780,14 +782,38 @@ export class AdminComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.tenantContextService.loading$
+      .pipe(
+        filter((loading) => !loading),
+        take(1),
+        takeUntil(this.destroy$)
+      )
+      .subscribe(() => {
+        this.ensureSettingsTabAllowed();
+        this.cdr.markForCheck();
+      });
+
     this.tenantContextService.isSuperAdmin$
       .pipe(takeUntil(this.destroy$))
       .subscribe((isSuperAdmin) => {
         this.isSuperAdmin = isSuperAdmin;
-        if (!this.isSuperAdmin && this.activeSettingsTab === 'tenant_manager') {
-          this.activeSettingsTab = 'security';
-        }
+        this.ensureSettingsTabAllowed();
         this.cdr.markForCheck();
+      });
+
+    this.tenantContextService.activeTenant$
+      .pipe(
+        map((tenant) => tenant?.id || null),
+        distinctUntilChanged(),
+        skip(1),
+        takeUntil(this.destroy$)
+      )
+      .subscribe(() => {
+        this.ensureSettingsTabAllowed();
+        this.adminDataService.fetchAdminData(true, true);
+        if (this.activeTab === 'settings' && this.activeSettingsTab === 'analytics' && this.canAccessAnalytics()) {
+          void this.loadAnalytics();
+        }
       });
 
     // Subscribe to admin data. Run updates inside NgZone so change detection runs when
@@ -818,9 +844,24 @@ export class AdminComponent implements OnInit, OnDestroy {
     this.hasFetchStarted = true;
     this.adminDataService.fetchAdminData();
     
-    // Load analytics if settings tab is already active
-    if (this.activeTab === 'settings' && this.activeSettingsTab === 'analytics') {
-      this.loadAnalytics();
+    if (this.activeTab === 'settings' && this.activeSettingsTab === 'analytics' && this.canAccessAnalytics()) {
+      void this.loadAnalytics();
+    }
+  }
+
+  canAccessAnalytics(): boolean {
+    if (this.tenantContextService.getIsSuperAdmin()) {
+      return true;
+    }
+    return this.tenantContextService.getActiveTenant()?.plan_tier === 'churches';
+  }
+
+  private ensureSettingsTabAllowed(): void {
+    if (!this.isSuperAdmin && this.activeSettingsTab === 'tenant_manager') {
+      this.activeSettingsTab = 'security';
+    }
+    if (!this.canAccessAnalytics() && this.activeSettingsTab === 'analytics') {
+      this.activeSettingsTab = 'content';
     }
   }
 
@@ -921,10 +962,29 @@ export class AdminComponent implements OnInit, OnDestroy {
   }
 
   async loadAnalytics() {
+    const tenantId = this.tenantContextService.getActiveTenant()?.id;
     this.analyticsStats.loading = true;
     this.cdr.markForCheck();
+    if (!tenantId) {
+      this.analyticsStats = {
+        todayPageViews: 0,
+        weekPageViews: 0,
+        monthPageViews: 0,
+        yearPageViews: 0,
+        totalPageViews: 0,
+        totalPrayers: 0,
+        currentPrayers: 0,
+        answeredPrayers: 0,
+        archivedPrayers: 0,
+        totalTenantMembers: 0,
+        tenantLeadersAndAdmins: 0,
+        loading: false
+      };
+      this.cdr.markForCheck();
+      return;
+    }
     try {
-      this.analyticsStats = await this.analyticsService.getStats();
+      this.analyticsStats = await this.analyticsService.getStats(tenantId);
       this.cdr.markForCheck();
     } catch (error) {
       console.error('Error loading analytics:', error);
@@ -936,15 +996,16 @@ export class AdminComponent implements OnInit, OnDestroy {
 
   onTabChange(tab: AdminTab) {
     this.activeTab = tab;
-    if (tab === 'settings' && this.activeSettingsTab === 'analytics' && this.analyticsStats.totalPageViews === 0) {
-      this.loadAnalytics();
+    if (tab === 'settings' && this.activeSettingsTab === 'analytics' && this.canAccessAnalytics()) {
+      void this.loadAnalytics();
     }
   }
 
   onSettingsTabChange(tab: SettingsTab) {
-    this.activeSettingsTab = tab;
-    if (tab === 'analytics' && this.analyticsStats.totalPageViews === 0) {
-      this.loadAnalytics();
+    const next = tab === 'analytics' && !this.canAccessAnalytics() ? 'content' : tab;
+    this.activeSettingsTab = next;
+    if (next === 'analytics') {
+      void this.loadAnalytics();
     }
   }
 

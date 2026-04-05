@@ -17,11 +17,13 @@ type TenantContextRpcRow = {
 })
 export class TenantContextService {
   private membershipsSubject = new BehaviorSubject<TenantMembership[]>([]);
+  private availableTenantsSubject = new BehaviorSubject<Tenant[]>([]);
   private activeTenantSubject = new BehaviorSubject<Tenant | null>(null);
   private isSuperAdminSubject = new BehaviorSubject<boolean>(false);
   private loadingSubject = new BehaviorSubject<boolean>(true);
 
   public memberships$ = this.membershipsSubject.asObservable();
+  public availableTenants$ = this.availableTenantsSubject.asObservable();
   public activeTenant$ = this.activeTenantSubject.asObservable();
   public isSuperAdmin$ = this.isSuperAdminSubject.asObservable();
   public loading$ = this.loadingSubject.asObservable();
@@ -43,13 +45,25 @@ export class TenantContextService {
     return this.membershipsSubject.value;
   }
 
+  getAvailableTenants(): Tenant[] {
+    return this.availableTenantsSubject.value;
+  }
+
   getIsSuperAdmin(): boolean {
     return this.isSuperAdminSubject.value;
   }
 
+  getIsImpersonatingTenant(): boolean {
+    const activeTenant = this.getActiveTenant();
+    if (!activeTenant || !this.getIsSuperAdmin()) {
+      return false;
+    }
+    const memberships = this.membershipsSubject.value;
+    return !memberships.some((membership) => membership.tenant_id === activeTenant.id);
+  }
+
   async switchTenant(tenantId: string): Promise<boolean> {
-    const membership = this.membershipsSubject.value.find((item) => item.tenant_id === tenantId);
-    const tenant = this.toTenant(membership?.tenants);
+    const tenant = this.availableTenantsSubject.value.find((item) => item.id === tenantId) || null;
     if (!tenant) {
       return false;
     }
@@ -68,6 +82,7 @@ export class TenantContextService {
 
     if (!userEmail) {
       this.membershipsSubject.next([]);
+      this.availableTenantsSubject.next([]);
       this.activeTenantSubject.next(null);
       this.isSuperAdminSubject.next(false);
       this.loadingSubject.next(false);
@@ -99,9 +114,15 @@ export class TenantContextService {
           role: row.role,
           tenants: row.tenant
         } as TenantMembership));
+      const normalizedMemberships = this.normalizeMemberships(memberships);
+      const isSuperAdmin = rows.some((row) => row.is_super_admin);
+      const allTenants = isSuperAdmin
+        ? await this.getAllTenantsForSuperAdmin(lowerEmail, false)
+        : this.extractTenantsFromMemberships(normalizedMemberships);
 
-      this.membershipsSubject.next(this.normalizeMemberships(memberships));
-      this.isSuperAdminSubject.next(rows.some((row) => row.is_super_admin));
+      this.membershipsSubject.next(normalizedMemberships);
+      this.availableTenantsSubject.next(this.normalizeTenants(allTenants));
+      this.isSuperAdminSubject.next(isSuperAdmin);
       this.restoreOrAutoSelectActiveTenant();
       this.loadingSubject.next(false);
       return;
@@ -120,43 +141,50 @@ export class TenantContextService {
         .maybeSingle()
     ]);
 
+    let normalizedMemberships: TenantMembership[] = [];
     if (membershipsError) {
       console.error('[TenantContext] Failed to load memberships:', membershipsError);
 
       this.membershipsSubject.next([]);
     } else {
-      this.membershipsSubject.next(this.normalizeMemberships((memberships || []) as TenantMembership[]));
+      normalizedMemberships = this.normalizeMemberships((memberships || []) as TenantMembership[]);
+      this.membershipsSubject.next(normalizedMemberships);
     }
 
+    let isSuperAdmin = false;
     if (roleError) {
       console.error('[TenantContext] Failed to load global roles:', roleError);
       this.isSuperAdminSubject.next(false);
     } else {
-      this.isSuperAdminSubject.next(!!superRole);
+      isSuperAdmin = !!superRole;
+      this.isSuperAdminSubject.next(isSuperAdmin);
     }
 
+    const allTenants = isSuperAdmin
+      ? await this.getAllTenantsForSuperAdmin(lowerEmail, true)
+      : this.extractTenantsFromMemberships(normalizedMemberships);
+    this.availableTenantsSubject.next(this.normalizeTenants(allTenants));
     this.restoreOrAutoSelectActiveTenant();
 
     this.loadingSubject.next(false);
   }
 
   private restoreOrAutoSelectActiveTenant(): void {
-    const memberships = this.membershipsSubject.value;
-    if (memberships.length === 0) {
+    const availableTenants = this.availableTenantsSubject.value;
+    if (availableTenants.length === 0) {
       this.activeTenantSubject.next(null);
       localStorage.removeItem(ACTIVE_TENANT_STORAGE_KEY);
       return;
     }
 
     const storedTenantId = localStorage.getItem(ACTIVE_TENANT_STORAGE_KEY);
-    const stored = memberships.find((m) => m.tenant_id === storedTenantId && m.tenants);
-    const storedTenant = this.toTenant(stored?.tenants);
+    const storedTenant = availableTenants.find((tenant) => tenant.id === storedTenantId) || null;
     if (storedTenant) {
       this.activeTenantSubject.next(storedTenant);
       return;
     }
 
-    const fallback = this.toTenant(memberships.find((m) => !!m.tenants)?.tenants);
+    const fallback = availableTenants[0] || null;
     this.activeTenantSubject.next(fallback);
     if (fallback?.id) {
       localStorage.setItem(ACTIVE_TENANT_STORAGE_KEY, fallback.id);
@@ -176,6 +204,52 @@ export class TenantContextService {
       return value.length > 0 ? value[0] : null;
     }
     return value;
+  }
+
+  private extractTenantsFromMemberships(memberships: TenantMembership[]): Tenant[] {
+    return memberships
+      .map((membership) => this.toTenant(membership.tenants))
+      .filter((tenant): tenant is Tenant => !!tenant);
+  }
+
+  private normalizeTenants(tenants: Tenant[]): Tenant[] {
+    const unique = new Map<string, Tenant>();
+    tenants.forEach((tenant) => {
+      if (tenant?.id) {
+        unique.set(tenant.id, tenant);
+      }
+    });
+    return Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  private async getAllTenantsForSuperAdmin(
+    userEmail: string,
+    allowTableFallback: boolean
+  ): Promise<Tenant[]> {
+    const { data, error } = await this.supabase.client.rpc('get_all_tenants_for_email', {
+      p_email: userEmail
+    });
+    if (!error && data) {
+      return this.normalizeTenants((data || []) as Tenant[]);
+    }
+
+    if (error) {
+      console.error('[TenantContext] Failed to load all tenants for super admin:', error);
+    }
+    if (!allowTableFallback) {
+      return [];
+    }
+
+    const { data: tenantRows, error: tenantError } = await this.supabase.client
+      .from('tenants')
+      .select('id, name, slug, plan_tier, plan_status')
+      .order('name', { ascending: true });
+    if (tenantError) {
+      console.error('[TenantContext] Fallback all-tenant query failed:', tenantError);
+      return [];
+    }
+
+    return this.normalizeTenants((tenantRows || []) as Tenant[]);
   }
 
   private async getUserEmail(): Promise<string | null> {
@@ -203,6 +277,7 @@ export class TenantContextService {
   private handleAuthState(isAuthenticated: boolean): void {
     if (!isAuthenticated) {
       this.membershipsSubject.next([]);
+      this.availableTenantsSubject.next([]);
       this.activeTenantSubject.next(null);
       this.isSuperAdminSubject.next(false);
       this.loadingSubject.next(false);

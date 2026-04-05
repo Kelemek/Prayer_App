@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { SupabaseService } from './supabase.service';
 import { UserSessionService } from './user-session.service';
+import { TenantContextService } from './tenant-context.service';
 
 export interface AnalyticsStats {
   todayPageViews: number;
@@ -12,8 +13,10 @@ export interface AnalyticsStats {
   currentPrayers: number;
   answeredPrayers: number;
   archivedPrayers: number;
-  totalSubscribers: number;
-  activeEmailSubscribers: number;
+  /** All memberships for the active tenant */
+  totalTenantMembers: number;
+  /** Members with leader or tenant_admin role */
+  tenantLeadersAndAdmins: number;
   loading: boolean;
 }
 
@@ -23,7 +26,8 @@ export interface AnalyticsStats {
 export class AnalyticsService {
   constructor(
     private supabase: SupabaseService,
-    private userSession: UserSessionService
+    private userSession: UserSessionService,
+    private tenantContext: TenantContextService
   ) {}
 
   /**
@@ -50,20 +54,21 @@ export class AnalyticsService {
       const fiveMinutesMs = 5 * 60 * 1000;
 
       // Only update if no previous update or if 5+ minutes have passed
-      if (lastUpdateTime && now - parseInt(lastUpdateTime) < fiveMinutesMs) {
+      if (lastUpdateTime && now - parseInt(lastUpdateTime, 10) < fiveMinutesMs) {
         return; // Skip both operations - too recent
       }
 
+      const tenantId = this.tenantContext.getActiveTenant()?.id ?? null;
+
       // Track the page view in analytics table
-      await this.supabase.client
-        .from('analytics')
-        .insert({
-          event_type: 'page_view',
-          event_data: {
-            timestamp: new Date().toISOString(),
-            url: typeof window !== 'undefined' ? window.location.pathname : null
-          }
-        });
+      await this.supabase.client.from('analytics').insert({
+        event_type: 'page_view',
+        tenant_id: tenantId,
+        event_data: {
+          timestamp: new Date().toISOString(),
+          url: typeof window !== 'undefined' ? window.location.pathname : null
+        }
+      });
 
       // Update the user's last activity date in email_subscribers
       await this.supabase.client
@@ -78,7 +83,7 @@ export class AnalyticsService {
     }
   }
 
-  async getStats(): Promise<AnalyticsStats> {
+  async getStats(tenantId: string): Promise<AnalyticsStats> {
     const stats: AnalyticsStats = {
       todayPageViews: 0,
       weekPageViews: 0,
@@ -89,24 +94,27 @@ export class AnalyticsService {
       currentPrayers: 0,
       answeredPrayers: 0,
       archivedPrayers: 0,
-      totalSubscribers: 0,
-      activeEmailSubscribers: 0,
+      totalTenantMembers: 0,
+      tenantLeadersAndAdmins: 0,
       loading: true
     };
 
+    if (!tenantId?.trim()) {
+      stats.loading = false;
+      return stats;
+    }
+
     try {
-      const now = new Date();
-      
       // Today: from 12 AM to 12 AM (00:00:00 to 23:59:59.999) local time
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
-      
+
       // Week: Sunday 12 AM to current time (current calendar week)
       const weekStart = new Date();
       const dayOfWeek = weekStart.getDay(); // 0 = Sunday
       weekStart.setDate(weekStart.getDate() - dayOfWeek);
       weekStart.setHours(0, 0, 0, 0);
-      
+
       // Month: 1st of current month 12 AM to current time
       const monthStart = new Date();
       monthStart.setDate(1);
@@ -119,13 +127,21 @@ export class AnalyticsService {
       yearStart.setHours(0, 0, 0, 0);
 
       // Convert local times to ISO strings for database queries
-      // The database stores created_at in UTC, but we need to query based on local time
       const todayStartISO = todayStart.toISOString();
       const weekStartISO = weekStart.toISOString();
       const monthStartISO = monthStart.toISOString();
       const yearStartISO = yearStart.toISOString();
 
-      // Execute all queries in parallel for better performance
+      const analyticsBase = () =>
+        this.supabase.client
+          .from('analytics')
+          .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
+          .eq('event_type', 'page_view');
+
+      const prayersBase = () =>
+        this.supabase.client.from('prayers').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId);
+
       const [
         totalResult,
         todayResult,
@@ -136,79 +152,29 @@ export class AnalyticsService {
         currentPrayersResult,
         answeredPrayersResult,
         archivedPrayersResult,
-        subscribersResult,
-        activeSubscribersResult
+        membersResult,
+        leadersResult
       ] = await Promise.all([
-        // Total page views
+        analyticsBase(),
+        analyticsBase().gte('created_at', todayStartISO),
+        analyticsBase().gte('created_at', weekStartISO),
+        analyticsBase().gte('created_at', monthStartISO),
+        analyticsBase().gte('created_at', yearStartISO),
+        prayersBase(),
+        prayersBase().eq('status', 'current'),
+        prayersBase().eq('status', 'answered'),
+        prayersBase().eq('status', 'archived'),
         this.supabase.client
-          .from('analytics')
+          .from('tenant_memberships')
           .select('*', { count: 'exact', head: true })
-          .eq('event_type', 'page_view'),
-
-        // Today's page views
+          .eq('tenant_id', tenantId),
         this.supabase.client
-          .from('analytics')
+          .from('tenant_memberships')
           .select('*', { count: 'exact', head: true })
-          .eq('event_type', 'page_view')
-          .gte('created_at', todayStartISO),
-
-        // Week's page views (current calendar week - Sunday to now)
-        this.supabase.client
-          .from('analytics')
-          .select('*', { count: 'exact', head: true })
-          .eq('event_type', 'page_view')
-          .gte('created_at', weekStartISO),
-
-        // Month's page views (current calendar month - 1st to now)
-        this.supabase.client
-          .from('analytics')
-          .select('*', { count: 'exact', head: true })
-          .eq('event_type', 'page_view')
-          .gte('created_at', monthStartISO),
-
-        // Year's page views (current year - Jan 1 to now)
-        this.supabase.client
-          .from('analytics')
-          .select('*', { count: 'exact', head: true })
-          .eq('event_type', 'page_view')
-          .gte('created_at', yearStartISO),
-
-        // Total prayers count
-        this.supabase.client
-          .from('prayers')
-          .select('*', { count: 'exact', head: true }),
-
-        // Current prayers (status = 'current')
-        this.supabase.client
-          .from('prayers')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'current'),
-
-        // Answered prayers (status = 'answered')
-        this.supabase.client
-          .from('prayers')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'answered'),
-
-        // Archived prayers (status = 'archived')
-        this.supabase.client
-          .from('prayers')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'archived'),
-
-        // Total subscribers
-        this.supabase.client
-          .from('email_subscribers')
-          .select('*', { count: 'exact', head: true }),
-
-        // Active email subscribers (is_active = true)
-        this.supabase.client
-          .from('email_subscribers')
-          .select('*', { count: 'exact', head: true })
-          .eq('is_active', true)
+          .eq('tenant_id', tenantId)
+          .in('role', ['leader', 'tenant_admin'])
       ]);
 
-      // Process results
       if (totalResult.error) {
         console.error('Error fetching total page views:', totalResult.error);
       } else {
@@ -263,18 +229,17 @@ export class AnalyticsService {
         stats.archivedPrayers = archivedPrayersResult.count || 0;
       }
 
-      if (subscribersResult.error) {
-        console.error('Error fetching subscribers count:', subscribersResult.error);
+      if (membersResult.error) {
+        console.error('Error fetching tenant members count:', membersResult.error);
       } else {
-        stats.totalSubscribers = subscribersResult.count || 0;
+        stats.totalTenantMembers = membersResult.count || 0;
       }
 
-      if (activeSubscribersResult.error) {
-        console.error('Error fetching active subscribers count:', activeSubscribersResult.error);
+      if (leadersResult.error) {
+        console.error('Error fetching leaders/admins count:', leadersResult.error);
       } else {
-        stats.activeEmailSubscribers = activeSubscribersResult.count || 0;
+        stats.tenantLeadersAndAdmins = leadersResult.count || 0;
       }
-
     } catch (error) {
       console.error('Error fetching analytics stats:', error);
     } finally {

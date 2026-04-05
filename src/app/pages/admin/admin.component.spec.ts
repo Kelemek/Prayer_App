@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { Subject, of } from 'rxjs';
+import { BehaviorSubject, Subject, of } from 'rxjs';
 import { AdminComponent } from './admin.component';
+
+const MOCK_TENANT_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 
 describe('AdminComponent', () => {
   let component: AdminComponent;
@@ -8,6 +10,7 @@ describe('AdminComponent', () => {
   let analyticsService: any;
   let adminAuthService: any;
   let userSessionService: any;
+  let tenantContextService: any;
   let router: any;
   let ngZone: any;
   let cdr: any;
@@ -42,11 +45,29 @@ describe('AdminComponent', () => {
         currentPrayers: 7,
         answeredPrayers: 8,
         archivedPrayers: 9,
-        totalSubscribers: 10,
-        activeEmailSubscribers: 11,
+        totalTenantMembers: 10,
+        tenantLeadersAndAdmins: 11,
         loading: false
       }),
       trackPageView: vi.fn().mockResolvedValue(undefined)
+    };
+
+    tenantContextService = {
+      getActiveTenant: vi.fn(() => ({
+        id: MOCK_TENANT_ID,
+        name: 'Test Church',
+        plan_tier: 'churches',
+        plan_status: 'active'
+      })),
+      getIsSuperAdmin: vi.fn(() => false),
+      isSuperAdmin$: new BehaviorSubject<boolean>(false),
+      activeTenant$: new BehaviorSubject<unknown>({
+        id: MOCK_TENANT_ID,
+        name: 'Test Church',
+        plan_tier: 'churches',
+        plan_status: 'active'
+      }),
+      loading$: new BehaviorSubject<boolean>(false)
     };
 
     adminAuthService = {
@@ -63,7 +84,16 @@ describe('AdminComponent', () => {
     ngZone = { run: (fn: () => void) => fn() };
     cdr = { markForCheck: vi.fn() };
 
-    component = new AdminComponent(router, adminDataService, analyticsService, adminAuthService, userSessionService, ngZone, cdr);
+    component = new AdminComponent(
+      router,
+      adminDataService,
+      analyticsService,
+      adminAuthService,
+      userSessionService,
+      tenantContextService,
+      ngZone,
+      cdr
+    );
   });
 
   it('subscribes and fetches admin data on init', async () => {
@@ -168,7 +198,7 @@ describe('AdminComponent', () => {
   it('loadAnalytics sets stats on success and toggles loading', async () => {
     component.analyticsStats.loading = false;
     await component.loadAnalytics();
-    expect(analyticsService.getStats).toHaveBeenCalled();
+    expect(analyticsService.getStats).toHaveBeenCalledWith(MOCK_TENANT_ID);
     expect(component.analyticsStats.totalPageViews).toBe(5);
     expect(cdr.markForCheck).toHaveBeenCalled();
   });
@@ -183,7 +213,6 @@ describe('AdminComponent', () => {
   it('onTabChange triggers loadAnalytics for settings', () => {
     const loadSpy = vi.spyOn(component, 'loadAnalytics');
     component.activeSettingsTab = 'analytics';
-    component.analyticsStats.totalPageViews = 0;
     component.onTabChange('settings');
     expect(component.activeTab).toBe('settings');
     expect(loadSpy).toHaveBeenCalled();
@@ -191,10 +220,34 @@ describe('AdminComponent', () => {
 
   it('onSettingsTabChange triggers loadAnalytics when analytics selected', () => {
     const loadSpy = vi.spyOn(component, 'loadAnalytics');
-    component.analyticsStats.totalPageViews = 0;
     component.onSettingsTabChange('analytics');
     expect(component.activeSettingsTab).toBe('analytics');
     expect(loadSpy).toHaveBeenCalled();
+  });
+
+  it('canAccessAnalytics is true for churches tier', () => {
+    expect(component.canAccessAnalytics()).toBe(true);
+  });
+
+  it('canAccessAnalytics is true for super admin even when tenant is not churches', () => {
+    tenantContextService.getIsSuperAdmin = vi.fn(() => true);
+    tenantContextService.getActiveTenant = vi.fn(() => ({
+      id: MOCK_TENANT_ID,
+      plan_tier: 'groups',
+      plan_status: 'active'
+    }));
+    expect(component.canAccessAnalytics()).toBe(true);
+  });
+
+  it('onSettingsTabChange maps analytics to content when canAccessAnalytics is false', () => {
+    tenantContextService.getIsSuperAdmin = vi.fn(() => false);
+    tenantContextService.getActiveTenant = vi.fn(() => ({
+      id: MOCK_TENANT_ID,
+      plan_tier: 'groups',
+      plan_status: 'active'
+    }));
+    component.onSettingsTabChange('analytics');
+    expect(component.activeSettingsTab).toBe('content');
   });
 
   it('totalPendingCount returns correct sum', () => {
@@ -328,15 +381,16 @@ describe('AdminComponent', () => {
     errSpy.mockRestore();
   });
 
-  it('does not call loadAnalytics when totalPageViews non-zero', () => {
+  it('calls loadAnalytics when opening settings with analytics tab even if stats already loaded', () => {
     const loadSpy = vi.spyOn(component, 'loadAnalytics');
     component.analyticsStats.totalPageViews = 10;
+    component.activeSettingsTab = 'analytics';
     component.onTabChange('settings');
-    expect(loadSpy).not.toHaveBeenCalled();
+    expect(loadSpy).toHaveBeenCalled();
 
-    component.analyticsStats.totalPageViews = 10;
+    loadSpy.mockClear();
     component.onSettingsTabChange('analytics');
-    expect(loadSpy).not.toHaveBeenCalled();
+    expect(loadSpy).toHaveBeenCalled();
   });
 
   it('ngOnInit triggers loadAnalytics when already on settings/analytics', () => {

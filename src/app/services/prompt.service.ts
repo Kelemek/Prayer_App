@@ -27,6 +27,17 @@ export class PromptService {
     private tenantContext?: TenantContextService
   ) {
     this.loadPrompts();
+    if (this.tenantContext?.activeTenant$) {
+      let previousTenantId = this.tenantContext.getActiveTenant()?.id || null;
+      this.tenantContext.activeTenant$.subscribe((tenant) => {
+        const nextTenantId = tenant?.id || null;
+        if (nextTenantId === previousTenantId) {
+          return;
+        }
+        previousTenantId = nextTenantId;
+        this.loadPrompts();
+      });
+    }
   }
 
   /**

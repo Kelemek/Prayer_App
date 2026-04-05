@@ -27,7 +27,7 @@ import { AnalyticsService } from '../../services/analytics.service';
 import { PullToRefreshDirective } from '../../directives/pull-to-refresh.directive';
 import { TenantPermissionService } from '../../services/tenant-permission.service';
 import { TenantContextService } from '../../services/tenant-context.service';
-import type { TenantMembership } from '../../types/tenant';
+import type { Tenant, TenantMembership } from '../../types/tenant';
 @Component({
   selector: 'app-home',
   standalone: true,
@@ -72,15 +72,15 @@ import type { TenantMembership } from '../../types/tenant';
               </button>
             }
           </div>
-          @if (tenantMemberships.length > 1) {
+          @if (tenantSwitchOptions.length > 1) {
             <div class="sm:hidden mb-3">
               <select
                 [value]="activeTenantId || ''"
                 (change)="onTenantSelect($any($event.target).value)"
                 class="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-xs text-gray-700 dark:text-gray-200"
               >
-                @for (membership of tenantMemberships; track membership.tenant_id) {
-                  <option [value]="membership.tenant_id">{{ getTenantName(membership) }}</option>
+                @for (tenant of tenantSwitchOptions; track tenant.id) {
+                  <option [value]="tenant.id">{{ tenant.name }}</option>
                 }
               </select>
             </div>
@@ -143,15 +143,15 @@ import type { TenantMembership } from '../../types/tenant';
             <div class="flex flex-col items-end gap-2">
               <!-- Top row: Admin button and Email Indicator -->
               <div class="flex items-center gap-2">
-                @if (tenantMemberships.length > 1) {
+                @if (tenantSwitchOptions.length > 1) {
                   <select
                     [value]="activeTenantId || ''"
                     (change)="onTenantSelect($any($event.target).value)"
                     class="text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-gray-700 dark:text-gray-200"
                     title="Switch active tenant"
                   >
-                    @for (membership of tenantMemberships; track membership.tenant_id) {
-                      <option [value]="membership.tenant_id">{{ getTenantName(membership) }}</option>
+                    @for (tenant of tenantSwitchOptions; track tenant.id) {
+                      <option [value]="tenant.id">{{ tenant.name }}</option>
                     }
                   </select>
                 }
@@ -696,6 +696,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   canAccessShared = false;
   canAccessAdminFeatures = false;
   tenantMemberships: TenantMembership[] = [];
+  availableTenants: Tenant[] = [];
   activeTenantId: string | null = null;
   
   isAdmin = false;
@@ -765,6 +766,15 @@ export class HomeComponent implements OnInit, OnDestroy {
         .subscribe((memberships) => {
           this.tenantMemberships = memberships;
           this.activeTenantId = this.tenantContextService.getActiveTenant()?.id || null;
+          this.cdr.markForCheck();
+        });
+    }
+
+    if (this.tenantContextService?.availableTenants$) {
+      this.tenantContextService.availableTenants$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe((tenants) => {
+          this.availableTenants = tenants;
           this.cdr.markForCheck();
         });
     }
@@ -1469,6 +1479,17 @@ export class HomeComponent implements OnInit, OnDestroy {
       return membership.tenants[0]?.name || membership.tenant_id;
     }
     return membership.tenants?.name || membership.tenant_id;
+  }
+
+  get tenantSwitchOptions(): Tenant[] {
+    if (this.tenantContextService.getIsSuperAdmin() && this.availableTenants.length > 0) {
+      return this.availableTenants;
+    }
+    const options = this.tenantMemberships
+      .map((membership) => (Array.isArray(membership.tenants) ? membership.tenants[0] : membership.tenants))
+      .filter((tenant): tenant is Tenant => !!tenant);
+    const unique = new Map(options.map((tenant) => [tenant.id, tenant]));
+    return Array.from(unique.values());
   }
 
   markAllCurrentAsRead(): void {
