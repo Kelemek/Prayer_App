@@ -1,10 +1,12 @@
-import { Component, OnInit, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
+import { Subject, takeUntil } from 'rxjs';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
 import { PromptService } from '../../services/prompt.service';
+import { TenantContextService } from '../../services/tenant-context.service';
 import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
 import type { PrayerTypeRecord } from '../../types/prayer';
 
@@ -15,6 +17,12 @@ import type { PrayerTypeRecord } from '../../types/prayer';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6 border border-gray-200 dark:border-gray-700">
+      @if (!activeTenantId) {
+      <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
+        Select an organization above to manage prayer types for that tenant.
+      </p>
+      }
+      @if (activeTenantId) {
       <!-- Header -->
       <div class="flex flex-col gap-3 mb-4">
         <div class="flex items-center gap-2">
@@ -269,12 +277,19 @@ import type { PrayerTypeRecord } from '../../types/prayer';
         (cancel)="onCancelDelete()">
       </app-confirmation-dialog>
       }
+      }
     </div>
   `,
   styles: []
 })
-export class PrayerTypesManagerComponent implements OnInit {
+export class PrayerTypesManagerComponent implements OnInit, OnDestroy {
   @Output() onSave = new EventEmitter<void>();
+
+  private readonly destroy$ = new Subject<void>();
+
+  get activeTenantId(): string | null {
+    return this.tenantContext.getActiveTenant()?.id ?? null;
+  }
 
   types: PrayerTypeRecord[] = [];
   loading = true;
@@ -300,14 +315,38 @@ export class PrayerTypesManagerComponent implements OnInit {
     private supabase: SupabaseService,
     private toast: ToastService,
     private promptService: PromptService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private tenantContext: TenantContextService
   ) {}
 
   ngOnInit() {
-    this.fetchTypes();
+    this.tenantContext.activeTenant$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        const id = this.tenantContext.getActiveTenant()?.id;
+        if (id) {
+          this.fetchTypes();
+        } else {
+          this.types = [];
+          this.loading = false;
+        }
+        this.cdr.markForCheck();
+      });
+  }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   async fetchTypes() {
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      this.types = [];
+      this.loading = false;
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       this.loading = true;
       this.error = null;
@@ -316,6 +355,7 @@ export class PrayerTypesManagerComponent implements OnInit {
         'prayer_types',
         {
           select: '*',
+          eq: { tenant_id: tenantId },
           order: { column: 'display_order', ascending: true },
           timeout: 15000
         }
@@ -353,6 +393,12 @@ export class PrayerTypesManagerComponent implements OnInit {
       return;
     }
 
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      this.error = 'No active organization selected.';
+      return;
+    }
+
     try {
       this.submitting = true;
       this.error = null;
@@ -367,7 +413,8 @@ export class PrayerTypesManagerComponent implements OnInit {
             display_order: this.displayOrder,
             is_active: this.isActive
           })
-          .eq('id', this.editingId);
+          .eq('id', this.editingId)
+          .eq('tenant_id', tenantId);
 
         if (error) throw error;
         this.success = 'Prayer type updated successfully!';
@@ -378,7 +425,8 @@ export class PrayerTypesManagerComponent implements OnInit {
           .insert({
             name: this.name.trim(),
             display_order: this.displayOrder,
-            is_active: this.isActive
+            is_active: this.isActive,
+            tenant_id: tenantId
           });
 
         if (error) throw error;
@@ -436,10 +484,17 @@ export class PrayerTypesManagerComponent implements OnInit {
       this.error = null;
       this.success = null;
 
+      const tenantId = this.activeTenantId;
+      if (!tenantId) {
+        this.error = 'No active organization selected.';
+        return;
+      }
+
       const { error } = await this.supabase.client
         .from('prayer_types')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('tenant_id', tenantId);
 
       if (error) throw error;
 
@@ -468,10 +523,17 @@ export class PrayerTypesManagerComponent implements OnInit {
       this.error = null;
       this.success = null;
 
+      const tenantId = this.activeTenantId;
+      if (!tenantId) {
+        this.error = 'No active organization selected.';
+        return;
+      }
+
       const { error } = await this.supabase.client
         .from('prayer_types')
         .update({ is_active: !type.is_active })
-        .eq('id', type.id);
+        .eq('id', type.id)
+        .eq('tenant_id', tenantId);
 
       if (error) throw error;
 
@@ -493,6 +555,12 @@ export class PrayerTypesManagerComponent implements OnInit {
   async onDrop(event: CdkDragDrop<PrayerTypeRecord[]>) {
     if (event.previousIndex === event.currentIndex) return;
 
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      this.error = 'No active organization selected.';
+      return;
+    }
+
     const original = [...this.types];
 
     // Optimistically update UI
@@ -507,6 +575,7 @@ export class PrayerTypesManagerComponent implements OnInit {
           .from('prayer_types')
           .update({ display_order: idx })
           .eq('id', t.id)
+          .eq('tenant_id', tenantId)
       );
 
       const results = await Promise.all(updates);

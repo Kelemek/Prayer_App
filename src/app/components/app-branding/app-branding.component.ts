@@ -1,6 +1,8 @@
-import { Component, OnInit, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Subject, takeUntil } from 'rxjs';
 import { SupabaseService } from '../../services/supabase.service';
+import { TenantContextService } from '../../services/tenant-context.service';
 
 @Component({
   selector: 'app-branding',
@@ -9,6 +11,12 @@ import { SupabaseService } from '../../services/supabase.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
+      @if (!activeTenantId) {
+      <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
+        Select an organization above to edit branding for that tenant.
+      </p>
+      }
+      @if (activeTenantId) {
       <div class="flex items-center gap-2 mb-4">
         <svg class="text-purple-600 dark:text-purple-400" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
@@ -232,12 +240,19 @@ import { SupabaseService } from '../../services/supabase.service';
         }
       </div>
       }
+      }
     </div>
   `,
   styles: []
 })
-export class AppBrandingComponent implements OnInit {
+export class AppBrandingComponent implements OnInit, OnDestroy {
   @Output() onSave = new EventEmitter<void>();
+
+  private readonly destroy$ = new Subject<void>();
+
+  get activeTenantId(): string | null {
+    return this.tenantContext.getActiveTenant()?.id ?? null;
+  }
 
   appTitle = 'Church Prayer Manager';
   appSubtitle = 'Keeping our community connected in prayer';
@@ -251,25 +266,42 @@ export class AppBrandingComponent implements OnInit {
   success = false;
 
   constructor(
-    private supabase: SupabaseService, 
-    private cdr: ChangeDetectorRef
+    private supabase: SupabaseService,
+    private cdr: ChangeDetectorRef,
+    private tenantContext: TenantContextService
   ) {}
 
   ngOnInit() {
-    this.loadSettings();
+    this.tenantContext.activeTenant$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        void this.loadSettings();
+      });
+  }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   async loadSettings() {
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      this.loading = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
     this.loading = true;
     this.cdr.markForCheck();
     this.error = null;
 
     try {
       const { data, error } = await this.supabase.client
-        .from('admin_settings')
+        .from('tenant_settings')
         .select('app_title, app_subtitle, use_logo, light_mode_logo_blob, dark_mode_logo_blob')
-        .eq('id', 1)
-        .single();
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
 
       if (error) throw error;
 
@@ -318,6 +350,13 @@ export class AppBrandingComponent implements OnInit {
   }
 
   async save() {
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      this.error = 'No active organization selected.';
+      this.cdr.markForCheck();
+      return;
+    }
+
     this.saving = true;
     this.cdr.markForCheck();
     this.error = null;
@@ -325,16 +364,19 @@ export class AppBrandingComponent implements OnInit {
 
     try {
       const { error } = await this.supabase.client
-        .from('admin_settings')
-        .upsert({
-          id: 1,
-          app_title: this.appTitle,
-          app_subtitle: this.appSubtitle,
-          use_logo: this.useLogo,
-          light_mode_logo_blob: this.lightModeLogoUrl || null,
-          dark_mode_logo_blob: this.darkModeLogoUrl || null,
-          updated_at: new Date().toISOString()
-        });
+        .from('tenant_settings')
+        .upsert(
+          {
+            tenant_id: tenantId,
+            app_title: this.appTitle,
+            app_subtitle: this.appSubtitle,
+            use_logo: this.useLogo,
+            light_mode_logo_blob: this.lightModeLogoUrl || null,
+            dark_mode_logo_blob: this.darkModeLogoUrl || null,
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: 'tenant_id' }
+        );
 
       if (error) throw error;
 

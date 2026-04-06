@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { SupabaseService } from './supabase.service';
+import { TenantContextService } from './tenant-context.service';
 
 export interface GitHubIssueConfig {
   id: number;
@@ -25,7 +26,10 @@ export interface GitHubIssuePayload {
 export class GitHubFeedbackService {
   private readonly FETCH_TIMEOUT = 10000; // 10 seconds
 
-  constructor(private supabaseService: SupabaseService) {}
+  constructor(
+    private supabaseService: SupabaseService,
+    private tenantContext: TenantContextService
+  ) {}
 
   /**
    * Fetch with timeout
@@ -42,10 +46,35 @@ export class GitHubFeedbackService {
   }
 
   /**
-   * Get GitHub issue configuration from admin settings
+   * Get GitHub issue configuration for the active tenant, or global admin_settings when no tenant.
    */
   async getGitHubConfig(): Promise<GitHubIssueConfig | null> {
     try {
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+
+      if (tenantId) {
+        const { data, error } = await this.supabaseService.client
+          .from('tenant_settings')
+          .select('github_token, github_repo_owner, github_repo_name, github_feedback_enabled')
+          .eq('tenant_id', tenantId)
+          .maybeSingle();
+
+        if (error || !data) {
+          console.error('[GitHubFeedback] Error fetching tenant config:', error);
+          return null;
+        }
+
+        return {
+          id: 1,
+          github_token: data.github_token || '',
+          github_repo_owner: data.github_repo_owner || '',
+          github_repo_name: data.github_repo_name || '',
+          enabled: data.github_feedback_enabled !== false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      }
+
       const { data, error } = await this.supabaseService.client
         .from('admin_settings')
         .select('github_token, github_repo_owner, github_repo_name, enabled')
@@ -73,19 +102,25 @@ export class GitHubFeedbackService {
   }
 
   /**
-   * Save GitHub configuration to admin settings
+   * Save GitHub configuration to tenant_settings (requires active tenant).
    */
   async saveGitHubConfig(config: Partial<GitHubIssueConfig>): Promise<boolean> {
     try {
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+      if (!tenantId) {
+        console.error('[GitHubFeedback] No active tenant for save');
+        return false;
+      }
+
       const { error } = await this.supabaseService.client
-        .from('admin_settings')
+        .from('tenant_settings')
         .update({
           github_token: config.github_token,
           github_repo_owner: config.github_repo_owner,
           github_repo_name: config.github_repo_name,
-          enabled: config.enabled
+          github_feedback_enabled: config.enabled
         })
-        .eq('id', 1);
+        .eq('tenant_id', tenantId);
 
       if (error) {
         console.error('[GitHubFeedback] Error saving config:', error);

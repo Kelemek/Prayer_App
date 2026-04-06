@@ -1,8 +1,10 @@
-import { Component, OnInit, Output, EventEmitter, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, Output, EventEmitter, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subject, takeUntil } from 'rxjs';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
+import { TenantContextService } from '../../services/tenant-context.service';
 import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
 import type { PrayerPrompt, PrayerTypeRecord } from '../../types/prayer';
 
@@ -20,6 +22,12 @@ interface CSVRow {
   imports: [CommonModule, FormsModule, ConfirmationDialogComponent],
   template: `
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6 border border-gray-200 dark:border-gray-700">
+      @if (!activeTenantId) {
+      <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
+        Select an organization above to manage prayer prompts for that tenant.
+      </p>
+      }
+      @if (activeTenantId) {
       <!-- Header -->
       <div class="flex flex-col gap-3 mb-4">
         <div class="flex items-center gap-2">
@@ -480,12 +488,19 @@ interface CSVRow {
         (cancel)="onCancelDelete()">
       </app-confirmation-dialog>
       }
+      }
     </div>
   `,
   styles: []
 })
-export class PromptManagerComponent implements OnInit {
+export class PromptManagerComponent implements OnInit, OnDestroy {
   @Output() onSave = new EventEmitter<void>();
+
+  private readonly destroy$ = new Subject<void>();
+
+  get activeTenantId(): string | null {
+    return this.tenantContext.getActiveTenant()?.id ?? null;
+  }
 
   prompts: PrayerPrompt[] = [];
   prayerTypes: PrayerTypeRecord[] = [];
@@ -515,20 +530,45 @@ export class PromptManagerComponent implements OnInit {
   constructor(
     private supabase: SupabaseService,
     private toast: ToastService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private tenantContext: TenantContextService
   ) {}
 
   ngOnInit() {
-    this.fetchPrayerTypes();
+    this.tenantContext.activeTenant$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        const id = this.tenantContext.getActiveTenant()?.id;
+        if (id) {
+          this.fetchPrayerTypes();
+          this.prompts = [];
+          this.hasSearched = false;
+          this.searchQuery = '';
+        } else {
+          this.prayerTypes = [];
+          this.prompts = [];
+        }
+        this.cdr.markForCheck();
+      });
+  }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   async fetchPrayerTypes() {
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      this.prayerTypes = [];
+      return;
+    }
     try {
       const { data, error } = await this.supabase.directQuery<PrayerTypeRecord>(
         'prayer_types',
         {
           select: '*',
-          eq: { is_active: true },
+          eq: { is_active: true, tenant_id: tenantId },
           order: { column: 'display_order', ascending: true },
           timeout: 15000
         }
@@ -548,6 +588,12 @@ export class PromptManagerComponent implements OnInit {
   async handleSearch(event: Event) {
     event.preventDefault();
 
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      this.error = 'No active organization selected.';
+      return;
+    }
+
     try {
       this.searching = true;
       this.cdr.markForCheck();
@@ -562,6 +608,7 @@ export class PromptManagerComponent implements OnInit {
         'prayer_prompts',
         {
           select: '*',
+          eq: { tenant_id: tenantId },
           order: { column: 'type', ascending: true },
           limit: 500,
           timeout: 15000
@@ -687,12 +734,19 @@ export class PromptManagerComponent implements OnInit {
       this.uploadingCSV = true;
       this.error = null;
 
+      const tenantId = this.activeTenantId;
+      if (!tenantId) {
+        this.error = 'No active organization selected.';
+        return;
+      }
+
       const { error } = await this.supabase.client
         .from('prayer_prompts')
         .insert(validRows.map(r => ({
           title: r.title.trim(),
           type: r.type,
-          description: r.description.trim()
+          description: r.description.trim(),
+          tenant_id: tenantId
         })));
 
       if (error) throw error;
@@ -726,6 +780,12 @@ export class PromptManagerComponent implements OnInit {
       return;
     }
 
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      this.error = 'No active organization selected.';
+      return;
+    }
+
     try {
       this.submitting = true;
       this.error = null;
@@ -740,7 +800,8 @@ export class PromptManagerComponent implements OnInit {
             type: this.type,
             description: this.description.trim()
           })
-          .eq('id', this.editingId);
+          .eq('id', this.editingId)
+          .eq('tenant_id', tenantId);
 
         if (error) throw error;
         this.success = 'Prayer prompt updated successfully!';
@@ -751,7 +812,8 @@ export class PromptManagerComponent implements OnInit {
           .insert({
             title: this.title.trim(),
             type: this.type,
-            description: this.description.trim()
+            description: this.description.trim(),
+            tenant_id: tenantId
           });
 
         if (error) throw error;
@@ -811,10 +873,17 @@ export class PromptManagerComponent implements OnInit {
       this.error = null;
       this.success = null;
 
+      const tenantId = this.activeTenantId;
+      if (!tenantId) {
+        this.error = 'No active organization selected.';
+        return;
+      }
+
       const { error } = await this.supabase.client
         .from('prayer_prompts')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('tenant_id', tenantId);
 
       if (error) throw error;
 

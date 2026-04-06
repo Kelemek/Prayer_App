@@ -1,11 +1,14 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { ChangeDetectorRef } from '@angular/core';
+import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { PrayerTypesManagerComponent } from './prayer-types-manager.component';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
 import { PromptService } from '../../services/prompt.service';
-import { firstValueFrom } from 'rxjs';
 import type { PrayerTypeRecord } from '../../types/prayer';
+
+const TEST_TENANT_ID = 'test-tenant-id';
+const mockTenant = { id: TEST_TENANT_ID, name: 'Test', slug: 'test' };
 
 describe('PrayerTypesManagerComponent', () => {
   let component: PrayerTypesManagerComponent;
@@ -27,11 +30,15 @@ describe('PrayerTypesManagerComponent', () => {
 
   const createMockQueryChain = (returnData: any = null, returnError: any = null) => ({
     update: vi.fn(() => ({
-      eq: vi.fn(() => Promise.resolve({ data: returnData, error: returnError }))
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ data: returnData, error: returnError })
+      })
     })),
     insert: vi.fn(() => Promise.resolve({ data: returnData, error: returnError })),
     delete: vi.fn(() => ({
-      eq: vi.fn(() => Promise.resolve({ data: returnData, error: returnError }))
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ data: returnData, error: returnError })
+      })
     }))
   });
 
@@ -65,7 +72,18 @@ describe('PrayerTypesManagerComponent', () => {
       markForCheck: vi.fn()
     } as unknown as ChangeDetectorRef;
 
-    component = new PrayerTypesManagerComponent(mockSupabaseService, mockToastService, mockPromptService, mockChangeDetectorRef);
+    const mockTenantContext = {
+      getActiveTenant: vi.fn().mockReturnValue(mockTenant),
+      activeTenant$: new BehaviorSubject(mockTenant)
+    };
+
+    component = new PrayerTypesManagerComponent(
+      mockSupabaseService,
+      mockToastService,
+      mockPromptService,
+      mockChangeDetectorRef,
+      mockTenantContext as any
+    );
   });
 
   afterEach(() => {
@@ -227,7 +245,7 @@ describe('PrayerTypesManagerComponent', () => {
 
       mockSupabaseClient.from = vi.fn(() => ({
         update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ error: null }))
+          eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
         }))
       }));
 
@@ -265,7 +283,7 @@ describe('PrayerTypesManagerComponent', () => {
 
       mockSupabaseClient.from = vi.fn(() => ({
         update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ error }))
+          eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error }) })
         }))
       }));
 
@@ -290,7 +308,8 @@ describe('PrayerTypesManagerComponent', () => {
       expect(insertSpy).toHaveBeenCalledWith({
         name: 'Trimmed Name',
         display_order: 0,
-        is_active: true
+        is_active: true,
+        tenant_id: TEST_TENANT_ID
       });
     });
 
@@ -354,7 +373,7 @@ describe('PrayerTypesManagerComponent', () => {
     it('should delete prayer type successfully', async () => {
       mockSupabaseClient.from = vi.fn(() => ({
         delete: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ error: null }))
+          eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
         }))
       }));
 
@@ -372,7 +391,7 @@ describe('PrayerTypesManagerComponent', () => {
 
       mockSupabaseClient.from = vi.fn(() => ({
         delete: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ error }))
+          eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error }) })
         }))
       }));
 
@@ -396,7 +415,7 @@ describe('PrayerTypesManagerComponent', () => {
 
       mockSupabaseClient.from = vi.fn(() => ({
         update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ error: null }))
+          eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
         }))
       }));
 
@@ -413,7 +432,7 @@ describe('PrayerTypesManagerComponent', () => {
 
       mockSupabaseClient.from = vi.fn(() => ({
         update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ error: null }))
+          eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
         }))
       }));
 
@@ -430,7 +449,7 @@ describe('PrayerTypesManagerComponent', () => {
 
       mockSupabaseClient.from = vi.fn(() => ({
         update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ error }))
+          eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error }) })
         }))
       }));
 
@@ -468,7 +487,7 @@ describe('PrayerTypesManagerComponent', () => {
 
       mockSupabaseClient.from = vi.fn(() => ({
         update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ error: null }))
+          eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
         }))
       }));
 
@@ -497,7 +516,7 @@ describe('PrayerTypesManagerComponent', () => {
       const error = new Error('Reorder failed');
       mockSupabaseClient.from = vi.fn(() => ({
         update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ error }))
+          eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error }) })
         }))
       }));
 
@@ -521,7 +540,7 @@ describe('PrayerTypesManagerComponent', () => {
       } as any;
 
       const updateSpy = vi.fn(() => ({
-        eq: vi.fn(() => Promise.resolve({ error: null }))
+        eq: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
       }));
 
       mockSupabaseClient.from = vi.fn(() => ({

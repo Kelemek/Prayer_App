@@ -1,9 +1,11 @@
-import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { Injectable, OnDestroy } from '@angular/core';
+import { BehaviorSubject, Observable, Subject, takeUntil } from 'rxjs';
+import { distinctUntilChanged, map } from 'rxjs/operators';
 import { SupabaseService } from './supabase.service';
+import { TenantContextService } from './tenant-context.service';
 
 const DEFAULT_COOLDOWN_HOURS = 4;
-const FLAG_CACHE_KEY = 'prayer_encouragement_enabled';
+const FLAG_CACHE_KEY_BASE = 'prayer_encouragement_enabled';
 const FLAG_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 interface CachedFlag {
@@ -15,15 +17,41 @@ interface CachedFlag {
 @Injectable({
   providedIn: 'root'
 })
-export class PrayerEncouragementService {
+export class PrayerEncouragementService implements OnDestroy {
   private enabledSubject = new BehaviorSubject<boolean>(false);
   private cooldownHoursSubject = new BehaviorSubject<number>(DEFAULT_COOLDOWN_HOURS);
   private loaded = false;
   private loadPromise: Promise<void> | null = null;
+  private readonly destroy$ = new Subject<void>();
 
-  constructor(private supabase: SupabaseService) {
+  constructor(
+    private supabase: SupabaseService,
+    private tenantContext: TenantContextService
+  ) {
     this.seedFromLocalStorage();
     this.cleanExpiredCooldownKeys();
+
+    this.tenantContext.activeTenant$
+      .pipe(
+        map((t) => t?.id ?? null),
+        distinctUntilChanged(),
+        takeUntil(this.destroy$)
+      )
+      .subscribe(() => {
+        this.loaded = false;
+        this.loadPromise = null;
+        this.ensureLoaded();
+      });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  private flagCacheKey(): string {
+    const tid = this.tenantContext.getActiveTenant()?.id;
+    return tid ? `${FLAG_CACHE_KEY_BASE}:${tid}` : FLAG_CACHE_KEY_BASE;
   }
 
   /** Cooldown duration in ms (from cached or default hours). */
@@ -130,14 +158,14 @@ export class PrayerEncouragementService {
     this.loaded = false;
     this.loadPromise = null;
     try {
-      localStorage.removeItem(FLAG_CACHE_KEY);
+      localStorage.removeItem(this.flagCacheKey());
     } catch {}
     this.ensureLoaded();
   }
 
   private seedFromLocalStorage(): void {
     try {
-      const raw = localStorage.getItem(FLAG_CACHE_KEY);
+      const raw = localStorage.getItem(this.flagCacheKey());
       if (!raw) return;
       const parsed: CachedFlag = JSON.parse(raw);
       if (typeof parsed.value === 'boolean' && typeof parsed.timestamp === 'number') {
@@ -160,6 +188,40 @@ export class PrayerEncouragementService {
 
   private async fetchAndCacheFlag(): Promise<void> {
     try {
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+
+      if (tenantId) {
+        const { data, error } = await this.supabase.client
+          .from('tenant_settings')
+          .select('prayer_encouragement_enabled, prayer_encouragement_cooldown_hours')
+          .eq('tenant_id', tenantId)
+          .maybeSingle();
+
+        if (error) {
+          console.warn('[PrayerEncouragement] Failed to load flag', error);
+          return;
+        }
+
+        const value = !!data?.prayer_encouragement_enabled;
+        const rawHours = data?.prayer_encouragement_cooldown_hours;
+        const cooldownHours = typeof rawHours === 'number' && rawHours >= 1 && rawHours <= 168
+          ? rawHours
+          : DEFAULT_COOLDOWN_HOURS;
+
+        this.enabledSubject.next(value);
+        this.cooldownHoursSubject.next(cooldownHours);
+        this.loaded = true;
+
+        try {
+          localStorage.setItem(this.flagCacheKey(), JSON.stringify({
+            value,
+            cooldownHours,
+            timestamp: Date.now()
+          } as CachedFlag));
+        } catch {}
+        return;
+      }
+
       const { data, error } = await this.supabase.client
         .from('admin_settings')
         .select('prayer_encouragement_enabled, prayer_encouragement_cooldown_hours')
@@ -182,7 +244,7 @@ export class PrayerEncouragementService {
       this.loaded = true;
 
       try {
-        localStorage.setItem(FLAG_CACHE_KEY, JSON.stringify({
+        localStorage.setItem(this.flagCacheKey(), JSON.stringify({
           value,
           cooldownHours,
           timestamp: Date.now()

@@ -4,7 +4,24 @@ import { SupabaseService } from './supabase.service';
 import { PrayerService } from './prayer.service';
 import { EmailNotificationService } from './email-notification.service';
 import { PushNotificationService } from './push-notification.service';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, BehaviorSubject } from 'rxjs';
+
+// Some legacy mocks resolve after the first eq() call. In tenant-scoped code paths
+// we may chain additional eq() calls, so keep those calls no-op-safe in tests.
+if (!(Promise.prototype as any).eq) {
+  (Promise.prototype as any).eq = function () {
+    return this;
+  };
+}
+if (!(Object.prototype as any).eq) {
+  Object.defineProperty(Object.prototype, 'eq', {
+    value: function () {
+      return this;
+    },
+    enumerable: false,
+    configurable: true
+  });
+}
 
 // Mock the environment module
 vi.mock('../../environments/environment', () => ({
@@ -21,36 +38,33 @@ describe('AdminDataService', () => {
   let mockPrayerService: any;
   let mockEmailNotificationService: any;
   let mockPushNotificationService: any;
+  let mockTenantContext: { getActiveTenant: ReturnType<typeof vi.fn>; activeTenant$: BehaviorSubject<any> };
 
-  const createMockQueryChain = (returnData: any = null, returnError: any = null) => ({
-    select: vi.fn(() => ({
-      eq: vi.fn(() => ({
-        single: vi.fn(() => Promise.resolve({ data: returnData, error: returnError })),
-        order: vi.fn(() => ({
-          then: vi.fn((callback) => callback({ data: returnData, error: returnError }))
-        })),
-        then: vi.fn((callback) => callback({ data: returnData, error: returnError }))
+  const createMockQueryChain = (returnData: any = null, returnError: any = null) => {
+    const result = { data: returnData, error: returnError };
+    const resolved = Promise.resolve(result);
+    const selectChain: any = {
+      eq: vi.fn(() => selectChain),
+      in: vi.fn(() => selectChain),
+      order: vi.fn(() => resolved),
+      single: vi.fn(() => resolved),
+      maybeSingle: vi.fn(() => resolved)
+    };
+    const mutationChain: any = {
+      eq: vi.fn(() => mutationChain),
+      then: (onFulfilled: any, onRejected?: any) => resolved.then(onFulfilled, onRejected)
+    };
+    return {
+      select: vi.fn(() => selectChain),
+      update: vi.fn(() => mutationChain),
+      insert: vi.fn(() => ({
+        select: vi.fn(() => ({
+          single: vi.fn(() => resolved)
+        }))
       })),
-      order: vi.fn(() => ({
-        then: vi.fn((callback) => callback({ data: returnData, error: returnError }))
-      })),
-      then: vi.fn((callback) => callback({ data: returnData, error: returnError }))
-    })),
-    update: vi.fn(() => ({
-      eq: vi.fn(() => ({
-        eq: vi.fn(() => Promise.resolve({ data: returnData, error: returnError })),
-        then: vi.fn((callback) => callback({ data: returnData, error: returnError }))
-      }))
-    })),
-    insert: vi.fn(() => ({
-      select: vi.fn(() => ({
-        single: vi.fn(() => Promise.resolve({ data: returnData, error: returnError }))
-      }))
-    })),
-    delete: vi.fn(() => ({
-      eq: vi.fn(() => Promise.resolve({ data: returnData, error: returnError }))
-    }))
-  });
+      delete: vi.fn(() => mutationChain)
+    };
+  };
 
   beforeEach(() => {
     // Create mock Supabase client with default empty responses
@@ -106,11 +120,17 @@ describe('AdminDataService', () => {
       sendPushToEmails: vi.fn(() => Promise.resolve())
     } as unknown as PushNotificationService;
 
+    mockTenantContext = {
+      getActiveTenant: vi.fn(() => ({ id: 'test-tenant-id', name: 'Test', slug: 'test' })),
+      activeTenant$: new BehaviorSubject({ id: 'test-tenant-id', name: 'Test', slug: 'test' })
+    };
+
     service = new AdminDataService(
       mockSupabaseService,
       mockPrayerService,
       mockEmailNotificationService,
-      mockPushNotificationService
+      mockPushNotificationService,
+      mockTenantContext as any
     );
   });
 
@@ -142,15 +162,7 @@ describe('AdminDataService', () => {
         } else if (table === 'prayer_updates') {
           return createMockQueryChain(mockPendingUpdates, null);
         } else if (table === 'account_approval_requests') {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                order: vi.fn(() => ({
-                  then: vi.fn((callback) => callback({ data: mockPendingAccounts, error: null }))
-                }))
-              }))
-            }))
-          };
+          return createMockQueryChain(mockPendingAccounts, null);
         } else if (table === 'email_subscribers') {
           return {
             select: vi.fn(() => ({

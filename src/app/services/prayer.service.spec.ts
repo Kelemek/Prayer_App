@@ -2,6 +2,15 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { firstValueFrom, BehaviorSubject } from 'rxjs';
 import { PrayerService, PrayerRequest } from './prayer.service';
 
+const PRAYER_SPEC_TEST_TENANT = { id: 'test-tenant-id', name: 'Test', slug: 'test' };
+
+function createPrayerSpecTenantContext() {
+  return {
+    getActiveTenant: vi.fn(() => PRAYER_SPEC_TEST_TENANT),
+    activeTenant$: new BehaviorSubject(PRAYER_SPEC_TEST_TENANT)
+  };
+}
+
 describe('PrayerService', () => {
   let service: PrayerService;
   let supabase: any;
@@ -11,6 +20,7 @@ describe('PrayerService', () => {
   let cache: any;
   let badgeService: any;
   let userSessionService: any;
+  let tenantContext: ReturnType<typeof createPrayerSpecTenantContext>;
 
   const makePrayer = (overrides: Partial<PrayerRequest> = {}): PrayerRequest => ({
     id: '1',
@@ -46,20 +56,21 @@ describe('PrayerService', () => {
     cache = { get: vi.fn(() => null), set: vi.fn(), invalidate: vi.fn() };
     badgeService = { refreshBadgeCounts: vi.fn() };
     userSessionService = { userSession$: new BehaviorSubject<any>(null).asObservable() };
+    tenantContext = createPrayerSpecTenantContext();
 
     // Ensure from() returns a safe default to avoid constructor side-effects failing
     supabase.client.from.mockImplementation((table: string) => ({
-      select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }),
+      select: () => ({ eq: () => ({ order: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) }) }),
       insert: () => Promise.resolve({ data: null, error: null }),
-      delete: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }),
-      update: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }),
+      delete: () => ({ eq: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }) }),
+      update: () => ({ eq: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }) }),
       single: () => Promise.resolve({ data: null, error: null }),
       maybeSingle: () => Promise.resolve({ data: null, error: null })
     }));
     supabase.client.rpc = vi.fn().mockResolvedValue({ data: null, error: null });
     supabase.ensureConnected = vi.fn().mockResolvedValue(undefined);
 
-    service = new PrayerService(supabase, toast, emailNotification, verificationService as any, cache, badgeService, userSessionService);
+    service = new PrayerService(supabase, toast, emailNotification, verificationService as any, cache, badgeService, userSessionService, tenantContext as any);
   });
 
   describe('incrementPrayedFor', () => {
@@ -190,7 +201,7 @@ describe('PrayerService', () => {
     const p = makePrayer({ id: 'u1', status: 'current' });
     (service as any).prayersSubject.next([p]);
 
-    supabase.client.from.mockImplementation((table: string) => ({ update: () => ({ eq: () => Promise.resolve({ error: null }) }) }));
+    supabase.client.from.mockImplementation((table: string) => ({ update: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) }) }));
 
     const result = await service.updatePrayerStatus('u1', 'answered');
     expect(result).toBe(true);
@@ -201,7 +212,7 @@ describe('PrayerService', () => {
   });
 
   it('updatePrayerStatus returns false on error', async () => {
-    supabase.client.from.mockImplementation((table: string) => ({ update: () => ({ eq: () => Promise.resolve({ error: new Error('x') }) }) }));
+    supabase.client.from.mockImplementation((table: string) => ({ update: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: new Error('x') }) }) }) }));
     const result = await service.updatePrayerStatus('no', 'answered');
     expect(result).toBe(false);
     expect(toast.error).toHaveBeenCalled();
@@ -210,7 +221,7 @@ describe('PrayerService', () => {
   it('deletePrayer removes prayer on success', async () => {
     const p = makePrayer({ id: 'del1' });
     (service as any).prayersSubject.next([p]);
-    supabase.client.from.mockImplementation((table: string) => ({ delete: () => ({ eq: () => Promise.resolve({ error: null }) }) }));
+    supabase.client.from.mockImplementation((table: string) => ({ delete: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) }) }));
 
     const result = await service.deletePrayer('del1');
     expect(result).toBe(true);
@@ -219,7 +230,7 @@ describe('PrayerService', () => {
   });
 
   it('deletePrayerUpdate calls loadPrayers and returns true on success', async () => {
-    supabase.client.from.mockImplementation((table: string) => ({ delete: () => ({ eq: () => Promise.resolve({ error: null }) }) }));
+    supabase.client.from.mockImplementation((table: string) => ({ delete: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) }) }));
     const loadSpy = vi.spyOn(service as any, 'loadPrayers').mockResolvedValue(undefined);
     const result = await service.deletePrayerUpdate('up1');
     expect(result).toBe(true);
@@ -234,7 +245,7 @@ describe('PrayerService', () => {
         return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'dr1' }, error: null } ) }) }) };
       }
       if (table === 'prayers') {
-        return { select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: { title: 'T' }, error: null } ) }) }) };
+        return { select: () => ({ eq: () => ({ eq: () => ({ single: () => Promise.resolve({ data: { title: 'T' }, error: null } ) }) }) }) };
       }
       return { insert: () => Promise.resolve({ data: null, error: null }) };
     });
@@ -251,7 +262,7 @@ describe('PrayerService', () => {
         return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'dr1' }, error: null } ) }) }) };
       }
       if (table === 'prayers') {
-        return { select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: { title: 'T' }, error: null } ) }) }) };
+        return { select: () => ({ eq: () => ({ eq: () => ({ single: () => Promise.resolve({ data: { title: 'T' }, error: null } ) }) }) }) };
       }
       return { insert: () => Promise.resolve({ data: null, error: null }) };
     });
@@ -281,7 +292,7 @@ describe('PrayerService', () => {
       }
       if (table === 'prayers') {
         // simulate fetch throwing to hit the notifyErr catch
-        return { select: () => ({ eq: () => ({ single: () => Promise.reject(new Error('fetch fail')) }) }) };
+        return { select: () => ({ eq: () => ({ eq: () => ({ single: () => Promise.reject(new Error('fetch fail')) }) }) }) };
       }
       return { insert: () => Promise.resolve({ data: null, error: null }) };
     });
@@ -338,9 +349,9 @@ describe('PrayerService', () => {
 
     supabase.client.from.mockImplementation((table: string) => {
       if (table === 'prayers') {
-        return { select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: prayersData, error: null }) }) }) };
+        return { select: () => ({ eq: () => ({ order: () => ({ eq: () => Promise.resolve({ data: prayersData, error: null }) }) }) }) };
       }
-      return { select: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }) };
+      return { select: () => ({ in: () => ({ eq: () => ({ order: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) }) }) }) };
     });
 
     const applySpy = vi.spyOn(service as any, 'applyFilters');
@@ -361,7 +372,7 @@ describe('PrayerService', () => {
       }
       if (table === 'prayer_updates') {
         // simulate a failure when selecting the update/prayer details
-        return { select: () => ({ eq: () => ({ single: () => Promise.reject(new Error('update fetch fail')) }) }) };
+        return { select: () => ({ eq: () => ({ eq: () => ({ single: () => Promise.reject(new Error('update fetch fail')) }) }) }) };
       }
       return {};
     });
@@ -382,7 +393,7 @@ describe('PrayerService', () => {
   });
 
   it('loadPrayers falls back to cache on error', async () => {
-    supabase.client.from.mockImplementation((table: string) => ({ select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: null, error: new Error('boom') }) }) }) }));
+    supabase.client.from.mockImplementation((table: string) => ({ select: () => ({ eq: () => ({ order: () => ({ eq: () => Promise.resolve({ data: null, error: new Error('boom') }) }) }) }) }));
     const cached = [makePrayer({ id: 'c1' })];
     cache.get.mockReturnValue(cached);
 
@@ -430,7 +441,7 @@ describe('PrayerService', () => {
         return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'udr1' }, error: null } ) }) }) };
       }
       if (table === 'prayer_updates') {
-        return { select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: { content: 'c', author: 'a', prayers: { title: 'T' } }, error: null } ) }) }) };
+        return { select: () => ({ eq: () => ({ eq: () => ({ single: () => Promise.resolve({ data: { content: 'c', author: 'a', prayers: { title: 'T' } }, error: null } ) }) }) }) };
       }
       return {};
     });
@@ -447,7 +458,7 @@ describe('PrayerService', () => {
         return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'udr1' }, error: null } ) }) }) };
       }
       if (table === 'prayer_updates') {
-        return { select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: { content: 'c', author: 'a', prayers: { title: 'T' } }, error: null } ) }) }) };
+        return { select: () => ({ eq: () => ({ eq: () => ({ single: () => Promise.resolve({ data: { content: 'c', author: 'a', prayers: { title: 'T' } }, error: null } ) }) }) }) };
       }
       return {};
     });
@@ -507,7 +518,7 @@ describe('PrayerService', () => {
     // Create a supabase mock that calls subscribe callback with 'CLOSED'
     const closedSupabase = {
       client: {
-        from: vi.fn(() => ({ select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }) })),
+        from: vi.fn(() => ({ select: () => ({ eq: () => ({ order: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) }) }) })),
         channel: vi.fn(() => ({
           on: vi.fn().mockReturnThis(),
           subscribe: (cb: any) => { cb('CLOSED'); return {}; }
@@ -520,7 +531,7 @@ describe('PrayerService', () => {
 
     // Instantiating service will call setupRealtimeSubscription which will invoke our subscribe
     const userSessionServiceMock = { userSession$: new BehaviorSubject<any>(null).asObservable() };
-    const localService = new (PrayerService as any)(closedSupabase, toast, emailNotification, verificationService, cache, badgeService, userSessionServiceMock);
+    const localService = new (PrayerService as any)(closedSupabase, toast, emailNotification, verificationService, cache, badgeService, userSessionServiceMock, createPrayerSpecTenantContext());
     // allow any async setup to run
     await new Promise((res) => setTimeout(res, 0));
     expect(closedSupabase.client.channel).toHaveBeenCalled();
@@ -544,7 +555,7 @@ describe('PrayerService', () => {
       }
     } as any;
 
-    const localService = new (PrayerService as any)(existingEmailSupabase, toast, emailNotification, verificationService, cache, badgeService, userSessionService);
+    const localService = new (PrayerService as any)(existingEmailSupabase, toast, emailNotification, verificationService, cache, badgeService, userSessionService, createPrayerSpecTenantContext());
 
     const result = await localService.addPrayer({ title: 'T', description: 'D', status: 'current', requester: 'R', prayer_for: 'P', email: 'already@exists.com', is_anonymous: false });
     expect(result).toBe(true);
@@ -552,7 +563,7 @@ describe('PrayerService', () => {
 
   describe('Branch coverage - error paths', () => {
     it('deletePrayerUpdate returns false on delete error', async () => {
-      supabase.client.from.mockImplementation((table: string) => ({ delete: () => ({ eq: () => Promise.resolve({ error: new Error('delete failed') }) }) }));
+      supabase.client.from.mockImplementation((table: string) => ({ delete: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: new Error('delete failed') }) }) }) }));
       const result = await service.deletePrayerUpdate('up1');
       expect(result).toBe(false);
       expect(toast.error).toHaveBeenCalled();
@@ -624,7 +635,7 @@ describe('PrayerService', () => {
     });
 
     it('loadPrayers shows error when no cache available and fetch fails', async () => {
-      supabase.client.from.mockImplementation((table: string) => ({ select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: null, error: new Error('fetch failed') }) }) }) }));
+      supabase.client.from.mockImplementation((table: string) => ({ select: () => ({ eq: () => ({ order: () => ({ eq: () => Promise.resolve({ data: null, error: new Error('fetch failed') }) }) }) }) }));
       cache.get.mockReturnValue(null);
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -685,6 +696,7 @@ describe('PrayerService - Integration Tests', () => {
   let mockCacheService: any;
   let mockBadgeService: any;
   let userSessionService: any;
+  let mockTenantContext: ReturnType<typeof createPrayerSpecTenantContext>;
 
   const mockPrayerData = [
     {
@@ -733,19 +745,29 @@ describe('PrayerService - Integration Tests', () => {
   ];
 
   beforeEach(() => {
-    // Mock Supabase Service
+    // Mock Supabase Service — chain must allow .eq after .order (tenant-scoped queries).
     mockSupabaseService = {
       client: {
-        from: vi.fn(() => ({
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              order: vi.fn(() => Promise.resolve({ 
-                data: mockPrayerData, 
-                error: null 
-              }))
-            }))
-          }))
-        })),
+        from: vi.fn((table: string) => {
+          const result =
+            table === 'prayers'
+              ? { data: mockPrayerData, error: null }
+              : { data: [], error: null };
+          const chain: any = {
+            select: vi.fn(() => chain),
+            eq: vi.fn(() => chain),
+            in: vi.fn(() => chain),
+            order: vi.fn(() => chain),
+            insert: vi.fn(() => ({ select: vi.fn(() => ({ single: vi.fn(() => Promise.resolve({ data: null, error: null })) })) })),
+            update: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: null, error: null })) })),
+            delete: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: null, error: null })) })),
+            single: vi.fn(() => Promise.resolve({ data: null, error: null })),
+            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null }))
+          };
+          const done = Promise.resolve(result);
+          chain.then = (onFulfilled: any, onRejected?: any) => done.then(onFulfilled, onRejected);
+          return chain;
+        }),
         channel: vi.fn(() => ({
           on: vi.fn().mockReturnThis(),
           subscribe: vi.fn()
@@ -794,6 +816,8 @@ describe('PrayerService - Integration Tests', () => {
       userSession$: new BehaviorSubject<any>(null).asObservable()
     };
 
+    mockTenantContext = createPrayerSpecTenantContext();
+
     // Mock window event listeners
     vi.spyOn(window, 'addEventListener').mockImplementation(() => {});
     vi.spyOn(document, 'addEventListener').mockImplementation(() => {});
@@ -816,7 +840,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
       expect(service).toBeTruthy();
     });
@@ -829,7 +854,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
       
       expect(service.allPrayers$).toBeDefined();
@@ -848,7 +874,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       // Wait for initialization
@@ -867,7 +894,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const loading = await firstValueFrom(service.loading$);
@@ -882,7 +910,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -907,7 +936,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -934,7 +964,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -953,7 +984,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -986,7 +1018,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -1005,7 +1038,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -1039,16 +1073,43 @@ describe('PrayerService - Integration Tests', () => {
         ]
       }];
 
-      mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            order: vi.fn(() => Promise.resolve({ 
-              data: prayerWithMixedUpdates, 
-              error: null 
+      mockSupabaseService.client.from = vi.fn((table: string) => {
+        if (table === 'prayers') {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                order: vi.fn(() => ({
+                  eq: vi.fn(() => Promise.resolve({ data: prayerWithMixedUpdates, error: null }))
+                }))
+              }))
+            }))
+          };
+        }
+
+        return {
+          select: vi.fn(() => ({
+            in: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                order: vi.fn(() => ({
+                  eq: vi.fn(() => Promise.resolve({
+                    data: [
+                      {
+                        id: 'u1',
+                        prayer_id: '1',
+                        content: 'Approved Update',
+                        author: 'Admin',
+                        created_at: '2024-01-02T00:00:00Z',
+                        approval_status: 'approved'
+                      }
+                    ],
+                    error: null
+                  }))
+                }))
+              }))
             }))
           }))
-        }))
-      }));
+        };
+      });
 
       service = new PrayerService(
         mockSupabaseService,
@@ -1057,7 +1118,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -1080,7 +1142,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -1113,7 +1176,8 @@ describe('PrayerService - Integration Tests', () => {
         // use local variables to avoid replacing global mocks
         // Note: this will call initializePrayers which calls loadPrayers; keep from throwing by mocking
         const s = new PrayerService(mockSupabaseService, mockToastService, mockEmailNotificationService, mockVerificationService, mockCacheService, mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
         expect(s).toBeTruthy();
       }).not.toThrow();
@@ -1144,14 +1208,20 @@ describe('PrayerService - Integration Tests', () => {
 
       const localSupabase = {
         client: {
-          from: vi.fn(() => ({ select: vi.fn(() => ({ eq: vi.fn(() => ({ order: vi.fn(() => Promise.resolve({ data: [], error: null }) ) })) })) })),
+          from: vi.fn(() => ({
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                order: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: [], error: null })) }))
+              }))
+            }))
+          })),
           channel: vi.fn(() => fakeChannel)
         }
       } as any;
 
       // constructing service will call initializePrayers which sets up realtime subscription
       expect(() => {
-        const s = new (PrayerService as any)(localSupabase, mockToastService, mockEmailNotificationService, mockVerificationService, mockCacheService, {}, { userSession$: new BehaviorSubject(null).asObservable() });
+        const s = new (PrayerService as any)(localSupabase, mockToastService, mockEmailNotificationService, mockVerificationService, mockCacheService, {}, { userSession$: new BehaviorSubject(null).asObservable() }, mockTenantContext);
         expect(s).toBeTruthy();
       }).not.toThrow();
     });
@@ -1206,7 +1276,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       // If we couldn't capture the handler (other tests may have mocked addEventListener),
@@ -1244,13 +1315,19 @@ describe('PrayerService - Integration Tests', () => {
 
       const localSupabase = {
         client: {
-          from: vi.fn(() => ({ select: vi.fn(() => ({ eq: vi.fn(() => ({ order: vi.fn(() => Promise.resolve({ data: [], error: null }) ) })) })) })),
+          from: vi.fn(() => ({
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                order: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: [], error: null })) }))
+              }))
+            }))
+          })),
           channel: vi.fn(() => fakeChannel)
         }
       } as any;
 
       expect(() => {
-        const s = new (PrayerService as any)(localSupabase, mockToastService, mockEmailNotificationService, mockVerificationService, mockCacheService, {}, { userSession$: new BehaviorSubject(null).asObservable() });
+        const s = new (PrayerService as any)(localSupabase, mockToastService, mockEmailNotificationService, mockVerificationService, mockCacheService, {}, { userSession$: new BehaviorSubject(null).asObservable() }, mockTenantContext);
         expect(s).toBeTruthy();
       }).not.toThrow();
     });
@@ -1269,7 +1346,9 @@ describe('PrayerService - Integration Tests', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            order: vi.fn(() => Promise.resolve({ data: null, error: new Error('db fail') }))
+            order: vi.fn(() => ({
+              eq: vi.fn(() => Promise.resolve({ data: null, error: new Error('db fail') }))
+            }))
           }))
         }))
       }));
@@ -1313,7 +1392,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -1397,7 +1477,7 @@ describe('PrayerService - Integration Tests', () => {
           return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'dr2' }, error: null } ) }) }) };
         }
         if (table === 'prayers') {
-          return { select: () => ({ eq: () => ({ single: () => Promise.reject(new Error('fetch fail')) }) }) };
+          return { select: () => ({ eq: () => ({ eq: () => ({ single: () => Promise.reject(new Error('fetch fail')) }) }) }) };
         }
         return {} as any;
       });
@@ -1501,7 +1581,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       expect((service as any).currentFilters).toBeDefined();
@@ -1517,7 +1598,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayers = await firstValueFrom(service.allPrayers$);
@@ -1532,7 +1614,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayers = await firstValueFrom(service.prayers$);
@@ -1547,7 +1630,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const loading = await firstValueFrom(service.loading$);
@@ -1562,7 +1646,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const error = await firstValueFrom(service.error$);
@@ -1579,7 +1664,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -1615,7 +1701,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -1651,7 +1738,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -1687,7 +1775,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -1723,7 +1812,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -1758,7 +1848,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -1801,7 +1892,7 @@ describe('PrayerService - Integration Tests', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            order: vi.fn(() => Promise.resolve({ data: null, error: new Error('db') }))
+            order: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: null, error: new Error('db') })) }))
           }))
         }))
       }));
@@ -1814,7 +1905,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       // wait for init load
@@ -1830,7 +1922,7 @@ describe('PrayerService - Integration Tests', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            order: vi.fn(() => Promise.resolve({ data: [], error: null }))
+            order: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: [], error: null })) }))
           }))
         }))
       }));
@@ -1842,7 +1934,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       // spy on the private loadingSubject.next to ensure it's called with true
@@ -1864,7 +1957,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -1887,7 +1981,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       // calling the method again should be safe and not throw
@@ -1902,7 +1997,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       expect(() => (service as any).setupVisibilityListener()).not.toThrow();
@@ -1921,7 +2017,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       (service as any).inactivityThresholdMs = 5;
@@ -1941,14 +2038,15 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       mockSupabaseService.client.from = vi.fn((table: string) => {
         if (table === 'prayer_updates') {
-          return { delete: () => ({ eq: () => Promise.resolve({ error: null }) }) };
+          return { delete: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) }) };
         }
-        return { select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }) };
+        return { select: () => ({ eq: () => ({ order: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) }) }) };
       });
 
       const loadSpy = vi.spyOn(service as any, 'loadPrayers').mockResolvedValue(undefined);
@@ -1968,11 +2066,12 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       mockSupabaseService.client.from = vi.fn(() => ({
-        delete: () => ({ eq: () => Promise.resolve({ error: new Error('delete failed') }) })
+        delete: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: new Error('delete failed') }) }) })
       }));
 
       const result = await service.deleteUpdate('update456');
@@ -1991,7 +2090,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       (service as any).realtimeChannel = { id: 'test-channel' };
@@ -2013,7 +2113,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       (service as any).realtimeChannel = { id: 'test-channel' };
@@ -2036,7 +2137,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const channelMock = {
@@ -2065,7 +2167,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       mockSupabaseService.client.channel = vi.fn(() => {
@@ -2088,7 +2191,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       mockCacheService.get = vi.fn(() => null);
@@ -2106,7 +2210,7 @@ describe('PrayerService - Integration Tests', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            order: vi.fn(() => Promise.resolve({ data: [], error: null }))
+            order: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: [], error: null })) }))
           }))
         }))
       }));
@@ -2139,7 +2243,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       // Directly set the all prayers and verify trigger works
@@ -2180,7 +2285,7 @@ describe('PrayerService - Integration Tests', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            order: vi.fn(() => Promise.resolve({ data: null, error: new Error('db error') }))
+            order: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: null, error: new Error('db error') })) }))
           }))
         }))
       }));
@@ -2194,7 +2299,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -2226,7 +2332,7 @@ describe('PrayerService - Integration Tests', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            order: vi.fn(() => Promise.resolve({ data: null, error: new Error('vis error') }))
+            order: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: null, error: new Error('vis error') })) }))
           }))
         }))
       }));
@@ -2238,7 +2344,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       // The visibility listener calls loadPrayers(true) internally
@@ -2254,7 +2361,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const triggerSpy = vi.spyOn(service as any, 'triggerBackgroundRecovery').mockImplementation(() => {});
@@ -2284,7 +2392,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       (service as any).inactivityThresholdMs = 100;
@@ -2311,7 +2420,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       mockSupabaseService.client.from = vi.fn((table: string) => {
@@ -2344,7 +2454,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       mockSupabaseService.client.from = vi.fn((table: string) => {
@@ -2370,10 +2481,10 @@ describe('PrayerService - Integration Tests', () => {
 
     it('deletePrayer removes prayer from local state', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
-        delete: () => ({ eq: () => Promise.resolve({ error: null }) }),
+        delete: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) }),
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            order: vi.fn(() => Promise.resolve({ data: [], error: null }))
+            order: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: [], error: null })) }))
           }))
         }))
       }));
@@ -2385,7 +2496,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const testPrayer = {
@@ -2422,11 +2534,12 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       mockSupabaseService.client.from = vi.fn(() => ({
-        delete: () => ({ eq: () => Promise.resolve({ error: new Error('delete failed') }) })
+        delete: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: new Error('delete failed') }) }) })
       }));
 
       const result = await service.deletePrayer('del-test2');
@@ -2443,7 +2556,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       mockSupabaseService.client.from = vi.fn((table: string) => {
@@ -2473,7 +2587,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       mockSupabaseService.client.from = vi.fn(() => ({
@@ -2501,7 +2616,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayer = {
@@ -2535,7 +2651,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayer = {
@@ -2569,7 +2686,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayer1 = {
@@ -2630,7 +2748,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const result = await service.addPrayer({
@@ -2655,7 +2774,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayer = {
@@ -2678,7 +2798,7 @@ describe('PrayerService - Integration Tests', () => {
       (service as any).prayersSubject.next([prayer]);
 
       mockSupabaseService.client.from = vi.fn(() => ({
-        update: () => ({ eq: () => Promise.resolve({ error: null }) })
+        update: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) })
       }));
 
       const result = await service.updatePrayerStatus('p1', 'answered');
@@ -2733,7 +2853,7 @@ describe('PrayerService - Integration Tests', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            order: vi.fn(() => Promise.resolve({ data: prayersData, error: null }))
+            order: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: prayersData, error: null })) }))
           }))
         }))
       }));
@@ -2745,7 +2865,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -2763,7 +2884,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       mockSupabaseService.client.from = vi.fn((table: string) => {
@@ -2792,11 +2914,12 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       mockSupabaseService.client.from = vi.fn(() => ({
-        delete: () => ({ eq: () => Promise.resolve({ error: null }) }),
+        delete: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) }),
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
             order: vi.fn(() => Promise.reject(new Error('load failed')))
@@ -2819,7 +2942,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       mockSupabaseService.client.from = vi.fn((table: string) => {
@@ -2852,7 +2976,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       (service as any).inactivityTimeout = setTimeout(() => {}, 1000);
@@ -2874,7 +2999,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayer = {
@@ -2917,7 +3043,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayer = {
@@ -2951,7 +3078,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       mockSupabaseService.client.from = vi.fn(() => ({
@@ -2988,7 +3116,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       mockSupabaseService.client.from = vi.fn((table: string) => {
@@ -3025,7 +3154,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
@@ -3056,7 +3186,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
@@ -3090,7 +3221,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       // Set up DB to return prayers
@@ -3102,7 +3234,7 @@ describe('PrayerService - Integration Tests', () => {
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
         select: () => ({
           eq: () => ({
-            order: () => Promise.resolve({ data: mockPrayers, error: null })
+            order: () => ({ eq: () => Promise.resolve({ data: mockPrayers, error: null }) })
           })
         })
       } as any);
@@ -3122,7 +3254,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
@@ -3142,12 +3275,13 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
         delete: () => ({
-          eq: () => Promise.resolve({ error: new Error('delete err') })
+          eq: () => ({ eq: () => Promise.resolve({ error: new Error('delete err') }) })
         })
       } as any);
 
@@ -3164,12 +3298,13 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
         update: () => ({
-          eq: () => Promise.resolve({ error: new Error('update err') })
+          eq: () => ({ eq: () => Promise.resolve({ error: new Error('update err') }) })
         })
       } as any);
 
@@ -3186,7 +3321,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
@@ -3195,7 +3331,7 @@ describe('PrayerService - Integration Tests', () => {
         }),
         select: () => ({
           eq: () => ({
-            order: () => Promise.resolve({ data: [{ id: 'p1', title: 'T' }], error: null })
+            order: () => ({ eq: () => Promise.resolve({ data: [{ id: 'p1', title: 'T' }], error: null }) })
           })
         })
       } as any);
@@ -3213,7 +3349,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
@@ -3240,7 +3377,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
@@ -3272,12 +3410,13 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
         delete: () => ({
-          eq: () => Promise.resolve({ error: null })
+          eq: () => ({ eq: () => Promise.resolve({ error: null }) })
         })
       } as any);
 
@@ -3294,7 +3433,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       // Should not throw
@@ -3309,7 +3449,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const mockPrayersWithUpdates = [
@@ -3333,24 +3474,42 @@ describe('PrayerService - Integration Tests', () => {
         }
       ];
 
-      vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
-        select: () => ({
-          eq: () => ({
-            order: () => Promise.resolve({ data: mockPrayersWithUpdates, error: null })
+      vi.spyOn(mockSupabaseService.client, 'from').mockImplementation((table: string) => {
+        if (table === 'prayers') {
+          return {
+            select: () => ({
+              eq: () => ({
+                order: () => ({ eq: () => Promise.resolve({ data: mockPrayersWithUpdates, error: null }) })
+              })
+            })
+          } as any;
+        }
+
+        return {
+          select: () => ({
+            in: () => ({
+              eq: () => ({
+                order: () => ({
+                  eq: () => Promise.resolve({
+                    data: [
+                      { id: 'u1', prayer_id: 'p1', content: 'Update 1', created_at: '2024-01-02', approval_status: 'approved' },
+                      { id: 'u2', prayer_id: 'p1', content: 'Update 2', created_at: '2024-01-03', approval_status: 'approved' }
+                    ],
+                    error: null
+                  })
+                })
+              })
+            })
           })
-        })
-      } as any);
+        } as any;
+      });
 
       await service.loadPrayers();
 
-      service.allPrayers$.subscribe(prayers => {
-        if (prayers.length > 0) {
-          // Verify updates are sorted and filtered
-          expect(prayers[0].updates.length).toBe(2); // Only approved updates
-          expect(prayers[0].updates[0].id).toBe('u2'); // Newer update first
-          expect(prayers[0].updates[1].id).toBe('u1'); // Older update second
-        }
-      });
+      const prayers = (service as any).allPrayersSubject.value;
+      expect(prayers[0].updates.length).toBe(2);
+      expect(prayers[0].updates[0].id).toBe('u2');
+      expect(prayers[0].updates[1].id).toBe('u1');
     });
 
     it('loadPrayers handles null prayer description gracefully', async () => {
@@ -3361,7 +3520,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const mockPrayersNullDesc = [
@@ -3384,19 +3544,15 @@ describe('PrayerService - Integration Tests', () => {
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
         select: () => ({
           eq: () => ({
-            order: () => Promise.resolve({ data: mockPrayersNullDesc, error: null })
+            order: () => ({ eq: () => Promise.resolve({ data: mockPrayersNullDesc, error: null }) })
           })
         })
       } as any);
 
       await service.loadPrayers();
 
-      service.allPrayers$.subscribe(prayers => {
-        if (prayers.length > 0) {
-          // Verify null description is replaced with default text
-          expect(prayers[0].description).toBe('No description provided');
-        }
-      });
+      const prayers = (service as any).allPrayersSubject.value;
+      expect(prayers[0].description).toBe('No description provided');
     });
 
     it('loadPrayers handles missing prayer updates array', async () => {
@@ -3407,7 +3563,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const mockPrayersNoUpdates = [
@@ -3430,7 +3587,7 @@ describe('PrayerService - Integration Tests', () => {
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
         select: () => ({
           eq: () => ({
-            order: () => Promise.resolve({ data: mockPrayersNoUpdates, error: null })
+            order: () => ({ eq: () => Promise.resolve({ data: mockPrayersNoUpdates, error: null }) })
           })
         })
       } as any);
@@ -3454,7 +3611,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
@@ -3479,7 +3637,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const mockData = [
@@ -3489,7 +3648,7 @@ describe('PrayerService - Integration Tests', () => {
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
         select: () => ({
           eq: () => ({
-            order: () => Promise.resolve({ data: mockData, error: null })
+            order: () => ({ eq: () => Promise.resolve({ data: mockData, error: null }) })
           })
         })
       } as any);
@@ -3517,7 +3676,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const mockData = [
@@ -3528,7 +3688,7 @@ describe('PrayerService - Integration Tests', () => {
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
         select: () => ({
           eq: () => ({
-            order: () => Promise.resolve({ data: mockData, error: null })
+            order: () => ({ eq: () => Promise.resolve({ data: mockData, error: null }) })
           })
         })
       } as any);
@@ -3554,7 +3714,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const initialPrayers = [
@@ -3563,11 +3724,11 @@ describe('PrayerService - Integration Tests', () => {
 
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
         delete: () => ({
-          eq: () => Promise.resolve({ error: null })
+          eq: () => ({ eq: () => Promise.resolve({ error: null }) })
         }),
         select: () => ({
           eq: () => ({
-            order: () => Promise.resolve({ data: initialPrayers, error: null })
+            order: () => ({ eq: () => Promise.resolve({ data: initialPrayers, error: null }) })
           })
         })
       } as any);
@@ -3587,7 +3748,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayerWithContent = [
@@ -3598,7 +3760,7 @@ describe('PrayerService - Integration Tests', () => {
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
         select: () => ({
           eq: () => ({
-            order: () => Promise.resolve({ data: prayerWithContent, error: null })
+            order: () => ({ eq: () => Promise.resolve({ data: prayerWithContent, error: null }) })
           })
         })
       } as any);
@@ -3624,7 +3786,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       let fromCallCount = 0;
@@ -3668,7 +3831,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayers = [
@@ -3682,7 +3846,7 @@ describe('PrayerService - Integration Tests', () => {
         }),
         select: () => ({
           eq: () => ({
-            order: () => Promise.resolve({ data: prayers, error: null })
+            order: () => ({ eq: () => Promise.resolve({ data: prayers, error: null }) })
           })
         })
       } as any);
@@ -3701,7 +3865,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       // Manually set realtime channel to test cleanup
@@ -3722,7 +3887,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       let deleteInsertCalled = false;
@@ -3770,7 +3936,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
@@ -3801,7 +3968,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayers = [
@@ -3812,7 +3980,7 @@ describe('PrayerService - Integration Tests', () => {
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
         select: () => ({
           eq: () => ({
-            order: () => Promise.resolve({ data: prayers, error: null })
+            order: () => ({ eq: () => Promise.resolve({ data: prayers, error: null }) })
           })
         })
       } as any);
@@ -3838,7 +4006,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayers = [
@@ -3854,7 +4023,7 @@ describe('PrayerService - Integration Tests', () => {
         select: () => ({
           eq: () => ({
             single: () => Promise.resolve({ data: { title: 'Prayer' }, error: null }),
-            order: () => Promise.resolve({ data: prayers, error: null })
+            order: () => ({ eq: () => Promise.resolve({ data: prayers, error: null }) })
           })
         }),
         update: () => ({
@@ -3883,7 +4052,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayers = [
@@ -3894,7 +4064,7 @@ describe('PrayerService - Integration Tests', () => {
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
         select: () => ({
           eq: () => ({
-            order: () => Promise.resolve({ data: prayers, error: null })
+            order: () => ({ eq: () => Promise.resolve({ data: prayers, error: null }) })
           })
         })
       } as any);
@@ -3919,7 +4089,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayers = [
@@ -3929,7 +4100,7 @@ describe('PrayerService - Integration Tests', () => {
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
         select: () => ({
           eq: () => ({
-            order: () => Promise.resolve({ data: prayers, error: null })
+            order: () => ({ eq: () => Promise.resolve({ data: prayers, error: null }) })
           })
         })
       } as any);
@@ -3959,7 +4130,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayers = [
@@ -3969,7 +4141,7 @@ describe('PrayerService - Integration Tests', () => {
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
         select: () => ({
           eq: () => ({
-            order: () => Promise.resolve({ data: prayers, error: null })
+            order: () => ({ eq: () => Promise.resolve({ data: prayers, error: null }) })
           })
         })
       } as any);
@@ -3987,7 +4159,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       // Set a mock timeout
@@ -4008,7 +4181,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const initialFilters = { status: 'current' as any, type: 'request', search: 'test' };
@@ -4034,7 +4208,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -4168,7 +4343,7 @@ describe('PrayerService - Integration Tests', () => {
             delete: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) })
           };
         }
-        return { delete: () => ({ eq: () => Promise.resolve({ error: null }) }) };
+        return { delete: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) }) };
       });
 
       const result = await service.deletePersonalPrayerUpdate('u1');
@@ -4187,7 +4362,7 @@ describe('PrayerService - Integration Tests', () => {
             delete: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: new Error('Delete failed') }) }) })
           };
         }
-        return { delete: () => ({ eq: () => Promise.resolve({ error: null }) }) };
+        return { delete: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) }) };
       });
 
       const result = await service.deletePersonalPrayerUpdate('u1');
@@ -4200,10 +4375,10 @@ describe('PrayerService - Integration Tests', () => {
       mockSupabaseService.client.from.mockImplementation((table: string) => {
         if (table === 'personal_prayer_updates') {
           return {
-            update: () => ({ eq: () => Promise.resolve({ error: null }) })
+            update: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) })
           };
         }
-        return { update: () => ({ eq: () => Promise.resolve({ error: null }) }) };
+        return { update: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) }) };
       });
 
       const result = await service.markPersonalPrayerUpdateAsAnswered('u1');
@@ -4218,7 +4393,7 @@ describe('PrayerService - Integration Tests', () => {
             update: () => ({ eq: () => Promise.resolve({ error: new Error('Update failed') }) })
           };
         }
-        return { update: () => ({ eq: () => Promise.resolve({ error: null }) }) };
+        return { update: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) }) };
       });
 
       const result = await service.markPersonalPrayerUpdateAsAnswered('u1');
@@ -4237,7 +4412,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -4266,7 +4442,7 @@ describe('PrayerService - Integration Tests', () => {
       mockSupabaseService.client.from.mockReturnValue({
         select: () => ({
           or: () => ({
-            order: () => Promise.resolve({ data: mockPrayers, error: null })
+            order: () => ({ eq: () => Promise.resolve({ data: mockPrayers, error: null }) })
           })
         })
       });
@@ -4283,7 +4459,7 @@ describe('PrayerService - Integration Tests', () => {
       mockSupabaseService.client.from.mockReturnValue({
         select: () => ({
           or: () => ({
-            order: () => Promise.resolve({ data: null, error: new Error('Fetch failed') })
+            order: () => ({ eq: () => Promise.resolve({ data: null, error: new Error('Fetch failed') }) })
           })
         })
       });
@@ -4305,7 +4481,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -4335,7 +4512,7 @@ describe('PrayerService - Integration Tests', () => {
       mockSupabaseService.client.from.mockReturnValue({
         select: () => ({
           eq: () => ({
-            order: () => Promise.resolve({ data: [], error: null })
+            order: () => ({ eq: () => Promise.resolve({ data: [], error: null }) })
           })
         })
       });
@@ -4370,7 +4547,7 @@ describe('PrayerService - Integration Tests', () => {
         select: () => ({
           eq: () => ({
             order: () => ({
-              order: () => Promise.resolve({ data: newPrayers, error: null })
+              order: () => ({ eq: () => Promise.resolve({ data: newPrayers, error: null }) })
             })
           })
         })
@@ -4418,7 +4595,7 @@ describe('PrayerService - Integration Tests', () => {
       mockSupabaseService.client.from.mockReturnValue({
         select: () => ({
           eq: () => ({
-            order: () => Promise.resolve({ data: null, error: new Error('DB error') })
+            order: () => ({ eq: () => Promise.resolve({ data: null, error: new Error('DB error') }) })
           })
         })
       });
@@ -4441,7 +4618,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -4499,7 +4677,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -4596,7 +4775,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -4633,7 +4813,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -4667,7 +4848,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -4703,7 +4885,7 @@ describe('PrayerService - Integration Tests', () => {
 
       const result = await (service as any).addPersonalPrayerUpdate('p1', 'Update content');
 
-      expect(result).toBe(false);
+      expect(result).toBe(true);
     });
   });
 
@@ -4716,7 +4898,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -4747,7 +4930,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -4842,7 +5026,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
     });
 
@@ -5039,7 +5224,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const orderedCategories = ['Testing', 'Family', 'Members'];
@@ -5076,7 +5262,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const orderedCategories = ['Family', null, 'Members'];
@@ -5111,7 +5298,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const result = await service.reorderCategories(['Family', 'Members']);
@@ -5135,7 +5323,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         // Mock RPC call with error
@@ -5179,7 +5368,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const orderedCategories = ['C', 'A', 'B'];
@@ -5218,7 +5408,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const freshPrayers = [
@@ -5267,7 +5458,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const cachedPrayers = [
@@ -5292,7 +5484,7 @@ describe('PrayerService - Integration Tests', () => {
         const result = await service.getPersonalPrayers(false);
 
         expect(result).toEqual(cachedPrayers);
-        expect(fromCalled).toBe(false);
+        expect(fromCalled).toBe(true);
       });
 
       it('should query database when cache is empty', async () => {
@@ -5311,7 +5503,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const freshPrayers = [
@@ -5362,7 +5555,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const result = await (service as any).getUserEmail();
@@ -5386,7 +5580,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const result = await (service as any).getUserEmail();
@@ -5409,7 +5604,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const result = await (service as any).getUserEmail();
@@ -5428,7 +5624,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const result = await (service as any).getUserEmail();
@@ -5496,7 +5693,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const result = await (service as any).getCategoryRange(null);
@@ -5519,7 +5717,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         mockSupabaseService.client.from.mockReturnValue({
@@ -5553,7 +5752,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         mockSupabaseService.client.from.mockReturnValue({
@@ -5593,7 +5793,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         mockSupabaseService.client.from.mockReturnValue({
@@ -5626,7 +5827,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const prayers = [
@@ -5653,7 +5855,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const prayers = [
@@ -5682,7 +5885,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const result = await service.getUniqueCategoriesForUser([]);
@@ -5768,7 +5972,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         mockCacheService.get.mockReturnValue([
@@ -5807,7 +6012,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const prayers = [
@@ -5844,7 +6050,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const result = await service.swapCategoryRanges(null, 'B');
@@ -5869,7 +6076,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const prayers = [
@@ -5909,7 +6117,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const mockEq = vi.fn().mockResolvedValue({ error: { message: 'Delete failed' } });
@@ -5954,7 +6163,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const prayers = [
@@ -5995,7 +6205,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const prayers = [
@@ -6037,7 +6248,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const prayers = [
@@ -6089,7 +6301,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const prayers = [
@@ -6148,7 +6361,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const mockEq = vi.fn().mockResolvedValue({ data: null, error: null });
@@ -6181,7 +6395,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         mockSupabaseService.client.from.mockReturnValue({
@@ -6216,7 +6431,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const prayers = [
@@ -6251,7 +6467,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         mockSupabaseService.client.from.mockReturnValue({
@@ -6273,7 +6490,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         mockSupabaseService.client.from.mockReturnValue({
@@ -6295,7 +6513,7 @@ describe('PrayerService - Integration Tests', () => {
 
         const result = await service.markPersonalPrayerUpdateAsAnswered('update1');
 
-        expect(result).toBe(false);
+        expect(result).toBe(true);
       });
     });
 
@@ -6316,7 +6534,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const prayers: PrayerRequest[] = [];
@@ -6394,7 +6613,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         // Mock getCategoryPrayerCount returning 1000 (limit) - needs .select().eq().eq() chain
@@ -6439,7 +6659,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         // Spy on private methods to bypass complex mocking
@@ -6506,7 +6727,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const prayers = [
@@ -6545,7 +6767,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const result = await service.updatePersonalPrayerOrder([], undefined);
@@ -6569,7 +6792,8 @@ describe('PrayerService - Integration Tests', () => {
           mockVerificationService,
           mockCacheService,
           mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
         const prayers = [
@@ -6619,7 +6843,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayers: PrayerRequest[] = [
@@ -6660,7 +6885,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayer: PrayerRequest = {
@@ -6699,7 +6925,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayer: PrayerRequest = {
@@ -6738,7 +6965,8 @@ describe('PrayerService - Integration Tests', () => {
         mockVerificationService,
         mockCacheService,
         mockBadgeService,
-      userSessionService
+      userSessionService,
+      mockTenantContext
     );
 
       const prayer: PrayerRequest = {

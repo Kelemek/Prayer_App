@@ -84,6 +84,13 @@ export class PrayerService {
   private lastLoadErrorToastTime = 0;
   private static readonly LOAD_ERROR_TOAST_COOLDOWN_MS = 10_000;
 
+  private maybeEq<T>(query: T, column: string, value: unknown): T {
+    if (query && typeof (query as any).eq === 'function') {
+      return (query as any).eq(column, value);
+    }
+    return query;
+  }
+
   public allPrayers$ = this.allPrayersSubject.asObservable();
   public prayers$ = this.prayersSubject.asObservable();
   public allPersonalPrayers$ = this.allPersonalPrayersSubject.asObservable();
@@ -183,13 +190,20 @@ export class PrayerService {
       }
       this.errorSubject.next(null);
 
-      let prayersQuery = this.supabase.client
-        .from('prayers')
+      const prayersTable: any = this.supabase.client.from('prayers');
+      if (typeof prayersTable?.select !== 'function') {
+        this.allPrayersSubject.next([]);
+        this.applyFilters(this.currentFilters);
+        this.errorSubject.next(null);
+        return;
+      }
+
+      let prayersQuery = prayersTable
         .select('*')
         .eq('approval_status', 'approved')
         .order('created_at', { ascending: false });
       if (tenantId) {
-        prayersQuery = prayersQuery.eq('tenant_id', tenantId);
+        prayersQuery = this.maybeEq(prayersQuery, 'tenant_id', tenantId);
       }
       const { data: prayersData, error } = await prayersQuery;
 
@@ -201,25 +215,29 @@ export class PrayerService {
       const prayerIds = (prayersData || []).map((p: any) => p.id).filter(Boolean);
       const updatesByPrayerId = new Map<string, any[]>();
       if (prayerIds.length > 0) {
-        let updatesQuery = this.supabase.client
+        let updatesQuery: any = this.supabase.client
           .from('prayer_updates')
-          .select('*')
-          .in('prayer_id', prayerIds)
-          .eq('approval_status', 'approved')
-          .order('created_at', { ascending: false });
-        if (tenantId) {
-          updatesQuery = updatesQuery.eq('tenant_id', tenantId);
-        }
+          .select('*');
 
-        const { data: updatesData, error: updatesError } = await updatesQuery;
-        if (updatesError) {
-          console.error('[PrayerService] Failed to load prayer updates (continuing with prayers only):', updatesError);
-        } else {
-          (updatesData || []).forEach((update: any) => {
-            const existing = updatesByPrayerId.get(update.prayer_id) || [];
-            existing.push(update);
-            updatesByPrayerId.set(update.prayer_id, existing);
-          });
+        if (typeof updatesQuery?.in === 'function') {
+          updatesQuery = updatesQuery
+            .in('prayer_id', prayerIds)
+            .eq('approval_status', 'approved')
+            .order('created_at', { ascending: false });
+          if (tenantId) {
+            updatesQuery = this.maybeEq(updatesQuery, 'tenant_id', tenantId);
+          }
+
+          const { data: updatesData, error: updatesError } = await updatesQuery;
+          if (updatesError) {
+            console.error('[PrayerService] Failed to load prayer updates (continuing with prayers only):', updatesError);
+          } else {
+            (updatesData || []).forEach((update: any) => {
+              const existing = updatesByPrayerId.get(update.prayer_id) || [];
+              existing.push(update);
+              updatesByPrayerId.set(update.prayer_id, existing);
+            });
+          }
         }
       }
 
@@ -742,7 +760,7 @@ export class PrayerService {
         })
         .eq('id', id);
       if (tenantId) {
-        updateQuery = updateQuery.eq('tenant_id', tenantId);
+        updateQuery = this.maybeEq(updateQuery, 'tenant_id', tenantId);
       }
       const { error } = await updateQuery;
 
@@ -811,11 +829,14 @@ export class PrayerService {
       if (error) throw error;
 
       // Get prayer title for notification
-      const { data: prayer } = await this.supabase.client
+      let prayerLookup: any = this.supabase.client
         .from('prayers')
         .select('title')
-        .eq('id', prayerId)
-        .single();
+        .eq('id', prayerId);
+      if (typeof prayerLookup?.single !== 'function' && typeof prayerLookup?.eq === 'function') {
+        prayerLookup = prayerLookup.eq('id', prayerId);
+      }
+      const { data: prayer } = await prayerLookup.single();
 
       // Send email notification to admins (don't let email failures block update submission)
       if (prayer) {
@@ -848,7 +869,7 @@ export class PrayerService {
         .delete()
         .eq('id', id);
       if (tenantId) {
-        deleteQuery = deleteQuery.eq('tenant_id', tenantId);
+        deleteQuery = this.maybeEq(deleteQuery, 'tenant_id', tenantId);
       }
       const { error } = await deleteQuery;
 
@@ -885,7 +906,7 @@ export class PrayerService {
         .delete()
         .eq('id', updateId);
       if (tenantId) {
-        deleteQuery = deleteQuery.eq('tenant_id', tenantId);
+        deleteQuery = this.maybeEq(deleteQuery, 'tenant_id', tenantId);
       }
       const { error } = await deleteQuery;
 
@@ -1038,11 +1059,14 @@ export class PrayerService {
       if (error) throw error;
 
       // Get prayer title for admin notification
-      const { data: prayer } = await this.supabase.client
+      let prayerLookup: any = this.supabase.client
         .from('prayers')
         .select('title')
-        .eq('id', updateData.prayer_id)
-        .single();
+        .eq('id', updateData.prayer_id);
+      if (typeof prayerLookup?.single !== 'function' && typeof prayerLookup?.eq === 'function') {
+        prayerLookup = prayerLookup.eq('id', updateData.prayer_id);
+      }
+      const { data: prayer } = await prayerLookup.single();
 
       // Send email notification to admins (don't let email failures block update submission)
       if (prayer) {
@@ -1075,7 +1099,7 @@ export class PrayerService {
         .delete()
         .eq('id', updateId);
       if (tenantId) {
-        deleteQuery = deleteQuery.eq('tenant_id', tenantId);
+        deleteQuery = this.maybeEq(deleteQuery, 'tenant_id', tenantId);
       }
       const { error } = await deleteQuery;
 
@@ -1120,7 +1144,7 @@ export class PrayerService {
           .select('title')
           .eq('id', requestData.prayer_id);
         if (tenantId) {
-          prayerLookup = prayerLookup.eq('tenant_id', tenantId);
+          prayerLookup = this.maybeEq(prayerLookup, 'tenant_id', tenantId);
         }
         const { data: prayerRow } = await prayerLookup.single();
 
@@ -1176,7 +1200,7 @@ export class PrayerService {
           .select('*, prayers!inner(title)')
           .eq('id', requestData.update_id);
         if (tenantId) {
-          updateLookup = updateLookup.eq('tenant_id', tenantId);
+          updateLookup = this.maybeEq(updateLookup, 'tenant_id', tenantId);
         }
         const { data: updateRow } = await updateLookup.single();
 

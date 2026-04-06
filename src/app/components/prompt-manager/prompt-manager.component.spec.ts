@@ -1,16 +1,27 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ChangeDetectorRef } from '@angular/core';
+import { BehaviorSubject } from 'rxjs';
 import { PromptManagerComponent } from './prompt-manager.component';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
+
+const TEST_TENANT_ID = 'test-tenant-id';
+const mockTenant = { id: TEST_TENANT_ID, name: 'Test', slug: 'test' };
 
 describe('PromptManagerComponent', () => {
   let component: PromptManagerComponent;
   let mockSupabaseService: any;
   let mockToastService: any;
+  let mockTenantContext: { getActiveTenant: ReturnType<typeof vi.fn>; activeTenant$: BehaviorSubject<typeof mockTenant> };
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    const doubleEqChain = (final: Promise<unknown>) => ({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue(final)
+      })
+    });
 
     mockSupabaseService = {
       directQuery: vi.fn(),
@@ -23,12 +34,8 @@ describe('PromptManagerComponent', () => {
             order: vi.fn(() => Promise.resolve({ data: [], error: null }))
           })),
           insert: vi.fn(() => Promise.resolve({ data: null, error: null })),
-          update: vi.fn(() => ({
-            eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-          })),
-          delete: vi.fn(() => ({
-            eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-          }))
+          update: vi.fn(() => doubleEqChain(Promise.resolve({ data: null, error: null }))),
+          delete: vi.fn(() => doubleEqChain(Promise.resolve({ data: null, error: null })))
         }))
       }
     };
@@ -39,6 +46,11 @@ describe('PromptManagerComponent', () => {
       success: vi.fn()
     };
 
+    mockTenantContext = {
+      getActiveTenant: vi.fn().mockReturnValue(mockTenant),
+      activeTenant$: new BehaviorSubject(mockTenant)
+    };
+
     const mockChangeDetectorRef = {
       markForCheck: vi.fn()
     } as unknown as ChangeDetectorRef;
@@ -46,7 +58,8 @@ describe('PromptManagerComponent', () => {
     component = new PromptManagerComponent(
       mockSupabaseService,
       mockToastService,
-      mockChangeDetectorRef
+      mockChangeDetectorRef,
+      mockTenantContext as any
     );
   });
 
@@ -70,13 +83,15 @@ describe('PromptManagerComponent', () => {
         error: null
       });
 
-      await component.ngOnInit();
+      component.ngOnInit();
+      await Promise.resolve();
+      await Promise.resolve();
 
       expect(mockSupabaseService.directQuery).toHaveBeenCalledWith(
         'prayer_types',
         expect.objectContaining({
           select: '*',
-          eq: { is_active: true },
+          eq: { is_active: true, tenant_id: TEST_TENANT_ID },
           order: { column: 'display_order', ascending: true }
         })
       );
@@ -772,7 +787,9 @@ describe('PromptManagerComponent', () => {
 
       mockSupabaseService.client.from.mockReturnValue({
         delete: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: new Error('Delete failed') }))
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: null, error: new Error('Delete failed') })
+          })
         }))
       });
 

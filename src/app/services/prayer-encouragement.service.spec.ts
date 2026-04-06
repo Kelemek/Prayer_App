@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { firstValueFrom } from 'rxjs';
+import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { skip, take } from 'rxjs/operators';
 import { PrayerEncouragementService } from './prayer-encouragement.service';
 import { SupabaseService } from './supabase.service';
@@ -7,6 +7,10 @@ import { SupabaseService } from './supabase.service';
 describe('PrayerEncouragementService', () => {
   let service: PrayerEncouragementService;
   let mockSupabase: any;
+  const mockTenantContext = {
+    getActiveTenant: vi.fn().mockReturnValue(null),
+    activeTenant$: new BehaviorSubject(null)
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -27,10 +31,11 @@ describe('PrayerEncouragementService', () => {
       }
     };
 
-    service = new PrayerEncouragementService(mockSupabase);
+    service = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
   });
 
   afterEach(() => {
+    service.ngOnDestroy();
     localStorage.clear();
   });
 
@@ -141,7 +146,7 @@ describe('PrayerEncouragementService', () => {
           })
         })
       });
-      const newService = new PrayerEncouragementService(mockSupabase);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
       // Skip initial default (4), take value after fetch completes (8)
       const hours = await firstValueFrom(newService.getCooldownHours$().pipe(skip(1), take(1)));
       expect(hours).toBe(8);
@@ -161,7 +166,7 @@ describe('PrayerEncouragementService', () => {
           })
         })
       });
-      const newService = new PrayerEncouragementService(mockSupabase);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
       const hours = await firstValueFrom(newService.getCooldownHours$().pipe(skip(1), take(1)));
       expect(hours).toBe(4);
     });
@@ -178,7 +183,7 @@ describe('PrayerEncouragementService', () => {
           })
         })
       });
-      const newService = new PrayerEncouragementService(mockSupabase);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
       const hours = await firstValueFrom(newService.getCooldownHours$().pipe(skip(1), take(1)));
       expect(hours).toBe(4);
     });
@@ -196,7 +201,7 @@ describe('PrayerEncouragementService', () => {
           })
         })
       });
-      const newService = new PrayerEncouragementService(mockSupabase);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
       newService.getCooldownHours$().subscribe(() => {});
       await Promise.resolve();
       await Promise.resolve();
@@ -214,7 +219,7 @@ describe('PrayerEncouragementService', () => {
           })
         })
       });
-      const newService = new PrayerEncouragementService(mockSupabase);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
       await firstValueFrom(newService.getCooldownHours$().pipe(take(1)));
       expect(warn).toHaveBeenCalledWith('[PrayerEncouragement] Error loading flag', expect.any(Error));
       warn.mockRestore();
@@ -235,7 +240,7 @@ describe('PrayerEncouragementService', () => {
           })
         })
       });
-      const newService = new PrayerEncouragementService(mockSupabase);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
       const hours = await firstValueFrom(newService.getCooldownHours$().pipe(skip(1), take(1)));
       expect(hours).toBe(4);
       setItem.mockRestore();
@@ -248,7 +253,7 @@ describe('PrayerEncouragementService', () => {
         'prayer_encouragement_enabled',
         JSON.stringify({ value: true, cooldownHours: 0, timestamp: Date.now() })
       );
-      const newService = new PrayerEncouragementService(mockSupabase);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
       const hours = firstValueFrom(newService.getCooldownHours$());
       return hours.then((h) => expect(h).toBe(4));
     });
@@ -259,7 +264,7 @@ describe('PrayerEncouragementService', () => {
         'prayer_encouragement_enabled',
         JSON.stringify({ value: true, cooldownHours: 6, timestamp: oneHourAgo })
       );
-      const newService = new PrayerEncouragementService(mockSupabase);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
       return firstValueFrom(newService.getCooldownHours$().pipe(skip(1), take(1))).then((h) => {
         expect(h).toBe(4);
       });
@@ -291,7 +296,7 @@ describe('PrayerEncouragementService', () => {
     it('removes expired prayed_for_ keys when service is constructed', () => {
       const over4hAgo = new Date(Date.now() - (5 * 60 * 60 * 1000)).toISOString();
       localStorage.setItem('prayed_for_old', over4hAgo);
-      const s2 = new PrayerEncouragementService(mockSupabase);
+      const s2 = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
       expect(localStorage.getItem('prayed_for_old')).toBeNull();
     });
   });

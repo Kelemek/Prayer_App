@@ -49,6 +49,11 @@ export class PromptService {
       this.errorSubject.next(null);
       const tenantId = this.tenantContext?.getActiveTenant()?.id;
 
+      if (this.tenantContext && !tenantId) {
+        this.promptsSubject.next([]);
+        return;
+      }
+
       // Try to get from cache first
       const cacheKey = tenantId ? `prompts:${tenantId}` : 'prompts';
       let sortedPrompts = this.cache.get<PrayerPrompt[]>(cacheKey);

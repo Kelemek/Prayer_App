@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { BehaviorSubject } from 'rxjs';
 import { PrayerEncouragementSettingsComponent } from './prayer-encouragement-settings.component';
 import { SupabaseService } from '../../services/supabase.service';
 import { PrayerEncouragementService } from '../../services/prayer-encouragement.service';
+
+const TENANT_ID = 'tenant-test-id';
+const mockTenant = { id: TENANT_ID, name: 'T', slug: 't' };
 
 describe('PrayerEncouragementSettingsComponent', () => {
   let component: PrayerEncouragementSettingsComponent;
@@ -30,7 +34,16 @@ describe('PrayerEncouragementSettingsComponent', () => {
       invalidateFlagCache: vi.fn()
     };
 
-    component = new PrayerEncouragementSettingsComponent(mockSupabase, mockPrayerEncouragementService);
+    const mockTenantContext = {
+      getActiveTenant: vi.fn().mockReturnValue(mockTenant),
+      activeTenant$: new BehaviorSubject(mockTenant)
+    };
+
+    component = new PrayerEncouragementSettingsComponent(
+      mockSupabase,
+      mockPrayerEncouragementService,
+      mockTenantContext as any
+    );
   });
 
   it('should create', () => {
@@ -47,8 +60,10 @@ describe('PrayerEncouragementSettingsComponent', () => {
 
   describe('ngOnInit', () => {
     it('should load settings on init', async () => {
-      await component.ngOnInit();
-      expect(mockSupabase.client.from).toHaveBeenCalledWith('admin_settings');
+      component.ngOnInit();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(mockSupabase.client.from).toHaveBeenCalledWith('tenant_settings');
       expect(component.prayerEncouragementEnabled).toBe(true);
     });
   });
@@ -103,12 +118,12 @@ describe('PrayerEncouragementSettingsComponent', () => {
       component.cooldownHours = 4;
       await component.submitSettings();
 
-      expect(mockSupabase.client.from).toHaveBeenCalledWith('admin_settings');
+      expect(mockSupabase.client.from).toHaveBeenCalledWith('tenant_settings');
       expect(mockUpdate).toHaveBeenCalledWith({
         prayer_encouragement_enabled: true,
         prayer_encouragement_cooldown_hours: 4
       });
-      expect(mockUpdateEq).toHaveBeenCalledWith('id', 1);
+      expect(mockUpdateEq).toHaveBeenCalledWith('tenant_id', TENANT_ID);
       expect(mockPrayerEncouragementService.invalidateFlagCache).toHaveBeenCalled();
       expect(component.successMessage).toBe('Prayer Encouragement settings saved.');
       expect(component.isSaving).toBe(false);

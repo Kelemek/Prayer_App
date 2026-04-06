@@ -1,11 +1,18 @@
-import { TestBed } from '@angular/core/testing';
+import { Subject } from 'rxjs';
 import { BrandingService, BrandingData } from './branding.service';
 import { SupabaseService } from './supabase.service';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // Mock Supabase Service
 const mockSupabaseService = {
-  directQuery: vi.fn()
+  directQuery: vi.fn(),
+  client: { from: vi.fn() }
+};
+
+const mockTenantContext = {
+  getActiveTenant: vi.fn().mockReturnValue(null),
+  // No initial emission: avoids extra loadBranding() competing with initialize() in tests
+  activeTenant$: new Subject<null>()
 };
 
 describe('BrandingService', () => {
@@ -21,11 +28,11 @@ describe('BrandingService', () => {
     vi.clearAllMocks();
 
     // Create service manually with mock - fresh instance for each test
-    service = new BrandingService(mockSupabaseService as any);
+    service = new BrandingService(mockSupabaseService as any, mockTenantContext as any);
   });
 
   afterEach(() => {
-    // Clean up MutationObserver
+    service.ngOnDestroy();
     if ((service as any).darkModeObserver) {
       (service as any).darkModeObserver.disconnect();
     }

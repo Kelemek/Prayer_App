@@ -1,8 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subject, takeUntil } from 'rxjs';
 import { SupabaseService } from '../../services/supabase.service';
 import { PrayerEncouragementService } from '../../services/prayer-encouragement.service';
+import { TenantContextService } from '../../services/tenant-context.service';
 
 @Component({
   selector: 'app-prayer-encouragement-settings',
@@ -10,6 +12,12 @@ import { PrayerEncouragementService } from '../../services/prayer-encouragement.
   imports: [CommonModule, FormsModule],
   template: `
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
+      @if (!activeTenantId) {
+      <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
+        Select an organization above to configure prayer encouragement for that tenant.
+      </p>
+      }
+      @if (activeTenantId) {
       <h3 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600 dark:text-blue-400">
           <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
@@ -110,11 +118,18 @@ import { PrayerEncouragementService } from '../../services/prayer-encouragement.
           </div>
         </div>
       }
+      }
     </div>
   `,
   styles: []
 })
-export class PrayerEncouragementSettingsComponent implements OnInit {
+export class PrayerEncouragementSettingsComponent implements OnInit, OnDestroy {
+  private readonly destroy$ = new Subject<void>();
+
+  get activeTenantId(): string | null {
+    return this.tenantContext.getActiveTenant()?.id ?? null;
+  }
+
   prayerEncouragementEnabled = false;
   cooldownHours = 4;
   isSaving = false;
@@ -123,19 +138,33 @@ export class PrayerEncouragementSettingsComponent implements OnInit {
 
   constructor(
     private supabase: SupabaseService,
-    private prayerEncouragementService: PrayerEncouragementService
+    private prayerEncouragementService: PrayerEncouragementService,
+    private tenantContext: TenantContextService
   ) {}
 
   ngOnInit(): void {
-    this.loadSettings();
+    this.tenantContext.activeTenant$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        void this.loadSettings();
+      });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   async loadSettings(): Promise<void> {
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      return;
+    }
     try {
       const { data, error } = await this.supabase.client
-        .from('admin_settings')
+        .from('tenant_settings')
         .select('prayer_encouragement_enabled, prayer_encouragement_cooldown_hours')
-        .eq('id', 1)
+        .eq('tenant_id', tenantId)
         .maybeSingle();
 
       if (error) throw error;
@@ -149,6 +178,12 @@ export class PrayerEncouragementSettingsComponent implements OnInit {
   }
 
   async submitSettings(): Promise<void> {
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      this.errorMessage = 'No active organization selected.';
+      return;
+    }
+
     this.isSaving = true;
     this.successMessage = '';
     this.errorMessage = '';
@@ -156,12 +191,12 @@ export class PrayerEncouragementSettingsComponent implements OnInit {
     try {
       const cooldown = Math.min(168, Math.max(1, Math.round(this.cooldownHours)));
       const { error } = await this.supabase.client
-        .from('admin_settings')
+        .from('tenant_settings')
         .update({
           prayer_encouragement_enabled: this.prayerEncouragementEnabled,
           prayer_encouragement_cooldown_hours: cooldown
         })
-        .eq('id', 1);
+        .eq('tenant_id', tenantId);
 
       if (error) throw error;
       this.cooldownHours = cooldown;

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { BehaviorSubject } from 'rxjs';
 import { GitHubSettingsComponent } from './github-settings.component';
 import { GitHubFeedbackService } from '../../services/github-feedback.service';
 
@@ -27,7 +28,12 @@ describe('GitHubSettingsComponent', () => {
       })
     };
 
-    component = new GitHubSettingsComponent(mockGitHubFeedbackService);
+    const mockTenantContext = {
+      getActiveTenant: vi.fn().mockReturnValue({ id: 't1', name: 'T', slug: 't' }),
+      activeTenant$: new BehaviorSubject({ id: 't1', name: 'T', slug: 't' })
+    };
+
+    component = new GitHubSettingsComponent(mockGitHubFeedbackService, mockTenantContext as any);
   });
 
   afterEach(() => {
@@ -53,7 +59,9 @@ describe('GitHubSettingsComponent', () => {
     });
 
     it('should load configuration on init', async () => {
-      await component.ngOnInit();
+      component.ngOnInit();
+      await Promise.resolve();
+      await Promise.resolve();
       expect(mockGitHubFeedbackService.getGitHubConfig).toHaveBeenCalled();
     });
 

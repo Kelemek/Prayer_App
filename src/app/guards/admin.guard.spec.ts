@@ -11,7 +11,17 @@ type MockAdminAuthService = {
   loading$: BehaviorSubject<boolean>;
 };
 
+type MockTenantContextService = {
+  loading$: BehaviorSubject<boolean>;
+};
+
+type MockTenantPermissionService = {
+  canAccessAdmin: ReturnType<typeof vi.fn>;
+};
+
 let mockAdminAuthService: MockAdminAuthService;
+let mockTenantContextService: MockTenantContextService;
+let mockTenantPermissionService: MockTenantPermissionService;
 let mockRouter: MockRouter;
 let originalLocation: Location;
 
@@ -27,6 +37,12 @@ vi.mock('@angular/core', async () => {
       }
       if (tokenName === 'AdminAuthService') {
         return mockAdminAuthService;
+      }
+      if (tokenName === 'TenantContextService') {
+        return mockTenantContextService;
+      }
+      if (tokenName === 'TenantPermissionService') {
+        return mockTenantPermissionService;
       }
       return null;
     },
@@ -68,6 +84,14 @@ describe('adminGuard', () => {
     mockAdminAuthService = {
       isAdmin$: new BehaviorSubject<boolean>(false),
       loading$: new BehaviorSubject<boolean>(true),
+    };
+
+    mockTenantContextService = {
+      loading$: new BehaviorSubject<boolean>(true),
+    };
+
+    mockTenantPermissionService = {
+      canAccessAdmin: vi.fn(() => false),
     };
 
     mockRouter = {
@@ -115,15 +139,19 @@ describe('adminGuard', () => {
     const { adminGuard } = await import('./admin.guard');
     const { firstValueFrom } = await import('rxjs');
 
-    const guard$ = adminGuard();
+    const route = { component: {} };
+    const state = { url: '/admin' };
+    const guard$ = adminGuard(route as any, state as any);
 
     if (typeof guard$ === 'boolean') {
       throw new Error('Guard should return an Observable');
     }
 
-    // Set loading to false and isAdmin to true
-    mockAdminAuthService.loading$.next(false);
+    // canAccessAdmin must be set before loadings complete (combineLatest may emit synchronously)
+    mockTenantPermissionService.canAccessAdmin.mockReturnValue(true);
     mockAdminAuthService.isAdmin$.next(true);
+    mockAdminAuthService.loading$.next(false);
+    mockTenantContextService.loading$.next(false);
 
     const result = await firstValueFrom(guard$);
     expect(result).toBe(true);
@@ -147,9 +175,10 @@ describe('adminGuard', () => {
       throw new Error('Guard should return an Observable');
     }
 
-    // Set loading to false and isAdmin to false
-    mockAdminAuthService.loading$.next(false);
+    mockTenantPermissionService.canAccessAdmin.mockReturnValue(false);
     mockAdminAuthService.isAdmin$.next(false);
+    mockAdminAuthService.loading$.next(false);
+    mockTenantContextService.loading$.next(false);
 
     const result = await firstValueFrom(guard$);
     // Should return a UrlTree (redirect to login with returnUrl)
@@ -182,8 +211,9 @@ describe('adminGuard', () => {
     mockAdminAuthService.isAdmin$.next(true);
     mockAdminAuthService.isAdmin$.next(false);
 
-    // Now set loading to false - this should trigger the guard
+    mockTenantPermissionService.canAccessAdmin.mockReturnValue(false);
     mockAdminAuthService.loading$.next(false);
+    mockTenantContextService.loading$.next(false);
 
     const result = await resultPromise;
     // Should return a UrlTree (redirect to login)
@@ -197,6 +227,8 @@ describe('adminGuard', () => {
     window.location.search = '?code=test-code&other=param';
     mockAdminAuthService.isAdmin$.next(false);
     mockAdminAuthService.loading$.next(false);
+    mockTenantContextService.loading$.next(false);
+    mockTenantPermissionService.canAccessAdmin.mockReturnValue(false);
 
     vi.resetModules();
     const { adminGuard } = await import('./admin.guard');
@@ -234,8 +266,10 @@ describe('adminGuard', () => {
       throw new Error('Guard should return an Observable');
     }
 
-    mockAdminAuthService.loading$.next(false);
+    mockTenantPermissionService.canAccessAdmin.mockReturnValue(true);
     mockAdminAuthService.isAdmin$.next(true);
+    mockAdminAuthService.loading$.next(false);
+    mockTenantContextService.loading$.next(false);
 
     const result = await firstValueFrom(guard$);
     expect(result).toBe(true);
@@ -256,8 +290,10 @@ describe('adminGuard', () => {
       throw new Error('Guard should return an Observable');
     }
 
-    mockAdminAuthService.loading$.next(false);
+    mockTenantPermissionService.canAccessAdmin.mockReturnValue(false);
     mockAdminAuthService.isAdmin$.next(false);
+    mockAdminAuthService.loading$.next(false);
+    mockTenantContextService.loading$.next(false);
 
     const result = await firstValueFrom(guard$);
     expect(result).toBeDefined();
@@ -314,6 +350,7 @@ describe('adminGuard', () => {
     // Make loading$ emit an error
     const resultPromise = firstValueFrom(guard$);
 
+    mockTenantContextService.loading$.next(false);
     // Emit an error from loading$
     mockAdminAuthService.loading$.error(new Error('Test error'));
 
@@ -369,7 +406,9 @@ describe('adminGuard', () => {
     const { adminGuard } = await import('./admin.guard');
     const { firstValueFrom } = await import('rxjs');
 
-    const guard$ = adminGuard();
+    const route = { component: {} };
+    const state = { url: '/admin' };
+    const guard$ = adminGuard(route as any, state as any);
 
     if (typeof guard$ === 'boolean') {
       throw new Error('Guard should return an Observable');
@@ -382,8 +421,10 @@ describe('adminGuard', () => {
     mockAdminAuthService.isAdmin$.next(false);
     mockAdminAuthService.isAdmin$.next(true);
 
-    // Now complete loading - should use the final isAdmin value
+    // Now complete loading — guard uses tenant permission, not isAdmin$
+    mockTenantPermissionService.canAccessAdmin.mockReturnValue(true);
     mockAdminAuthService.loading$.next(false);
+    mockTenantContextService.loading$.next(false);
 
     const result = await resultPromise;
     expect(result).toBe(true);
@@ -396,14 +437,18 @@ describe('adminGuard', () => {
     const { adminGuard } = await import('./admin.guard');
     const { firstValueFrom } = await import('rxjs');
 
-    const guard$ = adminGuard();
+    const route = { component: {} };
+    const state = { url: '/admin' };
+    const guard$ = adminGuard(route as any, state as any);
 
     if (typeof guard$ === 'boolean') {
       throw new Error('Guard should return an Observable');
     }
 
-    mockAdminAuthService.loading$.next(false);
+    mockTenantPermissionService.canAccessAdmin.mockReturnValue(true);
     mockAdminAuthService.isAdmin$.next(true);
+    mockAdminAuthService.loading$.next(false);
+    mockTenantContextService.loading$.next(false);
 
     const result = await firstValueFrom(guard$);
     expect(result).toBe(true);

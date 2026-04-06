@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ChangeDetectorRef } from '@angular/core';
+import { BehaviorSubject } from 'rxjs';
 import { AppBrandingComponent } from './app-branding.component';
+
+const TENANT_ID = 'branding-tenant-id';
+const mockTenant = { id: TENANT_ID, name: 'T', slug: 't' };
 
 describe('AppBrandingComponent', () => {
   let component: AppBrandingComponent;
@@ -13,7 +17,7 @@ describe('AppBrandingComponent', () => {
         from: vi.fn(() => ({
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
-              single: vi.fn(() => Promise.resolve({ data: null, error: null }))
+              maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null }))
             }))
           })),
           upsert: vi.fn(() => Promise.resolve({ data: null, error: null }))
@@ -26,9 +30,15 @@ describe('AppBrandingComponent', () => {
       markForCheck: vi.fn()
     };
 
+    const mockTenantContext = {
+      getActiveTenant: vi.fn().mockReturnValue(mockTenant),
+      activeTenant$: new BehaviorSubject(mockTenant)
+    };
+
     component = new AppBrandingComponent(
       mockSupabaseService,
-      mockChangeDetectorRef as ChangeDetectorRef
+      mockChangeDetectorRef as ChangeDetectorRef,
+      mockTenantContext as any
     );
   });
 
@@ -83,6 +93,7 @@ describe('AppBrandingComponent', () => {
       const loadSettingsSpy = vi.spyOn(component, 'loadSettings');
       component.ngOnInit();
       expect(loadSettingsSpy).toHaveBeenCalled();
+      loadSettingsSpy.mockRestore();
     });
   });
 
@@ -105,7 +116,7 @@ describe('AppBrandingComponent', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            single: vi.fn(() => Promise.resolve({ data: mockData, error: null }))
+            maybeSingle: vi.fn(() => Promise.resolve({ data: mockData, error: null }))
           }))
         }))
       }));
@@ -132,7 +143,7 @@ describe('AppBrandingComponent', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            single: vi.fn(() => Promise.resolve({ data: mockData, error: null }))
+            maybeSingle: vi.fn(() => Promise.resolve({ data: mockData, error: null }))
           }))
         }))
       }));
@@ -152,7 +163,7 @@ describe('AppBrandingComponent', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            single: vi.fn(() => Promise.resolve({ data: null, error: mockError }))
+            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: mockError }))
           }))
         }))
       }));

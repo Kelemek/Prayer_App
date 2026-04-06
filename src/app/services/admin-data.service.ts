@@ -217,7 +217,7 @@ export class AdminDataService {
 
       const pendingUpdates = (pendingUpdatesResult.data || []).map((u: any) => ({
         ...u,
-        prayer_title: undefined
+        prayer_title: u.prayers?.title
       }));
 
       const pendingDeletionRequests = (pendingDeletionRequestsResult.data || []).map((d: any) => ({

@@ -1,10 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { BehaviorSubject } from 'rxjs';
 import { PrayerService } from './prayer.service';
+
+const noopTenantContext = {
+  getActiveTenant: () => ({ id: 'test-tenant-id', name: 'Test', slug: 'test' }),
+  activeTenant$: new BehaviorSubject({ id: 'test-tenant-id', name: 'Test', slug: 'test' })
+};
 
 const makeSupabase = (overrides: any = {}) => ({
   client: {
     from: vi.fn(() => ({
-      select: vi.fn(() => ({ eq: vi.fn(() => ({ order: vi.fn(() => Promise.resolve({ data: [], error: null }) ) })) }))
+      select: vi.fn(() => ({ eq: vi.fn(() => ({ order: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: [], error: null })) })) })) }))
     })),
     channel: vi.fn(() => ({ on: vi.fn().mockReturnThis(), subscribe: vi.fn(() => ({})) })),
     removeChannel: vi.fn()
@@ -37,11 +43,23 @@ describe('PrayerService extra coverage', () => {
       })
     };
 
-    const supabase = makeSupabase({ client: { from: vi.fn(() => ({ select: vi.fn(() => ({ eq: vi.fn(() => ({ order: vi.fn(() => Promise.resolve({ data: [], error: null }) ) })) })) })), channel: vi.fn(() => fakeChannel), removeChannel: vi.fn() } });
+    const supabase = makeSupabase({
+      client: {
+        from: vi.fn(() => ({
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: [], error: null })) }))
+            }))
+          }))
+        })),
+        channel: vi.fn(() => fakeChannel),
+        removeChannel: vi.fn()
+      }
+    });
 
-    expect(() => new (PrayerService as any)(supabase, noopToast as any, noopEmail as any, noopVerify as any, noopCache as any, noopBadgeService as any, noopUserSessionService as any)).not.toThrow();
+    expect(() => new (PrayerService as any)(supabase, noopToast as any, noopEmail as any, noopVerify as any, noopCache as any, noopBadgeService as any, noopUserSessionService as any, noopTenantContext)).not.toThrow();
     // constructing the service should not throw and subscription logic runs
-    const svc = new (PrayerService as any)(supabase, noopToast as any, noopEmail as any, noopVerify as any, noopCache as any, noopBadgeService as any, noopUserSessionService as any);
+    const svc = new (PrayerService as any)(supabase, noopToast as any, noopEmail as any, noopVerify as any, noopCache as any, noopBadgeService as any, noopUserSessionService as any, noopTenantContext);
     expect(svc).toBeTruthy();
   });
 
@@ -50,7 +68,7 @@ describe('PrayerService extra coverage', () => {
     const supabase = makeSupabase();
     const cache = { get: vi.fn(() => [{ id: 'c1', title: 'C', description: 'D', status: 'current', requester: 'R', prayer_for: 'P', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), date_requested: new Date().toISOString(), updates: [] }]), set: vi.fn(), invalidate: vi.fn() };
 
-    const service = new (PrayerService as any)(supabase, noopToast as any, noopEmail as any, noopVerify as any, cache as any, noopBadgeService as any, noopUserSessionService as any);
+    const service = new (PrayerService as any)(supabase, noopToast as any, noopEmail as any, noopVerify as any, cache as any, noopBadgeService as any, noopUserSessionService as any, noopTenantContext);
 
     vi.spyOn(service as any, 'loadPrayers').mockImplementation(() => Promise.reject(new Error('boom')));
 
@@ -68,7 +86,7 @@ describe('PrayerService extra coverage', () => {
     const cached = [{ id: 'c2', title: 'C2', description: 'D2', status: 'current', requester: 'R', prayer_for: 'P', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), date_requested: new Date().toISOString(), updates: [] }];
     const cache = { get: vi.fn(() => cached), set: vi.fn(), invalidate: vi.fn() };
 
-    const service = new (PrayerService as any)(supabase, noopToast as any, noopEmail as any, noopVerify as any, cache as any, noopBadgeService as any, noopUserSessionService as any);
+    const service = new (PrayerService as any)(supabase, noopToast as any, noopEmail as any, noopVerify as any, cache as any, noopBadgeService as any, noopUserSessionService as any, noopTenantContext);
 
     vi.spyOn(service as any, 'loadPrayers').mockImplementation(() => Promise.reject(new Error('silent')));
 
@@ -83,7 +101,7 @@ describe('PrayerService extra coverage', () => {
   it('setupInactivityListener resets timer on activity events without throwing', () => {
     const supabase = makeSupabase();
     const cache = { get: vi.fn(() => null), set: vi.fn(), invalidate: vi.fn() };
-    const service = new (PrayerService as any)(supabase, noopToast as any, noopEmail as any, noopVerify as any, cache as any, noopBadgeService as any, noopUserSessionService as any);
+    const service = new (PrayerService as any)(supabase, noopToast as any, noopEmail as any, noopVerify as any, cache as any, noopBadgeService as any, noopUserSessionService as any, noopTenantContext);
 
     // make threshold small and call setup directly
     (service as any).inactivityThresholdMs = 10;

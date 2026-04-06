@@ -5,7 +5,10 @@ describe('GitHubFeedbackService', () => {
   let service: GitHubFeedbackService;
   let mockSupabaseService: any;
   let mockSelect: any;
-  let mockUpdate: any;
+  let mockUpdateTenant: any;
+  const mockTenantContext = {
+    getActiveTenant: vi.fn().mockReturnValue(null)
+  };
 
   beforeEach(() => {
     // Create mock chain for select query
@@ -23,8 +26,7 @@ describe('GitHubFeedbackService', () => {
       })
     };
 
-    // Create mock chain for update query
-    mockUpdate = {
+    mockUpdateTenant = {
       eq: vi.fn().mockResolvedValue({
         data: null,
         error: null
@@ -37,8 +39,12 @@ describe('GitHubFeedbackService', () => {
         from: vi.fn().mockImplementation((table: string) => {
           if (table === 'admin_settings') {
             return {
-              select: vi.fn().mockReturnValue(mockSelect),
-              update: vi.fn().mockReturnValue(mockUpdate)
+              select: vi.fn().mockReturnValue(mockSelect)
+            };
+          }
+          if (table === 'tenant_settings') {
+            return {
+              update: vi.fn().mockReturnValue(mockUpdateTenant)
             };
           }
           return null;
@@ -46,8 +52,10 @@ describe('GitHubFeedbackService', () => {
       }
     };
 
+    mockTenantContext.getActiveTenant.mockReturnValue(null);
+
     // Create service with mocked dependencies
-    service = new GitHubFeedbackService(mockSupabaseService);
+    service = new GitHubFeedbackService(mockSupabaseService, mockTenantContext as any);
 
     // Mock global fetch
     global.fetch = vi.fn();
@@ -96,6 +104,10 @@ describe('GitHubFeedbackService', () => {
   });
 
   describe('saveGitHubConfig', () => {
+    beforeEach(() => {
+      mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-1', name: 'T', slug: 't' });
+    });
+
     it('should save GitHub configuration to database', async () => {
       const configToSave = {
         enabled: true,
@@ -106,12 +118,12 @@ describe('GitHubFeedbackService', () => {
 
       const result = await service.saveGitHubConfig(configToSave);
 
-      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('admin_settings');
+      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('tenant_settings');
       expect(result).toBe(true);
     });
 
     it('should return false if save fails', async () => {
-      mockUpdate.eq.mockResolvedValue({
+      mockUpdateTenant.eq.mockResolvedValue({
         data: null,
         error: new Error('Save failed')
       });

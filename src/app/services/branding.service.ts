@@ -1,7 +1,8 @@
-import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
-import { shareReplay } from 'rxjs/operators';
+import { Injectable, OnDestroy } from '@angular/core';
+import { BehaviorSubject, Subject, takeUntil } from 'rxjs';
+import { distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
 import { SupabaseService } from './supabase.service';
+import { TenantContextService } from './tenant-context.service';
 
 export interface BrandingData {
   useLogo: boolean;
@@ -13,7 +14,7 @@ export interface BrandingData {
 }
 
 @Injectable()
-export class BrandingService {
+export class BrandingService implements OnDestroy {
   private readonly LIGHT_LOGO_KEY = 'branding_light_logo';
   private readonly DARK_LOGO_KEY = 'branding_dark_logo';
   private readonly USE_LOGO_KEY = 'branding_use_logo';
@@ -26,12 +27,40 @@ export class BrandingService {
   private darkModeObserver: MutationObserver | null = null;
   private initialized = false;
   private initializationPromise: Promise<void> | null = null;
+  private loadBrandingInFlight: Promise<void> | null = null;
+  private readonly destroy$ = new Subject<void>();
 
   public branding$ = this.brandingSubject.asObservable().pipe(shareReplay(1));
 
-  constructor(private supabaseService: SupabaseService) {
+  constructor(
+    private supabaseService: SupabaseService,
+    private tenantContext: TenantContextService
+  ) {
     this.detectDarkMode();
     this.watchThemeChanges();
+
+    this.tenantContext.activeTenant$
+      .pipe(
+        map((t) => t?.id ?? null),
+        distinctUntilChanged(),
+        takeUntil(this.destroy$)
+      )
+      .subscribe(() => {
+        void this.loadBranding();
+      });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+    if (this.darkModeObserver) {
+      this.darkModeObserver.disconnect();
+    }
+  }
+
+  private getBrandingCacheKey(base: string): string {
+    const tenantId = this.tenantContext.getActiveTenant()?.id;
+    return tenantId ? `${base}:${tenantId}` : base;
   }
 
   /**
@@ -43,7 +72,7 @@ export class BrandingService {
 
     this.initializationPromise = this.loadBranding();
     await this.initializationPromise;
-    this.initialized = true;    
+    this.initialized = true;
     const branding = this.brandingSubject.value;
     console.log('[BrandingService] Initialization complete:', {
       useLogo: branding.useLogo,
@@ -51,7 +80,8 @@ export class BrandingService {
       hasDarkLogo: !!branding.darkLogo,
       appTitle: branding.appTitle,
       lastModified: branding.lastModified?.toISOString()
-    });  }
+    });
+  }
 
   /**
    * Get the current branding data
@@ -72,8 +102,19 @@ export class BrandingService {
    * Load cached branding from window, localStorage, then query Supabase for updates
    */
   private async loadBranding(): Promise<void> {
+    if (this.loadBrandingInFlight) {
+      return this.loadBrandingInFlight;
+    }
+    this.loadBrandingInFlight = this.loadBrandingBody();
     try {
-      // Step 1: Load from cache
+      await this.loadBrandingInFlight;
+    } finally {
+      this.loadBrandingInFlight = null;
+    }
+  }
+
+  private async loadBrandingBody(): Promise<void> {
+    try {
       const cached = this.loadFromCache();
       console.log('[BrandingService] Loaded from cache:', {
         useLogo: cached.useLogo,
@@ -82,19 +123,16 @@ export class BrandingService {
       });
       this.brandingSubject.next(cached);
 
-      // Step 2: Check if we need to fetch from Supabase (lightweight metadata check first)
       const shouldFetch = await this.shouldFetchFromSupabase(cached.lastModified);
 
       if (shouldFetch) {
         console.log('[BrandingService] Logo data changed, fetching from Supabase');
-        // Step 3: Fetch full branding data
         await this.fetchFromSupabase();
       } else {
         console.log('[BrandingService] Using cached logo data (no updates)');
       }
     } catch (error) {
       console.warn('[BrandingService] Failed to load branding:', error);
-      // Use cached data or defaults on error
     }
   }
 
@@ -103,16 +141,21 @@ export class BrandingService {
    * This is synchronous to prevent flash of text logo when image is cached
    */
   private loadFromCache(): BrandingData {
-    // Try window cache first (set by index.html)
     const windowCache = (window as any).__cachedLogos;
 
-    // Prefer localStorage over window cache (window cache is stale on second load)
-    const lightLogo = localStorage.getItem(this.LIGHT_LOGO_KEY) ?? windowCache?.light ?? null;
-    const darkLogo = localStorage.getItem(this.DARK_LOGO_KEY) ?? windowCache?.dark ?? null;
-    const useLogo = localStorage.getItem(this.USE_LOGO_KEY);
-    const appTitle = localStorage.getItem(this.APP_TITLE_KEY) ?? 'Church Prayer Manager';
-    const appSubtitle = localStorage.getItem(this.APP_SUBTITLE_KEY) ?? 'Keeping our community connected in prayer';
-    const lastModifiedStr = localStorage.getItem(this.LAST_MODIFIED_KEY);
+    const lightKey = this.getBrandingCacheKey(this.LIGHT_LOGO_KEY);
+    const darkKey = this.getBrandingCacheKey(this.DARK_LOGO_KEY);
+    const useKey = this.getBrandingCacheKey(this.USE_LOGO_KEY);
+    const titleKey = this.getBrandingCacheKey(this.APP_TITLE_KEY);
+    const subtitleKey = this.getBrandingCacheKey(this.APP_SUBTITLE_KEY);
+    const modifiedKey = this.getBrandingCacheKey(this.LAST_MODIFIED_KEY);
+
+    const lightLogo = localStorage.getItem(lightKey) ?? windowCache?.light ?? null;
+    const darkLogo = localStorage.getItem(darkKey) ?? windowCache?.dark ?? null;
+    const useLogo = localStorage.getItem(useKey);
+    const appTitle = localStorage.getItem(titleKey) ?? 'Church Prayer Manager';
+    const appSubtitle = localStorage.getItem(subtitleKey) ?? 'Keeping our community connected in prayer';
+    const lastModifiedStr = localStorage.getItem(modifiedKey);
 
     return {
       useLogo: (useLogo === 'true') || (windowCache?.useLogo === true),
@@ -124,50 +167,89 @@ export class BrandingService {
     };
   }
 
+  private persistBrandingToCache(branding: BrandingData): void {
+    const useKey = this.getBrandingCacheKey(this.USE_LOGO_KEY);
+    const lightKey = this.getBrandingCacheKey(this.LIGHT_LOGO_KEY);
+    const darkKey = this.getBrandingCacheKey(this.DARK_LOGO_KEY);
+    const titleKey = this.getBrandingCacheKey(this.APP_TITLE_KEY);
+    const subtitleKey = this.getBrandingCacheKey(this.APP_SUBTITLE_KEY);
+    const modifiedKey = this.getBrandingCacheKey(this.LAST_MODIFIED_KEY);
+
+    if (branding.useLogo !== null && branding.useLogo !== undefined) {
+      localStorage.setItem(useKey, String(branding.useLogo));
+    }
+    if (branding.lightLogo) {
+      localStorage.setItem(lightKey, branding.lightLogo);
+    }
+    if (branding.darkLogo) {
+      localStorage.setItem(darkKey, branding.darkLogo);
+    }
+    if (branding.appTitle) {
+      localStorage.setItem(titleKey, branding.appTitle);
+    }
+    if (branding.appSubtitle) {
+      localStorage.setItem(subtitleKey, branding.appSubtitle);
+    }
+    if (branding.lastModified) {
+      localStorage.setItem(modifiedKey, branding.lastModified.toISOString());
+    }
+  }
+
   /**
    * Check if we should fetch updated branding from Supabase
-   * Uses lightweight metadata query to check branding_last_modified timestamp
-   * This prevents fetching large base64 logos when nothing has changed
    */
   private async shouldFetchFromSupabase(cachedLastModified: Date | null): Promise<boolean> {
     try {
-      // Query only the branding_last_modified timestamp for fast comparison
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+
+      if (tenantId) {
+        const { data, error } = await this.supabaseService.client
+          .from('tenant_settings')
+          .select('branding_last_modified')
+          .eq('tenant_id', tenantId)
+          .maybeSingle();
+
+        if (error || !data) {
+          return false;
+        }
+
+        const lastModifiedStr = data.branding_last_modified as string | null;
+        if (!lastModifiedStr) {
+          return false;
+        }
+
+        const dbLastModified = new Date(lastModifiedStr);
+        if (!cachedLastModified) {
+          return true;
+        }
+        return dbLastModified > cachedLastModified;
+      }
+
       const { data, error } = await this.supabaseService.directQuery<{
         branding_last_modified: string | null;
-      }>(
-        'admin_settings',
-        {
-          select: 'branding_last_modified',
-          eq: { id: 1 },
-          limit: 1,
-          timeout: 3000  // Shorter timeout for metadata-only query
-        }
-      );
+      }>('admin_settings', {
+        select: 'branding_last_modified',
+        eq: { id: 1 },
+        limit: 1,
+        timeout: 3000
+      });
 
       if (error || !data || !Array.isArray(data) || data.length === 0) {
-        // Treat as no need to fetch on error (use cache)
         return false;
       }
 
       const lastModifiedStr = data[0].branding_last_modified;
-      
-      // No timestamp in DB means no branding configured
       if (!lastModifiedStr) {
         return false;
       }
 
       const dbLastModified = new Date(lastModifiedStr);
-
-      // If no cached timestamp, we need to fetch full data
       if (!cachedLastModified) {
         return true;
       }
-
-      // Only fetch if DB is newer than cache
       return dbLastModified > cachedLastModified;
     } catch (error) {
       console.warn('[BrandingService] Failed to check metadata:', error);
-      // Fall back to cache on error
       return false;
     }
   }
@@ -177,6 +259,35 @@ export class BrandingService {
    */
   private async fetchFromSupabase(): Promise<void> {
     try {
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+
+      if (tenantId) {
+        const { data, error } = await this.supabaseService.client
+          .from('tenant_settings')
+          .select(
+            'use_logo, light_mode_logo_blob, dark_mode_logo_blob, app_title, app_subtitle, branding_last_modified'
+          )
+          .eq('tenant_id', tenantId)
+          .maybeSingle();
+
+        if (error || !data) {
+          return;
+        }
+
+        const branding: BrandingData = {
+          useLogo: data.use_logo ?? false,
+          lightLogo: data.light_mode_logo_blob || null,
+          darkLogo: data.dark_mode_logo_blob || null,
+          appTitle: data.app_title || 'Church Prayer Manager',
+          appSubtitle: data.app_subtitle || 'Keeping our community connected in prayer',
+          lastModified: data.branding_last_modified ? new Date(data.branding_last_modified as string) : null
+        };
+
+        this.persistBrandingToCache(branding);
+        this.brandingSubject.next(branding);
+        return;
+      }
+
       const { data, error } = await this.supabaseService.directQuery<{
         use_logo: boolean;
         light_mode_logo_blob: string | null;
@@ -184,18 +295,15 @@ export class BrandingService {
         app_title: string;
         app_subtitle: string;
         branding_last_modified: string | null;
-      }>(
-        'admin_settings',
-        {
-          select: 'use_logo, light_mode_logo_blob, dark_mode_logo_blob, app_title, app_subtitle, branding_last_modified',
-          eq: { id: 1 },
-          limit: 1,
-          timeout: 10000
-        }
-      );
+      }>('admin_settings', {
+        select: 'use_logo, light_mode_logo_blob, dark_mode_logo_blob, app_title, app_subtitle, branding_last_modified',
+        eq: { id: 1 },
+        limit: 1,
+        timeout: 10000
+      });
 
       if (error || !data || !Array.isArray(data) || data.length === 0) {
-        return; // Keep using cached data on error
+        return;
       }
 
       const settings = data[0];
@@ -208,31 +316,10 @@ export class BrandingService {
         lastModified: settings.branding_last_modified ? new Date(settings.branding_last_modified) : null
       };
 
-      // Update cache
-      if (branding.useLogo !== null && branding.useLogo !== undefined) {
-        localStorage.setItem(this.USE_LOGO_KEY, String(branding.useLogo));
-      }
-      if (branding.lightLogo) {
-        localStorage.setItem(this.LIGHT_LOGO_KEY, branding.lightLogo);
-      }
-      if (branding.darkLogo) {
-        localStorage.setItem(this.DARK_LOGO_KEY, branding.darkLogo);
-      }
-      if (branding.appTitle) {
-        localStorage.setItem(this.APP_TITLE_KEY, branding.appTitle);
-      }
-      if (branding.appSubtitle) {
-        localStorage.setItem(this.APP_SUBTITLE_KEY, branding.appSubtitle);
-      }
-      if (branding.lastModified) {
-        localStorage.setItem(this.LAST_MODIFIED_KEY, branding.lastModified.toISOString());
-      }
-
-      // Update observable
+      this.persistBrandingToCache(branding);
       this.brandingSubject.next(branding);
     } catch (error) {
       console.warn('[BrandingService] Failed to fetch branding from Supabase:', error);
-      // Keep using cached data on error
     }
   }
 
@@ -261,12 +348,10 @@ export class BrandingService {
    * Watch for dark mode theme changes and update branding
    */
   private watchThemeChanges(): void {
-    // Watch for theme changes
     this.darkModeObserver = new MutationObserver(() => {
       const isDark = document.documentElement.classList.contains('dark');
       if (isDark !== this.isDarkMode) {
         this.isDarkMode = isDark;
-        // Re-emit current branding to trigger logo update in subscribers
         this.brandingSubject.next(this.brandingSubject.value);
       }
     });
@@ -275,14 +360,5 @@ export class BrandingService {
       attributes: true,
       attributeFilter: ['class']
     });
-  }
-
-  /**
-   * Cleanup when service is destroyed
-   */
-  ngOnDestroy(): void {
-    if (this.darkModeObserver) {
-      this.darkModeObserver.disconnect();
-    }
   }
 }
