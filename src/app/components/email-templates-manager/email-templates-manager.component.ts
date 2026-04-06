@@ -1,8 +1,10 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { Subject, takeUntil } from 'rxjs';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
+import { TenantContextService } from '../../services/tenant-context.service';
 
 interface EmailTemplate {
   id: string;
@@ -22,6 +24,12 @@ interface EmailTemplate {
   imports: [FormsModule],
   template: `
     <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
+      @if (!activeTenantId) {
+      <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
+        Select an organization above to edit email templates for that tenant.
+      </p>
+      }
+      @if (activeTenantId) {
       <div class="flex items-center justify-between mb-6">
         <div class="flex items-center gap-3">
           <svg class="text-blue-600 dark:text-blue-400" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -282,11 +290,18 @@ interface EmailTemplate {
         <p class="text-gray-600 dark:text-gray-400 text-sm">No templates available</p>
       </div>
       }
+      }
     </div>
   `,
   styles: []
 })
-export class EmailTemplatesManagerComponent implements OnInit {
+export class EmailTemplatesManagerComponent implements OnInit, OnDestroy {
+  private readonly destroy$ = new Subject<void>();
+
+  get activeTenantId(): string | null {
+    return this.tenantContext.getActiveTenant()?.id ?? null;
+  }
+
   templates: EmailTemplate[] = [];
   selectedTemplate: EmailTemplate | null = null;
   editedTemplate: EmailTemplate | null = null;
@@ -300,11 +315,28 @@ export class EmailTemplatesManagerComponent implements OnInit {
     private supabase: SupabaseService,
     private toast: ToastService,
     private sanitizer: DomSanitizer,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private tenantContext: TenantContextService
   ) {}
 
   ngOnInit() {
-    this.loadTemplates();
+    this.tenantContext.activeTenant$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        if (this.activeTenantId) {
+          this.loadTemplates();
+        } else {
+          this.templates = [];
+          this.selectedTemplate = null;
+          this.editedTemplate = null;
+          this.cdr.markForCheck();
+        }
+      });
+  }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   getSafeHtml(html: string): SafeHtml {
@@ -312,6 +344,12 @@ export class EmailTemplatesManagerComponent implements OnInit {
   }
 
   async loadTemplates() {
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      this.templates = [];
+      this.cdr.markForCheck();
+      return;
+    }
     this.loading = true;
     this.error = null;
     this.cdr.markForCheck();
@@ -319,6 +357,7 @@ export class EmailTemplatesManagerComponent implements OnInit {
       const { data, error } = await this.supabase.client
         .from('email_templates')
         .select('*')
+        .eq('tenant_id', tenantId)
         .order('name', { ascending: true });
 
       if (error) throw error;
@@ -361,7 +400,7 @@ export class EmailTemplatesManagerComponent implements OnInit {
   }
 
   async handleSave() {
-    if (!this.editedTemplate) return;
+    if (!this.editedTemplate || !this.activeTenantId) return;
 
     this.saving = true;
     this.error = null;
@@ -379,6 +418,7 @@ export class EmailTemplatesManagerComponent implements OnInit {
           description: this.editedTemplate.description
         })
         .eq('id', this.editedTemplate.id)
+        .eq('tenant_id', this.activeTenantId)
         .select()
         .single();
 

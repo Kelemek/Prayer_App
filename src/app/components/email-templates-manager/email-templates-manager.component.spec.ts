@@ -1,9 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { of } from 'rxjs';
 import { EmailTemplatesManagerComponent } from './email-templates-manager.component';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
 import { DomSanitizer } from '@angular/platform-browser';
 import { ChangeDetectorRef } from '@angular/core';
+
+const MOCK_TENANT = {
+  id: 'tenant-1',
+  name: 'Test Org',
+  slug: 'test-org',
+  plan_tier: 'churches' as const,
+  plan_status: 'active' as const
+};
 
 describe('EmailTemplatesManagerComponent', () => {
   let component: EmailTemplatesManagerComponent;
@@ -11,6 +20,7 @@ describe('EmailTemplatesManagerComponent', () => {
   let mockToastService: any;
   let mockSanitizer: any;
   let mockCdr: any;
+  let mockTenantContext: any;
 
   const sampleTemplate = {
     id: 'tpl-1',
@@ -27,16 +37,25 @@ describe('EmailTemplatesManagerComponent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    mockTenantContext = {
+      getActiveTenant: vi.fn(() => MOCK_TENANT),
+      activeTenant$: of(MOCK_TENANT)
+    };
+
     mockSupabaseService = {
       client: {
         from: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
-            order: vi.fn().mockResolvedValue({ data: [sampleTemplate], error: null })
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({ data: [sampleTemplate], error: null })
+            })
           }),
           update: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              select: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: sampleTemplate, error: null })
+              eq: vi.fn().mockReturnValue({
+                select: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({ data: sampleTemplate, error: null })
+                })
               })
             })
           })
@@ -62,7 +81,8 @@ describe('EmailTemplatesManagerComponent', () => {
       mockSupabaseService as unknown as SupabaseService,
       mockToastService as unknown as ToastService,
       mockSanitizer as unknown as DomSanitizer,
-      mockCdr as unknown as ChangeDetectorRef
+      mockCdr as unknown as ChangeDetectorRef,
+      mockTenantContext
     );
   });
 
@@ -97,21 +117,21 @@ describe('EmailTemplatesManagerComponent', () => {
     });
 
     it('sets error when no templates returned', async () => {
-      mockSupabaseService.client.from().select().order.mockResolvedValue({ data: [], error: null });
+      mockSupabaseService.client.from().select().eq().order.mockResolvedValue({ data: [], error: null });
       await component.loadTemplates();
       expect(component.templates).toEqual([]);
       expect(component.error).toContain('No templates found');
     });
 
     it('handles fetch error with message property', async () => {
-      mockSupabaseService.client.from().select().order.mockResolvedValue({ data: null, error: new Error('boom') });
+      mockSupabaseService.client.from().select().eq().order.mockResolvedValue({ data: null, error: new Error('boom') });
       await component.loadTemplates();
       expect(component.error).toContain('Failed to load templates');
       expect(component.error).toContain('boom');
     });
 
     it('handles fetch error without message property', async () => {
-      mockSupabaseService.client.from().select().order.mockResolvedValue({ data: null, error: 'string error' });
+      mockSupabaseService.client.from().select().eq().order.mockResolvedValue({ data: null, error: 'string error' });
       await component.loadTemplates();
       expect(component.error).toContain('Failed to load templates');
     });
@@ -161,7 +181,7 @@ describe('EmailTemplatesManagerComponent', () => {
 
     it('handles save error', async () => {
       component.editedTemplate = { ...sampleTemplate } as any;
-      mockSupabaseService.client.from().update().eq().select().single.mockResolvedValue({ data: null, error: new Error('save fail') });
+      mockSupabaseService.client.from().update().eq().eq().select().single.mockResolvedValue({ data: null, error: new Error('save fail') });
       const toastSpy = vi.spyOn(mockToastService, 'error');
 
       await component.handleSave();
@@ -173,7 +193,7 @@ describe('EmailTemplatesManagerComponent', () => {
 
     it('handles save error with non-Error object', async () => {
       component.editedTemplate = { ...sampleTemplate } as any;
-      mockSupabaseService.client.from().update().eq().select().single.mockResolvedValue({ data: null, error: { some: 'error' } });
+      mockSupabaseService.client.from().update().eq().eq().select().single.mockResolvedValue({ data: null, error: { some: 'error' } });
       const toastSpy = vi.spyOn(mockToastService, 'error');
 
       await component.handleSave();

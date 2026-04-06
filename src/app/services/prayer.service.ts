@@ -276,17 +276,20 @@ export class PrayerService {
 
       // Sort by most recent activity
       const sortedPrayers = formattedPrayers
-        .map(prayer => ({
+        .map((prayer: PrayerRequest) => ({
           prayer,
           latestActivity: Math.max(
             new Date(prayer.created_at).getTime(),
-            prayer.updates.length > 0 
+            prayer.updates.length > 0
               ? new Date(prayer.updates[0].created_at).getTime()
               : 0
           )
         }))
-        .sort((a, b) => b.latestActivity - a.latestActivity)
-        .map(({ prayer }) => prayer);
+        .sort(
+          (a: { prayer: PrayerRequest; latestActivity: number }, b: { prayer: PrayerRequest; latestActivity: number }) =>
+            b.latestActivity - a.latestActivity
+        )
+        .map(({ prayer }: { prayer: PrayerRequest }) => prayer);
 
       this.allPrayersSubject.next(sortedPrayers);
       this.cache.set('prayers', sortedPrayers);
@@ -705,11 +708,12 @@ export class PrayerService {
       if (error) throw error;
 
       // Auto-subscribe user to email notifications if email provided
-      if (prayer.email) {
+      if (prayer.email && tenantId) {
         try {
           const { data: existing } = await this.supabase.client
             .from('email_subscribers')
             .select('id')
+            .eq('tenant_id', tenantId)
             .eq('email', prayer.email.toLowerCase().trim())
             .maybeSingle();
 
@@ -720,7 +724,8 @@ export class PrayerService {
                 name: prayer.requester,
                 email: prayer.email.toLowerCase().trim(),
                 is_active: true,
-                is_admin: false
+                is_admin: false,
+                tenant_id: tenantId
               });
           }
         } catch (subscribeError) {
@@ -729,13 +734,16 @@ export class PrayerService {
       }
 
       // Send email notification to admins (don't let email failures block prayer submission)
-      this.emailNotification.sendAdminNotification({
-        type: 'prayer',
-        title: prayer.title,
-        description: prayer.description,
-        requester: prayer.requester,
-        requestId: data.id
-      }).catch(err => console.error('Failed to send admin notification:', err));
+      if (tenantId) {
+        this.emailNotification.sendAdminNotification({
+          type: 'prayer',
+          title: prayer.title,
+          description: prayer.description,
+          requester: prayer.requester,
+          requestId: data.id,
+          tenantId
+        }).catch(err => console.error('Failed to send admin notification:', err));
+      }
 
       this.toast.success('Prayer request submitted for approval');
       return true;
@@ -839,13 +847,14 @@ export class PrayerService {
       const { data: prayer } = await prayerLookup.single();
 
       // Send email notification to admins (don't let email failures block update submission)
-      if (prayer) {
+      if (prayer && tenantId) {
         this.emailNotification.sendAdminNotification({
           type: 'update',
           title: prayer.title,
           author,
           content,
-          requestId: data.id
+          requestId: data.id,
+          tenantId
         }).catch(err => console.error('Failed to send admin notification:', err));
       }
 
@@ -1069,13 +1078,14 @@ export class PrayerService {
       const { data: prayer } = await prayerLookup.single();
 
       // Send email notification to admins (don't let email failures block update submission)
-      if (prayer) {
+      if (prayer && tenantId) {
         this.emailNotification.sendAdminNotification({
           type: 'update',
           title: prayer.title,
           author: updateData.author,
           content: updateData.content,
-          requestId: data.id
+          requestId: data.id,
+          tenantId
         }).catch(err => console.error('Failed to send admin notification:', err));
       }
 
@@ -1151,13 +1161,16 @@ export class PrayerService {
         const title = prayerRow?.title || 'Unknown Prayer';
 
         // Send admin notification (don't let email failures block the request)
-        this.emailNotification.sendAdminNotification({
-          type: 'deletion',
-          title,
-          reason: requestData.reason,
-          requester: fullName,
-          requestId: data?.id
-        }).catch(err => console.error('Failed to send admin notification for prayer deletion request:', err));
+        if (tenantId) {
+          this.emailNotification.sendAdminNotification({
+            type: 'deletion',
+            title,
+            reason: requestData.reason,
+            requester: fullName,
+            requestId: data?.id,
+            tenantId
+          }).catch(err => console.error('Failed to send admin notification for prayer deletion request:', err));
+        }
       } catch (notifyErr) {
         console.warn('Could not fetch prayer details for notification:', notifyErr);
       }
@@ -1209,15 +1222,18 @@ export class PrayerService {
         const content = updateRow?.content || undefined;
 
         // Send admin notification (don't let email failures block the request)
-        this.emailNotification.sendAdminNotification({
-          type: 'deletion',
-          title,
-          reason: requestData.reason,
-          requester: fullName,
-          author,
-          content,
-          requestId: data?.id
-        }).catch(err => console.error('Failed to send admin notification for update deletion request:', err));
+        if (tenantId) {
+          this.emailNotification.sendAdminNotification({
+            type: 'deletion',
+            title,
+            reason: requestData.reason,
+            requester: fullName,
+            author,
+            content,
+            requestId: data?.id,
+            tenantId
+          }).catch(err => console.error('Failed to send admin notification for update deletion request:', err));
+        }
       } catch (notifyErr) {
         console.warn('Could not fetch update/prayer details for notification:', notifyErr);
       }
@@ -2467,13 +2483,16 @@ export class PrayerService {
 
       // Step 4: Keep the personal prayer - user can see it in their account and edit if needed
       // Step 5: Send admin notification about the new public prayer request
-      this.emailNotification.sendAdminNotification({
-        type: 'prayer',
-        title: personalPrayer.title,
-        description: personalPrayer.description,
-        requester: requesterName,
-        requestId: newPrayer.id
-      }).catch(err => console.error('Failed to send admin notification:', err));
+      if (tenantId) {
+        this.emailNotification.sendAdminNotification({
+          type: 'prayer',
+          title: personalPrayer.title,
+          description: personalPrayer.description,
+          requester: requesterName,
+          requestId: newPrayer.id,
+          tenantId
+        }).catch(err => console.error('Failed to send admin notification:', err));
+      }
 
       // Refresh user's personal prayers
       await this.loadPersonalPrayers();

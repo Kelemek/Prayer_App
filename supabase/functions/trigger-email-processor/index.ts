@@ -28,6 +28,7 @@ interface EmailQueueItem {
   template_key: string;
   template_variables: Record<string, string | null | undefined>;
   attempts: number;
+  tenant_id?: string | null;
 }
 
 interface EmailTemplate {
@@ -130,34 +131,79 @@ async function lockEmails(
   if (error) throw new Error(`Failed to lock emails: ${error.message}`);
 }
 
-async function prefetchTemplates(
+function templateCacheKey(
+  tenantId: string | null | undefined,
+  templateKey: string,
+): string {
+  return `${tenantId ?? "default"}::${templateKey}`;
+}
+
+async function getDefaultTenantId(
   supabase: ReturnType<typeof createClient>,
-  keys: string[],
-  cache: Map<string, EmailTemplate>,
-): Promise<void> {
-  const keysToFetch = keys.filter((k) => !cache.has(k));
-  if (keysToFetch.length === 0) return;
-
+): Promise<string | null> {
   const { data, error } = await supabase
-    .from("email_templates")
-    .select("template_key, subject, html_body, text_body")
-    .in("template_key", keysToFetch);
+    .from("tenants")
+    .select("id")
+    .eq("slug", "default-tenant")
+    .maybeSingle();
+  if (error) {
+    console.warn("default tenant lookup failed:", error.message);
+    return null;
+  }
+  return data?.id ?? null;
+}
 
-  if (error) throw new Error(`Template fetch failed: ${error.message}`);
-  if (!data?.length) {
-    throw new Error(
-      `No templates found for keys: ${keysToFetch.join(", ")}`,
-    );
+async function prefetchTemplatesForBatch(
+  supabase: ReturnType<typeof createClient>,
+  items: EmailQueueItem[],
+  cache: Map<string, EmailTemplate>,
+  defaultTenantId: string | null,
+): Promise<void> {
+  const needed = new Map<string, Set<string>>();
+  for (const item of items) {
+    const tid = item.tenant_id ?? defaultTenantId;
+    if (!tid) {
+      throw new Error(
+        `Queue item ${item.id} has no tenant_id and default tenant is unknown`,
+      );
+    }
+    const k = templateCacheKey(tid, item.template_key);
+    if (cache.has(k)) continue;
+    if (!needed.has(tid)) needed.set(tid, new Set());
+    needed.get(tid)!.add(item.template_key);
   }
 
-  const fetched = new Set(data.map((t) => t.template_key));
-  const missing = keysToFetch.filter((k) => !fetched.has(k));
-  if (missing.length > 0) {
-    throw new Error(`Missing email_templates rows: ${missing.join(", ")}`);
-  }
+  for (const [tenantId, keySet] of needed) {
+    const keysToFetch = [...keySet];
+    if (keysToFetch.length === 0) continue;
 
-  for (const row of data) {
-    cache.set(row.template_key, row as EmailTemplate);
+    const { data, error } = await supabase
+      .from("email_templates")
+      .select("template_key, subject, html_body, text_body")
+      .eq("tenant_id", tenantId)
+      .in("template_key", keysToFetch);
+
+    if (error) throw new Error(`Template fetch failed: ${error.message}`);
+    if (!data?.length) {
+      throw new Error(
+        `No templates for tenant ${tenantId} keys: ${keysToFetch.join(", ")}`,
+      );
+    }
+
+    const fetched = new Set(data.map((t) => t.template_key));
+    const missing = keysToFetch.filter((k) => !fetched.has(k));
+    if (missing.length > 0) {
+      throw new Error(
+        `Missing email_templates rows for tenant ${tenantId}: ${missing.join(", ")}`,
+      );
+    }
+
+    for (const row of data) {
+      cache.set(
+        templateCacheKey(tenantId, row.template_key),
+        row as EmailTemplate,
+      );
+    }
   }
 }
 
@@ -169,11 +215,17 @@ async function processOne(
   mailSender: string,
   mailFromName: string,
   supabaseUrl: string,
+  defaultTenantId: string | null,
 ): Promise<boolean> {
   try {
-    const template = cache.get(email.template_key);
+    const tid = email.tenant_id ?? defaultTenantId;
+    if (!tid) {
+      throw new Error(`No tenant for queue item ${email.id}`);
+    }
+    const cacheKey = templateCacheKey(tid, email.template_key);
+    const template = cache.get(cacheKey);
     if (!template) {
-      throw new Error(`Template not in cache: ${email.template_key}`);
+      throw new Error(`Template not in cache: ${cacheKey}`);
     }
 
     const subject = applyTemplateVariables(
@@ -276,6 +328,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
     const supabasePublicUrl = supabaseUrl.replace(/\/+$/, "");
     const templateCache = new Map<string, EmailTemplate>();
+    const defaultTenantId = await getDefaultTenantId(supabase);
 
     let totalSent = 0;
     let totalFailed = 0;
@@ -287,7 +340,7 @@ serve(async (req) => {
       const { data: queueItems, error: fetchError } = await supabase
         .from("email_queue")
         .select(
-          "id, recipient, template_key, template_variables, attempts",
+          "id, recipient, template_key, template_variables, attempts, tenant_id",
         )
         .eq("status", "pending")
         .lt("attempts", MAX_RETRIES)
@@ -305,10 +358,12 @@ serve(async (req) => {
       const ids = queueItems.map((r: EmailQueueItem) => r.id);
       await lockEmails(supabase, ids);
 
-      const keys = [
-        ...new Set(queueItems.map((r: EmailQueueItem) => r.template_key)),
-      ];
-      await prefetchTemplates(supabase, keys, templateCache);
+      await prefetchTemplatesForBatch(
+        supabase,
+        queueItems as EmailQueueItem[],
+        templateCache,
+        defaultTenantId,
+      );
 
       for (const row of queueItems as EmailQueueItem[]) {
         const ok = await processOne(
@@ -319,6 +374,7 @@ serve(async (req) => {
           mailSender,
           mailFromName,
           supabasePublicUrl,
+          defaultTenantId,
         );
         if (ok) totalSent++;
         else totalFailed++;

@@ -2,10 +2,11 @@ import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRe
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { Subscription } from 'rxjs';
+import { Subject, Subscription, takeUntil } from 'rxjs';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
 import { AdminDataService } from '../../services/admin-data.service';
+import { TenantContextService } from '../../services/tenant-context.service';
 import { SendNotificationDialogComponent } from '../send-notification-dialog/send-notification-dialog.component';
 import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
 
@@ -34,6 +35,12 @@ interface CSVRow {
   imports: [CommonModule, FormsModule, SendNotificationDialogComponent, ConfirmationDialogComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    @if (!activeTenantId) {
+    <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+      Select an organization above to manage email subscribers for that tenant.
+    </p>
+    }
+    @if (activeTenantId) {
     <div #emailSubscribersContainer class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6 border border-gray-200 dark:border-gray-700">
       <div class="flex items-center justify-between mb-6">
         <div class="flex items-center gap-2">
@@ -596,6 +603,7 @@ interface CSVRow {
       </div>
       }
     </div>
+    }
   `,
   styles: [`
     :host {
@@ -604,6 +612,12 @@ interface CSVRow {
   `]
 })
 export class EmailSubscribersComponent implements OnInit, OnDestroy {
+  private readonly destroy$ = new Subject<void>();
+
+  get activeTenantId(): string | null {
+    return this.tenantContext.getActiveTenant()?.id ?? null;
+  }
+
   subscribers: EmailSubscriber[] = [];
   searchQuery = '';
   searching = false;
@@ -666,12 +680,24 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
     private toast: ToastService,
     private cdr: ChangeDetectorRef,
     private adminDataService: AdminDataService,
-    private breakpointObserver: BreakpointObserver
+    private breakpointObserver: BreakpointObserver,
+    private tenantContext: TenantContextService
   ) {}
 
   ngOnInit() {
-    // Auto-load first 10 subscribers on component init
-    this.handleSearch();
+    this.tenantContext.activeTenant$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        if (this.activeTenantId) {
+          this.handleSearch();
+        } else {
+          this.subscribers = [];
+          this.allSubscribers = [];
+          this.totalItems = 0;
+          this.hasSearched = false;
+          this.cdr.markForCheck();
+        }
+      });
     
     // Fewer pagination buttons on small screens so they don't overflow
     this.breakpointSub = this.breakpointObserver
@@ -695,6 +721,8 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
     this.breakpointSub?.unsubscribe();
     if (this.orientationChangeListener) {
       window.removeEventListener('orientationchange', this.orientationChangeListener);
@@ -800,6 +828,10 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
   }
 
   async handleSearch() {
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      return;
+    }
     try {
       this.searching = true;
       this.error = null;
@@ -811,6 +843,7 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       let query = this.supabase.client
         .from('email_subscribers')
         .select('*', { count: 'exact' })
+        .eq('tenant_id', tenantId)
         .order(this.sortBy, { ascending: this.sortDirection === 'asc' });
 
       if (this.searchQuery.trim()) {
@@ -1005,9 +1038,18 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       this.csvSuccess = null;
       this.cdr.markForCheck();
 
+      const tid = this.activeTenantId;
+      if (!tid) {
+        this.error = 'Select an organization first';
+        this.submitting = false;
+        this.cdr.markForCheck();
+        return;
+      }
+
       const { data: existing } = await this.supabase.client
         .from('email_subscribers')
         .select('email')
+        .eq('tenant_id', tid)
         .eq('email', this.newEmail.toLowerCase().trim())
         .maybeSingle();
 
@@ -1025,7 +1067,8 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
           email: this.newEmail.toLowerCase().trim(),
           is_active: true,
           is_admin: false,
-          receive_admin_emails: false
+          receive_admin_emails: false,
+          tenant_id: tid
         });
 
       if (error) throw error;
@@ -1364,10 +1407,19 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
 
       // Check for existing emails
+      const tid = this.activeTenantId;
+      if (!tid) {
+        this.error = 'Select an organization first';
+        this.uploadingCSV = false;
+        this.cdr.markForCheck();
+        return;
+      }
+
       const emails = validRows.map(r => r.email.toLowerCase());
       const { data: existing } = await this.supabase.client
         .from('email_subscribers')
         .select('email')
+        .eq('tenant_id', tid)
         .in('email', emails);
 
       const existingEmails = new Set((existing || []).map((e: any) => e.email));
@@ -1385,7 +1437,8 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
         email: r.email.toLowerCase(),
         is_active: true,
         is_admin: false,
-        receive_admin_emails: false
+        receive_admin_emails: false,
+        tenant_id: tid
       }));
 
       const { error } = await this.supabase.client

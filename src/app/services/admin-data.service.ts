@@ -450,7 +450,8 @@ export class AdminDataService {
       description: prayer.description,
       requester: prayer.is_anonymous ? 'Anonymous' : prayer.requester,
       requesterEmail: prayer.email,
-      prayerFor: prayer.prayer_for
+      prayerFor: prayer.prayer_for,
+      tenantId
     }).catch(err => console.error('Failed to send requester approval notification:', err));
 
     // Push to requester when their prayer is approved (only if they have receive_push and app installed)
@@ -525,7 +526,8 @@ export class AdminDataService {
           prayerDescription: prayerDescription,
           content: latestUpdate.content,
           author: latestUpdate.is_anonymous ? 'Anonymous' : (latestUpdate.author || 'Anonymous'),
-          markedAsAnswered: latestUpdate.mark_as_answered || false
+          markedAsAnswered: latestUpdate.mark_as_answered || false,
+          tenantId: prayer.tenant_id
         }).catch(err => console.error('Failed to send update notification:', err));
       } else {
         // Send prayer notification if no updates
@@ -534,7 +536,8 @@ export class AdminDataService {
           description: prayer.description,
           requester: prayer.is_anonymous ? 'Anonymous' : prayer.requester,
           prayerFor: prayer.prayer_for,
-          status: prayer.status
+          status: prayer.status,
+          tenantId: prayer.tenant_id
         }).catch(err => console.error('Failed to send prayer notification:', err));
       }
     } else {
@@ -544,7 +547,8 @@ export class AdminDataService {
         description: prayer.description,
         requester: prayer.is_anonymous ? 'Anonymous' : prayer.requester,
         prayerFor: prayer.prayer_for,
-        status: prayer.status
+        status: prayer.status,
+        tenantId: prayer.tenant_id
       }).catch(err => console.error('Failed to send broadcast notification:', err));
     }
 
@@ -615,7 +619,8 @@ export class AdminDataService {
         description: prayer.description,
         requester: prayer.is_anonymous ? 'Anonymous' : prayer.requester,
         requesterEmail: prayer.email,
-        denialReason: reason
+        denialReason: reason,
+        tenantId
       }).catch(err => console.error('Failed to send denial notification:', err));
     }
     
@@ -668,7 +673,8 @@ export class AdminDataService {
       description: prayer.description,
       requester: prayer.is_anonymous ? 'Anonymous' : prayer.requester,
       prayerFor: prayer.prayer_for,
-      status: prayer.status
+      status: prayer.status,
+      tenantId: prayer.tenant_id
     }).catch(err => console.error('Failed to send broadcast notification:', err));
 
     // Push to subscribers: title = prayer title, body = description (truncated) or fallback
@@ -759,7 +765,8 @@ export class AdminDataService {
         prayerTitle: prayerTitle,
         content: update.content || '',
         author: update.is_anonymous ? 'Anonymous' : (update.author || 'Anonymous'),
-        authorEmail: update.author_email || ''
+        authorEmail: update.author_email || '',
+        tenantId
       }).catch(err => console.error('Failed to send update author approval notification:', err));
 
       // Push to update author when their update is approved (only if they have receive_push and app installed)
@@ -811,7 +818,8 @@ export class AdminDataService {
       prayerDescription: prayerDescription,
       content: update.content,
       author: update.is_anonymous ? 'Anonymous' : (update.author || 'Anonymous'),
-      markedAsAnswered: update.mark_as_answered || false
+      markedAsAnswered: update.mark_as_answered || false,
+      tenantId: update.tenant_id
     }).catch(err => console.error('Failed to send update notification:', err));
 
     // Push: title = prayer title, body = update content (truncated)
@@ -867,7 +875,8 @@ export class AdminDataService {
         content: update.content,
         author: update.is_anonymous ? 'Anonymous' : (update.author || 'Anonymous'),
         authorEmail: update.author_email,
-        denialReason: reason
+        denialReason: reason,
+        tenantId
       }).catch(err => console.error('Failed to send denial notification:', err));
     }
     
@@ -949,7 +958,8 @@ export class AdminDataService {
       prayerDescription: prayerDescription,
       content: update.content,
       author: update.is_anonymous ? 'Anonymous' : (update.author || 'Anonymous'),
-      markedAsAnswered: update.mark_as_answered || false
+      markedAsAnswered: update.mark_as_answered || false,
+      tenantId: update.tenant_id
     }).catch(err => console.error('Failed to send update notification:', err));
 
     // Push: title = prayer title, body = update content (truncated)
@@ -1109,7 +1119,8 @@ export class AdminDataService {
         name: `${request.first_name} ${request.last_name}`,
         is_active: true,
         is_admin: false,
-        receive_admin_emails: false
+        receive_admin_emails: false,
+        tenant_id: tenantId
       });
 
     if (insertError) throw insertError;
@@ -1124,7 +1135,7 @@ export class AdminDataService {
     
     // Send approval email to user
     try {
-      const template = await this.emailNotification.getTemplate('account_approved');
+      const template = await this.emailNotification.getTemplate('account_approved', tenantId);
       if (template) {
         const subject = this.emailNotification.applyTemplateVariables(template.subject, {
           firstName: request.first_name
@@ -1155,7 +1166,7 @@ export class AdminDataService {
 
     // Send welcome email to the newly approved subscriber
     try {
-      await this.emailNotification.sendSubscriberWelcomeNotification(request.email);
+      await this.emailNotification.sendSubscriberWelcomeNotification(request.email, tenantId);
     } catch (welcomeEmailError) {
       console.error('Failed to send welcome email:', welcomeEmailError);
       // Don't fail the approval if welcome email fails
@@ -1190,7 +1201,7 @@ export class AdminDataService {
     
     // Send denial email to user
     try {
-      const template = await this.emailNotification.getTemplate('account_denied');
+      const template = await this.emailNotification.getTemplate('account_denied', tenantId);
       if (template) {
         const subject = this.emailNotification.applyTemplateVariables(template.subject, {
           firstName: request.first_name
@@ -1233,7 +1244,8 @@ export class AdminDataService {
    */
   async sendSubscriberWelcomeEmail(email: string): Promise<void> {
     try {
-      await this.emailNotification.sendSubscriberWelcomeNotification(email);
+      const tenantId = this.getRequiredTenantId();
+      await this.emailNotification.sendSubscriberWelcomeNotification(email, tenantId);
     } catch (error) {
       console.error('Error sending subscriber welcome email:', error);
       throw error;

@@ -32,6 +32,8 @@ export interface ApprovedPrayerPayload {
   requester: string;
   prayerFor: string;
   status: string;
+  /** When set, subscribers and templates are resolved for this tenant. */
+  tenantId?: string;
 }
 
 export interface ApprovedUpdatePayload {
@@ -40,6 +42,7 @@ export interface ApprovedUpdatePayload {
   content: string;
   author: string;
   markedAsAnswered?: boolean;
+  tenantId?: string;
 }
 
 export interface RequesterApprovalPayload {
@@ -48,6 +51,7 @@ export interface RequesterApprovalPayload {
   requester: string;
   requesterEmail: string;
   prayerFor: string;
+  tenantId?: string;
 }
 
 export interface DeniedPrayerPayload {
@@ -56,6 +60,7 @@ export interface DeniedPrayerPayload {
   requester: string;
   requesterEmail: string;
   denialReason: string;
+  tenantId?: string;
 }
 
 export interface DeniedUpdatePayload {
@@ -64,6 +69,7 @@ export interface DeniedUpdatePayload {
   author: string;
   authorEmail: string;
   denialReason: string;
+  tenantId?: string;
 }
 
 export interface UpdateAuthorApprovalPayload {
@@ -71,6 +77,7 @@ export interface UpdateAuthorApprovalPayload {
   content: string;
   author: string;
   authorEmail: string;
+  tenantId?: string;
 }
 
 export interface AdminNotificationPayload {
@@ -82,16 +89,81 @@ export interface AdminNotificationPayload {
   content?: string;
   reason?: string;
   requestId?: string;
+  tenantId?: string;
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class EmailNotificationService {
+  private defaultTenantIdPromise: Promise<string | null> | null = null;
+
   constructor(
     private supabase: SupabaseService,
     private pushNotification: PushNotificationService
   ) {}
+
+  private async getDefaultTenantId(): Promise<string | null> {
+    if (!this.defaultTenantIdPromise) {
+      this.defaultTenantIdPromise = (async (): Promise<string | null> => {
+        const { data, error } = await this.supabase.client
+          .from('tenants')
+          .select('id')
+          .eq('slug', 'default-tenant')
+          .maybeSingle();
+        if (error) {
+          console.error('[EmailNotification] Failed to resolve default tenant:', error);
+          return null;
+        }
+        return data?.id ?? null;
+      })();
+    }
+    return this.defaultTenantIdPromise;
+  }
+
+  /** Resolve tenant for templates, queue rows, and subscriber lookups. */
+  async resolveEmailTenantId(explicit?: string | null): Promise<string | null> {
+    if (explicit) {
+      return explicit;
+    }
+    return this.getDefaultTenantId();
+  }
+
+  private async getAdminEmailsForTenant(tenantId: string): Promise<string[]> {
+    const { data: memberships, error } = await this.supabase.client
+      .from('tenant_memberships')
+      .select('user_email')
+      .eq('tenant_id', tenantId)
+      .eq('role', 'tenant_admin');
+
+    if (error) {
+      console.error('Error fetching tenant admins:', error);
+      return [];
+    }
+
+    const emails = [...new Set((memberships ?? []).map((m) => m.user_email.toLowerCase()))];
+    if (emails.length === 0) {
+      return [];
+    }
+
+    const { data: subs } = await this.supabase.client
+      .from('email_subscribers')
+      .select('email, receive_admin_emails')
+      .eq('tenant_id', tenantId)
+      .in('email', emails);
+
+    const prefByEmail = new Map(
+      (subs ?? []).map((s) => [s.email.toLowerCase(), s.receive_admin_emails])
+    );
+
+    return emails.filter((e) => {
+      const pref = prefByEmail.get(e);
+      if (pref === undefined) {
+        return true;
+      }
+      return pref === true;
+    });
+  }
 
   /**
    * Base URL for links in emails. Website (browser): uses current origin.
@@ -133,17 +205,22 @@ export class EmailNotificationService {
   }
 
   private async listUnsubscribeForEmail(
-    email: string | undefined
+    email: string | undefined,
+    tenantId?: string | null
   ): Promise<{ listUnsubscribeHttpsUrl: string; unsubscribe_url: string } | null> {
     if (!email?.trim()) {
       return null;
     }
     try {
-      const { data } = await this.supabase.client
+      const tid = await this.resolveEmailTenantId(tenantId);
+      let q = this.supabase.client
         .from('email_subscribers')
         .select('unsubscribe_token')
-        .eq('email', email.trim())
-        .maybeSingle();
+        .eq('email', email.trim().toLowerCase());
+      if (tid) {
+        q = q.eq('tenant_id', tid);
+      }
+      const { data } = await q.maybeSingle();
       const tok = data?.unsubscribe_token?.trim();
       if (!tok) {
         return null;
@@ -187,14 +264,20 @@ export class EmailNotificationService {
   }
 
   /**
-   * Get email template by key
+   * Get email template by key for a tenant (defaults to default-tenant when omitted).
    */
-  async getTemplate(templateKey: string): Promise<EmailTemplate | null> {
+  async getTemplate(templateKey: string, tenantId?: string | null): Promise<EmailTemplate | null> {
+    const tid = await this.resolveEmailTenantId(tenantId);
+    if (!tid) {
+      console.error('Error fetching template: no tenant id');
+      return null;
+    }
     const { data, error } = await this.supabase.client
       .from('email_templates')
       .select('*')
       .eq('template_key', templateKey)
-      .single();
+      .eq('tenant_id', tid)
+      .maybeSingle();
 
     if (error) {
       console.error('Error fetching template:', error);
@@ -223,13 +306,16 @@ export class EmailNotificationService {
   async enqueueEmail(
     recipient: string,
     templateKey: string,
-    variables: Record<string, string | null | undefined> = {}
+    variables: Record<string, string | null | undefined> = {},
+    tenantId?: string | null
   ): Promise<void> {
     // Ensure all values are strings (convert undefined/null to empty string)
     const stringifiedVariables: Record<string, string> = {};
     for (const [key, value] of Object.entries(variables)) {
       stringifiedVariables[key] = value !== null && value !== undefined ? String(value) : '';
     }
+
+    const tid = await this.resolveEmailTenantId(tenantId);
 
     const { error } = await this.supabase.client
       .from('email_queue')
@@ -238,7 +324,8 @@ export class EmailNotificationService {
         template_key: templateKey,
         template_variables: stringifiedVariables,
         status: 'pending',
-        attempts: 0
+        attempts: 0,
+        tenant_id: tid
       });
 
     if (error) {
@@ -329,6 +416,12 @@ export class EmailNotificationService {
    */
   async sendApprovedPrayerNotification(payload: ApprovedPrayerPayload): Promise<void> {
     try {
+      const tenantId = await this.resolveEmailTenantId(payload.tenantId);
+      if (!tenantId) {
+        console.warn('sendApprovedPrayerNotification: no tenant id, skipping');
+        return;
+      }
+
       const isAnswered = payload.status === 'answered';
       const templateKey = isAnswered ? 'prayer_answered' : 'approved_prayer';
 
@@ -346,6 +439,7 @@ export class EmailNotificationService {
       const { data: subscribers, error: fetchError } = await this.supabase.client
         .from('email_subscribers')
         .select('email, unsubscribe_token')
+        .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .eq('is_blocked', false);
 
@@ -363,7 +457,7 @@ export class EmailNotificationService {
         this.enqueueEmail(sub.email, templateKey, {
           ...variables,
           ...this.queueUnsubscribeVars(sub.unsubscribe_token),
-        }).catch(err => console.error(`Failed to queue email for ${sub.email}:`, err))
+        }, tenantId).catch(err => console.error(`Failed to queue email for ${sub.email}:`, err))
       );
 
       await Promise.all(queuePromises);
@@ -385,6 +479,12 @@ export class EmailNotificationService {
    */
   async sendApprovedUpdateNotification(payload: ApprovedUpdatePayload): Promise<void> {
     try {
+      const tenantId = await this.resolveEmailTenantId(payload.tenantId);
+      if (!tenantId) {
+        console.warn('sendApprovedUpdateNotification: no tenant id, skipping');
+        return;
+      }
+
       const isAnswered = payload.markedAsAnswered || false;
       const templateKey = isAnswered ? 'prayer_answered' : 'approved_update';
 
@@ -401,6 +501,7 @@ export class EmailNotificationService {
       const { data: subscribers, error: fetchError } = await this.supabase.client
         .from('email_subscribers')
         .select('email, unsubscribe_token')
+        .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .eq('is_blocked', false);
 
@@ -418,7 +519,7 @@ export class EmailNotificationService {
         this.enqueueEmail(sub.email, templateKey, {
           ...variables,
           ...this.queueUnsubscribeVars(sub.unsubscribe_token),
-        }).catch(err => console.error(`Failed to queue email for ${sub.email}:`, err))
+        }, tenantId).catch(err => console.error(`Failed to queue email for ${sub.email}:`, err))
       );
 
       await Promise.all(queuePromises);
@@ -443,7 +544,7 @@ export class EmailNotificationService {
         return;
       }
 
-      const unsub = await this.listUnsubscribeForEmail(payload.requesterEmail);
+      const unsub = await this.listUnsubscribeForEmail(payload.requesterEmail, payload.tenantId);
       const unsubVars = { unsubscribe_url: unsub?.unsubscribe_url ?? '' };
 
       let subject: string;
@@ -451,7 +552,7 @@ export class EmailNotificationService {
       let html: string;
 
       try {
-        const template = await this.getTemplate('requester_approval');
+        const template = await this.getTemplate('requester_approval', payload.tenantId);
         if (template) {
           const variables = {
             prayerTitle: payload.title,
@@ -505,7 +606,7 @@ export class EmailNotificationService {
         return;
       }
 
-      const unsub = await this.listUnsubscribeForEmail(payload.requesterEmail);
+      const unsub = await this.listUnsubscribeForEmail(payload.requesterEmail, payload.tenantId);
       const unsubVars = { unsubscribe_url: unsub?.unsubscribe_url ?? '' };
 
       let subject = `Prayer Request Not Approved: ${payload.title}`;
@@ -513,7 +614,7 @@ export class EmailNotificationService {
       let html = this.generateDeniedPrayerHTML(payload);
 
       try {
-        const template = await this.getTemplate('denied_prayer');
+        const template = await this.getTemplate('denied_prayer', payload.tenantId);
         if (template) {
           const variables = {
             prayerTitle: payload.title,
@@ -559,7 +660,7 @@ export class EmailNotificationService {
         return;
       }
 
-      const unsub = await this.listUnsubscribeForEmail(payload.authorEmail);
+      const unsub = await this.listUnsubscribeForEmail(payload.authorEmail, payload.tenantId);
       const unsubVars = { unsubscribe_url: unsub?.unsubscribe_url ?? '' };
 
       let subject = `Prayer Update Not Approved: ${payload.prayerTitle}`;
@@ -567,7 +668,7 @@ export class EmailNotificationService {
       let html = this.generateDeniedUpdateHTML(payload);
 
       try {
-        const template = await this.getTemplate('denied_update');
+        const template = await this.getTemplate('denied_update', payload.tenantId);
         if (template) {
           const variables = {
             prayerTitle: payload.prayerTitle,
@@ -613,7 +714,7 @@ export class EmailNotificationService {
         return;
       }
 
-      const unsub = await this.listUnsubscribeForEmail(payload.authorEmail);
+      const unsub = await this.listUnsubscribeForEmail(payload.authorEmail, payload.tenantId);
       const unsubVars = { unsubscribe_url: unsub?.unsubscribe_url ?? '' };
 
       let subject: string;
@@ -621,7 +722,7 @@ export class EmailNotificationService {
       let html: string;
 
       try {
-        const template = await this.getTemplate('update_author_approval');
+        const template = await this.getTemplate('update_author_approval', payload.tenantId);
         if (template) {
           const variables = {
             prayerTitle: payload.prayerTitle,
@@ -667,28 +768,22 @@ export class EmailNotificationService {
    */
   async sendAdminNotification(payload: AdminNotificationPayload): Promise<void> {
     try {
-      // Get admin emails from email_subscribers table (receive_admin_emails only; not tied to is_active)
-      const { data: admins, error: adminsError } = await this.supabase.client
-        .from('email_subscribers')
-        .select('email')
-        .eq('is_admin', true)
-        .eq('receive_admin_emails', true);
-
-      if (adminsError) {
-        console.error('Error fetching admin emails:', adminsError);
+      const tenantId = await this.resolveEmailTenantId(payload.tenantId);
+      if (!tenantId) {
+        console.warn('sendAdminNotification: no tenant id, skipping');
         return;
       }
 
-      if (!admins || admins.length === 0) {
-        console.warn('No admins configured to receive notifications. Please enable admin email notifications in Admin User Management.');
+      const adminEmails = await this.getAdminEmailsForTenant(tenantId);
+
+      if (adminEmails.length === 0) {
+        console.warn('No tenant admins configured to receive notifications for this organization.');
         return;
       }
-
-      const adminEmails = admins.map(admin => admin.email);
 
       // Send individual emails to each admin
       for (const adminEmail of adminEmails) {
-        await this.sendAdminNotificationToEmail(payload, adminEmail);
+        await this.sendAdminNotificationToEmail(payload, adminEmail, tenantId);
       }
 
       // Send push to admins who have receive_admin_push enabled (best-effort)
@@ -718,25 +813,36 @@ export class EmailNotificationService {
   /**
    * Send account approval request notification to all admins
    */
-  async sendAccountApprovalNotification(email: string, firstName: string, lastName: string, affiliationReason?: string): Promise<void> {
+  async sendAccountApprovalNotification(
+    email: string,
+    firstName: string,
+    lastName: string,
+    affiliationReason?: string,
+    tenantId?: string | null
+  ): Promise<void> {
     try {
-      // Get all admin emails (receive_admin_emails only; not tied to is_active)
-      const { data: admins, error: adminsError } = await this.supabase.directQuery<{ email: string }>(
-        'email_subscribers',
-        {
-          select: 'email',
-          eq: { is_admin: true, receive_admin_emails: true }
-        }
-      );
+      const tid = await this.resolveEmailTenantId(tenantId);
+      if (!tid) {
+        console.error('sendAccountApprovalNotification: no tenant id');
+        return;
+      }
 
-      if (adminsError || !admins || !Array.isArray(admins) || admins.length === 0) {
-        console.error('No admins found for account approval notification:', adminsError);
+      const adminEmails = await this.getAdminEmailsForTenant(tid);
+      if (adminEmails.length === 0) {
+        console.error('No admins found for account approval notification for tenant');
         return;
       }
 
       // Send notification to each admin
-      for (const admin of admins) {
-        await this.sendAccountApprovalNotificationToEmail(email, firstName, lastName, affiliationReason || '', admin.email);
+      for (const adminEmail of adminEmails) {
+        await this.sendAccountApprovalNotificationToEmail(
+          email,
+          firstName,
+          lastName,
+          affiliationReason || '',
+          adminEmail,
+          tid
+        );
       }
 
       // Send push to admins who have receive_admin_push enabled (best-effort)
@@ -758,16 +864,23 @@ export class EmailNotificationService {
   /**
    * Send account approval notification to a single admin
    */
-  private async sendAccountApprovalNotificationToEmail(email: string, firstName: string, lastName: string, affiliationReason: string, adminEmail: string): Promise<void> {
+  private async sendAccountApprovalNotificationToEmail(
+    email: string,
+    firstName: string,
+    lastName: string,
+    affiliationReason: string,
+    adminEmail: string,
+    tenantId: string
+  ): Promise<void> {
     try {
       // Link to admin site - admins will log in normally
       const baseUrl = this.getEmailBaseUrl();
       const adminLink = `${baseUrl}/admin`;
-      const unsub = await this.listUnsubscribeForEmail(adminEmail);
+      const unsub = await this.listUnsubscribeForEmail(adminEmail, tenantId);
       const unsubVars = { unsubscribe_url: unsub?.unsubscribe_url ?? '' };
 
       // Get template from database
-      const template = await this.getTemplate('account_approval_request');
+      const template = await this.getTemplate('account_approval_request', tenantId);
 
       if (!template) {
         console.error('Account approval request template not found');
@@ -824,11 +937,15 @@ export class EmailNotificationService {
   /**
    * Send notification to a single admin with personalized approval link
    */
-  private async sendAdminNotificationToEmail(payload: AdminNotificationPayload, adminEmail: string): Promise<void> {
+  private async sendAdminNotificationToEmail(
+    payload: AdminNotificationPayload,
+    adminEmail: string,
+    tenantId: string
+  ): Promise<void> {
     try {
       // Link to admin site - admins will log in normally to handle approvals
       const adminLink = `${this.getEmailBaseUrl()}/admin`;
-      const unsub = await this.listUnsubscribeForEmail(adminEmail);
+      const unsub = await this.listUnsubscribeForEmail(adminEmail, tenantId);
       const unsubVars = { unsubscribe_url: unsub?.unsubscribe_url ?? '' };
 
       let subject: string;
@@ -880,8 +997,8 @@ export class EmailNotificationService {
             throw new Error('Unknown payload type');
         }
         
-        const template = await this.getTemplate(templateKey);
-        
+        const template = await this.getTemplate(templateKey, tenantId);
+
         if (template) {
           subject = this.applyTemplateVariables(template.subject, variables);
           body = this.applyTemplateVariables(template.text_body, variables);
@@ -1299,17 +1416,17 @@ export class EmailNotificationService {
   /**
    * Send welcome email to a new subscriber
    */
-  async sendSubscriberWelcomeNotification(email: string): Promise<void> {
+  async sendSubscriberWelcomeNotification(email: string, tenantId?: string | null): Promise<void> {
     try {
       if (!email) {
         console.warn('No email address provided for subscriber welcome notification');
         return;
       }
 
-      const unsub = await this.listUnsubscribeForEmail(email);
+      const unsub = await this.listUnsubscribeForEmail(email, tenantId);
       const unsubVars = { unsubscribe_url: unsub?.unsubscribe_url ?? '' };
 
-      const template = await this.getTemplate('subscriber_welcome');
+      const template = await this.getTemplate('subscriber_welcome', tenantId);
       let subject: string;
       let htmlContent: string;
       let textContent: string;

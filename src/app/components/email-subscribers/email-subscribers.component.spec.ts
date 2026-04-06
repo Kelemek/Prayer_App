@@ -1,8 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { of } from 'rxjs';
 import { EmailSubscribersComponent } from './email-subscribers.component';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
 import { AdminDataService } from '../../services/admin-data.service';
+
+const MOCK_TENANT = {
+  id: 'tenant-1',
+  name: 'Test Org',
+  slug: 'test-org',
+  plan_tier: 'churches' as const,
+  plan_status: 'active' as const
+};
 
 function createFromMock() {
   const chain: any = {
@@ -31,9 +40,15 @@ describe('EmailSubscribersComponent', () => {
   let mockChangeDetectorRef: any;
   let mockAdminDataService: any;
   let mockBreakpointObserver: any;
+  let mockTenantContext: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    mockTenantContext = {
+      getActiveTenant: vi.fn(() => MOCK_TENANT),
+      activeTenant$: of(MOCK_TENANT)
+    };
 
     const fromChain = createFromMock();
     mockSupabaseService = {
@@ -72,7 +87,8 @@ describe('EmailSubscribersComponent', () => {
       mockToastService as unknown as ToastService,
       mockChangeDetectorRef as any,
       mockAdminDataService as unknown as AdminDataService,
-      mockBreakpointObserver as any
+      mockBreakpointObserver as any,
+      mockTenantContext
     );
   });
 
@@ -109,12 +125,15 @@ describe('EmailSubscribersComponent', () => {
   it('handleAddSubscriber should insert subscriber without Planning Center fields', async () => {
     const insertMock = vi.fn().mockResolvedValue({ error: null });
     const addChain: any = {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
+          })
+        })
+      }),
       insert: insertMock
     };
-    addChain.select.mockImplementation(() => addChain);
 
     mockSupabaseService.client.from = vi.fn(() => addChain);
 
@@ -127,7 +146,8 @@ describe('EmailSubscribersComponent', () => {
       email: 'test@example.com',
       is_active: true,
       is_admin: false,
-      receive_admin_emails: false
+      receive_admin_emails: false,
+      tenant_id: MOCK_TENANT.id
     });
   });
 });

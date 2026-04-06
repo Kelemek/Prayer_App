@@ -7,6 +7,7 @@ import { ThemeService } from '../../services/theme.service';
 import { UserSessionService } from '../../services/user-session.service';
 import { EmailNotificationService } from '../../services/email-notification.service';
 import { BrandingService } from '../../services/branding.service';
+import { TenantContextService } from '../../services/tenant-context.service';
 import { Subject, takeUntil } from 'rxjs';
 
 @Component({
@@ -458,10 +459,29 @@ export class LoginComponent implements OnInit, OnDestroy {
     private userSessionService: UserSessionService,
     private themeService: ThemeService,
     private brandingService: BrandingService,
+    private tenantContext: TenantContextService,
     private router: Router,
     private route: ActivatedRoute,
     private cdr: ChangeDetectorRef
   ) {}
+
+  /** Tenant for new subscribers / approval requests (active org, localStorage, or default-tenant). */
+  private async getTenantIdForSignup(): Promise<string | null> {
+    const fromContext = this.tenantContext.getActiveTenant()?.id;
+    if (fromContext) {
+      return fromContext;
+    }
+    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('active_tenant_id') : null;
+    if (stored) {
+      return stored;
+    }
+    const { data } = await this.supabaseService.client
+      .from('tenants')
+      .select('id')
+      .eq('slug', 'default-tenant')
+      .maybeSingle();
+    return data?.id ?? null;
+  }
 
   async ngOnInit() {
     // Detect dark mode from document class
@@ -1055,12 +1075,15 @@ export class LoginComponent implements OnInit, OnDestroy {
           affiliationReason: this.affiliationReason.trim()
         });
         
+        const signupTenantId = await this.getTenantIdForSignup();
+
         const { data, error } = await this.supabaseService.client
           .rpc('create_account_approval_request', {
             p_email: this.email.toLowerCase(),
             p_first_name: this.firstName.trim(),
             p_last_name: this.lastName.trim(),
-            p_affiliation_reason: this.affiliationReason.trim()
+            p_affiliation_reason: this.affiliationReason.trim(),
+            p_tenant_id: signupTenantId
           });
 
         console.log('[AdminLogin] RPC result:', { data, error });
@@ -1096,7 +1119,8 @@ export class LoginComponent implements OnInit, OnDestroy {
             this.email.toLowerCase(),
             this.firstName.trim(),
             this.lastName.trim(),
-            this.affiliationReason.trim()
+            this.affiliationReason.trim(),
+            signupTenantId
           );
           console.log('[AdminLogin] Admin notification email sent');
         } catch (emailError) {
@@ -1117,6 +1141,14 @@ export class LoginComponent implements OnInit, OnDestroy {
       }
 
       // Normal subscriber flow
+      const subscriberTenantId = await this.getTenantIdForSignup();
+      if (!subscriberTenantId) {
+        this.error = 'Could not determine organization for signup. Please try again.';
+        this.loading = false;
+        this.cdr?.markForCheck?.();
+        return false;
+      }
+
       const { data, error } = await this.supabaseService.directMutation<{
         id: string;
       }>(
@@ -1128,7 +1160,8 @@ export class LoginComponent implements OnInit, OnDestroy {
             name: `${this.firstName.trim()} ${this.lastName.trim()}`,
             is_active: true,
             is_admin: false,
-            receive_admin_emails: false
+            receive_admin_emails: false,
+            tenant_id: subscriberTenantId
           },
           returning: true
         }

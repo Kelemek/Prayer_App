@@ -1,7 +1,9 @@
-import { Component, OnInit, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Subject, takeUntil } from 'rxjs';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
+import { TenantContextService } from '../../services/tenant-context.service';
 import { EmailTemplatesManagerComponent } from '../email-templates-manager/email-templates-manager.component';
 import { EmailSubscribersComponent } from '../email-subscribers/email-subscribers.component';
 
@@ -12,6 +14,12 @@ import { EmailSubscribersComponent } from '../email-subscribers/email-subscriber
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="space-y-6">
+      @if (!activeTenantId) {
+      <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+        Select an organization above to manage email subscribers, reminders, and templates for that tenant.
+      </p>
+      }
+      @if (activeTenantId) {
       <!-- Email Subscribers Component -->
       <app-email-subscribers></app-email-subscribers>
 
@@ -166,12 +174,19 @@ import { EmailSubscribersComponent } from '../email-subscribers/email-subscriber
       <div class="mt-8">
         <app-email-templates-manager></app-email-templates-manager>
       </div>
+      }
     </div>
   `,
   styles: []
 })
-export class EmailSettingsComponent implements OnInit {
+export class EmailSettingsComponent implements OnInit, OnDestroy {
   @Output() onSave = new EventEmitter<void>();
+
+  private readonly destroy$ = new Subject<void>();
+
+  get activeTenantId(): string | null {
+    return this.tenantContext.getActiveTenant()?.id ?? null;
+  }
 
   enableReminders = false;
   reminderIntervalDays = 7;
@@ -187,23 +202,42 @@ export class EmailSettingsComponent implements OnInit {
   constructor(
     private supabase: SupabaseService,
     private toast: ToastService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private tenantContext: TenantContextService
   ) {}
 
   ngOnInit() {
-    this.loadSettings();
+    this.tenantContext.activeTenant$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        if (this.activeTenantId) {
+          this.loadSettings();
+        } else {
+          this.loading = false;
+          this.cdr.markForCheck();
+        }
+      });
+  }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   async loadSettings() {
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      return;
+    }
     try {
       this.loading = true;
       this.cdr.markForCheck();
       this.error = null;
 
       const { data, error } = await this.supabase.client
-        .from('admin_settings')
+        .from('tenant_settings')
         .select('enable_reminders, reminder_interval_days, enable_auto_archive, days_before_archive')
-        .eq('id', 1)
+        .eq('tenant_id', tenantId)
         .maybeSingle();
 
       if (error) throw error;
@@ -236,6 +270,11 @@ export class EmailSettingsComponent implements OnInit {
   }
 
   async saveReminderSettings() {
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      this.toast.error('Select an organization first');
+      return;
+    }
     try {
       this.savingReminders = true;
       this.cdr.markForCheck();
@@ -243,15 +282,15 @@ export class EmailSettingsComponent implements OnInit {
       this.successReminders = false;
 
       const { error } = await this.supabase.client
-        .from('admin_settings')
-        .upsert({
-          id: 1,
+        .from('tenant_settings')
+        .update({
           enable_reminders: this.enableReminders,
           reminder_interval_days: this.reminderIntervalDays,
           enable_auto_archive: this.enableAutoArchive,
-          days_before_archive: this.daysBeforeArchive
+          days_before_archive: this.daysBeforeArchive,
+          updated_at: new Date().toISOString()
         })
-        .select();
+        .eq('tenant_id', tenantId);
 
       if (error) throw error;
 

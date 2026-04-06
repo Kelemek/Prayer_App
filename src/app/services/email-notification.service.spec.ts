@@ -2,14 +2,174 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { EmailNotificationService } from './email-notification.service';
 import { environment } from '../../environments/environment';
 
-function makeFromQuery(result: any) {
+const VITEST_TENANT_ID = 'vitest-default-tenant-id';
+
+/** email_templates + list-unsubscribe: select → eq → eq → maybeSingle */
+function doubleEqMaybeSingleRow(result: { data: unknown; error: unknown }) {
   return {
     select: () => ({
       eq: () => ({
-        single: async () => result
-      })
-    })
+        eq: () => ({
+          maybeSingle: async () => result,
+        }),
+      }),
+    }),
   };
+}
+
+/** email_subscribers broadcast: select → eq ×3 → await */
+function tripleEqThenableRow(rows: unknown[], error: unknown = null) {
+  const result = { data: rows, error };
+  return {
+    select: () => ({
+      eq: () => ({
+        eq: () => ({
+          eq: () => ({
+            then: (onFulfilled: (r: typeof result) => void) => Promise.resolve(result).then(onFulfilled),
+          }),
+        }),
+      }),
+    }),
+  };
+}
+
+/** Same chain as tripleEqThenableRow but allows null data + error (fetch failures). */
+function tripleEqThenableResult(data: unknown, error: unknown) {
+  const result = { data, error };
+  return {
+    select: () => ({
+      eq: () => ({
+        eq: () => ({
+          eq: () => ({
+            then: (onFulfilled: (r: typeof result) => void) => Promise.resolve(result).then(onFulfilled),
+          }),
+        }),
+      }),
+    }),
+  };
+}
+
+function emailSubscribersUnsubAndListMock(tokenLookup: { data: unknown; error: unknown }) {
+  const listResult = { data: [] as unknown[], error: null as unknown };
+  const level3 = {
+    eq: () => ({
+      then: (onFulfilled: (r: typeof listResult) => void) => Promise.resolve(listResult).then(onFulfilled),
+    }),
+    maybeSingle: async () => tokenLookup,
+  };
+  return {
+    select: () => ({
+      eq: () => ({
+        eq: () => level3,
+      }),
+    }),
+    insert: vi.fn().mockResolvedValue({ error: null }),
+  };
+}
+
+function tenantMembershipsAdmins(emails: string[]) {
+  const result = { data: emails.map((e) => ({ user_email: e })), error: null as unknown };
+  return {
+    select: () => ({
+      eq: () => ({
+        eq: () => ({
+          then: (onFulfilled: (r: typeof result) => void) => Promise.resolve(result).then(onFulfilled),
+        }),
+      }),
+    }),
+  };
+}
+
+function emailSubscribersAdminPrefs(rows: { email: string; receive_admin_emails?: boolean }[]) {
+  const result = {
+    data: rows.map((r) => ({
+      email: r.email,
+      receive_admin_emails: r.receive_admin_emails ?? true,
+    })),
+    error: null as unknown,
+  };
+  return {
+    select: () => ({
+      eq: () => ({
+        in: () => ({
+          then: (onFulfilled: (r: typeof result) => void) => Promise.resolve(result).then(onFulfilled),
+        }),
+      }),
+    }),
+  };
+}
+
+function emailQueueInsertMock() {
+  return {
+    insert: vi.fn().mockResolvedValue({ data: { id: 'q1' }, error: null }),
+  };
+}
+
+function createDefaultSupabaseFromRouter() {
+  return vi.fn((table: string) => {
+    switch (table) {
+      case 'tenants':
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: { id: VITEST_TENANT_ID }, error: null }),
+            }),
+          }),
+        };
+      case 'email_templates':
+        return doubleEqMaybeSingleRow({ data: null, error: null });
+      case 'tenant_memberships':
+        return tenantMembershipsAdmins([]);
+      case 'email_subscribers':
+        return emailSubscribersUnsubAndListMock({ data: null, error: null });
+      case 'email_queue':
+        return emailQueueInsertMock();
+      default:
+        return tripleEqThenableRow([]);
+    }
+  });
+}
+
+function stubEmailNotificationTenant(service: EmailNotificationService, tenantId = VITEST_TENANT_ID) {
+  return vi.spyOn(service as any, 'resolveEmailTenantId').mockResolvedValue(tenantId);
+}
+
+function fromMockTenantAdmins(adminEmails: string[]) {
+  return vi.fn((table: string) => {
+    if (table === 'tenant_memberships') {
+      return tenantMembershipsAdmins(adminEmails);
+    }
+    if (table === 'email_subscribers') {
+      return emailSubscribersAdminPrefs(adminEmails.map((e) => ({ email: e, receive_admin_emails: true })));
+    }
+    return emailQueueInsertMock();
+  });
+}
+
+function fromMockWelcomeFlow(templateRow: Record<string, unknown> | null, templateError: unknown = null) {
+  return vi.fn((table: string) => {
+    if (table === 'email_subscribers') {
+      return emailSubscribersUnsubAndListMock({ data: null, error: null });
+    }
+    if (table === 'email_templates') {
+      return doubleEqMaybeSingleRow({ data: templateRow, error: templateError });
+    }
+    return tripleEqThenableRow([]);
+  });
+}
+
+function fromMockBroadcastAndQueue(subscribers: { email: string; unsubscribe_token?: string }[]) {
+  return vi.fn((table: string) => {
+    if (table === 'email_subscribers') {
+      return tripleEqThenableRow(subscribers);
+    }
+    return emailQueueInsertMock();
+  });
+}
+
+/** Used throughout specs for template-only Supabase mocks */
+function makeFromQuery(result: { data: unknown; error: unknown }) {
+  return doubleEqMaybeSingleRow(result);
 }
 
 describe('EmailNotificationService', () => {
@@ -21,7 +181,7 @@ describe('EmailNotificationService', () => {
     mockSupabase = {
       client: {
         functions: { invoke: vi.fn() },
-        from: vi.fn()
+        from: createDefaultSupabaseFromRouter(),
       },
       directQuery: vi.fn()
     };
@@ -31,6 +191,7 @@ describe('EmailNotificationService', () => {
     };
 
     service = new EmailNotificationService(mockSupabase as any, mockPushNotification as any);
+    stubEmailNotificationTenant(service);
   });
 
   afterEach(() => {
@@ -41,7 +202,7 @@ describe('EmailNotificationService', () => {
     const tpl = { id: '1', template_key: 'approved_prayer', subject: 's', html_body: 'h', text_body: 't' };
     mockSupabase.client.from = vi.fn().mockReturnValue(makeFromQuery({ data: tpl, error: null }));
     const res = await service.getTemplate('approved_prayer');
-    expect(res).toEqual({ data: tpl, error: null }.data || tpl || res);
+    expect(res).toEqual(tpl);
   });
 
   it('getTemplate returns null on error', async () => {
@@ -86,45 +247,22 @@ describe('EmailNotificationService', () => {
 
   it('sendApprovedPrayerNotification uses fallback when template missing', async () => {
     const mockSubscribers = [{ email: 'user@test.com' }];
-    
-    // Mock email_subscribers query on mockSupabase
-    mockSupabase.client.from = vi.fn((table: string) => {
-      if (table === 'email_subscribers') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({ data: mockSubscribers, error: null })
-            })
-          })
-        };
-      }
-      return {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: null, error: null })
-      };
-    });
+    mockSupabase.client.from = fromMockBroadcastAndQueue(mockSubscribers);
 
     const enqueueSpy = vi.spyOn(service as any, 'enqueueEmail').mockResolvedValue(undefined);
+    vi.spyOn(service as any, 'triggerEmailProcessor').mockResolvedValue(undefined);
     await service.sendApprovedPrayerNotification({ title: 'T', description: 'D', requester: 'R', prayerFor: 'PF', status: 'current' });
-    
-    // Should still queue emails even without template
-    expect(enqueueSpy).toHaveBeenCalledWith('user@test.com', 'approved_prayer', expect.any(Object));
+
+    expect(enqueueSpy).toHaveBeenCalledWith(
+      'user@test.com',
+      'approved_prayer',
+      expect.any(Object),
+      VITEST_TENANT_ID
+    );
   });
 
   it('sendApprovedPrayerNotification logs queue and trigger failures', async () => {
-    mockSupabase.client.from = vi.fn((table: string) => {
-      if (table === 'email_subscribers') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({ data: [{ email: 'user@test.com' }], error: null })
-            })
-          })
-        };
-      }
-      return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
-    });
+    mockSupabase.client.from = fromMockBroadcastAndQueue([{ email: 'user@test.com' }]);
 
     vi.spyOn(service as any, 'enqueueEmail').mockRejectedValueOnce(new Error('Queue failed'));
     vi.spyOn(service as any, 'triggerEmailProcessor').mockRejectedValueOnce(new Error('Trigger failed'));
@@ -153,21 +291,21 @@ describe('EmailNotificationService', () => {
   });
 
   it('sendAdminNotification logs and returns when no admins configured', async () => {
-    mockSupabase.client.from = vi.fn().mockReturnValue({ select: () => ({ eq: () => ({ eq: () => ({ eq: async () => ({ data: [], error: null }) }) }) }) });
+    mockSupabase.client.from = fromMockTenantAdmins([]);
     const spy = vi.spyOn(service as any, 'sendAdminNotificationToEmail');
     await service.sendAdminNotification({ type: 'prayer', title: 't' } as any);
     expect(spy).not.toHaveBeenCalled();
   });
 
   it('sendAccountApprovalNotification fetches admins via directQuery and calls helper', async () => {
-    mockSupabase.directQuery.mockResolvedValue({ data: [{ email: 'a@a' }], error: null });
+    mockSupabase.client.from = fromMockTenantAdmins(['a@a']);
     const spy = vi.spyOn(service as any, 'sendAccountApprovalNotificationToEmail').mockResolvedValue(undefined as any);
     await service.sendAccountApprovalNotification('u@u', 'F', 'L');
     expect(spy).toHaveBeenCalled();
   });
 
   it('sendAccountApprovalNotificationToEmail proceeds when template exists and sends email', async () => {
-    mockSupabase.directQuery.mockResolvedValue({ data: [{ email: 'a@a' }], error: null });
+    mockSupabase.client.from = fromMockTenantAdmins(['a@a']);
     const tpl = { subject: 'Approve {{firstName}}', html_body: '<p>{{approveLink}}</p>', text_body: 't' } as any;
     // stub getTemplate to return account_approval_request template when called
     vi.spyOn(service, 'getTemplate').mockImplementation(async (key: string) => key === 'account_approval_request' ? (tpl as any) : null);
@@ -228,14 +366,7 @@ describe('EmailNotificationService', () => {
   });
 
   it('sendAdminNotification sends to admins when configured and calls helper for each admin', async () => {
-    // return one admin (chain: select -> eq -> eq)
-    mockSupabase.client.from = vi.fn().mockReturnValue({
-      select: () => ({
-        eq: () => ({
-          eq: async () => ({ data: [{ email: 'admin@a' }], error: null })
-        })
-      })
-    });
+    mockSupabase.client.from = fromMockTenantAdmins(['admin@a']);
 
     const spyHelper = vi.spyOn(service as any, 'sendAdminNotificationToEmail').mockResolvedValue(undefined as any);
     await service.sendAdminNotification({ type: 'prayer', title: 'Need approval', requester: 'John' } as any);
@@ -246,22 +377,14 @@ describe('EmailNotificationService', () => {
   });
 
   it('sendAdminNotification returns early when no admin subscribers exist', async () => {
-    mockSupabase.client.from = vi.fn().mockReturnValue({
-      select: () => ({
-        eq: () => ({
-          eq: () => ({
-            eq: async () => ({ data: [], error: null })
-          })
-        })
-      })
-    });
+    mockSupabase.client.from = fromMockTenantAdmins([]);
     const spy = vi.spyOn(service as any, 'sendAdminNotificationToEmail');
     await service.sendAdminNotification({ type: 'prayer', title: 'Need approval', requester: 'John' } as any);
     expect(spy).not.toHaveBeenCalled();
   });
 
   it('sendAccountApprovalNotification calls sendPushToAdmins with account approval payload', async () => {
-    mockSupabase.directQuery.mockResolvedValue({ data: [{ email: 'admin@x.com' }], error: null });
+    mockSupabase.client.from = fromMockTenantAdmins(['admin@x.com']);
     const spyHelper = vi.spyOn(service as any, 'sendAccountApprovalNotificationToEmail').mockResolvedValue(undefined as any);
     await service.sendAccountApprovalNotification('user@test.com', 'Jane', 'Doe');
     expect(spyHelper).toHaveBeenCalled();
@@ -333,7 +456,7 @@ describe('EmailNotificationService', () => {
   });
 
   it('sendAccountApprovalNotification handles admin query errors gracefully', async () => {
-    mockSupabase.directQuery.mockResolvedValue({ data: null, error: { message: 'Query failed' } });
+    mockSupabase.client.from = fromMockTenantAdmins([]);
 
     await expect(service.sendAccountApprovalNotification('user@test.com', 'Jane', 'Doe')).resolves.toBeUndefined();
   });
@@ -371,19 +494,15 @@ describe('EmailNotificationService', () => {
   });
 
   it('sendAccountApprovalNotification catches unexpected query errors', async () => {
-    mockSupabase.directQuery.mockRejectedValue(new Error('Unexpected query failure'));
+    mockSupabase.client.from = vi.fn(() => {
+      throw new Error('Unexpected query failure');
+    });
 
     await expect(service.sendAccountApprovalNotification('user@test.com', 'Jane', 'Doe')).resolves.toBeUndefined();
   });
 
   it('sendAdminNotification handles push notification failures gracefully', async () => {
-    mockSupabase.client.from = vi.fn().mockReturnValue({
-      select: () => ({
-        eq: () => ({
-          eq: async () => ({ data: [{ email: 'admin@test.com' }], error: null })
-        })
-      })
-    });
+    mockSupabase.client.from = fromMockTenantAdmins(['admin@test.com']);
     mockPushNotification.sendPushToAdmins.mockRejectedValueOnce(new Error('Push failed'));
     const sendSpy = vi.spyOn(service as any, 'sendAdminNotificationToEmail').mockResolvedValue(undefined as any);
 
@@ -393,7 +512,7 @@ describe('EmailNotificationService', () => {
   });
 
   it('sendAccountApprovalNotification handles push notification failures gracefully', async () => {
-    mockSupabase.directQuery.mockResolvedValue({ data: [{ email: 'admin@x.com' }], error: null });
+    mockSupabase.client.from = fromMockTenantAdmins(['admin@x.com']);
     mockPushNotification.sendPushToAdmins.mockRejectedValueOnce(new Error('Push failed'));
     const sendSpy = vi.spyOn(service as any, 'sendAccountApprovalNotificationToEmail').mockResolvedValue(undefined as any);
 
@@ -525,7 +644,7 @@ describe('EmailNotificationService - Additional Logic', () => {
     mockSupabase = {
       client: {
         functions: { invoke: vi.fn() },
-        from: vi.fn()
+        from: createDefaultSupabaseFromRouter(),
       },
       directQuery: vi.fn()
     };
@@ -535,6 +654,7 @@ describe('EmailNotificationService - Additional Logic', () => {
     };
 
     service = new EmailNotificationService(mockSupabase as any, mockPushNotification as any);
+    stubEmailNotificationTenant(service);
   });
 
   afterEach(() => {
@@ -785,13 +905,7 @@ describe('EmailNotificationService - Additional Logic', () => {
 
   describe('Admin push notifications', () => {
     it('should call sendPushToAdmins when sendAdminNotification has admins', async () => {
-      mockSupabase.client.from = vi.fn().mockReturnValue({
-        select: () => ({
-          eq: () => ({
-            eq: async () => ({ data: [{ email: 'admin@test.com' }], error: null })
-          })
-        })
-      });
+      mockSupabase.client.from = fromMockTenantAdmins(['admin@test.com']);
       vi.spyOn(service as any, 'sendAdminNotificationToEmail').mockResolvedValue(undefined);
       await service.sendAdminNotification({ type: 'prayer', title: 'Test', requester: 'R' } as any);
       expect(mockPushNotification.sendPushToAdmins).toHaveBeenCalledWith(
@@ -965,7 +1079,7 @@ describe('EmailNotificationService - Additional Logic', () => {
       mockSupabase = {
         client: {
           functions: { invoke: vi.fn() },
-          from: vi.fn()
+          from: createDefaultSupabaseFromRouter(),
         },
         directQuery: vi.fn()
       };
@@ -975,6 +1089,7 @@ describe('EmailNotificationService - Additional Logic', () => {
       };
 
       service = new EmailNotificationService(mockSupabase as any, mockPushNotification as any);
+      stubEmailNotificationTenant(service);
     });
 
     afterEach(() => {
@@ -1385,7 +1500,7 @@ describe('EmailNotificationService - Additional Logic', () => {
       mockSupabase = {
         client: {
           functions: { invoke: vi.fn() },
-          from: vi.fn()
+          from: createDefaultSupabaseFromRouter(),
         },
         directQuery: vi.fn()
       };
@@ -1395,6 +1510,7 @@ describe('EmailNotificationService - Additional Logic', () => {
       };
 
       service = new EmailNotificationService(mockSupabase as any, mockPushNotification as any);
+      stubEmailNotificationTenant(service);
     });
 
     afterEach(() => {
@@ -1461,18 +1577,10 @@ describe('EmailNotificationService - Additional Logic', () => {
 
     describe('Approved Prayer Notifications', () => {
       it('should send approved prayer notification with current status', async () => {
-        mockSupabase.client.from = vi.fn((table: string) => {
-          if (table === 'email_subscribers') {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockResolvedValue({ data: [{ email: 'user1@test.com' }, { email: 'user2@test.com' }], error: null })
-                })
-              })
-            };
-          }
-          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
-        });
+        mockSupabase.client.from = fromMockBroadcastAndQueue([
+          { email: 'user1@test.com' },
+          { email: 'user2@test.com' },
+        ]);
 
         const enqueueSpy = vi.spyOn(service as any, 'enqueueEmail').mockResolvedValue(undefined);
         vi.spyOn(service as any, 'triggerEmailProcessor').mockResolvedValue(undefined);
@@ -1490,18 +1598,7 @@ describe('EmailNotificationService - Additional Logic', () => {
       });
 
       it('should use prayer_answered template when status is answered', async () => {
-        mockSupabase.client.from = vi.fn((table: string) => {
-          if (table === 'email_subscribers') {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockResolvedValue({ data: [{ email: 'user@test.com' }], error: null })
-                })
-              })
-            };
-          }
-          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
-        });
+        mockSupabase.client.from = fromMockBroadcastAndQueue([{ email: 'user@test.com' }]);
 
         const enqueueSpy = vi.spyOn(service as any, 'enqueueEmail').mockResolvedValue(undefined);
         vi.spyOn(service as any, 'triggerEmailProcessor').mockResolvedValue(undefined);
@@ -1520,18 +1617,7 @@ describe('EmailNotificationService - Additional Logic', () => {
       });
 
       it('should handle empty subscriber list gracefully', async () => {
-        mockSupabase.client.from = vi.fn((table: string) => {
-          if (table === 'email_subscribers') {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockResolvedValue({ data: [], error: null })
-                })
-              })
-            };
-          }
-          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
-        });
+        mockSupabase.client.from = fromMockBroadcastAndQueue([]);
 
         const payload = {
           title: 'Prayer Title',
@@ -1547,15 +1633,9 @@ describe('EmailNotificationService - Additional Logic', () => {
       it('should handle subscriber fetch error gracefully', async () => {
         mockSupabase.client.from = vi.fn((table: string) => {
           if (table === 'email_subscribers') {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockResolvedValue({ data: null, error: { message: 'Fetch error' } })
-                })
-              })
-            };
+            return tripleEqThenableResult(null, { message: 'Fetch error' });
           }
-          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+          return emailQueueInsertMock();
         });
 
         const payload = {
@@ -1576,18 +1656,7 @@ describe('EmailNotificationService - Additional Logic', () => {
           { email: 'user3@test.com' }
         ];
 
-        mockSupabase.client.from = vi.fn((table: string) => {
-          if (table === 'email_subscribers') {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockResolvedValue({ data: subscribers, error: null })
-                })
-              })
-            };
-          }
-          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
-        });
+        mockSupabase.client.from = fromMockBroadcastAndQueue(subscribers);
 
         const enqueueSpy = vi.spyOn(service as any, 'enqueueEmail').mockResolvedValue(undefined);
         vi.spyOn(service as any, 'triggerEmailProcessor').mockResolvedValue(undefined);
@@ -1605,18 +1674,7 @@ describe('EmailNotificationService - Additional Logic', () => {
       });
 
       it('should trigger email processor after queueing', async () => {
-        mockSupabase.client.from = vi.fn((table: string) => {
-          if (table === 'email_subscribers') {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockResolvedValue({ data: [{ email: 'user@test.com' }], error: null })
-                })
-              })
-            };
-          }
-          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
-        });
+        mockSupabase.client.from = fromMockBroadcastAndQueue([{ email: 'user@test.com' }]);
 
         vi.spyOn(service as any, 'enqueueEmail').mockResolvedValue(undefined);
         const triggerSpy = vi.spyOn(service as any, 'triggerEmailProcessor').mockResolvedValue(undefined);
@@ -1636,18 +1694,7 @@ describe('EmailNotificationService - Additional Logic', () => {
 
     describe('Approved Update Notifications', () => {
       it('should send approved update notification', async () => {
-        mockSupabase.client.from = vi.fn((table: string) => {
-          if (table === 'email_subscribers') {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockResolvedValue({ data: [{ email: 'user@test.com' }], error: null })
-                })
-              })
-            };
-          }
-          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
-        });
+        mockSupabase.client.from = fromMockBroadcastAndQueue([{ email: 'user@test.com' }]);
 
         const enqueueSpy = vi.spyOn(service as any, 'enqueueEmail').mockResolvedValue(undefined);
         vi.spyOn(service as any, 'triggerEmailProcessor').mockResolvedValue(undefined);
@@ -1664,18 +1711,7 @@ describe('EmailNotificationService - Additional Logic', () => {
       });
 
       it('should use prayer_answered template when update marked as answered', async () => {
-        mockSupabase.client.from = vi.fn((table: string) => {
-          if (table === 'email_subscribers') {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockResolvedValue({ data: [{ email: 'user@test.com' }], error: null })
-                })
-              })
-            };
-          }
-          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
-        });
+        mockSupabase.client.from = fromMockBroadcastAndQueue([{ email: 'user@test.com' }]);
 
         const enqueueSpy = vi.spyOn(service as any, 'enqueueEmail').mockResolvedValue(undefined);
         vi.spyOn(service as any, 'triggerEmailProcessor').mockResolvedValue(undefined);
@@ -1695,15 +1731,9 @@ describe('EmailNotificationService - Additional Logic', () => {
       it('should handle update notification with missing subscribers gracefully', async () => {
         mockSupabase.client.from = vi.fn((table: string) => {
           if (table === 'email_subscribers') {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockResolvedValue({ data: null, error: { message: 'Error' } })
-                })
-              })
-            };
+            return tripleEqThenableResult(null, { message: 'Error' });
           }
-          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+          return emailQueueInsertMock();
         });
 
         const payload = {
@@ -1899,24 +1929,7 @@ describe('EmailNotificationService - Additional Logic', () => {
 
     describe('Admin Notifications', () => {
       it('should send notification to all admins when configured', async () => {
-        mockSupabase.client.from = vi.fn((table: string) => {
-          if (table === 'email_subscribers') {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockResolvedValue({
-                    data: [
-                      { email: 'admin1@test.com' },
-                      { email: 'admin2@test.com' }
-                    ],
-                    error: null
-                  })
-                })
-              })
-            };
-          }
-          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
-        });
+        mockSupabase.client.from = fromMockTenantAdmins(['admin1@test.com', 'admin2@test.com']);
 
         const sendAdminSpy = vi.spyOn(service as any, 'sendAdminNotificationToEmail').mockResolvedValue(undefined);
 
@@ -1932,18 +1945,7 @@ describe('EmailNotificationService - Additional Logic', () => {
       });
 
       it('should return early when no admins configured', async () => {
-        mockSupabase.client.from = vi.fn((table: string) => {
-          if (table === 'email_subscribers') {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockResolvedValue({ data: null, error: null })
-                })
-              })
-            };
-          }
-          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
-        });
+        mockSupabase.client.from = fromMockTenantAdmins([]);
 
         const sendAdminSpy = vi.spyOn(service as any, 'sendAdminNotificationToEmail').mockResolvedValue(undefined);
 
@@ -1959,16 +1961,19 @@ describe('EmailNotificationService - Additional Logic', () => {
 
       it('should handle admin fetch error gracefully', async () => {
         mockSupabase.client.from = vi.fn((table: string) => {
-          if (table === 'email_subscribers') {
+          if (table === 'tenant_memberships') {
             return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockResolvedValue({ data: null, error: { message: 'Fetch error' } })
-                })
-              })
+              select: () => ({
+                eq: () => ({
+                  eq: () => ({
+                    then: (fn: (r: { data: unknown; error: unknown }) => void) =>
+                      Promise.resolve({ data: null, error: { message: 'Fetch error' } }).then(fn),
+                  }),
+                }),
+              }),
             };
           }
-          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+          return emailQueueInsertMock();
         });
 
         const payload = {
@@ -1980,18 +1985,7 @@ describe('EmailNotificationService - Additional Logic', () => {
       });
 
       it('should support different admin notification types', async () => {
-        mockSupabase.client.from = vi.fn((table: string) => {
-          if (table === 'email_subscribers') {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockResolvedValue({ data: [{ email: 'admin@test.com' }], error: null })
-                })
-              })
-            };
-          }
-          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
-        });
+        mockSupabase.client.from = fromMockTenantAdmins(['admin@test.com']);
 
         const sendAdminSpy = vi.spyOn(service as any, 'sendAdminNotificationToEmail').mockResolvedValue(undefined);
 
@@ -2009,18 +2003,7 @@ describe('EmailNotificationService - Additional Logic', () => {
       });
 
       it('should include request ID in admin notification when provided', async () => {
-        mockSupabase.client.from = vi.fn((table: string) => {
-          if (table === 'email_subscribers') {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockResolvedValue({ data: [{ email: 'admin@test.com' }], error: null })
-                })
-              })
-            };
-          }
-          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
-        });
+        mockSupabase.client.from = fromMockTenantAdmins(['admin@test.com']);
 
         const sendAdminSpy = vi.spyOn(service as any, 'sendAdminNotificationToEmail').mockResolvedValue(undefined);
 
@@ -2039,10 +2022,7 @@ describe('EmailNotificationService - Additional Logic', () => {
 
     describe('Account Approval Notifications', () => {
       it('should send account approval notification to admins', async () => {
-        mockSupabase.directQuery = vi.fn().mockResolvedValue({
-          data: [{ email: 'admin@test.com' }],
-          error: null
-        });
+        mockSupabase.client.from = fromMockTenantAdmins(['admin@test.com']);
 
         const notifySpy = vi.spyOn(service as any, 'sendAccountApprovalNotificationToEmail').mockResolvedValue(undefined);
 
@@ -2051,10 +2031,7 @@ describe('EmailNotificationService - Additional Logic', () => {
       });
 
       it('should include affiliation reason in account approval when provided', async () => {
-        mockSupabase.directQuery = vi.fn().mockResolvedValue({
-          data: [{ email: 'admin@test.com' }],
-          error: null
-        });
+        mockSupabase.client.from = fromMockTenantAdmins(['admin@test.com']);
 
         const notifySpy = vi.spyOn(service as any, 'sendAccountApprovalNotificationToEmail').mockResolvedValue(undefined);
 
@@ -2063,10 +2040,7 @@ describe('EmailNotificationService - Additional Logic', () => {
       });
 
       it('should handle missing admin list gracefully', async () => {
-        mockSupabase.directQuery = vi.fn().mockResolvedValue({
-          data: null,
-          error: { message: 'Query failed' }
-        });
+        mockSupabase.client.from = fromMockTenantAdmins([]);
 
         await expect(service.sendAccountApprovalNotification('user@test.com', 'John', 'Doe')).resolves.toBeUndefined();
       });

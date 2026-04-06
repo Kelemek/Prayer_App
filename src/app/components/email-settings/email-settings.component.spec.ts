@@ -1,14 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ChangeDetectorRef } from '@angular/core';
+import { of } from 'rxjs';
 import { EmailSettingsComponent } from './email-settings.component';
+
+const MOCK_TENANT = {
+  id: 'tenant-1',
+  name: 'Test Org',
+  slug: 'test-org',
+  plan_tier: 'churches' as const,
+  plan_status: 'active' as const
+};
 
 describe('EmailSettingsComponent', () => {
   let component: EmailSettingsComponent;
   let mockSupabaseService: any;
   let mockToastService: any;
   let mockChangeDetectorRef: any;
+  let mockTenantContext: any;
 
   beforeEach(() => {
+    mockTenantContext = {
+      getActiveTenant: vi.fn(() => MOCK_TENANT),
+      activeTenant$: of(MOCK_TENANT)
+    };
+
     mockSupabaseService = {
       client: {
         from: vi.fn(() => ({
@@ -17,8 +32,8 @@ describe('EmailSettingsComponent', () => {
               maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null }))
             }))
           })),
-          upsert: vi.fn(() => ({
-            select: vi.fn(() => Promise.resolve({ data: null, error: null }))
+          update: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ error: null }))
           }))
         }))
       }
@@ -37,7 +52,8 @@ describe('EmailSettingsComponent', () => {
     component = new EmailSettingsComponent(
       mockSupabaseService,
       mockToastService,
-      mockChangeDetectorRef as ChangeDetectorRef
+      mockChangeDetectorRef as ChangeDetectorRef,
+      mockTenantContext
     );
   });
 
@@ -229,8 +245,8 @@ describe('EmailSettingsComponent', () => {
 
     it('should save reminder settings successfully', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
-        upsert: vi.fn(() => ({
-          select: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+        update: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null }))
         }))
       }));
 
@@ -254,8 +270,8 @@ describe('EmailSettingsComponent', () => {
     it('should clear success message after 3 seconds', async () => {
       vi.useFakeTimers();
       mockSupabaseService.client.from = vi.fn(() => ({
-        upsert: vi.fn(() => ({
-          select: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+        update: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null }))
         }))
       }));
 
@@ -274,8 +290,8 @@ describe('EmailSettingsComponent', () => {
     it('should handle error when saving fails', async () => {
       const mockError = { message: 'Update failed' };
       mockSupabaseService.client.from = vi.fn(() => ({
-        upsert: vi.fn(() => ({
-          select: vi.fn(() => Promise.resolve({ data: null, error: mockError }))
+        update: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: mockError }))
         }))
       }));
 
@@ -291,8 +307,8 @@ describe('EmailSettingsComponent', () => {
     it('should handle error without message', async () => {
       const mockError = {};
       mockSupabaseService.client.from = vi.fn(() => ({
-        upsert: vi.fn(() => ({
-          select: vi.fn(() => Promise.resolve({ data: null, error: mockError }))
+        update: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: mockError }))
         }))
       }));
 

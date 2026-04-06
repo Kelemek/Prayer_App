@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
 import { EmailNotificationService } from '../../services/email-notification.service';
+import { TenantContextService } from '../../services/tenant-context.service';
 import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
 
 interface AdminUser {
@@ -346,7 +347,8 @@ export class AdminUserManagementComponent implements OnInit {
     private supabase: SupabaseService,
     private toast: ToastService,
     private cdr: ChangeDetectorRef,
-    private emailService: EmailNotificationService
+    private emailService: EmailNotificationService,
+    private tenantContext: TenantContextService
   ) {}
 
   ngOnInit() {
@@ -456,7 +458,8 @@ export class AdminUserManagementComponent implements OnInit {
   async sendInvitationEmail(email: string, name: string) {
     try {
       // Fetch admin_invitation template from database
-      const template = await this.emailService.getTemplate('admin_invitation');
+      const tenantId = this.tenantContext.getActiveTenant()?.id ?? null;
+      const template = await this.emailService.getTemplate('admin_invitation', tenantId);
       
       const appUrl = this.emailService.getEmailBaseUrl();
       const adminLink = `${appUrl}/admin`;

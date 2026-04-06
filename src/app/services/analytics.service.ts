@@ -70,11 +70,14 @@ export class AnalyticsService {
         }
       });
 
-      // Update the user's last activity date in email_subscribers
-      await this.supabase.client
-        .from('email_subscribers')
-        .update({ last_activity_date: new Date().toISOString() })
-        .eq('email', userEmail);
+      // Update the user's last activity date in email_subscribers (active tenant row)
+      if (tenantId) {
+        await this.supabase.client
+          .from('email_subscribers')
+          .update({ last_activity_date: new Date().toISOString() })
+          .eq('tenant_id', tenantId)
+          .eq('email', userEmail);
+      }
 
       // Record the update time in localStorage
       localStorage.setItem(lastUpdateKey, String(now));

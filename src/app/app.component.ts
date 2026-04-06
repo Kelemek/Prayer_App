@@ -242,10 +242,11 @@ export class AppComponent implements OnInit, OnDestroy {
         first_name: string;
         last_name: string;
         approval_status: string;
+        tenant_id: string | null;
       }>(
         'account_approval_requests',
         {
-          select: 'id, email, first_name, last_name, approval_status',
+          select: 'id, email, first_name, last_name, approval_status, tenant_id',
           eq: { email: decoded.email.toLowerCase() },
           limit: 1
         }
@@ -268,6 +269,14 @@ export class AppComponent implements OnInit, OnDestroy {
 
       if (decoded.type === 'approve') {
         // Approve the account - add to email_subscribers
+        const approvalTenantId = request.tenant_id;
+        if (!approvalTenantId) {
+          console.error('Approval request missing tenant_id');
+          toast.showToast('Cannot approve: missing organization on request', 'error');
+          this.router.navigate(['/login']);
+          return;
+        }
+
         const { error: insertError } = await supabase.directMutation(
           'email_subscribers',
           {
@@ -277,7 +286,8 @@ export class AppComponent implements OnInit, OnDestroy {
               name: `${request.first_name} ${request.last_name}`,
               is_active: true,
               is_admin: false,
-              receive_admin_emails: false
+              receive_admin_emails: false,
+              tenant_id: approvalTenantId
             },
             returning: false
           }
@@ -302,7 +312,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
         // Send approval email to user
         try {
-          const template = await emailService.getTemplate('account_approved');
+          const template = await emailService.getTemplate('account_approved', approvalTenantId);
           if (template) {
             const subject = emailService.applyTemplateVariables(template.subject, {
               firstName: request.first_name
@@ -345,7 +355,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
         // Send denial email to user
         try {
-          const template = await emailService.getTemplate('account_denied');
+          const template = await emailService.getTemplate('account_denied', request.tenant_id);
           if (template) {
             const subject = emailService.applyTemplateVariables(template.subject, {
               firstName: request.first_name
