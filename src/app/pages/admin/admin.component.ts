@@ -27,6 +27,8 @@ import { SecurityPolicySettingsComponent } from '../../components/security-polic
 import { TestAccountSettingsComponent } from '../../components/test-account-settings/test-account-settings.component';
 import { EmailVerificationSettingsComponent } from '../../components/email-verification-settings/email-verification-settings.component';
 import { GitHubSettingsComponent } from '../../components/github-settings/github-settings.component';
+import { GitHubFeedbackFormComponent } from '../../components/github-feedback-form/github-feedback-form.component';
+import { GitHubFeedbackService } from '../../services/github-feedback.service';
 import { PrayerEncouragementSettingsComponent } from '../../components/prayer-encouragement-settings/prayer-encouragement-settings.component';
 import { ConfirmationDialogComponent } from '../../components/confirmation-dialog/confirmation-dialog.component';
 import { TenantManagementComponent } from '../../components/tenant-management/tenant-management.component';
@@ -61,6 +63,7 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
     TestAccountSettingsComponent,
     EmailVerificationSettingsComponent,
     GitHubSettingsComponent,
+    GitHubFeedbackFormComponent,
     PrayerEncouragementSettingsComponent,
     ConfirmationDialogComponent,
     TenantManagementComponent,
@@ -630,9 +633,6 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
                   <app-prayer-encouragement-settings></app-prayer-encouragement-settings>
                 </div>
                 <div class="mb-4">
-                  <app-github-settings></app-github-settings>
-                </div>
-                <div class="mb-4">
                   <app-branding></app-branding>
                 </div>
                 <div class="mb-4">
@@ -661,6 +661,13 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
             <!-- Tools Tab -->
             @if (activeSettingsTab === 'tools') {
               <div class="space-y-6">
+                @if (githubFeedbackEnabled) {
+                <div class="mb-4">
+                  <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                    <app-github-feedback-form></app-github-feedback-form>
+                  </div>
+                </div>
+                }
                 <div class="mb-4">
                   <app-prayer-search></app-prayer-search>
                 </div>
@@ -689,6 +696,9 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
               <div>
                 <div class="mb-4">
                   <app-tenant-management></app-tenant-management>
+                </div>
+                <div class="mb-4">
+                  <app-github-settings (onSave)="loadGitHubFeedbackStatus()"></app-github-settings>
                 </div>
                 <div class="mb-4">
                   <app-test-account-settings></app-test-account-settings>
@@ -770,6 +780,7 @@ export class AdminComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
   private hasFetchStarted = false;
   isSuperAdmin = false;
+  githubFeedbackEnabled = false;
 
   constructor(
     private router: Router,
@@ -778,6 +789,7 @@ export class AdminComponent implements OnInit, OnDestroy {
     public adminAuthService: AdminAuthService,
     public userSessionService: UserSessionService,
     private tenantContextService: TenantContextService,
+    private githubFeedbackService: GitHubFeedbackService,
     private ngZone: NgZone,
     public cdr: ChangeDetectorRef
   ) {}
@@ -795,6 +807,8 @@ export class AdminComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    void this.loadGitHubFeedbackStatus();
+
     this.tenantContextService.loading$
       .pipe(
         filter((loading) => !loading),
@@ -859,6 +873,18 @@ export class AdminComponent implements OnInit, OnDestroy {
     
     if (this.activeTab === 'settings' && this.activeSettingsTab === 'analytics' && this.canAccessAnalytics()) {
       void this.loadAnalytics();
+    }
+  }
+
+  async loadGitHubFeedbackStatus(): Promise<void> {
+    try {
+      const config = await this.githubFeedbackService.getGitHubConfig();
+      this.githubFeedbackEnabled = config?.enabled ?? false;
+    } catch (err) {
+      console.error('[Admin] Error loading GitHub feedback status:', err);
+      this.githubFeedbackEnabled = false;
+    } finally {
+      this.cdr.markForCheck();
     }
   }
 

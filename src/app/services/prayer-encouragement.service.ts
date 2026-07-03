@@ -191,17 +191,22 @@ export class PrayerEncouragementService implements OnDestroy {
       const tenantId = this.tenantContext.getActiveTenant()?.id;
 
       if (tenantId) {
-        const { data, error } = await this.supabase.client
-          .from('tenant_settings')
-          .select('prayer_encouragement_enabled, prayer_encouragement_cooldown_hours')
-          .eq('tenant_id', tenantId)
-          .maybeSingle();
+        const { data: rows, error } = await this.supabase.client.rpc(
+          'get_public_tenant_prayer_encouragement',
+          { p_tenant_id: tenantId }
+        );
 
         if (error) {
           console.warn('[PrayerEncouragement] Failed to load flag', error);
           return;
         }
 
+        type EncouragementRow = {
+          prayer_encouragement_enabled?: boolean | null;
+          prayer_encouragement_cooldown_hours?: number | null;
+        };
+
+        const data = (rows as EncouragementRow[] | null)?.[0] ?? null;
         const value = !!data?.prayer_encouragement_enabled;
         const rawHours = data?.prayer_encouragement_cooldown_hours;
         const cooldownHours = typeof rawHours === 'number' && rawHours >= 1 && rawHours <= 168

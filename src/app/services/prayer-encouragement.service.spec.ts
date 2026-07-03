@@ -15,9 +15,14 @@ describe('PrayerEncouragementService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    mockTenantContext.getActiveTenant.mockReturnValue(null);
 
     mockSupabase = {
       client: {
+        rpc: vi.fn().mockResolvedValue({
+          data: [{ prayer_encouragement_enabled: true, prayer_encouragement_cooldown_hours: 4 }],
+          error: null,
+        }),
         from: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
@@ -122,9 +127,21 @@ describe('PrayerEncouragementService', () => {
       expect(typeof value).toBe('boolean');
     });
 
-    it('fetches from admin_settings when subscribed', async () => {
+    it('fetches from admin_settings when no active tenant', async () => {
       await firstValueFrom(service.getPrayerEncouragementEnabled$());
       expect(mockSupabase.client.from).toHaveBeenCalledWith('admin_settings');
+    });
+
+    it('fetches from public tenant RPC when active tenant is set', async () => {
+      mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-1' });
+      const tenantService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
+      await firstValueFrom(tenantService.getPrayerEncouragementEnabled$());
+      expect(mockSupabase.client.rpc).toHaveBeenCalledWith(
+        'get_public_tenant_prayer_encouragement',
+        { p_tenant_id: 'tenant-1' }
+      );
+      tenantService.ngOnDestroy();
+      mockTenantContext.getActiveTenant.mockReturnValue(null);
     });
   });
 
@@ -135,7 +152,7 @@ describe('PrayerEncouragementService', () => {
     });
 
     it('emits cooldown hours from fetch when set in response', async () => {
-      localStorage.removeItem('prayer_encouragement_enabled');
+      localStorage.clear();
       mockSupabase.client.from.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -147,9 +164,10 @@ describe('PrayerEncouragementService', () => {
         })
       });
       const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
-      // Skip initial default (4), take value after fetch completes (8)
-      const hours = await firstValueFrom(newService.getCooldownHours$().pipe(skip(1), take(1)));
-      expect(hours).toBe(8);
+      await firstValueFrom(newService.getCooldownHours$());
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(await firstValueFrom(newService.getCooldownHours$())).toBe(8);
+      newService.ngOnDestroy();
     });
   });
 
@@ -190,7 +208,7 @@ describe('PrayerEncouragementService', () => {
 
     it('warns and returns when fetch returns error', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      localStorage.removeItem('prayer_encouragement_enabled');
+      localStorage.clear();
       mockSupabase.client.from.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -202,16 +220,16 @@ describe('PrayerEncouragementService', () => {
         })
       });
       const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
-      newService.getCooldownHours$().subscribe(() => {});
-      await Promise.resolve();
-      await Promise.resolve();
+      await firstValueFrom(newService.getCooldownHours$());
+      await new Promise((resolve) => setTimeout(resolve, 0));
       expect(warn).toHaveBeenCalledWith('[PrayerEncouragement] Failed to load flag', { message: 'db error' });
       warn.mockRestore();
+      newService.ngOnDestroy();
     });
 
     it('warns when fetch throws', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      localStorage.removeItem('prayer_encouragement_enabled');
+      localStorage.clear();
       mockSupabase.client.from.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -220,9 +238,11 @@ describe('PrayerEncouragementService', () => {
         })
       });
       const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
-      await firstValueFrom(newService.getCooldownHours$().pipe(take(1)));
+      await firstValueFrom(newService.getCooldownHours$());
+      await new Promise((resolve) => setTimeout(resolve, 0));
       expect(warn).toHaveBeenCalledWith('[PrayerEncouragement] Error loading flag', expect.any(Error));
       warn.mockRestore();
+      newService.ngOnDestroy();
     });
 
     it('continues when localStorage.setItem in fetch throws', async () => {
@@ -282,13 +302,17 @@ describe('PrayerEncouragementService', () => {
   });
 
   describe('invalidateFlagCache', () => {
-    it('removes flag from localStorage and triggers reload', async () => {
+    it('clears cached flag and reloads from server', async () => {
+      const removeSpy = vi.spyOn(localStorage, 'removeItem');
       localStorage.setItem(
         'prayer_encouragement_enabled',
-        JSON.stringify({ value: true, cooldownHours: 4, timestamp: Date.now() })
+        JSON.stringify({ value: false, cooldownHours: 4, timestamp: Date.now() })
       );
       service.invalidateFlagCache();
-      expect(localStorage.getItem('prayer_encouragement_enabled')).toBeNull();
+      expect(removeSpy).toHaveBeenCalledWith('prayer_encouragement_enabled');
+      await firstValueFrom(service.getPrayerEncouragementEnabled$());
+      expect(localStorage.getItem('prayer_encouragement_enabled')).toContain('"value":true');
+      removeSpy.mockRestore();
     });
   });
 

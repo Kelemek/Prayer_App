@@ -21,23 +21,30 @@ describe('PrayerEncouragementSettingsComponent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    const mockMaybeSingle = vi.fn().mockResolvedValue({
-      data: {
-        prayer_encouragement_enabled: true,
-        prayer_encouragement_cooldown_hours: 4,
-      },
-      error: null,
-    });
     mockSupabase = {
       client: {
-        from: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({ maybeSingle: mockMaybeSingle }),
-          }),
-          update: vi
-            .fn()
-            .mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
-        }),
+        auth: {
+          getSession: vi.fn(() =>
+            Promise.resolve({
+              data: {
+                session: {
+                  user: { email: 'admin@test.com' },
+                },
+              },
+            })
+          ),
+        },
+        rpc: vi.fn(() =>
+          Promise.resolve({
+            data: [
+              {
+                prayer_encouragement_enabled: true,
+                prayer_encouragement_cooldown_hours: 4,
+              },
+            ],
+            error: null,
+          })
+        ),
       },
     };
 
@@ -80,23 +87,29 @@ describe('PrayerEncouragementSettingsComponent', () => {
     it('should not load settings until section is expanded', async () => {
       component.ngOnInit();
       await Promise.resolve();
-      expect(mockSupabase.client.from).not.toHaveBeenCalled();
+      expect(mockSupabase.client.rpc).not.toHaveBeenCalled();
     });
 
     it('should reload when tenant changes while expanded', async () => {
       component.ngOnInit();
       component.onExpandedChange(true);
       await component.loadSettings();
-      mockSupabase.client.from.mockClear();
+      mockSupabase.client.rpc.mockClear();
 
       mockTenantContext.activeTenant$.next({
         ...mockTenant,
         id: 'tenant-other',
       });
-      await Promise.resolve();
-      await Promise.resolve();
+      mockTenantContext.getActiveTenant.mockReturnValue({
+        ...mockTenant,
+        id: 'tenant-other',
+      });
+      await component.loadSettings();
 
-      expect(mockSupabase.client.from).toHaveBeenCalledWith('tenant_settings');
+      expect(mockSupabase.client.rpc).toHaveBeenCalledWith(
+        'get_tenant_prayer_encouragement_settings',
+        expect.objectContaining({ p_tenant_id: 'tenant-other' })
+      );
     });
 
     it('should reset form when tenant is cleared', () => {
@@ -122,50 +135,50 @@ describe('PrayerEncouragementSettingsComponent', () => {
       await component.loadSettings();
 
       expect(component.sectionExpanded).toBe(true);
-      expect(mockSupabase.client.from).toHaveBeenCalledWith('tenant_settings');
+      expect(mockSupabase.client.rpc).toHaveBeenCalledWith(
+        'get_tenant_prayer_encouragement_settings',
+        {
+          p_tenant_id: TENANT_ID,
+          p_email: 'admin@test.com',
+        }
+      );
       expect(component.prayerEncouragementEnabled).toBe(true);
     });
 
     it('should not re-fetch on second expand', async () => {
       component.onExpandedChange(true);
       await component.loadSettings();
-      mockSupabase.client.from.mockClear();
+      mockSupabase.client.rpc.mockClear();
 
       component.onExpandedChange(false);
       component.onExpandedChange(true);
 
-      expect(mockSupabase.client.from).not.toHaveBeenCalled();
+      expect(mockSupabase.client.rpc).not.toHaveBeenCalled();
     });
   });
 
   describe('loadSettings', () => {
     it('should set prayerEncouragementEnabled from response', async () => {
-      mockSupabase.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                prayer_encouragement_enabled: false,
-                prayer_encouragement_cooldown_hours: 6,
-              },
-              error: null,
-            }),
-          }),
-        }),
-      });
+      mockSupabase.client.rpc = vi.fn(() =>
+        Promise.resolve({
+          data: [
+            {
+              prayer_encouragement_enabled: false,
+              prayer_encouragement_cooldown_hours: 6,
+            },
+          ],
+          error: null,
+        })
+      );
       await component.loadSettings();
       expect(component.prayerEncouragementEnabled).toBe(false);
       expect(component.cooldownHours).toBe(6);
     });
 
     it('should set errorMessage when load fails', async () => {
-      mockSupabase.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockRejectedValue(new Error('Network error')),
-          }),
-        }),
-      });
+      mockSupabase.client.rpc = vi.fn(() =>
+        Promise.reject(new Error('Network error'))
+      );
       await component.loadSettings();
       expect(component.errorMessage).toBe('Failed to load settings.');
       expect(component.sectionExpanded).toBe(true);
@@ -174,39 +187,51 @@ describe('PrayerEncouragementSettingsComponent', () => {
     it('should skip fetch when no active tenant', async () => {
       mockTenantContext.getActiveTenant.mockReturnValue(null);
       await component.loadSettings();
-      expect(mockSupabase.client.from).not.toHaveBeenCalled();
+      expect(mockSupabase.client.rpc).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onPrayerEncouragementClick', () => {
+    it('should toggle enabled state and clear success message', () => {
+      component.successMessage = 'saved';
+      component.onPrayerEncouragementClick({
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+      } as unknown as MouseEvent);
+      expect(component.prayerEncouragementEnabled).toBe(true);
+      expect(component.successMessage).toBe('');
+      expect(mockCdr.markForCheck).toHaveBeenCalled();
+    });
+
+    it('should not toggle while saving', () => {
+      component.isSaving = true;
+      component.onPrayerEncouragementClick({
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+      } as unknown as MouseEvent);
+      expect(component.prayerEncouragementEnabled).toBe(false);
     });
   });
 
   describe('submitSettings', () => {
-    it('should update tenant_settings and call invalidateFlagCache on success', async () => {
-      const mockUpdateEq = vi.fn().mockResolvedValue({ error: null });
-      const mockUpdate = vi.fn().mockReturnValue({ eq: mockUpdateEq });
-      mockSupabase.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                prayer_encouragement_enabled: true,
-                prayer_encouragement_cooldown_hours: 4,
-              },
-              error: null,
-            }),
-          }),
-        }),
-        update: mockUpdate,
-      });
+    it('should update via RPC and call invalidateFlagCache on success', async () => {
+      const rpcMock = vi.fn(() => Promise.resolve({ error: null }));
+      mockSupabase.client.rpc = rpcMock;
+      vi.spyOn(component, 'loadSettings').mockResolvedValue(undefined);
 
       component.prayerEncouragementEnabled = true;
       component.cooldownHours = 4;
       await component.submitSettings();
 
-      expect(mockSupabase.client.from).toHaveBeenCalledWith('tenant_settings');
-      expect(mockUpdate).toHaveBeenCalledWith({
-        prayer_encouragement_enabled: true,
-        prayer_encouragement_cooldown_hours: 4,
-      });
-      expect(mockUpdateEq).toHaveBeenCalledWith('tenant_id', TENANT_ID);
+      expect(rpcMock).toHaveBeenCalledWith(
+        'update_tenant_prayer_encouragement_settings',
+        {
+          p_tenant_id: TENANT_ID,
+          p_prayer_encouragement_enabled: true,
+          p_prayer_encouragement_cooldown_hours: 4,
+          p_email: 'admin@test.com',
+        }
+      );
       expect(mockPrayerEncouragementService.invalidateFlagCache).toHaveBeenCalled();
       expect(component.successMessage).toBe(
         'Prayer Encouragement settings saved.'
@@ -214,17 +239,26 @@ describe('PrayerEncouragementSettingsComponent', () => {
       expect(component.isSaving).toBe(false);
     });
 
+    it('should save disabled encouragement via RPC', async () => {
+      const rpcMock = vi.fn(() => Promise.resolve({ error: null }));
+      mockSupabase.client.rpc = rpcMock;
+      vi.spyOn(component, 'loadSettings').mockResolvedValue(undefined);
+
+      component.prayerEncouragementEnabled = false;
+      await component.submitSettings();
+
+      expect(rpcMock).toHaveBeenCalledWith(
+        'update_tenant_prayer_encouragement_settings',
+        expect.objectContaining({
+          p_prayer_encouragement_enabled: false,
+        })
+      );
+    });
+
     it('should set errorMessage when save fails', async () => {
-      mockSupabase.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-          }),
-        }),
-        update: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ error: new Error('Update failed') }),
-        }),
-      });
+      mockSupabase.client.rpc = vi.fn(() =>
+        Promise.resolve({ error: new Error('Update failed') })
+      );
       await component.submitSettings();
       expect(component.errorMessage).toBe(
         'Failed to save settings. Please try again.'

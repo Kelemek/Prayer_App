@@ -108,20 +108,6 @@ describe('UserSettingsComponent', () => {
       markForCheck: vi.fn()
     };
 
-    const mockGitHubFeedbackService = {
-      getGitHubConfig: vi.fn(() => Promise.resolve(null))
-    };
-
-    const mockBadgeService = {
-      getBadgeFunctionalityEnabled$: vi.fn(() => Promise.resolve({ enabled: true })),
-      isPromptUnread: vi.fn(() => false),
-      markPromptAsRead: vi.fn(() => Promise.resolve()),
-      getUpdateBadgesChanged$: vi.fn(() => ({})),
-      markPrayerAsRead: vi.fn(() => Promise.resolve()),
-      refreshBadgeCounts: vi.fn(() => Promise.resolve()),
-      getBadgeCount$: vi.fn(() => ({}))
-    };
-
     component = new UserSettingsComponent(
       mockThemeService,
       mockTextSizeService,
@@ -130,7 +116,6 @@ describe('UserSettingsComponent', () => {
       mockPrayerService,
       mockEmailNotificationService,
       mockAdminAuthService,
-      mockGitHubFeedbackService as any,
       mockBadgeService as any,
       mockUserSessionService,
       mockCapacitorService as CapacitorService,
@@ -1030,49 +1015,6 @@ describe('UserSettingsComponent', () => {
       await component['loadPreferencesAutomatically']('test@example.com');
 
       expect(consoleSpy).toHaveBeenCalledWith('Error loading subscriber preferences:', expect.any(Error));
-      consoleSpy.mockRestore();
-    });
-  });
-
-  describe('loadGitHubFeedbackStatus', () => {
-    it('should load GitHub feedback enabled status from config', async () => {
-      const mockGitHubFeedbackService = {
-        getGitHubConfig: vi.fn(() => Promise.resolve({ enabled: true }))
-      };
-
-      component['githubFeedbackService'] = mockGitHubFeedbackService as any;
-
-      await component['loadGitHubFeedbackStatus']();
-
-      expect(component.githubFeedbackEnabled).toBe(true);
-      expect(mockChangeDetectorRef.markForCheck).toHaveBeenCalled();
-    });
-
-    it('should default to false when config is null', async () => {
-      const mockGitHubFeedbackService = {
-        getGitHubConfig: vi.fn(() => Promise.resolve(null))
-      };
-
-      component['githubFeedbackService'] = mockGitHubFeedbackService as any;
-
-      await component['loadGitHubFeedbackStatus']();
-
-      expect(component.githubFeedbackEnabled).toBe(false);
-      expect(mockChangeDetectorRef.markForCheck).toHaveBeenCalled();
-    });
-
-    it('should handle error when loading GitHub config', async () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const mockGitHubFeedbackService = {
-        getGitHubConfig: vi.fn(() => Promise.reject(new Error('Network error')))
-      };
-
-      component['githubFeedbackService'] = mockGitHubFeedbackService as any;
-
-      await component['loadGitHubFeedbackStatus']();
-
-      expect(component.githubFeedbackEnabled).toBe(false);
-      expect(consoleSpy).toHaveBeenCalledWith('Error loading GitHub feedback status:', expect.any(Error));
       consoleSpy.mockRestore();
     });
   });

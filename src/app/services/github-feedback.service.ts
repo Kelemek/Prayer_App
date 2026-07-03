@@ -46,35 +46,10 @@ export class GitHubFeedbackService {
   }
 
   /**
-   * Get GitHub issue configuration for the active tenant, or global admin_settings when no tenant.
+   * Platform-wide GitHub feedback configuration (admin_settings row id=1).
    */
   async getGitHubConfig(): Promise<GitHubIssueConfig | null> {
     try {
-      const tenantId = this.tenantContext.getActiveTenant()?.id;
-
-      if (tenantId) {
-        const { data, error } = await this.supabaseService.client
-          .from('tenant_settings')
-          .select('github_token, github_repo_owner, github_repo_name, github_feedback_enabled')
-          .eq('tenant_id', tenantId)
-          .maybeSingle();
-
-        if (error || !data) {
-          console.error('[GitHubFeedback] Error fetching tenant config:', error);
-          return null;
-        }
-
-        return {
-          id: 1,
-          github_token: data.github_token || '',
-          github_repo_owner: data.github_repo_owner || '',
-          github_repo_name: data.github_repo_name || '',
-          enabled: data.github_feedback_enabled !== false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-      }
-
       const { data, error } = await this.supabaseService.client
         .from('admin_settings')
         .select('github_token, github_repo_owner, github_repo_name, enabled')
@@ -102,25 +77,19 @@ export class GitHubFeedbackService {
   }
 
   /**
-   * Save GitHub configuration to tenant_settings (requires active tenant).
+   * Save platform-wide GitHub configuration to admin_settings.
    */
   async saveGitHubConfig(config: Partial<GitHubIssueConfig>): Promise<boolean> {
     try {
-      const tenantId = this.tenantContext.getActiveTenant()?.id;
-      if (!tenantId) {
-        console.error('[GitHubFeedback] No active tenant for save');
-        return false;
-      }
-
       const { error } = await this.supabaseService.client
-        .from('tenant_settings')
+        .from('admin_settings')
         .update({
           github_token: config.github_token,
           github_repo_owner: config.github_repo_owner,
           github_repo_name: config.github_repo_name,
-          github_feedback_enabled: config.enabled
+          enabled: config.enabled
         })
-        .eq('tenant_id', tenantId);
+        .eq('id', 1);
 
       if (error) {
         console.error('[GitHubFeedback] Error saving config:', error);
@@ -151,9 +120,14 @@ export class GitHubFeedbackService {
         suggestion: '💡'
       };
 
+      const tenant = this.tenantContext.getActiveTenant();
+      const tenantLines = tenant
+        ? `**Organization:** ${tenant.name} (\`${tenant.slug}\`)\n**Tenant ID:** \`${tenant.id}\`\n`
+        : '**Organization:** _(none selected)_\n';
+
       const body = `
 **Type:** ${payload.type}
-**User Name:** ${payload.userName || payload.userEmail || 'Anonymous'}
+${tenantLines}**User Name:** ${payload.userName || payload.userEmail || 'Anonymous'}
 **User Email:** ${payload.userEmail || 'Anonymous'}
 
 ---

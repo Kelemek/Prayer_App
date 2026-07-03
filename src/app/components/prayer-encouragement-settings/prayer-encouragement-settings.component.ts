@@ -66,25 +66,30 @@ import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/a
             how many times a prayer was prayed for.
           </p>
 
-          <form (ngSubmit)="submitSettings()" class="space-y-6">
-            <div
-              class="flex items-start gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg"
+          <form
+            (ngSubmit)="submitSettings()"
+            (click)="$event.stopPropagation()"
+            class="space-y-6"
+          >
+            <label
+              class="flex items-start gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg cursor-pointer"
             >
               <input
                 type="checkbox"
                 id="enablePrayerEncouragement"
-                [(ngModel)]="prayerEncouragementEnabled"
+                [checked]="prayerEncouragementEnabled"
+                (click)="onPrayerEncouragementClick($event)"
                 name="enablePrayerEncouragement"
                 [disabled]="isSaving"
+                aria-label="Enable Prayer Encouragement"
                 class="mt-1 h-4 w-4 text-blue-600 border-gray-300 bg-white dark:bg-gray-800 rounded focus:ring-blue-500 cursor-pointer flex-shrink-0 disabled:opacity-50"
               />
               <div class="flex-1">
-                <label
-                  for="enablePrayerEncouragement"
+                <span
                   class="font-medium text-gray-900 dark:text-gray-100 text-sm"
                 >
                   Enable Prayer Encouragement
-                </label>
+                </span>
                 <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">
                   Show a "Pray For" button on prayer cards. Users can click once
                   per {{ cooldownHours }}
@@ -92,7 +97,7 @@ import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/a
                   Requesters and admins see a count badge.
                 </p>
               </div>
-            </div>
+            </label>
 
             @if (prayerEncouragementEnabled) {
               <div
@@ -292,6 +297,26 @@ export class PrayerEncouragementSettingsComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  onPrayerEncouragementClick(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.isSaving) {
+      return;
+    }
+    this.prayerEncouragementEnabled = !this.prayerEncouragementEnabled;
+    this.successMessage = '';
+    this.cdr.markForCheck();
+  }
+
+  private async getCallerEmail(): Promise<string | null> {
+    const mfaEmail = localStorage.getItem('mfa_authenticated_email')?.toLowerCase().trim();
+    if (mfaEmail) {
+      return mfaEmail;
+    }
+    const { data: { session } } = await this.supabase.client.auth.getSession();
+    return session?.user?.email?.toLowerCase().trim() || null;
+  }
+
   private resetFormState(): void {
     this.prayerEncouragementEnabled = false;
     this.cooldownHours = 4;
@@ -299,36 +324,52 @@ export class PrayerEncouragementSettingsComponent implements OnInit, OnDestroy {
     this.errorMessage = "";
   }
 
-  async loadSettings(): Promise<void> {
+  async loadSettings(options?: { silent?: boolean }): Promise<void> {
     const tenantId = this.activeTenantId;
     if (!tenantId) {
       return;
     }
 
-    this.isLoading = true;
-    this.cdr.markForCheck();
+    if (!options?.silent) {
+      this.isLoading = true;
+      this.cdr.markForCheck();
+    }
 
     try {
-      const { data, error } = await this.supabase.client
-        .from("tenant_settings")
-        .select(
-          "prayer_encouragement_enabled, prayer_encouragement_cooldown_hours"
-        )
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
+      const callerEmail = await this.getCallerEmail();
+      if (!callerEmail) {
+        throw new Error('Not authenticated');
+      }
+
+      const { data: rows, error } = await this.supabase.client.rpc(
+        'get_tenant_prayer_encouragement_settings',
+        {
+          p_tenant_id: tenantId,
+          p_email: callerEmail,
+        }
+      );
 
       if (error) throw error;
+
+      type EncouragementRow = {
+        prayer_encouragement_enabled?: boolean | null;
+        prayer_encouragement_cooldown_hours?: number | null;
+      };
+
+      const data = (rows as EncouragementRow[] | null)?.[0] ?? null;
       this.prayerEncouragementEnabled = !!data?.prayer_encouragement_enabled;
       const raw = data?.prayer_encouragement_cooldown_hours;
       this.cooldownHours =
-        typeof raw === "number" && raw >= 1 && raw <= 168 ? raw : 4;
-      this.errorMessage = "";
+        typeof raw === 'number' && raw >= 1 && raw <= 168 ? raw : 4;
+      this.errorMessage = '';
     } catch (err) {
-      console.error("[PrayerEncouragementSettings] Error loading:", err);
-      this.errorMessage = "Failed to load settings.";
+      console.error('[PrayerEncouragementSettings] Error loading:', err);
+      this.errorMessage = 'Failed to load settings.';
       this.sectionExpanded = true;
     } finally {
-      this.isLoading = false;
+      if (!options?.silent) {
+        this.isLoading = false;
+      }
       this.cdr.markForCheck();
     }
   }
@@ -345,23 +386,33 @@ export class PrayerEncouragementSettingsComponent implements OnInit, OnDestroy {
     this.errorMessage = "";
 
     try {
+      const callerEmail = await this.getCallerEmail();
+      if (!callerEmail) {
+        this.errorMessage = 'Not authenticated.';
+        return;
+      }
+
       const cooldown = Math.min(
         168,
         Math.max(1, Math.round(this.cooldownHours))
       );
-      const { error } = await this.supabase.client
-        .from("tenant_settings")
-        .update({
-          prayer_encouragement_enabled: this.prayerEncouragementEnabled,
-          prayer_encouragement_cooldown_hours: cooldown,
-        })
-        .eq("tenant_id", tenantId);
+
+      const { error } = await this.supabase.client.rpc(
+        'update_tenant_prayer_encouragement_settings',
+        {
+          p_tenant_id: tenantId,
+          p_prayer_encouragement_enabled: this.prayerEncouragementEnabled,
+          p_prayer_encouragement_cooldown_hours: cooldown,
+          p_email: callerEmail,
+        }
+      );
 
       if (error) throw error;
       this.cooldownHours = cooldown;
 
       this.prayerEncouragementService.invalidateFlagCache();
-      this.successMessage = "Prayer Encouragement settings saved.";
+      this.successMessage = 'Prayer Encouragement settings saved.';
+      await this.loadSettings({ silent: true });
       setTimeout(() => {
         this.successMessage = "";
         this.cdr.markForCheck();

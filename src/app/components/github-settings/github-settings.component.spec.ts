@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ChangeDetectorRef } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
 import { GitHubSettingsComponent } from './github-settings.component';
 import { GitHubFeedbackService } from '../../services/github-feedback.service';
 
@@ -29,11 +28,6 @@ describe('GitHubSettingsComponent', () => {
       })
     };
 
-    const mockTenantContext = {
-      getActiveTenant: vi.fn().mockReturnValue({ id: 't1', name: 'T', slug: 't' }),
-      activeTenant$: new BehaviorSubject({ id: 't1', name: 'T', slug: 't' })
-    };
-
     const mockChangeDetectorRef = {
       detectChanges: vi.fn(),
       markForCheck: vi.fn()
@@ -41,7 +35,6 @@ describe('GitHubSettingsComponent', () => {
 
     component = new GitHubSettingsComponent(
       mockGitHubFeedbackService,
-      mockTenantContext as any,
       mockChangeDetectorRef as ChangeDetectorRef
     );
   });
@@ -451,14 +444,6 @@ describe('GitHubSettingsComponent', () => {
 
       expect(component.config.github_repo_owner).toBe('test-user');
       expect(component.config.github_repo_name).toBe('test_repo-2');
-    });
-  });
-
-  describe('Component Cleanup', () => {
-    it('should complete destroy subject on destroy', () => {
-      const destroySpy = vi.spyOn(component['destroy$'], 'complete');
-      component.ngOnDestroy();
-      expect(destroySpy).toHaveBeenCalled();
     });
   });
 

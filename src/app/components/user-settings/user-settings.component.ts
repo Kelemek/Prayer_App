@@ -19,13 +19,11 @@ import { PrintService } from "../../services/print.service";
 import { PrayerService } from "../../services/prayer.service";
 import { EmailNotificationService } from "../../services/email-notification.service";
 import { AdminAuthService } from "../../services/admin-auth.service";
-import { GitHubFeedbackService } from "../../services/github-feedback.service";
 import { UserSessionService } from "../../services/user-session.service";
 import { BadgeService } from "../../services/badge.service";
 import { CapacitorService } from "../../services/capacitor.service";
 import { Subject, takeUntil, debounceTime, distinctUntilChanged } from "rxjs";
 import { getUserInfo } from "../../../utils/userInfoStorage";
-import { GitHubFeedbackFormComponent } from "../github-feedback-form/github-feedback-form.component";
 import { UserPrayerReminderService } from "../../services/user-prayer-reminder.service";
 import type { UserPrayerHourReminderSlot } from "../../types/user-prayer-hour-reminder";
 
@@ -35,7 +33,7 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
 @Component({
   selector: "app-user-settings",
   standalone: true,
-  imports: [NgClass, FormsModule, GitHubFeedbackFormComponent],
+  imports: [NgClass, FormsModule],
   template: `
     <!-- Modal Overlay -->
     @if (isOpen) {
@@ -1291,15 +1289,6 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
             }
           </div>
 
-          <!-- GitHub Feedback Form -->
-          @if (githubFeedbackEnabled) {
-          <div
-            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4"
-          >
-            <app-github-feedback-form></app-github-feedback-form>
-          </div>
-          }
-
           <!-- Delete account -->
           <div
             class="border border-red-200 dark:border-red-800 rounded-lg p-3 sm:p-4"
@@ -1469,7 +1458,6 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
   selectedPromptTypes: string[] = [];
   personalCategories: string[] = [];
   selectedPersonalCategories: string[] = [];
-  githubFeedbackEnabled = false;
   showDeleteAccountVerification = false;
   deletingAccount = false;
 
@@ -1520,7 +1508,6 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     private prayerService: PrayerService,
     private emailNotification: EmailNotificationService,
     private adminAuthService: AdminAuthService,
-    private githubFeedbackService: GitHubFeedbackService,
     private badgeService: BadgeService,
     public userSessionService: UserSessionService,
     public capacitorService: CapacitorService,
@@ -1544,9 +1531,6 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
       this.name = `${userInfo.firstName} ${userInfo.lastName}`;
     }
     this.email = userInfo.email;
-
-    // Load GitHub feedback enabled status
-    this.loadGitHubFeedbackStatus();
 
     // Set up email change debounce listener
     this.emailChange$
@@ -1657,17 +1641,6 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
         await this.prayerService.getUniqueCategoriesForUser();
     } catch (err) {
       console.error("Error loading personal categories:", err);
-    }
-  }
-
-  async loadGitHubFeedbackStatus(): Promise<void> {
-    try {
-      const config = await this.githubFeedbackService.getGitHubConfig();
-      this.githubFeedbackEnabled = config?.enabled || false;
-      this.cdr.markForCheck();
-    } catch (err) {
-      console.error("Error loading GitHub feedback status:", err);
-      this.githubFeedbackEnabled = false;
     }
   }
 

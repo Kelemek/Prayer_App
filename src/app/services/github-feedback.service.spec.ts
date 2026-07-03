@@ -5,9 +5,13 @@ describe('GitHubFeedbackService', () => {
   let service: GitHubFeedbackService;
   let mockSupabaseService: any;
   let mockSelect: any;
-  let mockUpdateTenant: any;
+  let mockUpdateAdmin: any;
   const mockTenantContext = {
-    getActiveTenant: vi.fn().mockReturnValue(null)
+    getActiveTenant: vi.fn().mockReturnValue({
+      id: 'tenant-abc',
+      name: 'Cross Pointe',
+      slug: 'cross-pointe',
+    }),
   };
 
   beforeEach(() => {
@@ -26,7 +30,7 @@ describe('GitHubFeedbackService', () => {
       })
     };
 
-    mockUpdateTenant = {
+    mockUpdateAdmin = {
       eq: vi.fn().mockResolvedValue({
         data: null,
         error: null
@@ -39,20 +43,14 @@ describe('GitHubFeedbackService', () => {
         from: vi.fn().mockImplementation((table: string) => {
           if (table === 'admin_settings') {
             return {
-              select: vi.fn().mockReturnValue(mockSelect)
-            };
-          }
-          if (table === 'tenant_settings') {
-            return {
-              update: vi.fn().mockReturnValue(mockUpdateTenant)
+              select: vi.fn().mockReturnValue(mockSelect),
+              update: vi.fn().mockReturnValue(mockUpdateAdmin)
             };
           }
           return null;
         })
       }
     };
-
-    mockTenantContext.getActiveTenant.mockReturnValue(null);
 
     // Create service with mocked dependencies
     service = new GitHubFeedbackService(mockSupabaseService, mockTenantContext as any);
@@ -104,11 +102,7 @@ describe('GitHubFeedbackService', () => {
   });
 
   describe('saveGitHubConfig', () => {
-    beforeEach(() => {
-      mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-1', name: 'T', slug: 't' });
-    });
-
-    it('should save GitHub configuration to database', async () => {
+    it('should save GitHub configuration to admin_settings', async () => {
       const configToSave = {
         enabled: true,
         github_token: 'ghp_newsecret123',
@@ -118,12 +112,12 @@ describe('GitHubFeedbackService', () => {
 
       const result = await service.saveGitHubConfig(configToSave);
 
-      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('tenant_settings');
+      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('admin_settings');
       expect(result).toBe(true);
     });
 
     it('should return false if save fails', async () => {
-      mockUpdateTenant.eq.mockResolvedValue({
+      mockUpdateAdmin.eq.mockResolvedValue({
         data: null,
         error: new Error('Save failed')
       });
@@ -261,7 +255,7 @@ describe('GitHubFeedbackService', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should include user name in issue body', async () => {
+    it('should include tenant organization in issue body', async () => {
       const payload = {
         title: 'Test Feature',
         body: 'Test body content',
@@ -275,8 +269,9 @@ describe('GitHubFeedbackService', () => {
       const callArgs = (global.fetch as any).mock.calls[0];
       const requestBody = JSON.parse(callArgs[1].body);
 
-      expect(requestBody.body).toContain('Jane Smith');
-      expect(requestBody.body).toContain('jane@example.com');
+      expect(requestBody.body).toContain('Cross Pointe');
+      expect(requestBody.body).toContain('cross-pointe');
+      expect(requestBody.body).toContain('tenant-abc');
     });
   });
 
