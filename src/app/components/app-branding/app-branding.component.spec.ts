@@ -12,8 +12,26 @@ describe('AppBrandingComponent', () => {
   let mockChangeDetectorRef: any;
 
   beforeEach(() => {
+    mockChangeDetectorRef = {
+      detectChanges: vi.fn(),
+      markForCheck: vi.fn()
+    };
+
+    const mockBrandingService = {
+      applySavedBranding: vi.fn(),
+      refreshBranding: vi.fn().mockResolvedValue(undefined)
+    };
+
     mockSupabaseService = {
       client: {
+        rpc: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        auth: {
+          getSession: vi.fn(() =>
+            Promise.resolve({
+              data: { session: { user: { email: 'admin@test.com' } } },
+            })
+          ),
+        },
         from: vi.fn(() => ({
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
@@ -25,11 +43,6 @@ describe('AppBrandingComponent', () => {
       }
     };
 
-    mockChangeDetectorRef = {
-      detectChanges: vi.fn(),
-      markForCheck: vi.fn()
-    };
-
     const mockTenantContext = {
       getActiveTenant: vi.fn().mockReturnValue(mockTenant),
       activeTenant$: new BehaviorSubject(mockTenant)
@@ -37,6 +50,7 @@ describe('AppBrandingComponent', () => {
 
     component = new AppBrandingComponent(
       mockSupabaseService,
+      mockBrandingService as any,
       mockChangeDetectorRef as ChangeDetectorRef,
       mockTenantContext as any
     );
@@ -113,20 +127,20 @@ describe('AppBrandingComponent', () => {
     });
 
     it('should load settings successfully', async () => {
-      const mockData = {
-        app_title: 'Test Church',
-        app_subtitle: 'Test Subtitle',
-        use_logo: true,
-        light_mode_logo_blob: 'data:image/png;base64,light',
-        dark_mode_logo_blob: 'data:image/png;base64,dark'
-      };
-      mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: mockData, error: null }))
-          }))
-        }))
-      }));
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({
+          data: [
+            {
+              app_title: 'Test Church',
+              app_subtitle: 'Test Subtitle',
+              use_logo: true,
+              light_mode_logo_blob: 'data:image/png;base64,light',
+              dark_mode_logo_blob: 'data:image/png;base64,dark',
+            },
+          ],
+          error: null,
+        })
+      );
 
       await component.loadSettings();
 
@@ -140,20 +154,20 @@ describe('AppBrandingComponent', () => {
     });
 
     it('should handle null data fields gracefully', async () => {
-      const mockData = {
-        app_title: null,
-        app_subtitle: null,
-        use_logo: null,
-        light_mode_logo_blob: null,
-        dark_mode_logo_blob: null
-      };
-      mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: mockData, error: null }))
-          }))
-        }))
-      }));
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({
+          data: [
+            {
+              app_title: null,
+              app_subtitle: null,
+              use_logo: null,
+              light_mode_logo_blob: null,
+              dark_mode_logo_blob: null,
+            },
+          ],
+          error: null,
+        })
+      );
 
       const originalTitle = component.appTitle;
       const originalSubtitle = component.appSubtitle;
@@ -166,14 +180,9 @@ describe('AppBrandingComponent', () => {
     });
 
     it('should handle error when loading settings fails', async () => {
-      const mockError = { message: 'Database error' };
-      mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: mockError }))
-          }))
-        }))
-      }));
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({ data: null, error: { message: 'Database error' } })
+      );
 
       await component.loadSettings();
 
@@ -183,7 +192,7 @@ describe('AppBrandingComponent', () => {
     });
 
     it('should handle exception when loading settings', async () => {
-      mockSupabaseService.client.from = vi.fn(() => {
+      mockSupabaseService.client.rpc = vi.fn(() => {
         throw new Error('Network error');
       });
 
@@ -325,9 +334,9 @@ describe('AppBrandingComponent', () => {
     });
 
     it('should save settings successfully', async () => {
-      mockSupabaseService.client.from = vi.fn(() => ({
-        upsert: vi.fn(() => Promise.resolve({ data: {}, error: null }))
-      }));
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({ data: null, error: null })
+      );
 
       component.appTitle = 'New Title';
       component.appSubtitle = 'New Subtitle';
@@ -339,6 +348,13 @@ describe('AppBrandingComponent', () => {
 
       await component.save();
 
+      expect(mockSupabaseService.client.rpc).toHaveBeenCalledWith(
+        'update_tenant_branding_settings',
+        expect.objectContaining({
+          p_tenant_id: TENANT_ID,
+          p_app_title: 'New Title',
+        })
+      );
       expect(component.success).toBe(true);
       expect(component.error).toBe(null);
       expect(component.saving).toBe(false);
@@ -347,28 +363,23 @@ describe('AppBrandingComponent', () => {
     });
 
     it('should handle empty logo URLs by setting them to null', async () => {
-      let savedData: any;
-      mockSupabaseService.client.from = vi.fn(() => ({
-        upsert: vi.fn((data: any) => {
-          savedData = data;
-          return Promise.resolve({ data: {}, error: null });
-        })
-      }));
+      mockSupabaseService.client.rpc = vi.fn((name: string, args: Record<string, unknown>) => {
+        expect(args['p_light_mode_logo_blob']).toBe(null);
+        expect(args['p_dark_mode_logo_blob']).toBe(null);
+        return Promise.resolve({ data: null, error: null });
+      });
 
       component.lightModeLogoUrl = '';
       component.darkModeLogoUrl = '';
 
       await component.save();
-
-      expect(savedData.light_mode_logo_blob).toBe(null);
-      expect(savedData.dark_mode_logo_blob).toBe(null);
     });
 
     it('should clear success message after 3 seconds', async () => {
       vi.useFakeTimers();
-      mockSupabaseService.client.from = vi.fn(() => ({
-        upsert: vi.fn(() => Promise.resolve({ data: {}, error: null }))
-      }));
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({ data: null, error: null })
+      );
 
       await component.save();
 
@@ -383,10 +394,9 @@ describe('AppBrandingComponent', () => {
     });
 
     it('should handle error when saving fails', async () => {
-      const mockError = { message: 'Update failed' };
-      mockSupabaseService.client.from = vi.fn(() => ({
-        upsert: vi.fn(() => Promise.resolve({ data: null, error: mockError }))
-      }));
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({ data: null, error: { message: 'Update failed' } })
+      );
 
       await component.save();
 
@@ -397,10 +407,9 @@ describe('AppBrandingComponent', () => {
     });
 
     it('should handle error without message', async () => {
-      const mockError = {};
-      mockSupabaseService.client.from = vi.fn(() => ({
-        upsert: vi.fn(() => Promise.resolve({ data: null, error: mockError }))
-      }));
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({ data: null, error: {} })
+      );
 
       await component.save();
 
@@ -409,7 +418,7 @@ describe('AppBrandingComponent', () => {
     });
 
     it('should handle exception when saving', async () => {
-      mockSupabaseService.client.from = vi.fn(() => {
+      mockSupabaseService.client.rpc = vi.fn(() => {
         throw new Error('Network error');
       });
 

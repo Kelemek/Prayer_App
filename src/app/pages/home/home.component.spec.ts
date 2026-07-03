@@ -118,6 +118,9 @@ const makeMocks = () => {
       plan_tier: 'churches',
       plan_status: 'active'
     })),
+    getAvailableTenants: vi.fn(() => []),
+    getMemberships: vi.fn(() => []),
+    getIsSuperAdmin: vi.fn(() => false),
     activeTenant$: new BehaviorSubject({
       id: 'test-tenant-id',
       name: 'Test Tenant',
@@ -125,6 +128,8 @@ const makeMocks = () => {
       plan_tier: 'churches',
       plan_status: 'active'
     }),
+    loading$: new BehaviorSubject(false),
+    isSuperAdmin$: new BehaviorSubject(false),
     memberships$: of([]),
     availableTenants$: of([])
   };
@@ -136,7 +141,12 @@ let mocks: ReturnType<typeof makeMocks>;
 
 const defaultTenantContextMock = () => ({
   getActiveTenant: vi.fn(() => null),
-  activeTenant$: new BehaviorSubject(null)
+  getAvailableTenants: vi.fn(() => []),
+  getMemberships: vi.fn(() => []),
+  getIsSuperAdmin: vi.fn(() => false),
+  activeTenant$: new BehaviorSubject(null),
+  loading$: new BehaviorSubject(false),
+  isSuperAdmin$: new BehaviorSubject(false)
 });
 
 const createBadgeInjector = (
@@ -185,7 +195,6 @@ const createHomeComponent = (
   );
   const permissions = tenantPermissionService ?? m.tenantPermissionService;
   comp.canAccessShared = permissions.canAccessShared();
-  comp.canAccessAdminFeatures = permissions.canAccessAdmin();
   return comp;
 };
 
@@ -751,6 +760,7 @@ describe('HomeComponent', () => {
   });
 
   it('navigateToAdmin navigates when admin access is allowed', () => {
+    mocks.tenantPermissionService.canAccessAdmin.mockReturnValue(true);
     const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
@@ -763,12 +773,12 @@ describe('HomeComponent', () => {
       mocks.router,
       mocks.supabaseService
     );
-    comp.canAccessAdminFeatures = true;
     comp.navigateToAdmin();
     expect(mocks.router.navigate).toHaveBeenCalledWith(['/admin']);
   });
 
   it('navigateToAdmin shows error when tenant member lacks admin access', () => {
+    mocks.tenantPermissionService.canAccessAdmin.mockReturnValue(false);
     const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
@@ -781,7 +791,6 @@ describe('HomeComponent', () => {
       mocks.router,
       mocks.supabaseService
     );
-    comp.canAccessAdminFeatures = false;
     comp.tenantMemberships = [{ tenant_id: 'test-tenant-id' } as any];
     comp.navigateToAdmin();
     expect(mocks.toastService.error).toHaveBeenCalledWith(
@@ -2472,6 +2481,7 @@ describe('HomeComponent', () => {
 
   describe('Admin navigation', () => {
     it('navigateToAdmin should navigate when admin access is allowed', () => {
+      mocks.tenantPermissionService.canAccessAdmin.mockReturnValue(true);
       const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
@@ -2484,7 +2494,6 @@ describe('HomeComponent', () => {
         mocks.router,
         mocks.supabaseService
       );
-      comp.canAccessAdminFeatures = true;
 
       comp.navigateToAdmin();
 
@@ -2492,6 +2501,7 @@ describe('HomeComponent', () => {
     });
 
     it('navigateToAdmin should block tenant members without admin access', () => {
+      mocks.tenantPermissionService.canAccessAdmin.mockReturnValue(false);
       const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
@@ -2504,7 +2514,6 @@ describe('HomeComponent', () => {
         mocks.router,
         mocks.supabaseService
       );
-      comp.canAccessAdminFeatures = false;
       comp.tenantMemberships = [{ tenant_id: 'test-tenant-id' } as any];
 
       comp.navigateToAdmin();

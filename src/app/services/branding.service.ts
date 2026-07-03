@@ -1,8 +1,12 @@
 import { Injectable, OnDestroy } from '@angular/core';
-import { BehaviorSubject, Subject, takeUntil } from 'rxjs';
-import { distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
+import { BehaviorSubject, Subject, firstValueFrom, takeUntil } from 'rxjs';
+import { distinctUntilChanged, filter, map, shareReplay, take } from 'rxjs/operators';
 import { SupabaseService } from './supabase.service';
 import { TenantContextService } from './tenant-context.service';
+import {
+  BRANDING_CACHE_KEYS,
+  getBrandingCacheKey,
+} from '../utils/branding-cache-keys';
 
 export interface BrandingData {
   useLogo: boolean;
@@ -15,13 +19,6 @@ export interface BrandingData {
 
 @Injectable()
 export class BrandingService implements OnDestroy {
-  private readonly LIGHT_LOGO_KEY = 'branding_light_logo';
-  private readonly DARK_LOGO_KEY = 'branding_dark_logo';
-  private readonly USE_LOGO_KEY = 'branding_use_logo';
-  private readonly APP_TITLE_KEY = 'branding_app_title';
-  private readonly APP_SUBTITLE_KEY = 'branding_app_subtitle';
-  private readonly LAST_MODIFIED_KEY = 'branding_last_modified';
-
   private brandingSubject = new BehaviorSubject<BrandingData>(this.getDefaultBranding());
   private isDarkMode = false;
   private darkModeObserver: MutationObserver | null = null;
@@ -59,28 +56,59 @@ export class BrandingService implements OnDestroy {
   }
 
   private getBrandingCacheKey(base: string): string {
-    const tenantId = this.tenantContext.getActiveTenant()?.id;
-    return tenantId ? `${base}:${tenantId}` : base;
+    return getBrandingCacheKey(base, this.tenantContext.getActiveTenant()?.id);
   }
 
   /**
-   * Lazy-load branding data on first subscription
+   * Lazy-load branding data after tenant context is ready.
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
     if (this.initializationPromise) return this.initializationPromise;
 
-    this.initializationPromise = this.loadBranding();
-    await this.initializationPromise;
-    this.initialized = true;
-    const branding = this.brandingSubject.value;
-    console.log('[BrandingService] Initialization complete:', {
-      useLogo: branding.useLogo,
-      hasLightLogo: !!branding.lightLogo,
-      hasDarkLogo: !!branding.darkLogo,
-      appTitle: branding.appTitle,
-      lastModified: branding.lastModified?.toISOString()
-    });
+    this.initializationPromise = (async () => {
+      await firstValueFrom(
+        this.tenantContext.loading$.pipe(
+          filter((loading) => !loading),
+          take(1)
+        )
+      );
+      await this.loadBranding();
+      this.initialized = true;
+      const branding = this.brandingSubject.value;
+      console.log('[BrandingService] Initialization complete:', {
+        tenantId: this.tenantContext.getActiveTenant()?.id ?? null,
+        useLogo: branding.useLogo,
+        hasLightLogo: !!branding.lightLogo,
+        hasDarkLogo: !!branding.darkLogo,
+        appTitle: branding.appTitle,
+        lastModified: branding.lastModified?.toISOString()
+      });
+    })();
+
+    return this.initializationPromise;
+  }
+
+  /**
+   * Apply branding saved in admin without re-fetching large logo blobs.
+   */
+  applySavedBranding(branding: BrandingData): void {
+    const updated: BrandingData = {
+      ...branding,
+      lastModified: branding.lastModified ?? new Date(),
+    };
+    this.persistBrandingToCache(updated);
+    this.brandingSubject.next(updated);
+  }
+
+  /**
+   * Force reload from Supabase after admin saves tenant branding.
+   */
+  async refreshBranding(): Promise<void> {
+    localStorage.removeItem(
+      this.getBrandingCacheKey(BRANDING_CACHE_KEYS.lastModified)
+    );
+    await this.loadBranding();
   }
 
   /**
@@ -98,9 +126,6 @@ export class BrandingService implements OnDestroy {
     return this.isDarkMode ? branding.darkLogo || '' : branding.lightLogo || '';
   }
 
-  /**
-   * Load cached branding from window, localStorage, then query Supabase for updates
-   */
   private async loadBranding(): Promise<void> {
     if (this.loadBrandingInFlight) {
       return this.loadBrandingInFlight;
@@ -117,19 +142,26 @@ export class BrandingService implements OnDestroy {
     try {
       const cached = this.loadFromCache();
       console.log('[BrandingService] Loaded from cache:', {
+        tenantId: this.tenantContext.getActiveTenant()?.id ?? null,
         useLogo: cached.useLogo,
         hasLightLogo: !!cached.lightLogo,
         hasDarkLogo: !!cached.darkLogo
       });
       this.brandingSubject.next(cached);
 
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+      if (!tenantId) {
+        console.log('[BrandingService] No active tenant; using cached/default branding');
+        return;
+      }
+
       const shouldFetch = await this.shouldFetchFromSupabase(cached.lastModified);
 
       if (shouldFetch) {
-        console.log('[BrandingService] Logo data changed, fetching from Supabase');
+        console.log('[BrandingService] Branding changed, fetching tenant settings from Supabase');
         await this.fetchFromSupabase();
       } else {
-        console.log('[BrandingService] Using cached logo data (no updates)');
+        console.log('[BrandingService] Using cached branding (no tenant updates)');
       }
     } catch (error) {
       console.warn('[BrandingService] Failed to load branding:', error);
@@ -137,28 +169,29 @@ export class BrandingService implements OnDestroy {
   }
 
   /**
-   * Load branding from window cache and localStorage
-   * This is synchronous to prevent flash of text logo when image is cached
+   * Load branding from window cache and localStorage (tenant-scoped when active).
    */
   private loadFromCache(): BrandingData {
     const windowCache = (window as any).__cachedLogos;
 
-    const lightKey = this.getBrandingCacheKey(this.LIGHT_LOGO_KEY);
-    const darkKey = this.getBrandingCacheKey(this.DARK_LOGO_KEY);
-    const useKey = this.getBrandingCacheKey(this.USE_LOGO_KEY);
-    const titleKey = this.getBrandingCacheKey(this.APP_TITLE_KEY);
-    const subtitleKey = this.getBrandingCacheKey(this.APP_SUBTITLE_KEY);
-    const modifiedKey = this.getBrandingCacheKey(this.LAST_MODIFIED_KEY);
+    const lightKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.lightLogo);
+    const darkKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.darkLogo);
+    const useKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.useLogo);
+    const titleKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.appTitle);
+    const subtitleKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.appSubtitle);
+    const modifiedKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.lastModified);
 
     const lightLogo = localStorage.getItem(lightKey) ?? windowCache?.light ?? null;
     const darkLogo = localStorage.getItem(darkKey) ?? windowCache?.dark ?? null;
     const useLogo = localStorage.getItem(useKey);
     const appTitle = localStorage.getItem(titleKey) ?? 'Church Prayer Manager';
-    const appSubtitle = localStorage.getItem(subtitleKey) ?? 'Keeping our community connected in prayer';
+    const appSubtitle =
+      localStorage.getItem(subtitleKey) ??
+      'Keeping our community connected in prayer';
     const lastModifiedStr = localStorage.getItem(modifiedKey);
 
     return {
-      useLogo: (useLogo === 'true') || (windowCache?.useLogo === true),
+      useLogo: useLogo === 'true' || windowCache?.useLogo === true,
       lightLogo,
       darkLogo,
       appTitle,
@@ -168,12 +201,12 @@ export class BrandingService implements OnDestroy {
   }
 
   private persistBrandingToCache(branding: BrandingData): void {
-    const useKey = this.getBrandingCacheKey(this.USE_LOGO_KEY);
-    const lightKey = this.getBrandingCacheKey(this.LIGHT_LOGO_KEY);
-    const darkKey = this.getBrandingCacheKey(this.DARK_LOGO_KEY);
-    const titleKey = this.getBrandingCacheKey(this.APP_TITLE_KEY);
-    const subtitleKey = this.getBrandingCacheKey(this.APP_SUBTITLE_KEY);
-    const modifiedKey = this.getBrandingCacheKey(this.LAST_MODIFIED_KEY);
+    const useKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.useLogo);
+    const lightKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.lightLogo);
+    const darkKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.darkLogo);
+    const titleKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.appTitle);
+    const subtitleKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.appSubtitle);
+    const modifiedKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.lastModified);
 
     if (branding.useLogo !== null && branding.useLogo !== undefined) {
       localStorage.setItem(useKey, String(branding.useLogo));
@@ -195,50 +228,28 @@ export class BrandingService implements OnDestroy {
     }
   }
 
-  /**
-   * Check if we should fetch updated branding from Supabase
-   */
   private async shouldFetchFromSupabase(cachedLastModified: Date | null): Promise<boolean> {
     try {
       const tenantId = this.tenantContext.getActiveTenant()?.id;
-
-      if (tenantId) {
-        const { data, error } = await this.supabaseService.client
-          .from('tenant_settings')
-          .select('branding_last_modified')
-          .eq('tenant_id', tenantId)
-          .maybeSingle();
-
-        if (error || !data) {
-          return false;
-        }
-
-        const lastModifiedStr = data.branding_last_modified as string | null;
-        if (!lastModifiedStr) {
-          return false;
-        }
-
-        const dbLastModified = new Date(lastModifiedStr);
-        if (!cachedLastModified) {
-          return true;
-        }
-        return dbLastModified > cachedLastModified;
-      }
-
-      const { data, error } = await this.supabaseService.directQuery<{
-        branding_last_modified: string | null;
-      }>('admin_settings', {
-        select: 'branding_last_modified',
-        eq: { id: 1 },
-        limit: 1,
-        timeout: 3000
-      });
-
-      if (error || !data || !Array.isArray(data) || data.length === 0) {
+      if (!tenantId) {
         return false;
       }
 
-      const lastModifiedStr = data[0].branding_last_modified;
+      const { data, error } = await this.supabaseService.client.rpc(
+        'get_public_tenant_branding',
+        { p_tenant_id: tenantId }
+      );
+
+      if (error || !data) {
+        return false;
+      }
+
+      const row = (data as Array<Record<string, unknown>>)[0];
+      if (!row) {
+        return false;
+      }
+
+      const lastModifiedStr = row['branding_last_modified'] as string | null;
       if (!lastModifiedStr) {
         return false;
       }
@@ -254,66 +265,38 @@ export class BrandingService implements OnDestroy {
     }
   }
 
-  /**
-   * Fetch full branding data from Supabase and update cache
-   */
   private async fetchFromSupabase(): Promise<void> {
     try {
       const tenantId = this.tenantContext.getActiveTenant()?.id;
-
-      if (tenantId) {
-        const { data, error } = await this.supabaseService.client
-          .from('tenant_settings')
-          .select(
-            'use_logo, light_mode_logo_blob, dark_mode_logo_blob, app_title, app_subtitle, branding_last_modified'
-          )
-          .eq('tenant_id', tenantId)
-          .maybeSingle();
-
-        if (error || !data) {
-          return;
-        }
-
-        const branding: BrandingData = {
-          useLogo: data.use_logo ?? false,
-          lightLogo: data.light_mode_logo_blob || null,
-          darkLogo: data.dark_mode_logo_blob || null,
-          appTitle: data.app_title || 'Church Prayer Manager',
-          appSubtitle: data.app_subtitle || 'Keeping our community connected in prayer',
-          lastModified: data.branding_last_modified ? new Date(data.branding_last_modified as string) : null
-        };
-
-        this.persistBrandingToCache(branding);
-        this.brandingSubject.next(branding);
+      if (!tenantId) {
         return;
       }
 
-      const { data, error } = await this.supabaseService.directQuery<{
-        use_logo: boolean;
-        light_mode_logo_blob: string | null;
-        dark_mode_logo_blob: string | null;
-        app_title: string;
-        app_subtitle: string;
-        branding_last_modified: string | null;
-      }>('admin_settings', {
-        select: 'use_logo, light_mode_logo_blob, dark_mode_logo_blob, app_title, app_subtitle, branding_last_modified',
-        eq: { id: 1 },
-        limit: 1,
-        timeout: 10000
-      });
+      const { data, error } = await this.supabaseService.client.rpc(
+        'get_public_tenant_branding',
+        { p_tenant_id: tenantId }
+      );
 
-      if (error || !data || !Array.isArray(data) || data.length === 0) {
+      if (error || !data) {
         return;
       }
 
-      const settings = data[0];
+      const settings = (data as Array<Record<string, unknown>>)[0];
+      if (!settings) {
+        return;
+      }
+
       const branding: BrandingData = {
-        useLogo: settings.use_logo ?? false,
-        lightLogo: settings.light_mode_logo_blob || null,
-        darkLogo: settings.dark_mode_logo_blob || null,
-        appTitle: settings.app_title || 'Church Prayer Manager',
-        appSubtitle: settings.app_subtitle || 'Keeping our community connected in prayer',
-        lastModified: settings.branding_last_modified ? new Date(settings.branding_last_modified) : null
+        useLogo: (settings['use_logo'] as boolean | null) ?? false,
+        lightLogo: (settings['light_mode_logo_blob'] as string | null) || null,
+        darkLogo: (settings['dark_mode_logo_blob'] as string | null) || null,
+        appTitle: (settings['app_title'] as string | null) || 'Church Prayer Manager',
+        appSubtitle:
+          (settings['app_subtitle'] as string | null) ||
+          'Keeping our community connected in prayer',
+        lastModified: settings['branding_last_modified']
+          ? new Date(settings['branding_last_modified'] as string)
+          : null
       };
 
       this.persistBrandingToCache(branding);
@@ -323,9 +306,6 @@ export class BrandingService implements OnDestroy {
     }
   }
 
-  /**
-   * Get default branding data
-   */
   private getDefaultBranding(): BrandingData {
     return {
       useLogo: false,
@@ -337,16 +317,10 @@ export class BrandingService implements OnDestroy {
     };
   }
 
-  /**
-   * Detect current dark mode state
-   */
   private detectDarkMode(): void {
     this.isDarkMode = document.documentElement.classList.contains('dark');
   }
 
-  /**
-   * Watch for dark mode theme changes and update branding
-   */
   private watchThemeChanges(): void {
     this.darkModeObserver = new MutationObserver(() => {
       const isDark = document.documentElement.classList.contains('dark');

@@ -40,7 +40,7 @@ import { Subject, takeUntil } from "rxjs";
           </div>
           } @if (!useLogo || !logoUrl) {
           <svg
-            class="mx-auto h-16 w-16 text-[#2F5F54] dark:text-emerald-400"
+            class="mx-auto h-16 w-16 text-[#2F5F54] dark:text-[#2F5F54]"
             fill="none"
             stroke="currentColor"
             stroke-width="2"

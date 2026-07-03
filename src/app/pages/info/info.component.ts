@@ -1,17 +1,11 @@
 import {
   Component,
   OnInit,
-  OnDestroy,
-  Inject,
-  ChangeDetectorRef,
   ChangeDetectionStrategy,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { RouterModule } from "@angular/router";
-import { BrandingService } from "../../services/branding.service";
-import { BRANDING_SERVICE_TOKEN } from "../../components/app-logo/app-logo.component";
 import { ThemeToggleComponent } from "../../components/theme-toggle/theme-toggle.component";
-import { Subject, takeUntil } from "rxjs";
 
 @Component({
   selector: "app-info",
@@ -68,9 +62,9 @@ import { Subject, takeUntil } from "rxjs";
               <h1
                 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight"
               >
-                Cross Pointe<br />
+                Prayer Community<br />
                 <span class="text-emerald-600 dark:text-emerald-300"
-                  >Prayer Community</span
+                  >Manager</span
                 >
               </h1>
             </div>
@@ -209,14 +203,12 @@ import { Subject, takeUntil } from "rxjs";
               </button>
             </div>
 
-            <!-- Android CTA + QR (disabled, coming soon) -->
-            <div class="w-full flex flex-col items-center gap-2 relative">
+            <!-- Android CTA + QR -->
+            <div class="w-full flex flex-col items-center gap-2">
               <button
                 type="button"
-                disabled
-                aria-disabled="true"
-                aria-label="Android app coming soon"
-                class="group w-full inline-flex flex-row sm:flex-col items-center justify-center gap-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-200/80 dark:bg-gray-800/70 px-5 py-3 text-sm sm:text-base font-medium text-gray-900 dark:text-gray-100 shadow-md opacity-60 cursor-not-allowed"
+                (click)="openAndroidStore()"
+                class="group w-full inline-flex flex-row sm:flex-col items-center justify-center gap-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-200/80 dark:bg-gray-800/70 px-5 py-3 hover:bg-gray-300 dark:hover:bg-gray-700 text-sm sm:text-base font-medium text-gray-900 dark:text-gray-100 shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-300 transition-colors cursor-pointer"
               >
                 <span class="flex w-full items-center justify-center">
                   <span
@@ -231,7 +223,7 @@ import { Subject, takeUntil } from "rxjs";
                   </span>
                   <span class="text-left leading-tight">
                     <span
-                      class="block text-[10px] uppercase tracking-wider text-gray-600 dark:text-gray-400 whitespace-nowrap"
+                      class="block text-[10px] uppercase tracking-wider text-gray-600 group-hover:text-gray-800 dark:text-gray-400 whitespace-nowrap"
                       >Download on the</span
                     >
                     <span class="block text-sm font-semibold whitespace-nowrap"
@@ -243,7 +235,6 @@ import { Subject, takeUntil } from "rxjs";
                   class="h-20 w-20 min-h-20 min-w-20 shrink-0 rounded-xl border-2 border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-100 flex items-center justify-center p-1 ring-2 ring-emerald-400/50"
                   aria-hidden="true"
                 >
-                  @if (androidStoreQrUrl) {
                   <img
                     [src]="androidStoreQrUrl"
                     alt="QR code for Google Play"
@@ -252,59 +243,12 @@ import { Subject, takeUntil } from "rxjs";
                     height="64"
                     loading="lazy"
                   />
-                  } @else {
-                  <div
-                    class="h-16 w-16 grid grid-cols-5 grid-rows-5 gap-0 shrink-0"
-                  >
-                    <div class="bg-black"></div>
-                    <div class="bg-black"></div>
-                    <div class="bg-black"></div>
-                    <div class="bg-black"></div>
-                    <div class="bg-black"></div>
-                    <div class="bg-black"></div>
-                    <div class="bg-white"></div>
-                    <div class="bg-white"></div>
-                    <div class="bg-white"></div>
-                    <div class="bg-black"></div>
-                    <div class="bg-black"></div>
-                    <div class="bg-white"></div>
-                    <div class="bg-black"></div>
-                    <div class="bg-white"></div>
-                    <div class="bg-black"></div>
-                    <div class="bg-black"></div>
-                    <div class="bg-white"></div>
-                    <div class="bg-white"></div>
-                    <div class="bg-white"></div>
-                    <div class="bg-black"></div>
-                    <div class="bg-black"></div>
-                    <div class="bg-black"></div>
-                    <div class="bg-black"></div>
-                    <div class="bg-black"></div>
-                    <div class="bg-black"></div>
-                  </div>
-                  }
                 </div>
                 <span
-                  class="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 transition-colors"
+                  class="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 group-hover:text-emerald-800 group-hover:dark:text-emerald-200 transition-colors"
                   >Tap or Scan</span
                 >
               </button>
-              <div
-                class="absolute inset-0 rounded-xl flex flex-col items-center justify-center gap-1 bg-gray-900/40 dark:bg-gray-900/50 pointer-events-none"
-                aria-hidden="true"
-              >
-                <span
-                  class="text-sm sm:text-base font-semibold text-white drop-shadow-md"
-                  >Coming soon</span
-                >
-                <button
-                  type="button"
-                  (click)="openAndroidHelpModal()"
-                  class="pointer-events-auto text-xs font-medium text-white/95 hover:text-white underline underline-offset-2 drop-shadow-md cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/50 rounded"
-                >
-                  Want to help?
-                </button>
-              </div>
             </div>
           </div>
 
@@ -329,12 +273,14 @@ import { Subject, takeUntil } from "rxjs";
               <div
                 class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4"
               >
-                <div class="flex items-center gap-3 shrink-0">
-                  <img
-                    [src]="brandingImageUrl || '/favicon.ico'"
-                    alt="Church Logo"
-                    class="h-10 w-auto max-w-[160px] object-contain rounded"
-                  />
+                <div class="flex items-center gap-3 shrink-0 min-w-0">
+                  <div class="min-w-0">
+                    <h2
+                      class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100"
+                    >
+                      Prayer Manager
+                    </h2>
+                  </div>
                 </div>
                 <div class="flex items-center gap-2 flex-wrap">
                   <!-- Help -->
@@ -1190,104 +1136,6 @@ import { Subject, takeUntil } from "rxjs";
           </p>
         </div>
       </div>
-      } @if (showAndroidTesterModal) {
-      <div
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/60"
-        (click)="closeAndroidTesterModal()"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Android app testers"
-      >
-        <div
-          class="relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-2xl max-w-md w-full p-5 sm:p-6 space-y-3 text-gray-800 dark:text-gray-200"
-          (click)="$event.stopPropagation()"
-        >
-          <button
-            type="button"
-            (click)="closeAndroidTesterModal()"
-            class="absolute top-3 right-3 p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 cursor-pointer"
-            aria-label="Close"
-          >
-            <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"
-              ></path>
-            </svg>
-          </button>
-          <p class="font-medium text-gray-900 dark:text-gray-100 text-base">
-            Android app testers needed
-          </p>
-          <p class="text-sm text-gray-600 dark:text-gray-300">
-            The Android version of the Prayer app is in development. I’m looking
-            for people with Android devices who are willing to install an early
-            build, try it out, and share feedback so we can fix issues before a
-            wider release.
-          </p>
-          <p class="text-sm text-gray-600 dark:text-gray-300">
-            If you’d like to help, please contact
-            <strong class="text-gray-800 dark:text-gray-200">Mark Larson</strong
-            >.
-          </p>
-        </div>
-      </div>
-      } @if (showAndroidHelpModal) {
-      <div
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/60"
-        (click)="closeAndroidHelpModal()"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Help bring the app to Google Play"
-      >
-        <div
-          class="relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-2xl max-w-md w-full p-5 sm:p-6 space-y-3 text-gray-800 dark:text-gray-200"
-          (click)="$event.stopPropagation()"
-        >
-          <button
-            type="button"
-            (click)="closeAndroidHelpModal()"
-            class="absolute top-3 right-3 p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 cursor-pointer"
-            aria-label="Close"
-          >
-            <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"
-              ></path>
-            </svg>
-          </button>
-          <p class="font-medium text-gray-900 dark:text-gray-100 text-base">
-            Help bring the app to Google Play
-          </p>
-          <p class="text-sm text-gray-600 dark:text-gray-300">
-            If you would like to help bring the Prayer app to the Google Play
-            Store, please contact
-            <strong class="text-gray-800 dark:text-gray-200"
-              >Mark Larson</strong
-            >
-            at
-            <a
-              href="mailto:larsonm@cp-church.org"
-              class="text-emerald-600 dark:text-emerald-400 hover:underline"
-              >larsonm@cp-church.org</a
-            >.
-          </p>
-        </div>
-      </div>
       } @if (personalActionModal !== null) {
       <div
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/60"
@@ -1412,7 +1260,7 @@ import { Subject, takeUntil } from "rxjs";
     </div>
   `,
 })
-export class InfoComponent implements OnInit, OnDestroy {
+export class InfoComponent implements OnInit {
   private readonly iosStoreUrl =
     "https://apps.apple.com/us/app/cross-pointe-prayer/id6759469929";
   private readonly androidStoreUrl =
@@ -1430,24 +1278,14 @@ export class InfoComponent implements OnInit, OnDestroy {
     | null = null;
   showPromptCategoriesModal = false;
   showBadgesModal = false;
-  showAndroidTesterModal = false;
-  showAndroidHelpModal = false;
   showPersonalCategoriesModal = false;
   personalActionModal: "share" | "edit" | "delete" | null = null;
 
-  brandingImageUrl = "";
-  brandingUseLogo = false;
   webAppQrUrl = "";
   iosStoreQrUrl = "";
   androidStoreQrUrl = "";
-  private destroy$ = new Subject<void>();
 
-  constructor(
-    @Inject(BRANDING_SERVICE_TOKEN) private brandingService: BrandingService,
-    private cdr: ChangeDetectorRef
-  ) {}
-
-  async ngOnInit(): Promise<void> {
+  ngOnInit(): void {
     this.webAppQrUrl =
       "https://api.qrserver.com/v1/create-qr-code/?size=384x384&data=" +
       encodeURIComponent("https://cpprayer.cp-church.org/");
@@ -1457,21 +1295,6 @@ export class InfoComponent implements OnInit, OnDestroy {
     this.androidStoreQrUrl =
       "https://api.qrserver.com/v1/create-qr-code/?size=384x384&data=" +
       encodeURIComponent(this.androidStoreUrl);
-    await this.brandingService.initialize();
-    this.brandingService.branding$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((branding) => {
-        this.brandingUseLogo = branding.useLogo;
-        this.brandingImageUrl = this.brandingUseLogo
-          ? this.brandingService.getImageUrl(branding)
-          : "";
-        this.cdr?.detectChanges();
-      });
-  }
-
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
   }
 
   openIosStore(): void {
@@ -1513,22 +1336,6 @@ export class InfoComponent implements OnInit, OnDestroy {
 
   closeBadgesModal(): void {
     this.showBadgesModal = false;
-  }
-
-  openAndroidTesterModal(): void {
-    this.showAndroidTesterModal = true;
-  }
-
-  closeAndroidTesterModal(): void {
-    this.showAndroidTesterModal = false;
-  }
-
-  openAndroidHelpModal(): void {
-    this.showAndroidHelpModal = true;
-  }
-
-  closeAndroidHelpModal(): void {
-    this.showAndroidHelpModal = false;
   }
 
   openPersonalActionModal(which: "share" | "edit" | "delete"): void {

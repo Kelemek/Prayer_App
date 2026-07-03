@@ -19,11 +19,6 @@ export class TenantPermissionService {
       return true;
     }
 
-    const tenant = this.tenantContext.getActiveTenant();
-    if (!tenant || tenant.plan_tier !== 'churches') {
-      return false;
-    }
-
     return this.getActiveRole() === 'tenant_admin';
   }
 

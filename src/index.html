@@ -44,11 +44,13 @@
         }
       })();
       
-      // Load cached logo URLs immediately to prevent flash
+      // Load cached logo URLs immediately to prevent flash (tenant-scoped)
       (function() {
-        const lightLogo = localStorage.getItem('branding_light_logo');
-        const darkLogo = localStorage.getItem('branding_dark_logo');
-        const useLogo = localStorage.getItem('branding_use_logo');
+        const tenantId = localStorage.getItem('active_tenant_id');
+        const suffix = tenantId ? ':' + tenantId : '';
+        const lightLogo = localStorage.getItem('branding_light_logo' + suffix);
+        const darkLogo = localStorage.getItem('branding_dark_logo' + suffix);
+        const useLogo = localStorage.getItem('branding_use_logo' + suffix);
         
         if (lightLogo || darkLogo || useLogo) {
           // Store in window object for Angular to access instantly

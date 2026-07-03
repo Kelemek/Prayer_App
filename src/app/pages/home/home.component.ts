@@ -5,6 +5,7 @@ import {
   ChangeDetectionStrategy,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 import { RouterModule, Router } from "@angular/router";
 import { ChangeDetectorRef } from "@angular/core";
 import {
@@ -46,12 +47,17 @@ import { AnalyticsService } from "../../services/analytics.service";
 import { PullToRefreshDirective } from "../../directives/pull-to-refresh.directive";
 import { TenantPermissionService } from "../../services/tenant-permission.service";
 import { TenantContextService } from "../../services/tenant-context.service";
+import {
+  BRANDING_CACHE_KEYS,
+  getBrandingCacheKey,
+} from "../../utils/branding-cache-keys";
 import type { Tenant, TenantMembership } from "../../types/tenant";
 @Component({
   selector: "app-home",
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     RouterModule,
     DragDropModule,
     PrayerFormComponent,
@@ -112,15 +118,15 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
               </button>
               }
             </div>
-            @if (tenantSwitchOptions.length > 1) {
+            @if (showTenantSwitcher) {
             <div class="sm:hidden mb-3">
               <select
-                [value]="activeTenantId || ''"
-                (change)="onTenantSelect($any($event.target).value)"
+                [ngModel]="activeTenantId"
+                (ngModelChange)="onTenantSelect($event)"
                 class="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-xs text-gray-700 dark:text-gray-200"
               >
                 @for (tenant of tenantSwitchOptions; track tenant.id) {
-                <option [value]="tenant.id">{{ tenant.name }}</option>
+                <option [ngValue]="tenant.id">{{ tenant.name }}</option>
                 }
               </select>
             </div>
@@ -215,15 +221,15 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
               <div class="flex flex-col items-end gap-2">
                 <!-- Top row: Admin button and Email Indicator -->
                 <div class="flex items-center gap-2">
-                  @if (tenantSwitchOptions.length > 1) {
+                  @if (showTenantSwitcher) {
                   <select
-                    [value]="activeTenantId || ''"
-                    (change)="onTenantSelect($any($event.target).value)"
+                    [ngModel]="activeTenantId"
+                    (ngModelChange)="onTenantSelect($event)"
                     class="text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-gray-700 dark:text-gray-200"
                     title="Switch active tenant"
                   >
                     @for (tenant of tenantSwitchOptions; track tenant.id) {
-                    <option [value]="tenant.id">{{ tenant.name }}</option>
+                    <option [ngValue]="tenant.id">{{ tenant.name }}</option>
                     }
                   </select>
                   } @if (canAccessAdminFeatures) {
@@ -974,10 +980,29 @@ export class HomeComponent implements OnInit, OnDestroy {
   isRefreshing = false;
   private lastExplicitRefreshAt = 0;
   canAccessShared = false;
-  canAccessAdminFeatures = false;
+  get canAccessAdminFeatures(): boolean {
+    return this.tenantPermissionService.canAccessAdmin();
+  }
   tenantMemberships: TenantMembership[] = [];
   availableTenants: Tenant[] = [];
-  activeTenantId: string | null = null;
+  tenantContextLoading = true;
+
+  get activeTenantId(): string | null {
+    return this.tenantContextService.getActiveTenant()?.id ?? null;
+  }
+
+  get isSuperAdmin(): boolean {
+    return this.tenantContextService.getIsSuperAdmin();
+  }
+
+  get showTenantSwitcher(): boolean {
+    return (
+      this.isSuperAdmin &&
+      !this.tenantContextLoading &&
+      !!this.activeTenantId &&
+      this.tenantSwitchOptions.length > 1
+    );
+  }
 
   isAdmin = false;
   // Admin settings for access control policies
@@ -1003,11 +1028,12 @@ export class HomeComponent implements OnInit, OnDestroy {
     private tenantPermissionService: TenantPermissionService,
     private tenantContextService: TenantContextService
   ) {
-    // Load logo state from cache immediately to prevent flash
+    // Load logo state from tenant-scoped cache immediately to prevent flash
     const windowCache = (window as any).__cachedLogos;
+    const useLogoKey = getBrandingCacheKey(BRANDING_CACHE_KEYS.useLogo);
     const useLogo =
       windowCache?.useLogo ||
-      localStorage.getItem("branding_use_logo") === "true";
+      localStorage.getItem(useLogoKey) === "true";
     this.hasLogo = useLogo;
   }
 
@@ -1041,8 +1067,6 @@ export class HomeComponent implements OnInit, OnDestroy {
         .pipe(takeUntil(this.destroy$))
         .subscribe(() => {
           this.canAccessShared = this.tenantPermissionService.canAccessShared();
-          this.canAccessAdminFeatures =
-            this.tenantPermissionService.canAccessAdmin();
           if (!this.canAccessShared && this.activeFilter !== "personal") {
             this.setFilter("personal");
           }
@@ -1055,10 +1079,23 @@ export class HomeComponent implements OnInit, OnDestroy {
         .pipe(takeUntil(this.destroy$))
         .subscribe((memberships) => {
           this.tenantMemberships = memberships;
-          this.activeTenantId =
-            this.tenantContextService.getActiveTenant()?.id || null;
           this.cdr.markForCheck();
         });
+    }
+
+    if (this.tenantContextService?.loading$) {
+      this.tenantContextService.loading$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe((loading) => {
+          this.tenantContextLoading = loading;
+          this.cdr.markForCheck();
+        });
+    }
+
+    if (this.tenantContextService?.isSuperAdmin$) {
+      this.tenantContextService.isSuperAdmin$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(() => this.cdr.markForCheck());
     }
 
     if (this.tenantContextService?.availableTenants$) {
@@ -1794,7 +1831,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   async onTenantSelect(tenantId: string): Promise<void> {
-    if (!this.tenantContextService) {
+    if (!this.tenantContextService || tenantId === this.activeTenantId) {
       return;
     }
     const changed = await this.tenantContextService.switchTenant(tenantId);
@@ -1804,7 +1841,6 @@ export class HomeComponent implements OnInit, OnDestroy {
     }
 
     this.canAccessShared = this.tenantPermissionService.canAccessShared();
-    this.canAccessAdminFeatures = this.tenantPermissionService.canAccessAdmin();
     if (!this.canAccessShared) {
       this.activeFilter = "personal";
     }
@@ -1813,7 +1849,6 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.promptService.loadPrompts(),
       this.prayerService.loadPersonalPrayers(false),
     ]);
-    this.activeTenantId = tenantId;
     this.cdr.markForCheck();
   }
 
@@ -1851,21 +1886,21 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   get tenantSwitchOptions(): Tenant[] {
-    if (
-      this.tenantContextService.getIsSuperAdmin() &&
-      this.availableTenants.length > 0
-    ) {
-      return this.availableTenants;
+    const ctx = this.tenantContextService;
+    if (!ctx.getIsSuperAdmin()) {
+      return [];
     }
-    const options = this.tenantMemberships
-      .map((membership) =>
-        Array.isArray(membership.tenants)
-          ? membership.tenants[0]
-          : membership.tenants
-      )
-      .filter((tenant): tenant is Tenant => !!tenant);
+
+    const options = ctx.getAvailableTenants();
     const unique = new Map(options.map((tenant) => [tenant.id, tenant]));
-    return Array.from(unique.values());
+    const activeTenant = ctx.getActiveTenant();
+    if (activeTenant?.id && !unique.has(activeTenant.id)) {
+      unique.set(activeTenant.id, activeTenant);
+    }
+
+    return Array.from(unique.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
   }
 
   markAllCurrentAsRead(): void {

@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, Output, EventEmitter, ChangeDetectionStra
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { SupabaseService } from '../../services/supabase.service';
+import { BrandingService } from '../../services/branding.service';
 import { TenantContextService } from '../../services/tenant-context.service';
 import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
 import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
@@ -65,7 +66,7 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
                 [(ngModel)]="appTitle"
                 name="appTitle"
                 aria-label="Application title"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Church Prayer Manager"
               />
               <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -84,7 +85,7 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
                 [(ngModel)]="appSubtitle"
                 name="appSubtitle"
                 aria-label="Application subtitle or tagline"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Keeping our community connected in prayer"
               />
               <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -94,19 +95,22 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
 
             <!-- Logo Settings -->
             <div class="space-y-4">
-              <div class="flex items-center gap-3">
+              <label
+                class="flex items-center gap-3 cursor-pointer"
+              >
                 <input
                   type="checkbox"
                   id="useLogo"
-                  [(ngModel)]="useLogo"
+                  [checked]="useLogo"
+                  (click)="onUseLogoClick($event)"
                   name="useLogo"
                   aria-label="Use custom logo instead of app title"
                   class="h-4 w-4 text-blue-600 border-gray-300 bg-white dark:bg-gray-800 rounded focus:ring-blue-500 cursor-pointer focus:ring-2"
                 />
-                <label for="useLogo" class="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Use custom logo instead of app title
-                </label>
-              </div>
+                </span>
+              </label>
 
               @if (useLogo) {
               <div class="space-y-4 pl-7">
@@ -279,6 +283,7 @@ export class AppBrandingComponent implements OnInit, OnDestroy {
 
   constructor(
     private supabase: SupabaseService,
+    private brandingService: BrandingService,
     private cdr: ChangeDetectorRef,
     private tenantContext: TenantContextService
   ) {}
@@ -320,6 +325,25 @@ export class AppBrandingComponent implements OnInit, OnDestroy {
     this.success = false;
   }
 
+  onUseLogoClick(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.saving || this.uploading) {
+      return;
+    }
+    this.useLogo = !this.useLogo;
+    this.cdr.markForCheck();
+  }
+
+  private async getCallerEmail(): Promise<string | null> {
+    const mfaEmail = localStorage.getItem('mfa_authenticated_email')?.toLowerCase().trim();
+    if (mfaEmail) {
+      return mfaEmail;
+    }
+    const { data: { session } } = await this.supabase.client.auth.getSession();
+    return session?.user?.email?.toLowerCase().trim() || null;
+  }
+
   async loadSettings() {
     const tenantId = this.activeTenantId;
     if (!tenantId) {
@@ -331,20 +355,43 @@ export class AppBrandingComponent implements OnInit, OnDestroy {
     this.error = null;
 
     try {
-      const { data, error } = await this.supabase.client
-        .from('tenant_settings')
-        .select('app_title, app_subtitle, use_logo, light_mode_logo_blob, dark_mode_logo_blob')
-        .eq('tenant_id', tenantId)
-        .maybeSingle();
+      const callerEmail = await this.getCallerEmail();
+      if (!callerEmail) {
+        throw new Error('Not authenticated');
+      }
+
+      const { data: rows, error } = await this.supabase.client.rpc(
+        'get_tenant_branding_settings',
+        {
+          p_tenant_id: tenantId,
+          p_email: callerEmail,
+        }
+      );
 
       if (error) throw error;
+
+      type BrandingRow = {
+        app_title?: string | null;
+        app_subtitle?: string | null;
+        use_logo?: boolean | null;
+        light_mode_logo_blob?: string | null;
+        dark_mode_logo_blob?: string | null;
+      };
+
+      const data = (rows as BrandingRow[] | null)?.[0] ?? null;
 
       if (data) {
         if (data.app_title) this.appTitle = data.app_title;
         if (data.app_subtitle) this.appSubtitle = data.app_subtitle;
-        if (data.use_logo !== null) this.useLogo = data.use_logo;
-        if (data.light_mode_logo_blob) this.lightModeLogoUrl = data.light_mode_logo_blob;
-        if (data.dark_mode_logo_blob) this.darkModeLogoUrl = data.dark_mode_logo_blob;
+        if (data.use_logo !== null && data.use_logo !== undefined) {
+          this.useLogo = data.use_logo;
+        }
+        if (data.light_mode_logo_blob) {
+          this.lightModeLogoUrl = data.light_mode_logo_blob;
+        }
+        if (data.dark_mode_logo_blob) {
+          this.darkModeLogoUrl = data.dark_mode_logo_blob;
+        }
       }
     } catch (err: any) {
       console.error('Error loading branding settings:', err);
@@ -397,26 +444,38 @@ export class AppBrandingComponent implements OnInit, OnDestroy {
     this.success = false;
 
     try {
-      const { error } = await this.supabase.client
-        .from('tenant_settings')
-        .upsert(
-          {
-            tenant_id: tenantId,
-            app_title: this.appTitle,
-            app_subtitle: this.appSubtitle,
-            use_logo: this.useLogo,
-            light_mode_logo_blob: this.lightModeLogoUrl || null,
-            dark_mode_logo_blob: this.darkModeLogoUrl || null,
-            updated_at: new Date().toISOString()
-          },
-          { onConflict: 'tenant_id' }
-        );
+      const callerEmail = await this.getCallerEmail();
+      if (!callerEmail) {
+        this.error = 'Not authenticated.';
+        return;
+      }
+
+      const { error } = await this.supabase.client.rpc(
+        'update_tenant_branding_settings',
+        {
+          p_tenant_id: tenantId,
+          p_app_title: this.appTitle,
+          p_app_subtitle: this.appSubtitle,
+          p_use_logo: this.useLogo,
+          p_light_mode_logo_blob: this.lightModeLogoUrl || null,
+          p_dark_mode_logo_blob: this.darkModeLogoUrl || null,
+          p_email: callerEmail,
+        }
+      );
 
       if (error) throw error;
 
       this.success = true;
       this.cdr.markForCheck();
-      
+
+      this.brandingService.applySavedBranding({
+        useLogo: this.useLogo,
+        lightLogo: this.lightModeLogoUrl || null,
+        darkLogo: this.darkModeLogoUrl || null,
+        appTitle: this.appTitle,
+        appSubtitle: this.appSubtitle,
+        lastModified: new Date(),
+      });
       this.onSave.emit();
 
       setTimeout(() => {

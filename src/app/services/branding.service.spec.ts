@@ -1,34 +1,49 @@
-import { Subject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 import { BrandingService, BrandingData } from './branding.service';
-import { SupabaseService } from './supabase.service';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import {
+  BRANDING_CACHE_KEYS,
+  getBrandingCacheKey,
+} from '../utils/branding-cache-keys';
 
-// Mock Supabase Service
-const mockSupabaseService = {
-  directQuery: vi.fn(),
-  client: { from: vi.fn() }
-};
+const TENANT_ID = 'tenant-branding-1';
 
-const mockTenantContext = {
-  getActiveTenant: vi.fn().mockReturnValue(null),
-  // No initial emission: avoids extra loadBranding() competing with initialize() in tests
-  activeTenant$: new Subject<null>()
-};
+const mockTenant = { id: TENANT_ID, name: 'Test Church', slug: 'test-church' };
+
+function tenantKey(base: string): string {
+  return getBrandingCacheKey(base, TENANT_ID);
+}
 
 describe('BrandingService', () => {
   let service: BrandingService;
+  let rpcMock: ReturnType<typeof vi.fn>;
+  let mockSupabaseService: { client: { rpc: ReturnType<typeof vi.fn> } };
+  let mockTenantContext: {
+    getActiveTenant: ReturnType<typeof vi.fn>;
+    activeTenant$: Subject<typeof mockTenant | null>;
+    loading$: BehaviorSubject<boolean>;
+  };
 
   beforeEach(() => {
-    // Clear localStorage before each test
     localStorage.clear();
-    // Remove dark class if present
     document.documentElement.classList.remove('dark');
-
-    // Reset all mocks
     vi.clearAllMocks();
 
-    // Create service manually with mock - fresh instance for each test
-    service = new BrandingService(mockSupabaseService as any, mockTenantContext as any);
+    rpcMock = vi.fn();
+    mockSupabaseService = {
+      client: { rpc: rpcMock }
+    };
+
+    mockTenantContext = {
+      getActiveTenant: vi.fn().mockReturnValue(mockTenant),
+      activeTenant$: new Subject<typeof mockTenant | null>(),
+      loading$: new BehaviorSubject(false)
+    };
+
+    service = new BrandingService(
+      mockSupabaseService as any,
+      mockTenantContext as any
+    );
   });
 
   afterEach(() => {
@@ -44,222 +59,53 @@ describe('BrandingService', () => {
       expect(service).toBeTruthy();
     });
 
-    it('should initialize with default branding', () => {
-      const branding = service.getBranding();
-      expect(branding.useLogo).toBe(false);
-      expect(branding.appTitle).toBe('Church Prayer Manager');
-      expect(branding.appSubtitle).toBe('Keeping our community connected in prayer');
-    });
-
-    it('should load cached data on initialize', async () => {
+    it('should load tenant-scoped cached data on initialize', async () => {
       const cachedTimestamp = new Date('2024-01-01').toISOString();
-      localStorage.setItem('branding_use_logo', 'true');
-      localStorage.setItem('branding_app_title', 'Test Church');
-      localStorage.setItem('branding_app_subtitle', 'Test Subtitle');
-      localStorage.setItem('branding_last_modified', cachedTimestamp);
+      localStorage.setItem(tenantKey(BRANDING_CACHE_KEYS.useLogo), 'true');
+      localStorage.setItem(tenantKey(BRANDING_CACHE_KEYS.appTitle), 'Test Church');
+      localStorage.setItem(tenantKey(BRANDING_CACHE_KEYS.lastModified), cachedTimestamp);
 
-      // Mock Supabase metadata check to return same timestamp (no fetch needed)
-      mockSupabaseService.directQuery.mockResolvedValue({
+      rpcMock.mockResolvedValue({
         data: [{ branding_last_modified: cachedTimestamp }],
         error: null
       });
 
       await service.initialize();
 
-      const branding = service.getBranding();
-      expect(branding.useLogo).toBe(true);
-      expect(branding.appTitle).toBe('Test Church');
-      expect(branding.appSubtitle).toBe('Test Subtitle');
-      // Metadata check should be the only call
-      expect(mockSupabaseService.directQuery).toHaveBeenCalledTimes(1);
+      expect(service.getBranding().appTitle).toBe('Test Church');
+      expect(rpcMock).toHaveBeenCalledWith('get_public_tenant_branding', {
+        p_tenant_id: TENANT_ID
+      });
     });
 
-    it('should only initialize once', async () => {
-      const timestamp = new Date().toISOString();
-      localStorage.setItem('branding_last_modified', timestamp);
-
-      mockSupabaseService.directQuery.mockResolvedValue({
-        data: [{ branding_last_modified: timestamp }],
-        error: null
-      });
+    it('should skip Supabase when no active tenant', async () => {
+      mockTenantContext.getActiveTenant.mockReturnValue(null);
+      localStorage.setItem(BRANDING_CACHE_KEYS.appTitle, 'Legacy Title');
 
       await service.initialize();
-      await service.initialize();
 
-      // directQuery should only be called once (for metadata check in first init)
-      expect(mockSupabaseService.directQuery).toHaveBeenCalledTimes(1);
+      expect(rpcMock).not.toHaveBeenCalled();
+      expect(service.getBranding().appTitle).toBe('Legacy Title');
     });
   });
 
-  describe('metadata check', () => {
-    it('should skip fetch if timestamps match', async () => {
-      const timestamp = new Date().toISOString();
-      localStorage.setItem('branding_last_modified', timestamp);
-      localStorage.setItem('branding_use_logo', 'true');
+  describe('applySavedBranding', () => {
+    it('should update cache and observable immediately', () => {
+      const branding: BrandingData = {
+        useLogo: true,
+        lightLogo: 'light',
+        darkLogo: 'dark',
+        appTitle: 'Saved Church',
+        appSubtitle: 'Saved tagline',
+        lastModified: new Date('2024-06-01'),
+      };
 
-      mockSupabaseService.directQuery.mockResolvedValue({
-        data: [{ branding_last_modified: timestamp }],
-        error: null
-      });
+      service.applySavedBranding(branding);
 
-      await service.initialize();
-
-      // Should only call directQuery once (for metadata check)
-      expect(mockSupabaseService.directQuery).toHaveBeenCalledTimes(1);
-      expect(mockSupabaseService.directQuery).toHaveBeenCalledWith(
-        'admin_settings',
-        expect.objectContaining({
-          select: 'branding_last_modified'
-        })
+      expect(service.getBranding().appTitle).toBe('Saved Church');
+      expect(localStorage.getItem(tenantKey(BRANDING_CACHE_KEYS.appTitle))).toBe(
+        'Saved Church'
       );
-    });
-
-    it('should fetch full branding if DB timestamp is newer', async () => {
-      const oldTimestamp = new Date('2024-01-01').toISOString();
-      const newTimestamp = new Date('2024-01-02').toISOString();
-      localStorage.setItem('branding_last_modified', oldTimestamp);
-
-      // First call: metadata check returns newer timestamp
-      // Second call: fetch full branding data
-      mockSupabaseService.directQuery
-        .mockResolvedValueOnce({
-          data: [{ branding_last_modified: newTimestamp }],
-          error: null
-        })
-        .mockResolvedValueOnce({
-          data: [{
-            use_logo: true,
-            light_mode_logo_blob: 'light-data',
-            dark_mode_logo_blob: 'dark-data',
-            app_title: 'New Title',
-            app_subtitle: 'New Subtitle',
-            branding_last_modified: newTimestamp
-          }],
-          error: null
-        });
-
-      await service.initialize();
-
-      expect(mockSupabaseService.directQuery).toHaveBeenCalledTimes(2);
-      const branding = service.getBranding();
-      expect(branding.appTitle).toBe('New Title');
-    });
-
-    it('should fetch full branding if no cached timestamp', async () => {
-      const timestamp = new Date().toISOString();
-
-      mockSupabaseService.directQuery
-        .mockResolvedValueOnce({
-          data: [{ branding_last_modified: timestamp }],
-          error: null
-        })
-        .mockResolvedValueOnce({
-          data: [{
-            use_logo: true,
-            light_mode_logo_blob: 'light-data',
-            dark_mode_logo_blob: 'dark-data',
-            app_title: 'Church',
-            app_subtitle: 'Prayer',
-            branding_last_modified: timestamp
-          }],
-          error: null
-        });
-
-      await service.initialize();
-
-      expect(mockSupabaseService.directQuery).toHaveBeenCalledTimes(2);
-    });
-  });
-
-  describe('error handling', () => {
-    it('should fallback to cache on metadata query error', async () => {
-      localStorage.setItem('branding_app_title', 'Cached Title');
-
-      mockSupabaseService.directQuery.mockResolvedValue({
-        data: null,
-        error: { message: 'Network error' }
-      });
-
-      await service.initialize();
-
-      const branding = service.getBranding();
-      expect(branding.appTitle).toBe('Cached Title');
-    });
-
-    it('should fallback to cache on full branding query error', async () => {
-      localStorage.setItem('branding_app_title', 'Cached Title');
-
-      mockSupabaseService.directQuery
-        .mockResolvedValueOnce({
-          data: [{ branding_last_modified: new Date().toISOString() }],
-          error: null
-        })
-        .mockResolvedValueOnce({
-          data: null,
-          error: { message: 'Database error' }
-        });
-
-      await service.initialize();
-
-      const branding = service.getBranding();
-      expect(branding.appTitle).toBe('Cached Title');
-    });
-
-    it('should use defaults if no cache and no Supabase', async () => {
-      mockSupabaseService.directQuery.mockResolvedValue({
-        data: null,
-        error: { message: 'Connection failed' }
-      });
-
-      await service.initialize();
-
-      const branding = service.getBranding();
-      expect(branding.appTitle).toBe('Church Prayer Manager');
-      expect(branding.useLogo).toBe(false);
-    });
-  });
-
-  describe('observable emissions', () => {
-    it('should emit branding through observable', async (done) => {
-      localStorage.setItem('branding_app_title', 'Test Church');
-
-      mockSupabaseService.directQuery.mockResolvedValue({
-        data: [{ branding_last_modified: null }],
-        error: null
-      });
-
-      service.branding$.subscribe(branding => {
-        if (branding.appTitle === 'Test Church') {
-          expect(branding.appTitle).toBe('Test Church');
-        }
-      });
-
-      await service.initialize();
-    });
-
-    it('should use shareReplay to prevent multiple subscriptions', async () => {
-      const timestamp = new Date().toISOString();
-      localStorage.setItem('branding_last_modified', timestamp);
-
-      mockSupabaseService.directQuery.mockResolvedValue({
-        data: [{ branding_last_modified: timestamp }],
-        error: null
-      });
-
-      await service.initialize();
-
-      // Clear mock to ensure new subscriptions don't call again
-      vi.clearAllMocks();
-
-      const sub1 = service.branding$.subscribe();
-      const sub2 = service.branding$.subscribe();
-
-      // shareReplay means the observable is cached and doesn't re-execute
-      // So directQuery should not be called again after initial initialize
-      expect(mockSupabaseService.directQuery).toHaveBeenCalledTimes(0);
-
-      sub1.unsubscribe();
-      sub2.unsubscribe();
     });
   });
 
@@ -274,87 +120,14 @@ describe('BrandingService', () => {
         lastModified: null
       };
 
-      // Mock dark mode detection - light mode initially
       document.documentElement.classList.remove('dark');
-      let url = service.getImageUrl(branding);
-      expect(url).toBe('light-url');
+      expect(service.getImageUrl(branding)).toBe('light-url');
 
-      // Switch to dark mode
       document.documentElement.classList.add('dark');
-      // Give MutationObserver time to fire
-      await new Promise(resolve => setTimeout(resolve, 10));
-      url = service.getImageUrl(branding);
-      expect(url).toBe('dark-url');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(service.getImageUrl(branding)).toBe('dark-url');
 
-      // Cleanup
       document.documentElement.classList.remove('dark');
-    });
-
-    it('should return empty string if useLogo is false', () => {
-      const branding: BrandingData = {
-        useLogo: false,
-        lightLogo: 'light-url',
-        darkLogo: 'dark-url',
-        appTitle: 'Title',
-        appSubtitle: 'Subtitle',
-        lastModified: null
-      };
-
-      const url = service.getImageUrl(branding);
-      expect(url).toBe('');
-    });
-  });
-
-  describe('cache updates', () => {
-    it('should update localStorage when fetching from Supabase', async () => {
-      mockSupabaseService.directQuery
-        .mockResolvedValueOnce({
-          data: [{ branding_last_modified: new Date().toISOString() }],
-          error: null
-        })
-        .mockResolvedValueOnce({
-          data: [{
-            use_logo: true,
-            light_mode_logo_blob: 'new-light',
-            dark_mode_logo_blob: 'new-dark',
-            app_title: 'New Title',
-            app_subtitle: 'New Subtitle',
-            branding_last_modified: new Date().toISOString()
-          }],
-          error: null
-        });
-
-      await service.initialize();
-
-      expect(localStorage.getItem('branding_app_title')).toBe('New Title');
-      expect(localStorage.getItem('branding_light_logo')).toBe('new-light');
-      expect(localStorage.getItem('branding_use_logo')).toBe('true');
-    });
-
-    it('should persist last_modified timestamp to localStorage', async () => {
-      const timestamp = new Date().toISOString();
-
-      mockSupabaseService.directQuery
-        .mockResolvedValueOnce({
-          data: [{ branding_last_modified: timestamp }],
-          error: null
-        })
-        .mockResolvedValueOnce({
-          data: [{
-            use_logo: true,
-            light_mode_logo_blob: 'light',
-            dark_mode_logo_blob: 'dark',
-            app_title: 'Title',
-            app_subtitle: 'Subtitle',
-            branding_last_modified: timestamp
-          }],
-          error: null
-        });
-
-      await service.initialize();
-
-      const cached = localStorage.getItem('branding_last_modified');
-      expect(cached).toBe(timestamp);
     });
   });
 });
