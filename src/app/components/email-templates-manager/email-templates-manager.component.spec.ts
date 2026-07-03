@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { of } from 'rxjs';
+import { BehaviorSubject } from 'rxjs';
 import { EmailTemplatesManagerComponent } from './email-templates-manager.component';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
@@ -39,7 +39,7 @@ describe('EmailTemplatesManagerComponent', () => {
 
     mockTenantContext = {
       getActiveTenant: vi.fn(() => MOCK_TENANT),
-      activeTenant$: of(MOCK_TENANT)
+      activeTenant$: new BehaviorSubject(MOCK_TENANT)
     };
 
     mockSupabaseService = {
@@ -94,9 +94,23 @@ describe('EmailTemplatesManagerComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('ngOnInit calls loadTemplates', () => {
+  it('should have default collapsed state', () => {
+    expect(component.sectionExpanded).toBe(false);
+    expect(component.isLoading).toBe(false);
+  });
+
+  it('ngOnInit should not load templates until section is expanded', async () => {
     const spy = vi.spyOn(component, 'loadTemplates');
     component.ngOnInit();
+    await Promise.resolve();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('onExpandedChange should lazy-load templates on first expand', async () => {
+    const spy = vi.spyOn(component, 'loadTemplates').mockResolvedValue(undefined);
+    component.onExpandedChange(true);
+    await component.loadTemplates();
+    expect(component.sectionExpanded).toBe(true);
     expect(spy).toHaveBeenCalled();
   });
 

@@ -1,4 +1,5 @@
 import { vi, describe, it, beforeEach, expect, afterEach } from 'vitest';
+import { ChangeDetectorRef } from '@angular/core';
 import { BackupStatusComponent } from './backup-status.component';
 
 // Helper function to create File objects with text() method for testing
@@ -40,6 +41,7 @@ describe('BackupStatusComponent', () => {
   let component: BackupStatusComponent;
   let supabaseService: any;
   let toast: any;
+  let mockCdr: any;
   let originalConfirm: any;
   let fetchSpy: any;
 
@@ -56,7 +58,13 @@ describe('BackupStatusComponent', () => {
       warning: vi.fn(),
     };
 
-    component = new BackupStatusComponent(supabaseService as any, toast as any);
+    mockCdr = { markForCheck: vi.fn() };
+
+    component = new BackupStatusComponent(
+      supabaseService as any,
+      toast as any,
+      mockCdr as ChangeDetectorRef
+    );
 
     originalConfirm = window.confirm;
     fetchSpy = vi.spyOn(globalThis, 'fetch');
@@ -321,7 +329,11 @@ describe('BackupStatusComponent - extra branches', () => {
 
     toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
 
-    component = new BackupStatusComponent(supabaseService as any, toast as any);
+    component = new BackupStatusComponent(
+      supabaseService as any,
+      toast as any,
+      { markForCheck: vi.fn() } as any
+    );
   });
 
   it('handleManualBackup calls supabase insert with success on normal flow', async () => {
@@ -462,7 +474,11 @@ describe('BackupStatusComponent', () => {
       warning: vi.fn()
     };
 
-    component = new BackupStatusComponent(mockSupabaseService, mockToastService);
+    component = new BackupStatusComponent(
+      mockSupabaseService,
+      mockToastService,
+      { markForCheck: vi.fn() } as any
+    );
     
     global.fetch = vi.fn();
     global.confirm = vi.fn().mockReturnValue(true);
@@ -491,11 +507,30 @@ describe('BackupStatusComponent', () => {
     });
   });
 
-  describe('ngOnInit', () => {
-    it('should call fetchBackupLogs', async () => {
+  describe('onExpandedChange', () => {
+    it('should lazy-load backup logs on first expand', async () => {
       const spy = vi.spyOn(component, 'fetchBackupLogs').mockResolvedValue();
-      await component.ngOnInit();
+      component.onExpandedChange(true);
+      await Promise.resolve();
       expect(spy).toHaveBeenCalled();
+      expect(component.sectionExpanded).toBe(true);
+    });
+
+    it('should not fetch backup logs before section is expanded', () => {
+      const spy = vi.spyOn(component, 'fetchBackupLogs').mockResolvedValue();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('should not re-fetch on second expand', async () => {
+      const spy = vi.spyOn(component, 'fetchBackupLogs').mockResolvedValue();
+      component.onExpandedChange(true);
+      await Promise.resolve();
+      spy.mockClear();
+
+      component.onExpandedChange(false);
+      component.onExpandedChange(true);
+
+      expect(spy).not.toHaveBeenCalled();
     });
   });
 

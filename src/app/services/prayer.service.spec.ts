@@ -3,6 +3,8 @@ import { firstValueFrom, BehaviorSubject } from 'rxjs';
 import { PrayerService, PrayerRequest } from './prayer.service';
 
 const PRAYER_SPEC_TEST_TENANT = { id: 'test-tenant-id', name: 'Test', slug: 'test' };
+const PRAYER_SPEC_SHARED_CACHE_KEY = `tenant_${PRAYER_SPEC_TEST_TENANT.id}_prayers`;
+const PRAYER_SPEC_PERSONAL_CACHE_KEY = `personalTenant_${PRAYER_SPEC_TEST_TENANT.id}`;
 
 function createPrayerSpecTenantContext() {
   return {
@@ -141,11 +143,12 @@ describe('PrayerService', () => {
   });
 
   it('addPrayer returns true on success and triggers notifications and subscribe flow', async () => {
-    // prayers insert -> returns data with id
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('new-prayer-id');
+    // prayers insert (no RETURNING — avoids SELECT RLS)
     supabase.client.from.mockImplementation((table: string) => {
       if (table === 'prayers') {
         return {
-          insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'new' }, error: null } ) }) })
+          insert: () => Promise.resolve({ data: null, error: null })
         };
       }
       if (table === 'email_subscribers') {
@@ -160,14 +163,17 @@ describe('PrayerService', () => {
     const result = await service.addPrayer({ title: 'T', description: 'D', status: 'current', requester: 'R', prayer_for: 'P', email: 'test@example.com', is_anonymous: false });
     expect(result).toBe(true);
     expect(toast.success).toHaveBeenCalled();
-    expect(emailNotification.sendAdminNotification).toHaveBeenCalled();
+    expect(emailNotification.sendAdminNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: 'new-prayer-id' })
+    );
   });
 
   it('addPrayer logs error when auto-subscribe fails but still returns true', async () => {
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('new-prayer-id-2');
     supabase.client.from.mockImplementation((table: string) => {
       if (table === 'prayers') {
         return {
-          insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'new2' }, error: null } ) }) })
+          insert: () => Promise.resolve({ data: null, error: null })
         };
       }
       if (table === 'email_subscribers') {
@@ -187,7 +193,7 @@ describe('PrayerService', () => {
   it('addPrayer returns false on DB error and shows toast', async () => {
     supabase.client.from.mockImplementation((table: string) => {
       if (table === 'prayers') {
-        return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: new Error('fail') }) }) }) };
+        return { insert: () => Promise.resolve({ data: null, error: new Error('fail') }) };
       }
       return { insert: () => Promise.resolve({ data: null, error: null }) };
     });
@@ -942,7 +948,11 @@ describe('PrayerService - Integration Tests', () => {
 
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(mockCacheService.set).toHaveBeenCalledWith('prayers', expect.any(Array));
+      expect(mockCacheService.set).toHaveBeenCalledWith(
+        PRAYER_SPEC_SHARED_CACHE_KEY,
+        expect.any(Array),
+        20 * 60 * 1000
+      );
     });
 
     it('should handle database errors', async () => {
@@ -1297,7 +1307,7 @@ describe('PrayerService - Integration Tests', () => {
       }
 
       // recovery should use cached data synchronously
-      expect(mockCacheService.get).toHaveBeenCalledWith('prayers');
+      expect(mockCacheService.get).toHaveBeenCalledWith(PRAYER_SPEC_SHARED_CACHE_KEY);
       expect((service as any).allPrayersSubject.value).toEqual(cached);
 
       // restore previous addEventListener to avoid side effects
@@ -4546,8 +4556,10 @@ describe('PrayerService - Integration Tests', () => {
       mockSupabaseService.client.from.mockReturnValue({
         select: () => ({
           eq: () => ({
-            order: () => ({
-              order: () => ({ eq: () => Promise.resolve({ data: newPrayers, error: null }) })
+            eq: () => ({
+              order: () => ({
+                order: () => Promise.resolve({ data: newPrayers, error: null })
+              })
             })
           })
         })
@@ -4555,7 +4567,7 @@ describe('PrayerService - Integration Tests', () => {
 
       await (service as any).loadPersonalPrayers();
 
-      expect(mockCacheService.set).toHaveBeenCalledWith('personalPrayers', expect.any(Array));
+      expect(mockCacheService.set).toHaveBeenCalledWith(PRAYER_SPEC_PERSONAL_CACHE_KEY, expect.any(Array));
     });
 
     it('loadPersonalPrayers returns early if no user email', async () => {
@@ -4655,7 +4667,9 @@ describe('PrayerService - Integration Tests', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         delete: vi.fn(() => ({
           eq: vi.fn(() => ({
-            eq: vi.fn(() => Promise.resolve({ error: null }))
+            eq: vi.fn(() => ({
+              eq: vi.fn(() => Promise.resolve({ error: null }))
+            }))
           }))
         }))
       }));
@@ -4715,20 +4729,22 @@ describe('PrayerService - Integration Tests', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            order: vi.fn(() => ({
-              order: vi.fn(() => Promise.resolve({
-                data: [{
-                  id: 'p1',
-                  title: 'Prayer',
-                  description: 'Desc',
-                  status: 'current',
-                  prayer_for: 'John',
-                  user_email: 'me@test.com',
-                  created_at: now,
-                  updated_at: now,
-                  personal_prayer_updates: []
-                }],
-                error: null
+            eq: vi.fn(() => ({
+              order: vi.fn(() => ({
+                order: vi.fn(() => Promise.resolve({
+                  data: [{
+                    id: 'p1',
+                    title: 'Prayer',
+                    description: 'Desc',
+                    status: 'current',
+                    prayer_for: 'John',
+                    user_email: 'me@test.com',
+                    created_at: now,
+                    updated_at: now,
+                    personal_prayer_updates: []
+                  }],
+                  error: null
+                }))
               }))
             }))
           }))
@@ -4752,9 +4768,13 @@ describe('PrayerService - Integration Tests', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            order: vi.fn(() => Promise.resolve({
-              data: null,
-              error: new Error('Database error')
+            eq: vi.fn(() => ({
+              order: vi.fn(() => ({
+                order: vi.fn(() => Promise.resolve({
+                  data: null,
+                  error: new Error('Database error')
+                }))
+              }))
             }))
           }))
         }))
@@ -4954,35 +4974,37 @@ describe('PrayerService - Integration Tests', () => {
           return {
             select: vi.fn(() => ({
               eq: vi.fn(() => ({
-                order: vi.fn(() => ({
-                  order: vi.fn(() => Promise.resolve({
-                    data: [
-                      {
-                        id: 'p2',
-                        title: 'Newer Prayer',
-                        description: 'Created 1 hour ago',
-                        status: 'current',
-                        prayer_for: 'Jane',
-                        user_email: 'user@test.com',
-                        display_order: 1,
-                        created_at: oneHourAgo,
-                        updated_at: oneHourAgo,
-                        personal_prayer_updates: []
-                      },
-                      {
-                        id: 'p1',
-                        title: 'Older Prayer',
-                        description: 'Created 2 hours ago',
-                        status: 'current',
-                        prayer_for: 'John',
-                        user_email: 'user@test.com',
-                        display_order: 0,
-                        created_at: twoHoursAgo,
-                        updated_at: twoHoursAgo,
-                        personal_prayer_updates: []
-                      }
-                    ],
-                    error: null
+                eq: vi.fn(() => ({
+                  order: vi.fn(() => ({
+                    order: vi.fn(() => Promise.resolve({
+                      data: [
+                        {
+                          id: 'p2',
+                          title: 'Newer Prayer',
+                          description: 'Created 1 hour ago',
+                          status: 'current',
+                          prayer_for: 'Jane',
+                          user_email: 'user@test.com',
+                          display_order: 1,
+                          created_at: oneHourAgo,
+                          updated_at: oneHourAgo,
+                          personal_prayer_updates: []
+                        },
+                        {
+                          id: 'p1',
+                          title: 'Older Prayer',
+                          description: 'Created 2 hours ago',
+                          status: 'current',
+                          prayer_for: 'John',
+                          user_email: 'user@test.com',
+                          display_order: 0,
+                          created_at: twoHoursAgo,
+                          updated_at: twoHoursAgo,
+                          personal_prayer_updates: []
+                        }
+                      ],
+                      error: null
+                    }))
                   }))
                 }))
               }))
@@ -5097,7 +5119,8 @@ describe('PrayerService - Integration Tests', () => {
         expect(mockRpc).toHaveBeenCalledWith('reorder_personal_prayers', {
           p_user_email: 'test@test.com',
           p_ordered_prayer_ids: ['1', '2', '3'],
-          p_category: null
+          p_category: null,
+          p_tenant_id: PRAYER_SPEC_TEST_TENANT.id
         });
       });
 
@@ -5177,7 +5200,8 @@ describe('PrayerService - Integration Tests', () => {
         expect(mockRpc).toHaveBeenCalledWith('reorder_personal_prayers', {
           p_user_email: 'test@test.com',
           p_ordered_prayer_ids: ['first', 'second', 'third'],
-          p_category: null
+          p_category: null,
+          p_tenant_id: PRAYER_SPEC_TEST_TENANT.id
         });
       });
 
@@ -5242,7 +5266,8 @@ describe('PrayerService - Integration Tests', () => {
         expect(result).toBe(true);
         expect(mockRpc).toHaveBeenCalledWith('reorder_personal_prayer_categories', {
           p_user_email: mockEmail,
-          p_ordered_categories: orderedCategories
+          p_ordered_categories: orderedCategories,
+          p_tenant_id: PRAYER_SPEC_TEST_TENANT.id
         });
       });
 
@@ -5280,7 +5305,8 @@ describe('PrayerService - Integration Tests', () => {
         expect(result).toBe(true);
         expect(mockRpc).toHaveBeenCalledWith('reorder_personal_prayer_categories', {
           p_user_email: 'user@example.com',
-          p_ordered_categories: ['Family', 'Members']  // null filtered out
+          p_ordered_categories: ['Family', 'Members'], // null filtered out
+          p_tenant_id: PRAYER_SPEC_TEST_TENANT.id
         });
       });
 
@@ -5386,7 +5412,8 @@ describe('PrayerService - Integration Tests', () => {
         // Should pass categories in exact order to RPC
         expect(mockRpc).toHaveBeenCalledWith('reorder_personal_prayer_categories', {
           p_user_email: mockEmail,
-          p_ordered_categories: ['C', 'A', 'B']
+          p_ordered_categories: ['C', 'A', 'B'],
+          p_tenant_id: PRAYER_SPEC_TEST_TENANT.id
         });
       });
     });
@@ -5431,12 +5458,16 @@ describe('PrayerService - Integration Tests', () => {
         mockSupabaseService.client.from.mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({ data: freshPrayers, error: null })
+              eq: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  order: vi.fn().mockResolvedValue({ data: freshPrayers, error: null })
+                })
+              })
             })
           })
         } as any);
 
-        const result = await service.getPersonalPrayers(true);
+        await service.getPersonalPrayers(true);
 
         // Verify the method was called with forceRefresh=true
         expect(mockSupabaseService.client.from).toHaveBeenCalled();
@@ -5472,19 +5503,14 @@ describe('PrayerService - Integration Tests', () => {
           } as PrayerRequest
         ];
 
-        // Mock cache to return cached prayers
-        let fromCalled = false;
-        mockSupabaseService.client.from.mockImplementation(() => {
-          fromCalled = true;
-          return {};
-        });
-        
         mockCacheService.get.mockReturnValue(cachedPrayers);
 
+        // Ignore constructor / loadPrayers `from('prayers')` — only personal list should skip DB on cache hit.
+        mockSupabaseService.client.from.mockClear();
         const result = await service.getPersonalPrayers(false);
 
         expect(result).toEqual(cachedPrayers);
-        expect(fromCalled).toBe(true);
+        expect(mockSupabaseService.client.from).not.toHaveBeenCalledWith('personal_prayers');
       });
 
       it('should query database when cache is empty', async () => {
@@ -5526,12 +5552,16 @@ describe('PrayerService - Integration Tests', () => {
         mockSupabaseService.client.from.mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({ data: freshPrayers, error: null })
+              eq: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  order: vi.fn().mockResolvedValue({ data: freshPrayers, error: null })
+                })
+              })
             })
           })
         } as any);
 
-        const result = await service.getPersonalPrayers(false);
+        await service.getPersonalPrayers(false);
 
         // Verify database was queried when cache is empty
         expect(mockSupabaseService.client.from).toHaveBeenCalled();
@@ -5672,7 +5702,7 @@ describe('PrayerService - Integration Tests', () => {
 
         await expect((service as any).loadPersonalPrayers(true)).resolves.toBeUndefined();
 
-        expect(cacheGetSpy).toHaveBeenCalledWith('personalPrayers');
+        expect(cacheGetSpy).toHaveBeenCalledWith(PRAYER_SPEC_PERSONAL_CACHE_KEY);
       });
     });
 
@@ -5724,9 +5754,11 @@ describe('PrayerService - Integration Tests', () => {
         mockSupabaseService.client.from.mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({
-                data: [{ display_order: 2100 }, { display_order: 2500 }],
-                error: null
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockResolvedValue({
+                  data: [{ display_order: 2100 }, { display_order: 2500 }],
+                  error: null
+                })
               })
             })
           })
@@ -5757,19 +5789,31 @@ describe('PrayerService - Integration Tests', () => {
     );
 
         mockSupabaseService.client.from.mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({
-                data: [],
-                error: null
-              }),
-              not: vi.fn().mockReturnValue({
-                gte: vi.fn().mockResolvedValue({
-                  data: [],
-                  error: null
+          select: vi.fn().mockImplementation((cols: string) => {
+            if (cols.includes('category')) {
+              return {
+                eq: vi.fn().mockReturnValue({
+                  eq: vi.fn().mockReturnValue({
+                    not: vi.fn().mockReturnValue({
+                      gte: vi.fn().mockResolvedValue({
+                        data: [],
+                        error: null
+                      })
+                    })
+                  })
+                })
+              };
+            }
+            return {
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  eq: vi.fn().mockResolvedValue({
+                    data: [],
+                    error: null
+                  })
                 })
               })
-            })
+            };
           })
         });
 
@@ -5800,9 +5844,11 @@ describe('PrayerService - Integration Tests', () => {
         mockSupabaseService.client.from.mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({
-                data: null,
-                error: new Error('category query failed')
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: new Error('category query failed')
+                })
               })
             })
           })
@@ -5913,9 +5959,11 @@ describe('PrayerService - Integration Tests', () => {
         mockSupabaseService.client.from.mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({
-                data: [{ id: '1' }, { id: '2' }, { id: '3' }],
-                error: null
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockResolvedValue({
+                  data: [{ id: '1' }, { id: '2' }, { id: '3' }],
+                  error: null
+                })
               })
             })
           })
@@ -5934,9 +5982,11 @@ describe('PrayerService - Integration Tests', () => {
         mockSupabaseService.client.from.mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({
-                data: null,
-                error: new Error('count failed')
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: new Error('count failed')
+                })
               })
             })
           })
@@ -5986,7 +6036,8 @@ describe('PrayerService - Integration Tests', () => {
         expect(mockSupabaseService.client.rpc).toHaveBeenCalledWith('swap_personal_prayer_categories', {
           p_user_email: mockEmail,
           p_category_a: 'A',
-          p_category_b: 'B'
+          p_category_b: 'B',
+          p_tenant_id: PRAYER_SPEC_TEST_TENANT.id
         });
         expect(result).toBe(true);
       });
@@ -6087,8 +6138,9 @@ describe('PrayerService - Integration Tests', () => {
 
         (service as any).allPersonalPrayersSubject.next(prayers);
 
-        const mockEq = vi.fn().mockResolvedValue({ data: null, error: null });
-        const mockEqChain = vi.fn().mockReturnValue({ eq: mockEq });
+        const mockEqFinal = vi.fn().mockResolvedValue({ data: null, error: null });
+        const mockEqMid = vi.fn().mockReturnValue({ eq: mockEqFinal });
+        const mockEqChain = vi.fn().mockReturnValue({ eq: mockEqMid });
         mockSupabaseService.client.from.mockReturnValue({
           delete: vi.fn().mockReturnValue({
             eq: mockEqChain
@@ -6121,8 +6173,9 @@ describe('PrayerService - Integration Tests', () => {
       mockTenantContext
     );
 
-        const mockEq = vi.fn().mockResolvedValue({ error: { message: 'Delete failed' } });
-        const mockEqChain = vi.fn().mockReturnValue({ eq: mockEq });
+        const mockEqFinal = vi.fn().mockResolvedValue({ error: { message: 'Delete failed' } });
+        const mockEqMid = vi.fn().mockReturnValue({ eq: mockEqFinal });
+        const mockEqChain = vi.fn().mockReturnValue({ eq: mockEqMid });
         mockSupabaseService.client.from.mockReturnValue({
           delete: vi.fn().mockReturnValue({
             eq: mockEqChain
@@ -6550,11 +6603,13 @@ describe('PrayerService - Integration Tests', () => {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({
-                gte: vi.fn().mockReturnValue({
-                  lte: vi.fn().mockReturnValue({
-                    order: vi.fn().mockReturnValue({
-                      limit: vi.fn().mockReturnValue({
-                        single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } })
+                eq: vi.fn().mockReturnValue({
+                  gte: vi.fn().mockReturnValue({
+                    lte: vi.fn().mockReturnValue({
+                      order: vi.fn().mockReturnValue({
+                        limit: vi.fn().mockReturnValue({
+                          single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } })
+                        })
                       })
                     })
                   })
@@ -6617,9 +6672,10 @@ describe('PrayerService - Integration Tests', () => {
       mockTenantContext
     );
 
-        // Mock getCategoryPrayerCount returning 1000 (limit) - needs .select().eq().eq() chain
+        // Mock getCategoryPrayerCount returning 1000 (limit) - needs .select().eq().eq().eq() chain
         const mockEqFinal = vi.fn().mockResolvedValue({ data: new Array(1000).fill({ id: 'x' }), error: null });
-        const mockEqChain = vi.fn().mockReturnValue({ eq: mockEqFinal });
+        const mockEqMid = vi.fn().mockReturnValue({ eq: mockEqFinal });
+        const mockEqChain = vi.fn().mockReturnValue({ eq: mockEqMid });
         mockSupabaseService.client.from.mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: mockEqChain
@@ -6672,11 +6728,13 @@ describe('PrayerService - Integration Tests', () => {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({
-                gte: vi.fn().mockReturnValue({
-                  lte: vi.fn().mockReturnValue({
-                    order: vi.fn().mockReturnValue({
-                      limit: vi.fn().mockReturnValue({
-                        single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } })
+                eq: vi.fn().mockReturnValue({
+                  gte: vi.fn().mockReturnValue({
+                    lte: vi.fn().mockReturnValue({
+                      order: vi.fn().mockReturnValue({
+                        limit: vi.fn().mockReturnValue({
+                          single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } })
+                        })
                       })
                     })
                   })
@@ -6749,7 +6807,8 @@ describe('PrayerService - Integration Tests', () => {
         expect(mockRpc).toHaveBeenCalledWith('reorder_personal_prayers', {
           p_user_email: mockEmail,
           p_ordered_prayer_ids: ['1', '2'],
-          p_category: 'Test'
+          p_category: 'Test',
+          p_tenant_id: PRAYER_SPEC_TEST_TENANT.id
         });
       });
 

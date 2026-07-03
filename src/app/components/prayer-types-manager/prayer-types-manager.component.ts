@@ -8,36 +8,52 @@ import { ToastService } from '../../services/toast.service';
 import { PromptService } from '../../services/prompt.service';
 import { TenantContextService } from '../../services/tenant-context.service';
 import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
+import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
+import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
 import type { PrayerTypeRecord } from '../../types/prayer';
 
 @Component({
   selector: 'app-prayer-types-manager',
   standalone: true,
-  imports: [CommonModule, FormsModule, DragDropModule, ConfirmationDialogComponent],
+  imports: [CommonModule, FormsModule, DragDropModule, ConfirmationDialogComponent, AdminSectionLoadingComponent, AdminCollapsibleSectionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6 border border-gray-200 dark:border-gray-700">
-      @if (!activeTenantId) {
-      <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
-        Select an organization above to manage prayer types for that tenant.
-      </p>
-      }
-      @if (activeTenantId) {
-      <!-- Header -->
-      <div class="flex flex-col gap-3 mb-4">
-        <div class="flex items-center gap-2">
-          <svg class="text-indigo-600 dark:text-indigo-400" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
-            <line x1="7" y1="7" x2="7.01" y2="7"></line>
-          </svg>
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Prayer Types
-          </h3>
-        </div>
+    <app-admin-collapsible-section
+      title="Prayer Types"
+      triggerId="prayer-types-manager-trigger"
+      panelId="prayer-types-manager-panel"
+      [expanded]="sectionExpanded"
+      (expandedChange)="onExpandedChange($event)"
+    >
+      <svg
+        sectionIcon
+        class="text-blue-600 dark:text-blue-400 shrink-0"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+        <line x1="7" y1="7" x2="7.01" y2="7"></line>
+      </svg>
+
+      @if (isLoading) {
+        <app-admin-section-loading message="Loading prayer types…" />
+      } @else {
+        @if (!activeTenantId) {
+          <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
+            Select an organization above to manage prayer types for that tenant.
+          </p>
+        } @else {
+      <div class="flex justify-end mb-4">
         <button
           (click)="toggleAddForm()"
           title="Add new prayer type"
-          class="flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm whitespace-nowrap w-fit ml-auto cursor-pointer"
+          class="flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm whitespace-nowrap cursor-pointer"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -277,8 +293,9 @@ import type { PrayerTypeRecord } from '../../types/prayer';
         (cancel)="onCancelDelete()">
       </app-confirmation-dialog>
       }
+        }
       }
-    </div>
+    </app-admin-collapsible-section>
   `,
   styles: []
 })
@@ -287,12 +304,16 @@ export class PrayerTypesManagerComponent implements OnInit, OnDestroy {
 
   private readonly destroy$ = new Subject<void>();
 
+  sectionExpanded = false;
+  private sectionInitialLoadDone = false;
+  isLoading = false;
+
   get activeTenantId(): string | null {
     return this.tenantContext.getActiveTenant()?.id ?? null;
   }
 
   types: PrayerTypeRecord[] = [];
-  loading = true;
+  loading = false;
   showAddForm = false;
   error: string | null = null;
   success: string | null = null;
@@ -323,12 +344,10 @@ export class PrayerTypesManagerComponent implements OnInit, OnDestroy {
     this.tenantContext.activeTenant$
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
-        const id = this.tenantContext.getActiveTenant()?.id;
-        if (id) {
-          this.fetchTypes();
-        } else {
-          this.types = [];
-          this.loading = false;
+        if (!this.activeTenantId) {
+          this.resetSectionState();
+        } else if (this.sectionExpanded) {
+          void this.loadSectionData();
         }
         this.cdr.markForCheck();
       });
@@ -337,6 +356,37 @@ export class PrayerTypesManagerComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  onExpandedChange(expanded: boolean): void {
+    this.sectionExpanded = expanded;
+    if (this.sectionExpanded && !this.sectionInitialLoadDone) {
+      this.sectionInitialLoadDone = true;
+      void this.loadSectionData();
+    }
+    this.cdr.markForCheck();
+  }
+
+  private resetSectionState(): void {
+    this.types = [];
+    this.loading = false;
+  }
+
+  async loadSectionData(): Promise<void> {
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      return;
+    }
+
+    this.isLoading = true;
+    this.cdr.markForCheck();
+
+    try {
+      await this.fetchTypes();
+    } finally {
+      this.isLoading = false;
+      this.cdr.markForCheck();
+    }
   }
 
   async fetchTypes() {

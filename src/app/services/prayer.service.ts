@@ -131,11 +131,11 @@ export class PrayerService {
         } else {
           // Clear personal prayers when user logs out
           this.allPersonalPrayersSubject.next([]);
-          this.cache.invalidate('personalPrayers');
+          this.invalidatePersonalPrayersCacheAll();
         }
       });
 
-    // Reload shared prayers when tenant context resolves or changes.
+    // Reload shared and personal prayers when tenant context resolves or changes.
     this.tenantContext.activeTenant$
       .pipe(
         distinctUntilChanged((prev, curr) => prev?.id === curr?.id)
@@ -143,6 +143,9 @@ export class PrayerService {
       .subscribe(() => {
         this.loadPrayers(true).catch(err =>
           console.error('[PrayerService] Error loading prayers on tenant change:', err)
+        );
+        this.loadPersonalPrayers(false).catch(err =>
+          console.error('[PrayerService] Error loading personal prayers on tenant change:', err)
         );
       });
     
@@ -169,8 +172,8 @@ export class PrayerService {
         this.errorSubject.next(null);
         return;
       }
-      // ✅ TIER 1: Check cache first
-      const cachedPrayers = this.cache.get<PrayerRequest[]>('prayers');
+      // ✅ TIER 1: Check cache first (per active tenant — avoids cross-tenant bleed)
+      const cachedPrayers = this.getCachedSharedPrayers(tenantId);
       if (cachedPrayers && cachedPrayers.length > 0) {
         console.log(`[PrayerService] Using cached prayers (${cachedPrayers.length} items)`);
         this.allPrayersSubject.next(cachedPrayers);
@@ -292,7 +295,7 @@ export class PrayerService {
         .map(({ prayer }: { prayer: PrayerRequest }) => prayer);
 
       this.allPrayersSubject.next(sortedPrayers);
-      this.cache.set('prayers', sortedPrayers);
+      this.setCachedSharedPrayers(tenantId, sortedPrayers);
       this.applyFilters(this.currentFilters);
       
       // Refresh badge counts to ensure badges show up for new updates
@@ -304,7 +307,8 @@ export class PrayerService {
       console.error('[PrayerService] Failed to load prayers:', err);
       
       // Try to load from cache as fallback
-      const cachedPrayers = this.cache.get<PrayerRequest[]>('prayers');
+      const fallbackTenantId = this.getActiveTenantId();
+      const cachedPrayers = fallbackTenantId ? this.getCachedSharedPrayers(fallbackTenantId) : null;
       if (cachedPrayers && cachedPrayers.length > 0) {
         console.log(`[PrayerService] Showing ${cachedPrayers.length} cached prayers (error fallback)`);
         this.allPrayersSubject.next(cachedPrayers);
@@ -334,7 +338,15 @@ export class PrayerService {
     try {
       this.loadingPersonalPrayersSubject.next(true);
       console.log('[PrayerService] Loading personal prayers...');
-      
+
+      const tenantId = this.getActiveTenantId();
+      if (!tenantId) {
+        console.warn('[PrayerService] No active tenant — personal prayers unavailable');
+        this.allPersonalPrayersSubject.next([]);
+        this.loadingPersonalPrayersSubject.next(false);
+        return;
+      }
+
       const userEmail = await this.getUserEmail();
       if (!userEmail) {
         console.warn('[PrayerService] User email not available for personal prayers');
@@ -342,15 +354,15 @@ export class PrayerService {
         return;
       }
 
-      // ✅ TIER 1: Check cache first
-      const cachedPersonalPrayers = this.cache.get<PrayerRequest[]>('personalPrayers');
+      const cacheKey = this.personalPrayersCacheKey(tenantId)!;
+      const cachedPersonalPrayers = this.cache.get<PrayerRequest[]>(cacheKey);
       if (cachedPersonalPrayers && cachedPersonalPrayers.length > 0) {
         console.log(`[PrayerService] Using cached personal prayers (${cachedPersonalPrayers.length} items)`);
         this.allPersonalPrayersSubject.next(cachedPersonalPrayers);
-        
-        // ✅ TIER 1: Skip DB for silent refresh - personal prayers only change when user adds them
+
         if (silentRefresh) {
           console.log('[PrayerService] Cache hit for silent refresh - skipping personal prayers database query');
+          this.loadingPersonalPrayersSubject.next(false);
           return;
         }
       }
@@ -377,6 +389,7 @@ export class PrayerService {
           )
         `)
         .eq('user_email', userEmail)
+        .eq('tenant_id', tenantId)
         .order('display_order', { ascending: false })
         .order('created_at', { ascending: false });
 
@@ -412,30 +425,25 @@ export class PrayerService {
         }))
       }));
 
-      // Use the database ordering (by display_order DESC, then created_at DESC)
-      // Don't re-sort by activity as it would override user's manual ordering
       console.log(`[PrayerService] Loaded ${personalPrayers.length} personal prayers from database`);
       this.allPersonalPrayersSubject.next(personalPrayers);
-      this.cache.set('personalPrayers', personalPrayers);
+      this.cache.set(cacheKey, personalPrayers);
       this.loadingPersonalPrayersSubject.next(false);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load personal prayers';
       console.error('[PrayerService] Failed to load personal prayers:', err);
-      
-      // Try to load from cache as fallback - but only if it belongs to the current user
+
       const userEmail = await this.getUserEmail();
-      const cachedPersonalPrayers = this.cache.get<PrayerRequest[]>('personalPrayers');
-      
-      if (cachedPersonalPrayers && cachedPersonalPrayers.length > 0) {
-        // Safety check: verify cached prayers belong to current user
+      const cachedPersonalPrayers = this.getPersonalPrayersCached();
+
+      if (cachedPersonalPrayers && cachedPersonalPrayers.length > 0 && userEmail) {
         const allCachedPrayersMatchCurrentUser = cachedPersonalPrayers.every(p => p.email === userEmail);
-        
+
         if (allCachedPrayersMatchCurrentUser) {
           console.log(`[PrayerService] Showing ${cachedPersonalPrayers.length} cached personal prayers`);
           this.allPersonalPrayersSubject.next(cachedPersonalPrayers);
         } else {
           console.warn('[PrayerService] Cached personal prayers do not match current user - discarding cache');
-          this.cache.invalidate('personalPrayers');
+          this.invalidatePersonalPrayersCacheAll();
           this.allPersonalPrayersSubject.next([]);
         }
       }
@@ -603,7 +611,8 @@ export class PrayerService {
     try {
       console.log('[PrayerService] Resume refresh: ensuring connection then loading prayers');
       try {
-        const cachedPrayers = this.cache.get<PrayerRequest[]>('prayers');
+        const tid = this.getActiveTenantId();
+        const cachedPrayers = tid ? this.getCachedSharedPrayers(tid) : null;
         if (cachedPrayers && cachedPrayers.length > 0) {
           this.allPrayersSubject.next(cachedPrayers);
           this.applyFilters(this.currentFilters);
@@ -615,7 +624,8 @@ export class PrayerService {
       await this.loadPrayers(true);
     } catch (err) {
       console.debug('[PrayerService] Resume refresh failed, keeping cached data visible:', err);
-      const cached = this.cache.get<PrayerRequest[]>('prayers');
+      const tid = this.getActiveTenantId();
+      const cached = tid ? this.getCachedSharedPrayers(tid) : null;
       if (cached && cached.length > 0) {
         this.allPrayersSubject.next(cached);
         this.applyFilters(this.currentFilters);
@@ -685,6 +695,11 @@ export class PrayerService {
   async addPrayer(prayer: Omit<PrayerRequest, 'id' | 'date_requested' | 'created_at' | 'updated_at' | 'updates'>): Promise<boolean> {
     try {
       const tenantId = this.getActiveTenantId();
+      if (!tenantId) {
+        this.toast.error('Select an organization to submit a public prayer request.');
+        return false;
+      }
+
       const prayerData: any = {
         title: prayer.title,
         description: prayer.description,
@@ -693,17 +708,14 @@ export class PrayerService {
         prayer_for: prayer.prayer_for,
         approval_status: 'pending',
         email: prayer.email || null,
-        is_anonymous: prayer.is_anonymous || false
+        is_anonymous: prayer.is_anonymous || false,
+        tenant_id: tenantId
       };
-      if (tenantId) {
-        prayerData.tenant_id = tenantId;
-      }
 
-      const { data, error } = await this.supabase.client
-        .from('prayers')
-        .insert(prayerData)
-        .select()
-        .single();
+      // Client-generated id avoids INSERT ... RETURNING, which would require SELECT RLS on the
+      // new row (MFA users often have no JWT email, so member-based SELECT policies fail).
+      const prayerId = crypto.randomUUID();
+      const { error } = await this.supabase.client.from('prayers').insert({ id: prayerId, ...prayerData });
 
       if (error) throw error;
 
@@ -734,22 +746,30 @@ export class PrayerService {
       }
 
       // Send email notification to admins (don't let email failures block prayer submission)
-      if (tenantId) {
-        this.emailNotification.sendAdminNotification({
-          type: 'prayer',
-          title: prayer.title,
-          description: prayer.description,
-          requester: prayer.requester,
-          requestId: data.id,
-          tenantId
-        }).catch(err => console.error('Failed to send admin notification:', err));
-      }
+      this.emailNotification.sendAdminNotification({
+        type: 'prayer',
+        title: prayer.title,
+        description: prayer.description,
+        requester: prayer.requester,
+        requestId: prayerId,
+        tenantId
+      }).catch(err => console.error('Failed to send admin notification:', err));
 
       this.toast.success('Prayer request submitted for approval');
       return true;
     } catch (error) {
       console.error('Error adding prayer:', error);
-      this.toast.error('Failed to submit prayer request');
+      const msg =
+        error && typeof error === 'object' && 'message' in error
+          ? String((error as { message?: unknown }).message)
+          : '';
+      if (msg.includes('row-level security') || msg.includes('RLS')) {
+        this.toast.error('Could not submit prayer (server permission). Try signing in again.');
+      } else if (msg) {
+        this.toast.error(`Failed to submit prayer request: ${msg}`);
+      } else {
+        this.toast.error('Failed to submit prayer request');
+      }
       return false;
     }
   }
@@ -891,7 +911,7 @@ export class PrayerService {
       // Also update the canonical allPrayers$ stream and cache so counts and filters stay in sync
       const filteredAllPrayers = this.allPrayersSubject.value.filter(p => p.id !== id);
       this.allPrayersSubject.next(filteredAllPrayers);
-      this.cache.set('prayers', filteredAllPrayers);
+      this.setCachedSharedPrayers(tenantId, filteredAllPrayers);
       this.applyFilters(this.currentFilters);
       this.badgeService.refreshBadgeCounts();
 
@@ -1280,6 +1300,11 @@ export class PrayerService {
       return { min: UNCATEGORIZED_MIN, max: UNCATEGORIZED_MAX };
     }
 
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) {
+      return { min: UNCATEGORIZED_MIN, max: UNCATEGORIZED_MAX };
+    }
+
     const userEmail = await this.getUserEmail();
     if (!userEmail) {
       throw new Error('User email not available');
@@ -1291,6 +1316,7 @@ export class PrayerService {
       .from('personal_prayers')
       .select('display_order')
       .eq('user_email', userEmail)
+      .eq('tenant_id', tenantId)
       .eq('category', category);
 
     if (error) throw error;
@@ -1302,6 +1328,7 @@ export class PrayerService {
         .from('personal_prayers')
         .select('category, display_order')
         .eq('user_email', userEmail)
+        .eq('tenant_id', tenantId)
         .not('category', 'is', null)
         .gte('display_order', UNCATEGORIZED_MAX + 1);
 
@@ -1335,6 +1362,11 @@ export class PrayerService {
    * Count how many personal prayers exist in a category's display_order range
    */
   private async getCategoryPrayerCount(category: string | null | undefined): Promise<number> {
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) {
+      return 0;
+    }
+
     const userEmail = await this.getUserEmail();
     if (!userEmail) {
       return 0;
@@ -1345,6 +1377,7 @@ export class PrayerService {
       .from('personal_prayers')
       .select('id')
       .eq('user_email', userEmail)
+      .eq('tenant_id', tenantId)
       .eq('category', category || null); // null for uncategorized
 
     if (error) {
@@ -1375,15 +1408,21 @@ export class PrayerService {
    */
   async getPersonalPrayers(forceRefresh: boolean = false): Promise<PrayerRequest[]> {
     try {
+      const tenantId = this.getActiveTenantId();
+      if (!tenantId) {
+        return [];
+      }
+
       const userEmail = await this.getUserEmail();
       if (!userEmail) {
         console.error('User email not available');
         return [];
       }
 
-      // Check cache first to reduce database egress (unless force refresh)
+      const cacheKey = this.personalPrayersCacheKey(tenantId)!;
+
       if (!forceRefresh) {
-        const cached = this.cache.get<PrayerRequest[]>('personalPrayers');
+        const cached = this.cache.get<PrayerRequest[]>(cacheKey);
         if (cached) {
           return cached;
         }
@@ -1411,6 +1450,7 @@ export class PrayerService {
           )
         `)
         .eq('user_email', userEmail)
+        .eq('tenant_id', tenantId)
         .order('display_order', { ascending: false })
         .order('created_at', { ascending: false });
 
@@ -1448,10 +1488,9 @@ export class PrayerService {
           approval_status: 'approved' as const
         }))
       }));
-      
-      // Cache the prayers for future requests
-      this.cache.set('personalPrayers', prayers);
-      
+
+      this.cache.set(cacheKey, prayers);
+
       return prayers;
     } catch (error) {
       console.error('[PrayerService] Failed to load personal prayers:', error);
@@ -1464,6 +1503,12 @@ export class PrayerService {
    */
   async addPersonalPrayer(prayer: Omit<PrayerRequest, 'id' | 'date_requested' | 'created_at' | 'updated_at' | 'updates' | 'approval_status'>): Promise<boolean> {
     try {
+      const tenantId = this.getActiveTenantId();
+      if (!tenantId) {
+        this.toast.error('Select an organization to add personal prayers.');
+        return false;
+      }
+
       const userEmail = await this.getUserEmail();
       if (!userEmail) {
         this.toast.error('User email not available');
@@ -1489,6 +1534,7 @@ export class PrayerService {
         .from('personal_prayers')
         .select('display_order')
         .eq('user_email', userEmail)
+        .eq('tenant_id', tenantId)
         .eq('category', category || null)
         .gte('display_order', range.min)
         .lte('display_order', range.max)
@@ -1515,6 +1561,7 @@ export class PrayerService {
         prayer_for: prayer.prayer_for,
         category: category,
         user_email: userEmail,
+        tenant_id: tenantId,
         display_order: newDisplayOrder
       };
 
@@ -1549,7 +1596,7 @@ export class PrayerService {
       const currentPrayers = this.allPersonalPrayersSubject.value;
       const updatedPrayers = [newPrayer, ...currentPrayers];
       this.allPersonalPrayersSubject.next(updatedPrayers);
-      this.cache.set('personalPrayers', updatedPrayers);
+      this.setPersonalPrayersCache(updatedPrayers);
 
       // No email notifications or badge notifications for personal prayers
       // Just show success message
@@ -1582,6 +1629,12 @@ export class PrayerService {
    */
   async deletePersonalPrayer(id: string): Promise<boolean> {
     try {
+      const tenantId = this.getActiveTenantId();
+      if (!tenantId) {
+        this.toast.error('Select an organization first.');
+        return false;
+      }
+
       const userEmail = await this.getUserEmail();
       if (!userEmail) {
         this.toast.error('User email not available');
@@ -1592,14 +1645,15 @@ export class PrayerService {
         .from('personal_prayers')
         .delete()
         .eq('id', id)
-        .eq('user_email', userEmail);
+        .eq('user_email', userEmail)
+        .eq('tenant_id', tenantId);
 
       if (error) throw error;
 
       // Update local state and cache
       const personalPrayers = this.allPersonalPrayersSubject.value;
       this.allPersonalPrayersSubject.next(personalPrayers.filter(p => p.id !== id));
-      this.cache.set('personalPrayers', personalPrayers.filter(p => p.id !== id));
+      this.setPersonalPrayersCache(personalPrayers.filter(p => p.id !== id));
 
       this.toast.success('Personal prayer deleted');
       return true;
@@ -1618,6 +1672,12 @@ export class PrayerService {
     updates: Partial<Pick<PrayerRequest, 'title' | 'prayer_for' | 'description' | 'category'>>
   ): Promise<boolean> {
     try {
+      const tenantId = this.getActiveTenantId();
+      if (!tenantId) {
+        this.toast.error('Select an organization first.');
+        return false;
+      }
+
       const userEmail = await this.getUserEmail();
       if (!userEmail) {
         this.toast.error('User email not available');
@@ -1651,6 +1711,7 @@ export class PrayerService {
           .from('personal_prayers')
           .select('display_order')
           .eq('user_email', userEmail)
+          .eq('tenant_id', tenantId)
           .eq('category', newCategory || null)
           .gte('display_order', newRange.min)
           .lte('display_order', newRange.max)
@@ -1675,7 +1736,8 @@ export class PrayerService {
         .from('personal_prayers')
         .update(updateData)
         .eq('id', id)
-        .eq('user_email', userEmail);
+        .eq('user_email', userEmail)
+        .eq('tenant_id', tenantId);
 
       if (error) throw error;
 
@@ -1695,7 +1757,7 @@ export class PrayerService {
           : p
       );
       this.allPersonalPrayersSubject.next(updatedPrayers);
-      this.cache.set('personalPrayers', updatedPrayers);
+      this.setPersonalPrayersCache(updatedPrayers);
 
       console.log('[PrayerService] Personal prayer updated successfully');
       this.toast.success('Personal prayer updated');
@@ -1713,6 +1775,12 @@ export class PrayerService {
    */
   async updatePersonalPrayerOrder(prayers: PrayerRequest[], categoryFilter?: string): Promise<boolean> {
     try {
+      const tenantId = this.getActiveTenantId();
+      if (!tenantId) {
+        console.error('[PrayerService] No active tenant for order update');
+        return false;
+      }
+
       const userEmail = await this.getUserEmail();
       if (!userEmail) {
         console.error('[PrayerService] User email not available for order update');
@@ -1741,7 +1809,8 @@ export class PrayerService {
           .rpc('reorder_personal_prayers', {
             p_user_email: userEmail,
             p_ordered_prayer_ids: orderedPrayerIds,
-            p_category: category || null
+            p_category: category || null,
+            p_tenant_id: tenantId
           });
 
         if (error) {
@@ -1779,7 +1848,10 @@ export class PrayerService {
   private async updatePersonalPrayerOrderFallback(prayers: PrayerRequest[], categoryFilter?: string): Promise<boolean> {
     try {
       console.log('[PrayerService] Using fallback method for prayer order update');
-      
+
+      const tenantId = this.getActiveTenantId();
+      if (!tenantId) return false;
+
       const userEmail = await this.getUserEmail();
       if (!userEmail) return false;
 
@@ -1815,6 +1887,7 @@ export class PrayerService {
                 .update({ display_order: displayOrder })
                 .eq('id', prayer.id)
                 .eq('user_email', userEmail)
+                .eq('tenant_id', tenantId)
             )
           );
         });
@@ -1881,7 +1954,7 @@ export class PrayerService {
           : p
       );
       this.allPersonalPrayersSubject.next(updatedPrayers);
-      this.cache.set('personalPrayers', updatedPrayers);
+      this.setPersonalPrayersCache(updatedPrayers);
 
       console.log('[PrayerService] Personal prayer update updated successfully');
       return true;
@@ -1977,7 +2050,7 @@ export class PrayerService {
         return prayer;
       });
       this.allPersonalPrayersSubject.next(updatedPrayers);
-      this.cache.set('personalPrayers', updatedPrayers);
+      this.setPersonalPrayersCache(updatedPrayers);
 
       this.toast.success('Update added to personal prayer');
       return true;
@@ -2029,7 +2102,7 @@ export class PrayerService {
         updates: (prayer.updates || []).filter(u => u.id !== updateId)
       }));
       this.allPersonalPrayersSubject.next(updatedPrayers);
-      this.cache.set('personalPrayers', updatedPrayers);
+      this.setPersonalPrayersCache(updatedPrayers);
       
       this.toast.success('Update deleted');
       return true;
@@ -2089,6 +2162,12 @@ export class PrayerService {
    */
   async reorderCategories(orderedCategories: (string | null)[]): Promise<boolean> {
     try {
+      const tenantId = this.getActiveTenantId();
+      if (!tenantId) {
+        console.error('[PrayerService] No active tenant for category reorder');
+        return false;
+      }
+
       const userEmail = await this.getUserEmail();
       if (!userEmail) {
         console.error('[PrayerService] User email not available for category reorder');
@@ -2107,7 +2186,8 @@ export class PrayerService {
       const { data, error } = await this.supabase.client
         .rpc('reorder_personal_prayer_categories', {
           p_user_email: userEmail,
-          p_ordered_categories: validCategories
+          p_ordered_categories: validCategories,
+          p_tenant_id: tenantId
         });
 
       if (error) {
@@ -2142,7 +2222,10 @@ export class PrayerService {
   private async reorderCategoriesFallback(orderedCategories: (string | null)[]): Promise<boolean> {
     try {
       console.log('[PrayerService] Using fallback method for category reorder');
-      
+
+      const tenantId = this.getActiveTenantId();
+      if (!tenantId) return false;
+
       const userEmail = await this.getUserEmail();
       if (!userEmail) return false;
 
@@ -2174,6 +2257,8 @@ export class PrayerService {
               .from('personal_prayers')
               .update({ display_order: newDisplayOrder })
               .eq('id', prayer.id)
+              .eq('user_email', userEmail)
+              .eq('tenant_id', tenantId)
           );
         }
       }
@@ -2226,7 +2311,7 @@ export class PrayerService {
       return (b.created_at || '').localeCompare(a.created_at || '');
     });
     this.allPersonalPrayersSubject.next(sorted);
-    this.cache.set('personalPrayers', sorted);
+    this.setPersonalPrayersCache(sorted);
   }
 
   /**
@@ -2249,7 +2334,7 @@ export class PrayerService {
       return (b.created_at || '').localeCompare(a.created_at || '');
     });
     this.allPersonalPrayersSubject.next(sorted);
-    this.cache.set('personalPrayers', sorted);
+    this.setPersonalPrayersCache(sorted);
   }
 
   /**
@@ -2258,6 +2343,12 @@ export class PrayerService {
    * Example: If A has 2000-2999 and B has 1000-1999, swapping gives A 1000-1999 and B 2000-2999
    */
   async swapCategoryRanges(categoryA: string | null | undefined, categoryB: string | null | undefined): Promise<boolean> {
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) {
+      console.error('[PrayerService] No active tenant for category swap');
+      return false;
+    }
+
     const userEmail = await this.getUserEmail();
     
     if (!userEmail) {
@@ -2276,7 +2367,8 @@ export class PrayerService {
         .rpc('swap_personal_prayer_categories', {
           p_user_email: userEmail,
           p_category_a: categoryA,
-          p_category_b: categoryB
+          p_category_b: categoryB,
+          p_tenant_id: tenantId
         });
 
       if (error) {
@@ -2311,7 +2403,10 @@ export class PrayerService {
   private async swapCategoryRangesFallback(categoryA: string, categoryB: string): Promise<boolean> {
     try {
       console.log('[PrayerService] Using fallback method for category swap');
-      
+
+      const tenantId = this.getActiveTenantId();
+      if (!tenantId) return false;
+
       const userEmail = await this.getUserEmail();
       if (!userEmail) return false;
 
@@ -2341,7 +2436,9 @@ export class PrayerService {
         return this.supabase.client
           .from('personal_prayers')
           .update({ display_order: newDisplayOrder })
-          .eq('id', prayer.id);
+          .eq('id', prayer.id)
+          .eq('user_email', userEmail)
+          .eq('tenant_id', tenantId);
       });
       
       const step1Results = await Promise.all(step1Updates);
@@ -2355,7 +2452,9 @@ export class PrayerService {
         return this.supabase.client
           .from('personal_prayers')
           .update({ display_order: newDisplayOrder })
-          .eq('id', prayer.id);
+          .eq('id', prayer.id)
+          .eq('user_email', userEmail)
+          .eq('tenant_id', tenantId);
       });
       
       const step2Results = await Promise.all(step2Updates);
@@ -2369,7 +2468,9 @@ export class PrayerService {
         return this.supabase.client
           .from('personal_prayers')
           .update({ display_order: newDisplayOrder })
-          .eq('id', prayer.id);
+          .eq('id', prayer.id)
+          .eq('user_email', userEmail)
+          .eq('tenant_id', tenantId);
       });
       
       const step3Results = await Promise.all(step3Updates);
@@ -2394,6 +2495,9 @@ export class PrayerService {
   async sharePrayerForApproval(personalPrayerId: string): Promise<string> {
     try {
       const tenantId = this.getActiveTenantId();
+      if (!tenantId) {
+        throw new Error('Select an organization to share a personal prayer.');
+      }
       // Step 1: Fetch the personal prayer with its updates
       const { data: personalPrayer, error: fetchError } = await this.supabase.client
         .from('personal_prayers')
@@ -2415,6 +2519,7 @@ export class PrayerService {
           )
         `)
         .eq('id', personalPrayerId)
+        .eq('tenant_id', tenantId)
         .single();
 
       if (fetchError) throw new Error(`Failed to fetch personal prayer: ${fetchError.message}`);
@@ -2518,5 +2623,46 @@ export class PrayerService {
 
   private getActiveTenantId(): string | null {
     return this.tenantContext.getActiveTenant()?.id || null;
+  }
+
+  private personalPrayersCacheKey(tenantId: string | null | undefined): string | null {
+    if (!tenantId) return null;
+    return `personalTenant_${tenantId}`;
+  }
+
+  private setPersonalPrayersCache(prayers: PrayerRequest[]): void {
+    const key = this.personalPrayersCacheKey(this.getActiveTenantId());
+    if (key) {
+      this.cache.set(key, prayers);
+    }
+  }
+
+  private getPersonalPrayersCached(): PrayerRequest[] | null {
+    const key = this.personalPrayersCacheKey(this.getActiveTenantId());
+    if (!key) return null;
+    return this.cache.get<PrayerRequest[]>(key);
+  }
+
+  private invalidatePersonalPrayersCacheAll(): void {
+    // Tests may inject a partial cache mock without invalidateCategory.
+    this.cache.invalidateCategory?.('personalTenant_');
+  }
+
+  /** Shared prayer list cache key — must match BadgeService cache lookup for the active tenant. */
+  private sharedPrayersCacheKey(tenantId: string | null | undefined): string | null {
+    if (!tenantId) return null;
+    return `tenant_${tenantId}_prayers`;
+  }
+
+  private getCachedSharedPrayers(tenantId: string | null | undefined): PrayerRequest[] | null {
+    const key = this.sharedPrayersCacheKey(tenantId);
+    if (!key) return null;
+    return this.cache.get<PrayerRequest[]>(key);
+  }
+
+  private setCachedSharedPrayers(tenantId: string | null | undefined, prayers: PrayerRequest[]): void {
+    const key = this.sharedPrayersCacheKey(tenantId);
+    if (!key) return;
+    this.cache.set(key, prayers, 20 * 60 * 1000);
   }
 }

@@ -148,7 +148,7 @@ export class AdminAuthService {
           this.persistSessionStart(null);
           
           // Clear user-specific caches when session ends
-          this.cacheService.invalidateCategory('personalPrayers');
+          this.cacheService.invalidateCategory('personalTenant_');
           this.cacheService.invalidateCategory('prayers');
           this.cacheService.invalidateCategory('prompts');
           localStorage.removeItem('read_prayers_data');
@@ -532,7 +532,7 @@ export class AdminAuthService {
 
       // Invalidate personal prayers cache on login to ensure fresh data
       // This prevents stale personal prayer data from being displayed if cache wasn't properly cleared on previous logout
-      this.cacheService.invalidateCategory('personalPrayers');
+      this.cacheService.invalidateCategory('personalTenant_');
 
       // Clean up
       localStorage.removeItem('mfa_code_id');
@@ -585,7 +585,7 @@ export class AdminAuthService {
       localStorage.removeItem('mfa_session_start');
       
       // Clear user-specific caches to prevent next user from seeing previous user's data
-      this.cacheService.invalidateCategory('personalPrayers');
+      this.cacheService.invalidateCategory('personalTenant_');
       this.cacheService.invalidateCategory('prayers');
       this.cacheService.invalidateCategory('prompts');
       

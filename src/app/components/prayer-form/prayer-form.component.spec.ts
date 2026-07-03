@@ -17,6 +17,7 @@ describe('PrayerFormComponent', () => {
   let mockChangeDetectorRef: any;
   let mockSupabaseService: any;
   let mockToastService: any;
+  let mockTenantContextService: any;
   let mockUser: User | null;
 
   beforeEach(() => {
@@ -56,12 +57,23 @@ describe('PrayerFormComponent', () => {
         fullName: 'John Doe',
         isActive: true
       }),
+      getUserEmail: vi.fn(() => 'test@example.com'),
       getCurrentSession: vi.fn(() => ({
         email: 'test@example.com',
         firstName: 'John',
         lastName: 'Doe',
         fullName: 'John Doe',
         isActive: true
+      }))
+    };
+
+    mockTenantContextService = {
+      getActiveTenant: vi.fn(() => ({
+        id: 'tenant-1',
+        name: 'Test Org',
+        slug: 'test-org',
+        plan_tier: 'churches',
+        plan_status: 'active'
       }))
     };
 
@@ -105,7 +117,8 @@ describe('PrayerFormComponent', () => {
       mockUserSessionService,
       mockSupabaseService,
       mockToastService as any as ToastService,
-      mockChangeDetectorRef as ChangeDetectorRef
+      mockChangeDetectorRef as ChangeDetectorRef,
+      mockTenantContextService as any
     );
   });
 
@@ -159,34 +172,28 @@ describe('PrayerFormComponent', () => {
       expect(component.currentUserEmail).toBe('session@example.com');
     });
 
-    it('should handle error when loading user info', () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      mockUserSessionService.userSession$ = {
-        subscribe: vi.fn(() => {
-          throw new Error('Subscription error');
-        })
-      } as any;
-      
+    it('should refresh cached email on init', () => {
+      const spy = vi.spyOn(component as any, 'refreshCurrentUserEmail');
       component.ngOnInit();
       vi.runAllTimers();
-      expect(consoleSpy).toHaveBeenCalled();
+      expect(spy).toHaveBeenCalled();
     });
   });
 
   describe('ngOnChanges', () => {
-    it('should reload user info when isOpen changes to true', () => {
-      const loadUserInfoSpy = vi.spyOn(component as any, 'loadUserInfo');
+    it('should reload cached email when isOpen changes to true', () => {
+      const refreshSpy = vi.spyOn(component as any, 'refreshCurrentUserEmail');
       component.isOpen = true;
       component.ngOnChanges();
       vi.runAllTimers();
-      expect(loadUserInfoSpy).toHaveBeenCalled();
+      expect(refreshSpy).toHaveBeenCalled();
     });
 
     it('should not reload when isOpen is false', () => {
-      const loadUserInfoSpy = vi.spyOn(component as any, 'loadUserInfo');
+      const refreshSpy = vi.spyOn(component as any, 'refreshCurrentUserEmail');
       component.isOpen = false;
       component.ngOnChanges();
-      expect(loadUserInfoSpy).not.toHaveBeenCalled();
+      expect(refreshSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -223,6 +230,45 @@ describe('PrayerFormComponent', () => {
       component.currentUserEmail = '  test@example.com  ';
       component.formData.prayer_for = '  Someone  ';
       component.formData.description = '  Test description  ';
+      expect(component.isFormValid()).toBe(true);
+    });
+
+    it('should return false for public prayer when there is no active tenant', () => {
+      mockTenantContextService.getActiveTenant.mockReturnValue(null);
+      component.currentUserEmail = 'test@example.com';
+      component.formData.prayer_for = 'Someone';
+      component.formData.description = 'Test description';
+      component.formData.is_personal = false;
+      expect(component.isFormValid()).toBe(false);
+    });
+
+    it('should return false for public prayer when tenant plan is free', () => {
+      mockTenantContextService.getActiveTenant.mockReturnValue({
+        id: 'tenant-1',
+        name: 'T',
+        slug: 't',
+        plan_tier: 'free',
+        plan_status: 'active'
+      });
+      component.currentUserEmail = 'test@example.com';
+      component.formData.prayer_for = 'Someone';
+      component.formData.description = 'Test description';
+      component.formData.is_personal = false;
+      expect(component.isFormValid()).toBe(false);
+    });
+
+    it('should allow public prayer when tenant has groups plan', () => {
+      mockTenantContextService.getActiveTenant.mockReturnValue({
+        id: 'tenant-1',
+        name: 'T',
+        slug: 't',
+        plan_tier: 'groups',
+        plan_status: 'active'
+      });
+      component.currentUserEmail = 'test@example.com';
+      component.formData.prayer_for = 'Someone';
+      component.formData.description = 'Test description';
+      component.formData.is_personal = false;
       expect(component.isFormValid()).toBe(true);
     });
   });

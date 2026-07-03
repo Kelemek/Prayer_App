@@ -1,4 +1,5 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { BehaviorSubject } from 'rxjs';
 import { PresentationComponent } from './presentation.component';
 
 function createQuery(result: any) {
@@ -31,10 +32,28 @@ describe('PresentationComponent', () => {
     mockRouter = { navigate: vi.fn() };
     mockSupabase = { client: { from: vi.fn() } };
     mockThemeService = { getTheme: vi.fn() };
-    mockPrayerService = { prayers$: { subscribe: vi.fn(), value: [] } };
+    mockPrayerService = {
+      prayers$: { subscribe: vi.fn(), value: [] },
+      allPersonalPrayers$: new BehaviorSubject<any[]>([]),
+    };
     cdr = { markForCheck: vi.fn(), detectChanges: vi.fn() };
     ngZone = { run: (cb: any) => cb() };
-    component = new PresentationComponent(mockRouter, mockSupabase, mockPrayerService, mockThemeService, cdr, ngZone as any);
+    const mockTenantPermissions = { canAccessShared: () => true };
+    const mockTenantContext = {
+      getActiveTenant: () => ({ id: 't1', name: 'T', slug: 't', plan_tier: 'churches' as const, plan_status: 'active' as const }),
+      activeTenant$: new BehaviorSubject(null)
+    };
+    component = new PresentationComponent(
+      mockRouter,
+      mockSupabase,
+      mockPrayerService,
+      mockThemeService,
+      mockTenantPermissions as any,
+      mockTenantContext as any,
+      cdr,
+      ngZone as any
+    );
+    component.canAccessSharedContent = true;
   });
 
   afterEach(() => {
@@ -298,18 +317,30 @@ describe('PresentationComponent', () => {
     mockRouter = { navigate: vi.fn() };
     mockSupabase = { client: {} };
     mockThemeService = {};
-    mockPrayerService = { prayers$: { subscribe: vi.fn(), value: [] } };
+    mockPrayerService = {
+      prayers$: { subscribe: vi.fn(), value: [] },
+      allPersonalPrayers$: new BehaviorSubject<any[]>([]),
+    };
     mockCdr = { markForCheck: vi.fn(), detectChanges: vi.fn() };
     mockNgZone = { run: (fn: Function) => fn() } as unknown as NgZone;
+
+    const mockTenantPermissions = { canAccessShared: () => true };
+    const mockTenantContext = {
+      getActiveTenant: () => ({ id: 't1', name: 'T', slug: 't', plan_tier: 'churches' as const, plan_status: 'active' as const }),
+      activeTenant$: new BehaviorSubject(null)
+    };
 
     component = new PresentationComponent(
       mockRouter as unknown as Router,
       mockSupabase as unknown as SupabaseService,
       mockPrayerService as any,
       mockThemeService as unknown as ThemeService,
+      mockTenantPermissions as any,
+      mockTenantContext as any,
       mockCdr as unknown as ChangeDetectorRef,
       mockNgZone as unknown as NgZone
     );
+    component.canAccessSharedContent = true;
   });
 
   afterEach(() => {

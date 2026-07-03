@@ -43,6 +43,7 @@ describe('AdminUserManagementComponent', () => {
   let mockToast: any;
   let mockEmailService: any;
   let mockCdr: any;
+  let mockTenantContext: any;
 
   beforeEach(() => {
     mockClient = createMockClient();
@@ -61,13 +62,53 @@ describe('AdminUserManagementComponent', () => {
 
     mockCdr = { markForCheck: vi.fn() };
 
+    mockTenantContext = {
+      getActiveTenant: vi.fn(() => ({ id: 'test-tenant-id', name: 'Test', slug: 'test' }))
+    };
+
     // Instantiate component directly to avoid Angular DI complexity for standalone component
     component = new AdminUserManagementComponent(
       mockSupabase as any,
       mockToast as any,
       mockCdr as any,
-      mockEmailService as any
+      mockEmailService as any,
+      mockTenantContext as any
     );
+  });
+
+  it('should have default collapsed state', () => {
+    expect(component.sectionExpanded).toBe(false);
+    expect(component.loading).toBe(false);
+    expect(component.admins).toEqual([]);
+  });
+
+  describe('onExpandedChange', () => {
+    it('should lazy-load admins on first expand', async () => {
+      const admins = [{ email: 'a@b.com', name: 'A', created_at: '2020-01-01', receive_admin_emails: true, receive_admin_push: false }];
+      mockClient.setResponses([{ data: admins, error: null }]);
+
+      component.onExpandedChange(true);
+      await component.loadAdmins();
+
+      expect(component.sectionExpanded).toBe(true);
+      expect(component.admins).toEqual(admins);
+    });
+
+    it('should not load admins before section is expanded', () => {
+      expect(component.admins).toEqual([]);
+    });
+
+    it('should not re-fetch on second expand', async () => {
+      mockClient.setResponses([{ data: [], error: null }]);
+      component.onExpandedChange(true);
+      await component.loadAdmins();
+
+      const fromSpy = vi.spyOn(mockClient, 'from');
+      component.onExpandedChange(false);
+      component.onExpandedChange(true);
+
+      expect(fromSpy).not.toHaveBeenCalled();
+    });
   });
 
   it('loads admins successfully', async () => {
@@ -200,7 +241,7 @@ describe('AdminUserManagementComponent', () => {
 
     await component.sendInvitationEmail('x@y.com', 'Name');
 
-    expect(mockEmailService.getTemplate).toHaveBeenCalledWith('admin_invitation');
+    expect(mockEmailService.getTemplate).toHaveBeenCalledWith('admin_invitation', 'test-tenant-id');
     expect(mockEmailService.applyTemplateVariables).toHaveBeenCalled();
     expect(mockEmailService.sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'x@y.com' }));
   });
@@ -540,14 +581,6 @@ describe('AdminUserManagementComponent', () => {
     ];
     expect(component.getReceivingEmailsCount()).toBe(1);
     expect(component.getReceivingPushCount()).toBe(1);
-  });
-
-  it('ngOnInit calls loadAdmins', async () => {
-    const loadSpy = vi.spyOn(component as any, 'loadAdmins').mockResolvedValue(undefined);
-
-    component.ngOnInit();
-
-    expect(loadSpy).toHaveBeenCalled();
   });
 
   it('loadAdmins handles null data (no error) and sets empty admins', async () => {

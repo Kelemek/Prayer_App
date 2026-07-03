@@ -1,19 +1,26 @@
-import { Component, OnDestroy, ChangeDetectorRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { GitHubFeedbackService } from '../../services/github-feedback.service';
-import { UserSessionService } from '../../services/user-session.service';
-import { Subject, takeUntil } from 'rxjs';
+import {
+  Component,
+  OnDestroy,
+  ChangeDetectorRef,
+  ChangeDetectionStrategy,
+} from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { GitHubFeedbackService } from "../../services/github-feedback.service";
+import { UserSessionService } from "../../services/user-session.service";
+import { Subject, takeUntil } from "rxjs";
 
 @Component({
-  selector: 'app-github-feedback-form',
+  selector: "app-github-feedback-form",
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
     <div class="space-y-4">
       <!-- Header -->
       <div class="pb-0 pt-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Send Feedback</h3>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          Send Feedback
+        </h3>
         <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
           Have a suggestion, bug report, or feature request? Let us know!
         </p>
@@ -26,7 +33,10 @@ import { Subject, takeUntil } from 'rxjs';
       <form (ngSubmit)="onSubmit()" class="space-y-4">
         <!-- Issue Type -->
         <div>
-          <label for="issueType" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label
+            for="issueType"
+            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+          >
             Feedback Type
           </label>
           <div class="relative">
@@ -41,13 +51,13 @@ import { Subject, takeUntil } from 'rxjs';
               <option value="feature">✨ Feature Request</option>
               <option value="bug">🐛 Bug Report</option>
             </select>
-            <svg 
+            <svg
               class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-900 dark:text-gray-100 pointer-events-none"
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              stroke-width="2" 
-              stroke-linecap="round" 
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
               stroke-linejoin="round"
             >
               <polyline points="6 9 12 15 18 9"></polyline>
@@ -57,7 +67,10 @@ import { Subject, takeUntil } from 'rxjs';
 
         <!-- Title -->
         <div>
-          <label for="feedbackTitle" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label
+            for="feedbackTitle"
+            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+          >
             Title
           </label>
           <input
@@ -78,7 +91,10 @@ import { Subject, takeUntil } from 'rxjs';
 
         <!-- Description -->
         <div>
-          <label for="feedbackDescription" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label
+            for="feedbackDescription"
+            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+          >
             Description
           </label>
           <textarea
@@ -101,17 +117,44 @@ import { Subject, takeUntil } from 'rxjs';
         <div class="flex gap-2">
           <button
             type="submit"
-            [disabled]="isLoading || !feedbackTitle.trim() || !feedbackDescription.trim()"
+            [disabled]="
+              isLoading || !feedbackTitle.trim() || !feedbackDescription.trim()
+            "
             class="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm cursor-pointer"
           >
             @if (isLoading) {
-            <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            <svg
+              class="animate-spin h-4 w-4"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
             </svg>
             <span>Sending...</span>
             } @else {
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <path d="M22 2L11 13M22 2l-7 20-5-9-9-5 20-7z"></path>
             </svg>
             <span>Send Feedback</span>
@@ -122,44 +165,86 @@ import { Subject, takeUntil } from 'rxjs';
 
       <!-- Status Messages -->
       @if (successMessage) {
-      <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-4" role="alert" aria-live="assertive" aria-atomic="true">
+      <div
+        class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-4"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
         <div class="flex items-start gap-2">
-          <svg class="text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            class="text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
           <div class="flex-1">
-            <p class="text-sm text-green-800 dark:text-green-200 font-medium">Thank you for your feedback!</p>
-            <p class="text-xs text-green-700 dark:text-green-300 mt-1">Your submission has been received and will be reviewed by our team.</p>
+            <p class="text-sm text-green-800 dark:text-green-200 font-medium">
+              Thank you for your feedback!
+            </p>
+            <p class="text-xs text-green-700 dark:text-green-300 mt-1">
+              Your submission has been received and will be reviewed by our
+              team.
+            </p>
           </div>
         </div>
       </div>
       } @if (errorMessage) {
-      <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-3" role="alert" aria-live="assertive" aria-atomic="true">
+      <div
+        class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-3"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
         <div class="flex items-start gap-2">
-          <svg class="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <svg
+            class="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+            ></path>
             <line x1="12" y1="9" x2="12" y2="13"></line>
             <line x1="12" y1="17" x2="12.01" y2="17"></line>
           </svg>
           <div class="flex-1">
-            <p class="text-sm text-red-800 dark:text-red-200 font-medium">Error sending feedback</p>
-            <p class="text-xs text-red-700 dark:text-red-300 mt-1">{{ errorMessage }}</p>
+            <p class="text-sm text-red-800 dark:text-red-200 font-medium">
+              Error sending feedback
+            </p>
+            <p class="text-xs text-red-700 dark:text-red-300 mt-1">
+              {{ errorMessage }}
+            </p>
           </div>
         </div>
       </div>
       }
     </div>
   `,
-  styles: []
+  changeDetection: ChangeDetectionStrategy.Eager,
+  styles: [],
 })
 export class GitHubFeedbackFormComponent implements OnDestroy {
-  feedbackType: 'suggestion' | 'feature' | 'bug' = 'suggestion';
-  feedbackTitle: string = '';
-  feedbackDescription: string = '';
+  feedbackType: "suggestion" | "feature" | "bug" = "suggestion";
+  feedbackTitle: string = "";
+  feedbackDescription: string = "";
   isLoading: boolean = false;
-  successMessage: string = '';
-  errorMessage: string = '';
-  issueUrl: string = '';
+  successMessage: string = "";
+  errorMessage: string = "";
+  issueUrl: string = "";
 
   private destroy$ = new Subject<void>();
 
@@ -176,21 +261,21 @@ export class GitHubFeedbackFormComponent implements OnDestroy {
 
   async onSubmit(): Promise<void> {
     if (!this.feedbackTitle.trim() || !this.feedbackDescription.trim()) {
-      this.errorMessage = 'Please fill in all fields';
+      this.errorMessage = "Please fill in all fields";
       return;
     }
 
     this.isLoading = true;
-    this.successMessage = '';
-    this.errorMessage = '';
-    this.issueUrl = '';
+    this.successMessage = "";
+    this.errorMessage = "";
+    this.issueUrl = "";
     this.cdr.markForCheck();
 
     try {
       // Wait for user session to be available
       const userSession = await this.userSessionService.waitForSession();
       if (!userSession) {
-        this.errorMessage = 'User session not available. Please try again.';
+        this.errorMessage = "User session not available. Please try again.";
         this.cdr.markForCheck();
         return;
       }
@@ -200,29 +285,30 @@ export class GitHubFeedbackFormComponent implements OnDestroy {
         body: this.feedbackDescription.trim(),
         type: this.feedbackType,
         userEmail: userSession.email,
-        userName: userSession.fullName
+        userName: userSession.fullName,
       });
 
       if (result.success) {
-        this.successMessage = 'Thank you! Your feedback has been submitted.';
-        this.issueUrl = result.url || '';
+        this.successMessage = "Thank you! Your feedback has been submitted.";
+        this.issueUrl = result.url || "";
         // Reset form after success
-        this.feedbackTitle = '';
-        this.feedbackDescription = '';
-        this.feedbackType = 'suggestion';
+        this.feedbackTitle = "";
+        this.feedbackDescription = "";
+        this.feedbackType = "suggestion";
         this.cdr.markForCheck();
         // Clear success message after 5 seconds
         setTimeout(() => {
-          this.successMessage = '';
+          this.successMessage = "";
           this.cdr.markForCheck();
         }, 5000);
       } else {
-        this.errorMessage = result.error || 'Failed to submit feedback. Please try again.';
+        this.errorMessage =
+          result.error || "Failed to submit feedback. Please try again.";
         this.cdr.markForCheck();
       }
     } catch (err) {
-      console.error('[GitHubFeedbackForm] Submission error:', err);
-      this.errorMessage = 'An unexpected error occurred. Please try again.';
+      console.error("[GitHubFeedbackForm] Submission error:", err);
+      this.errorMessage = "An unexpected error occurred. Please try again.";
       this.cdr.markForCheck();
     } finally {
       this.isLoading = false;

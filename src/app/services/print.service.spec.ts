@@ -2,6 +2,24 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PrintService, Prayer, TimeRange } from './print.service';
 import { SupabaseService } from './supabase.service';
 
+/** Matches PrintService: .from('prayer_updates').select('*').eq('tenant_id', id) */
+function mockPrayerUpdatesChain(resolved: { data: unknown; error: unknown }) {
+  return {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockResolvedValue(resolved),
+  };
+}
+
+const mockTenantContext = {
+  getActiveTenant: () => ({
+    id: 'tenant-1',
+    name: 'Test',
+    slug: 'test',
+    plan_tier: 'churches' as const,
+    plan_status: 'active' as const
+  })
+};
+
 describe('PrintService', () => {
   let service: PrintService;
   let mockSupabaseService: any;
@@ -51,9 +69,7 @@ describe('PrintService', () => {
     mockSupabaseClient = {
       from: vi.fn().mockImplementation((table: string) => {
         if (table === 'prayer_updates') {
-          return {
-            select: vi.fn().mockResolvedValue({ data: [], error: null }),
-          };
+          return mockPrayerUpdatesChain({ data: [], error: null });
         }
         return createMockChain();
       }),
@@ -68,9 +84,7 @@ describe('PrintService', () => {
     const originalFrom = mockSupabaseClient.from;
     mockSupabaseClient.from = vi.fn().mockImplementation((table: string) => {
       if (table === 'prayer_updates') {
-        return {
-          select: vi.fn().mockResolvedValue({ data: [], error: null }),
-        };
+        return mockPrayerUpdatesChain({ data: [], error: null });
       }
       return originalFrom(table);
     });
@@ -112,7 +126,7 @@ describe('PrintService', () => {
       } as any;
     });
 
-    service = new PrintService(mockSupabaseService, mockPrayerService);
+    service = new PrintService(mockSupabaseService, mockPrayerService, mockTenantContext as any);
   });
 
   afterEach(() => {
@@ -323,9 +337,7 @@ describe('PrintService', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockSupabaseClient.from = vi.fn().mockImplementation((table: string) => {
         if (table === 'prayer_updates') {
-          return {
-            select: vi.fn().mockResolvedValue({ data: null, error: { message: 'Update error' } }),
-          };
+          return mockPrayerUpdatesChain({ data: null, error: { message: 'Update error' } });
         }
         return {
           select: vi.fn().mockReturnThis(),
@@ -346,9 +358,7 @@ describe('PrintService', () => {
       vi.spyOn(console, 'error').mockImplementation(() => {});
       mockSupabaseClient.from = vi.fn().mockImplementation((table: string) => {
         if (table === 'prayer_updates') {
-          return {
-            select: vi.fn().mockResolvedValue({ data: null, error: { message: 'Update error' } }),
-          };
+          return mockPrayerUpdatesChain({ data: null, error: { message: 'Update error' } });
         }
         return {
           select: vi.fn().mockReturnThis(),
@@ -376,27 +386,25 @@ describe('PrintService', () => {
 
       mockSupabaseClient.from = vi.fn().mockImplementation((table: string) => {
         if (table === 'prayer_updates') {
-          return {
-            select: vi.fn().mockResolvedValue({
-              data: [
-                {
-                  id: 'u1',
-                  prayer_id: '1',
-                  content: 'Update',
-                  approval_status: 'approved',
-                  created_at: new Date().toISOString()
-                },
-                {
-                  id: 'u2',
-                  prayer_id: '1',
-                  content: 'Unapproved',
-                  approval_status: 'pending',
-                  created_at: new Date().toISOString()
-                }
-              ],
-              error: null
-            }),
-          };
+          return mockPrayerUpdatesChain({
+            data: [
+              {
+                id: 'u1',
+                prayer_id: '1',
+                content: 'Update',
+                approval_status: 'approved',
+                created_at: new Date().toISOString()
+              },
+              {
+                id: 'u2',
+                prayer_id: '1',
+                content: 'Unapproved',
+                approval_status: 'pending',
+                created_at: new Date().toISOString()
+              }
+            ],
+            error: null
+          });
         }
         return {
           select: vi.fn().mockReturnThis(),
@@ -424,9 +432,7 @@ describe('PrintService', () => {
 
       mockSupabaseClient.from = vi.fn().mockImplementation((table: string) => {
         if (table === 'prayer_updates') {
-          return {
-            select: vi.fn().mockResolvedValue({ data: null, error: null }),
-          };
+          return mockPrayerUpdatesChain({ data: null, error: null });
         }
         return {
           select: vi.fn().mockReturnThis(),
@@ -474,20 +480,18 @@ describe('PrintService', () => {
 
       mockSupabaseClient.from = vi.fn().mockImplementation((table: string) => {
         if (table === 'prayer_updates') {
-          return {
-            select: vi.fn().mockResolvedValue({
-              data: [
-                {
-                  id: 'u1',
-                  prayer_id: '2',
-                  content: 'Recent update',
-                  approval_status: 'approved',
-                  created_at: recentUpdate
-                }
-              ],
-              error: null
-            }),
-          };
+          return mockPrayerUpdatesChain({
+            data: [
+              {
+                id: 'u1',
+                prayer_id: '2',
+                content: 'Recent update',
+                approval_status: 'approved',
+                created_at: recentUpdate
+              }
+            ],
+            error: null
+          });
         }
         return {
           select: vi.fn().mockReturnThis(),
@@ -549,7 +553,7 @@ describe('PrintService', () => {
         client: mockSupabaseClient
       };
 
-      service = new PrintService(mockSupabaseService as any, mockPrayerService);
+      service = new PrintService(mockSupabaseService as any, mockPrayerService, mockTenantContext as any);
     });
 
     it('should filter by month correctly', () => {
@@ -631,7 +635,7 @@ describe('PrintService', () => {
         }
       };
 
-      service = new PrintService(mockSupabaseService as any, mockPrayerService);
+      service = new PrintService(mockSupabaseService as any, mockPrayerService, mockTenantContext as any);
     });
 
     it('should handle current prayer status', () => {
@@ -701,7 +705,7 @@ describe('PrintService', () => {
         }
       };
 
-      service = new PrintService(mockSupabaseService as any, mockPrayerService);
+      service = new PrintService(mockSupabaseService as any, mockPrayerService, mockTenantContext as any);
     });
 
     it('should generate valid HTML', () => {
@@ -777,7 +781,7 @@ describe('PrintService', () => {
         }
       };
 
-      service = new PrintService(mockSupabaseService as any, mockPrayerService);
+      service = new PrintService(mockSupabaseService as any, mockPrayerService, mockTenantContext as any);
     });
 
     it('should create valid filename', () => {
@@ -849,7 +853,7 @@ describe('PrintService', () => {
         }
       };
 
-      service = new PrintService(mockSupabaseService as any, mockPrayerService);
+      service = new PrintService(mockSupabaseService as any, mockPrayerService, mockTenantContext as any);
     });
 
     it('should handle database query errors', { timeout: 10000 }, async () => {
@@ -1452,9 +1456,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
       mockSupabaseClient = {
         from: vi.fn().mockImplementation((table: string) => {
           if (table === 'prayer_updates') {
-            return {
-              select: vi.fn().mockResolvedValue({ data: [], error: null }),
-            };
+            return mockPrayerUpdatesChain({ data: [], error: null });
           }
           return createMockChain();
         })
@@ -1462,7 +1464,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
 
       mockSupabaseService = { client: mockSupabaseClient } as any;
       mockPrayerService = { getPersonalPrayers: vi.fn() };
-      service = new PrintService(mockSupabaseService, mockPrayerService);
+      service = new PrintService(mockSupabaseService, mockPrayerService, mockTenantContext as any);
 
       global.window.open = vi.fn(() => ({
         document: {
@@ -1761,7 +1763,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
 
         mockSupabaseClient.from = vi.fn().mockImplementation((table: string) => {
           if (table === 'prayer_updates') {
-            return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+            return mockPrayerUpdatesChain({ data: [], error: null });
           }
           return mockChain();
         });
@@ -1816,7 +1818,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
 
         mockSupabaseClient.from = vi.fn().mockImplementation((table: string) => {
           if (table === 'prayer_updates') {
-            return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+            return mockPrayerUpdatesChain({ data: [], error: null });
           }
           return mockChain();
         });
@@ -1851,7 +1853,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
 
         mockSupabaseClient.from = vi.fn().mockImplementation((table: string) => {
           if (table === 'prayer_updates') {
-            return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+            return mockPrayerUpdatesChain({ data: [], error: null });
           }
           return mockChain();
         });
@@ -1882,7 +1884,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
 
         mockSupabaseClient.from = vi.fn().mockImplementation((table: string) => {
           if (table === 'prayer_updates') {
-            return { select: vi.fn().mockResolvedValue({ data: null, error: { message: 'Update error' } }) };
+            return mockPrayerUpdatesChain({ data: null, error: { message: 'Update error' } });
           }
           return mockChain();
         });
@@ -1902,7 +1904,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
 
         mockSupabaseClient.from = vi.fn().mockImplementation((table: string) => {
           if (table === 'prayer_updates') {
-            return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+            return mockPrayerUpdatesChain({ data: [], error: null });
           }
           return mockChain();
         });
@@ -2044,6 +2046,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
           if (table === 'prayer_prompts') {
             return {
               select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
               order: vi.fn().mockResolvedValue({ data: mockPrompts, error: null })
             };
           } else if (table === 'prayer_types') {
@@ -2059,7 +2062,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
 
       mockSupabaseService = { client: mockSupabaseClient } as any;
       mockPrayerService = { getPersonalPrayers: vi.fn() };
-      service = new PrintService(mockSupabaseService, mockPrayerService);
+      service = new PrintService(mockSupabaseService, mockPrayerService, mockTenantContext as any);
 
       global.window.open = vi.fn(() => ({
         document: {
@@ -2090,6 +2093,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
         if (table === 'prayer_prompts') {
           return {
             select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
             order: vi.fn().mockResolvedValue({ 
               data: mockPrompts.filter(p => p.type === 'Praise'),
               error: null
@@ -2150,6 +2154,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
         if (table === 'prayer_prompts') {
           return {
             select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
             order: vi.fn().mockResolvedValue({ data: [], error: null })
           };
         } else if (table === 'prayer_types') {
@@ -2172,6 +2177,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
         if (table === 'prayer_prompts') {
           return {
             select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
             order: vi.fn().mockResolvedValue({ data: mockPrompts, error: null })
           };
         } else if (table === 'prayer_types') {
@@ -2194,6 +2200,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
         if (table === 'prayer_prompts') {
           return {
             select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
             order: vi.fn().mockResolvedValue({ data: null, error: { message: 'Fetch error' } })
           };
         }
@@ -2210,6 +2217,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
         if (table === 'prayer_prompts') {
           return {
             select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
             order: vi.fn().mockResolvedValue({ data: mockPrompts, error: null })
           };
         } else if (table === 'prayer_types') {
@@ -2263,6 +2271,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
         if (table === 'prayer_prompts') {
           return {
             select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
             order: vi.fn().mockResolvedValue({ data: null, error: { message: 'Error' } })
           };
         }
@@ -2310,7 +2319,8 @@ describe('PrintService - Advanced Coverage Tests', () => {
           from: vi.fn()
         }
       } as any;
-      service = new PrintService(mockSupabaseService, mockPrayerService);
+      mockPrayerService = { getPersonalPrayers: vi.fn() };
+      service = new PrintService(mockSupabaseService, mockPrayerService, mockTenantContext as any);
       
       global.window.open = vi.fn(() => ({
         document: {
@@ -2336,6 +2346,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
         if (table === 'prayer_prompts') {
           return {
             select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
             order: vi.fn().mockResolvedValue({ data: mockPrompts, error: null })
           };
         } else if (table === 'prayer_types') {
@@ -2345,7 +2356,11 @@ describe('PrintService - Advanced Coverage Tests', () => {
             order: vi.fn().mockResolvedValue({ data: [], error: null })
           };
         }
-        return { select: vi.fn().mockReturnThis(), order: vi.fn().mockResolvedValue({ data: [], error: null }) };
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          order: vi.fn().mockResolvedValue({ data: [], error: null })
+        };
       });
 
       const mockWindow = {
@@ -2381,6 +2396,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
         if (table === 'prayer_prompts') {
           return {
             select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
             order: vi.fn().mockResolvedValue({ data: mockPrompts, error: null })
           };
         } else if (table === 'prayer_types') {
@@ -2390,7 +2406,11 @@ describe('PrintService - Advanced Coverage Tests', () => {
             order: vi.fn().mockResolvedValue({ data: mockTypes, error: null })
           };
         }
-        return { select: vi.fn().mockReturnThis(), order: vi.fn().mockResolvedValue({ data: [], error: null }) };
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          order: vi.fn().mockResolvedValue({ data: [], error: null })
+        };
       });
 
       const mockWindow = {
@@ -2422,6 +2442,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
         if (table === 'prayer_prompts') {
           return {
             select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
             order: vi.fn().mockResolvedValue({ data: mockPrompts, error: null })
           };
         } else if (table === 'prayer_types') {
@@ -2431,7 +2452,11 @@ describe('PrintService - Advanced Coverage Tests', () => {
             order: vi.fn().mockResolvedValue({ data: [], error: null })
           };
         }
-        return { select: vi.fn().mockReturnThis(), order: vi.fn().mockResolvedValue({ data: [], error: null }) };
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          order: vi.fn().mockResolvedValue({ data: [], error: null })
+        };
       });
 
       const mockWindow = {
@@ -2466,6 +2491,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
         if (table === 'prayer_prompts') {
           return {
             select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
             order: vi.fn().mockResolvedValue({ data: mockPrompts, error: null })
           };
         } else if (table === 'prayer_types') {
@@ -2475,7 +2501,11 @@ describe('PrintService - Advanced Coverage Tests', () => {
             order: vi.fn().mockResolvedValue({ data: mockTypes, error: null })
           };
         }
-        return { select: vi.fn().mockReturnThis(), order: vi.fn().mockResolvedValue({ data: [], error: null }) };
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          order: vi.fn().mockResolvedValue({ data: [], error: null })
+        };
       });
 
       const mockWindow = {
@@ -2505,6 +2535,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
         if (table === 'prayer_prompts') {
           return {
             select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
             order: vi.fn().mockResolvedValue({ data: mockPrompts, error: null })
           };
         } else if (table === 'prayer_types') {
@@ -2514,7 +2545,11 @@ describe('PrintService - Advanced Coverage Tests', () => {
             order: vi.fn().mockResolvedValue({ data: [], error: null })
           };
         }
-        return { select: vi.fn().mockReturnThis(), order: vi.fn().mockResolvedValue({ data: [], error: null }) };
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          order: vi.fn().mockResolvedValue({ data: [], error: null })
+        };
       });
 
       const mockWindow = {
@@ -2543,7 +2578,8 @@ describe('PrintService - Advanced Coverage Tests', () => {
       mockSupabaseService = {
         client: { from: vi.fn() }
       } as any;
-      service = new PrintService(mockSupabaseService, mockPrayerService);
+      mockPrayerService = { getPersonalPrayers: vi.fn() };
+      service = new PrintService(mockSupabaseService, mockPrayerService, mockTenantContext as any);
     });
 
     it('should escape HTML in prompt titles during generation', () => {
@@ -2706,7 +2742,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
         getPersonalPrayers: vi.fn()
       };
 
-      service = new PrintService(mockSupabaseService, mockPrayerService);
+      service = new PrintService(mockSupabaseService, mockPrayerService, mockTenantContext as any);
 
       global.window.open = vi.fn(() => ({
         document: {

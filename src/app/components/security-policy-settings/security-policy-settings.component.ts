@@ -1,33 +1,43 @@
-import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
+import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
+import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
 
 type AllowanceLevel = 'everyone' | 'original-requestor' | 'admin-only';
 
 @Component({
   selector: 'app-security-policy-settings',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, AdminSectionLoadingComponent, AdminCollapsibleSectionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-      <div class="flex items-center gap-2 mb-4">
-        <svg class="text-blue-600 dark:text-blue-400" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-        </svg>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Security & Access Policies
-        </h3>
-      </div>
+    <app-admin-collapsible-section
+      title="Security & Access Policies"
+      triggerId="security-policy-settings-trigger"
+      panelId="security-policy-panel"
+      [expanded]="sectionExpanded"
+      (expandedChange)="onExpandedChange($event)"
+    >
+      <svg
+        sectionIcon
+        class="text-blue-600 dark:text-blue-400 shrink-0"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+      </svg>
 
       @if (loading) {
-      <div class="flex items-center justify-center py-8">
-        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-      }
-
-      @if (!loading) {
+        <app-admin-section-loading message="Loading security policies…" />
+      } @else {
         <!-- Info Box -->
         <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-4">
           <p class="text-sm text-blue-800 dark:text-blue-200">
@@ -131,7 +141,7 @@ type AllowanceLevel = 'everyone' | 'original-requestor' | 'admin-only';
           </button>
         </div>
       }
-    </div>
+    </app-admin-collapsible-section>
   `,
   styles: [`
     :host {
@@ -139,7 +149,10 @@ type AllowanceLevel = 'everyone' | 'original-requestor' | 'admin-only';
     }
   `]
 })
-export class SecurityPolicySettingsComponent implements OnInit {
+export class SecurityPolicySettingsComponent {
+  sectionExpanded = false;
+  private sectionInitialLoadDone = false;
+
   deletionsAllowed: AllowanceLevel = 'everyone';
   updatesAllowed: AllowanceLevel = 'everyone';
   loading = false;
@@ -152,8 +165,13 @@ export class SecurityPolicySettingsComponent implements OnInit {
     private cdr: ChangeDetectorRef
   ) {}
 
-  async ngOnInit() {
-    await this.loadSettings();
+  onExpandedChange(expanded: boolean): void {
+    this.sectionExpanded = expanded;
+    if (this.sectionExpanded && !this.sectionInitialLoadDone) {
+      this.sectionInitialLoadDone = true;
+      void this.loadSettings();
+    }
+    this.cdr.markForCheck();
   }
 
   async loadSettings() {

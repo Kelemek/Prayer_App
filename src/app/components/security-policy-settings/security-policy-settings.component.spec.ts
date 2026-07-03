@@ -54,18 +54,39 @@ describe('SecurityPolicySettingsComponent', () => {
   });
 
   describe('component initialization', () => {
-    it('should initialize with default values', () => {
+    it('should have default collapsed state', () => {
+      expect(component.sectionExpanded).toBe(false);
       expect(component.deletionsAllowed).toBe('everyone');
       expect(component.updatesAllowed).toBe('everyone');
       expect(component.loading).toBe(false);
       expect(component.saving).toBe(false);
       expect(component.error).toBe(null);
     });
+  });
 
-    it('should call loadSettings on init', async () => {
-      const loadSettingsSpy = vi.spyOn(component, 'loadSettings');
-      await component.ngOnInit();
-      expect(loadSettingsSpy).toHaveBeenCalled();
+  describe('onExpandedChange', () => {
+    it('should lazy-load settings on first expand', async () => {
+      component.onExpandedChange(true);
+      await component.loadSettings();
+
+      expect(component.sectionExpanded).toBe(true);
+      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('admin_settings');
+    });
+
+    it('should not load settings before section is expanded', async () => {
+      await Promise.resolve();
+      expect(mockSupabaseService.client.from).not.toHaveBeenCalled();
+    });
+
+    it('should not re-fetch on second expand', async () => {
+      component.onExpandedChange(true);
+      await component.loadSettings();
+      mockSupabaseService.client.from.mockClear();
+
+      component.onExpandedChange(false);
+      component.onExpandedChange(true);
+
+      expect(mockSupabaseService.client.from).not.toHaveBeenCalled();
     });
   });
 

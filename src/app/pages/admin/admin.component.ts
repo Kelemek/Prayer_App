@@ -17,6 +17,8 @@ import { AppBrandingComponent } from '../../components/app-branding/app-branding
 import { PromptManagerComponent } from '../../components/prompt-manager/prompt-manager.component';
 import { PrayerTypesManagerComponent } from '../../components/prayer-types-manager/prayer-types-manager.component';
 import { EmailSettingsComponent } from '../../components/email-settings/email-settings.component';
+import { EmailSubscribersComponent } from '../../components/email-subscribers/email-subscribers.component';
+import { EmailTemplatesManagerComponent } from '../../components/email-templates-manager/email-templates-manager.component';
 import { AdminUserManagementComponent } from '../../components/admin-user-management/admin-user-management.component';
 import { PrayerSearchComponent } from '../../components/prayer-search/prayer-search.component';
 import { PrayerArchiveTimelineComponent } from '../../components/prayer-archive-timeline/prayer-archive-timeline.component';
@@ -28,6 +30,7 @@ import { GitHubSettingsComponent } from '../../components/github-settings/github
 import { PrayerEncouragementSettingsComponent } from '../../components/prayer-encouragement-settings/prayer-encouragement-settings.component';
 import { ConfirmationDialogComponent } from '../../components/confirmation-dialog/confirmation-dialog.component';
 import { TenantManagementComponent } from '../../components/tenant-management/tenant-management.component';
+import { SiteAnalyticsActivityChartComponent } from '../../components/site-analytics-activity-chart/site-analytics-activity-chart.component';
 import { TenantContextService } from '../../services/tenant-context.service';
 
 type AdminTab = 'prayers' | 'updates' | 'deletions' | 'accounts' | 'settings';
@@ -48,6 +51,8 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
     PromptManagerComponent,
     PrayerTypesManagerComponent,
     EmailSettingsComponent,
+    EmailSubscribersComponent,
+    EmailTemplatesManagerComponent,
     AdminUserManagementComponent,
     PrayerSearchComponent,
     PrayerArchiveTimelineComponent,
@@ -58,7 +63,8 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
     GitHubSettingsComponent,
     PrayerEncouragementSettingsComponent,
     ConfirmationDialogComponent,
-    TenantManagementComponent
+    TenantManagementComponent,
+    SiteAnalyticsActivityChartComponent
   ],
   styles: `
     /* Safe area support for notched/dynamic island devices */
@@ -611,6 +617,7 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
                     <div class="text-xs text-amber-600/70 dark:text-amber-400/70 mt-1">leader or tenant_admin roles</div>
                   </div>
                 </div>
+                    <app-site-analytics-activity-chart></app-site-analytics-activity-chart>
               }
                 </div>
               </div>
@@ -640,7 +647,13 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
             @if (activeSettingsTab === 'email') {
               <div class="space-y-6">
                 <div class="mb-4">
+                  <app-email-subscribers></app-email-subscribers>
+                </div>
+                <div class="mb-4">
                   <app-email-settings></app-email-settings>
+                </div>
+                <div class="mb-4">
+                  <app-email-templates-manager></app-email-templates-manager>
                 </div>
               </div>
             }

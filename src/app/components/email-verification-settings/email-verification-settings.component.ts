@@ -1,32 +1,42 @@
-import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
+import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
+import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
 
 @Component({
   selector: 'app-email-verification-settings',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, AdminSectionLoadingComponent, AdminCollapsibleSectionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-      <div class="flex items-center gap-2 mb-4">
-        <svg class="text-blue-600 dark:text-blue-400" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-          <polyline points="22,6 12,13 2,6"></polyline>
-        </svg>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Email Verification (2FA)
-        </h3>
-      </div>
+    <app-admin-collapsible-section
+      title="Email Verification (2FA)"
+      triggerId="email-verification-settings-trigger"
+      panelId="email-verification-panel"
+      [expanded]="sectionExpanded"
+      (expandedChange)="onExpandedChange($event)"
+    >
+      <svg
+        sectionIcon
+        class="text-blue-600 dark:text-blue-400 shrink-0"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+        <polyline points="22,6 12,13 2,6"></polyline>
+      </svg>
 
       @if (loading) {
-      <div class="flex items-center justify-center py-8">
-        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-      }
-
-      @if (!loading) {
+        <app-admin-section-loading message="Loading email verification settings…" />
+      } @else {
         <!-- Email Verification Settings (Always Enabled) -->
         <div class="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-md p-4">
           <!-- Verification Code Settings -->
@@ -110,11 +120,14 @@ import { ToastService } from '../../services/toast.service';
           </button>
         </div>
       }
-    </div>
+    </app-admin-collapsible-section>
   `,
   styles: []
 })
-export class EmailVerificationSettingsComponent implements OnInit {
+export class EmailVerificationSettingsComponent {
+  sectionExpanded = false;
+  private sectionInitialLoadDone = false;
+
   verificationCodeLength = 6;
   verificationCodeExpiryMinutes = 15;
   loading = false;
@@ -126,8 +139,13 @@ export class EmailVerificationSettingsComponent implements OnInit {
     private cdr: ChangeDetectorRef
   ) {}
 
-  ngOnInit() {
-    this.loadSettings();
+  onExpandedChange(expanded: boolean): void {
+    this.sectionExpanded = expanded;
+    if (this.sectionExpanded && !this.sectionInitialLoadDone) {
+      this.sectionInitialLoadDone = true;
+      void this.loadSettings();
+    }
+    this.cdr.markForCheck();
   }
 
   async loadSettings() {

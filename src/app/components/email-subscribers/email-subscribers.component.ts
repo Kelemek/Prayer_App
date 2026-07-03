@@ -9,6 +9,8 @@ import { AdminDataService } from '../../services/admin-data.service';
 import { TenantContextService } from '../../services/tenant-context.service';
 import { SendNotificationDialogComponent } from '../send-notification-dialog/send-notification-dialog.component';
 import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
+import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
+import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
 
 interface EmailSubscriber {
   id: string;
@@ -32,41 +34,49 @@ interface CSVRow {
 @Component({
   selector: 'app-email-subscribers',
   standalone: true,
-  imports: [CommonModule, FormsModule, SendNotificationDialogComponent, ConfirmationDialogComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    SendNotificationDialogComponent,
+    ConfirmationDialogComponent,
+    AdminSectionLoadingComponent,
+    AdminCollapsibleSectionComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (!activeTenantId) {
-    <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-      Select an organization above to manage email subscribers for that tenant.
-    </p>
-    }
-    @if (activeTenantId) {
-    <div #emailSubscribersContainer class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6 border border-gray-200 dark:border-gray-700">
-      <div class="flex items-center justify-between mb-6">
-        <div class="flex items-center gap-2">
-          <svg class="text-blue-600 dark:text-blue-400" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-            <polyline points="22,6 12,13 2,6"></polyline>
-          </svg>
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Email Subscribers
-          </h3>
-        </div>
-        <button
-          (click)="handleSearch()"
-          [disabled]="searching"
-          class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors cursor-pointer"
-          title="Refresh subscribers"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" [class.animate-spin]="searching" class="text-gray-600 dark:text-gray-400">
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <polyline points="1 20 1 14 7 14"></polyline>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-          </svg>
-        </button>
-      </div>
+    <app-admin-collapsible-section
+      title="Email Subscribers"
+      triggerId="email-subscribers-trigger"
+      panelId="email-subscribers-panel"
+      [expanded]="sectionExpanded"
+      (expandedChange)="onExpandedChange($event)"
+    >
+      <svg
+        sectionIcon
+        class="text-blue-600 dark:text-blue-400 shrink-0"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+        <circle cx="12" cy="7" r="4"></circle>
+      </svg>
 
-      <div class="flex gap-2 mb-4 justify-end">
+      @if (isLoading) {
+        <app-admin-section-loading message="Loading email subscribers…" />
+      } @else {
+        @if (!activeTenantId) {
+          <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+            Select an organization above to manage email subscribers for that tenant.
+          </p>
+        } @else {
+          <div #emailSubscribersContainer>
+            <div class="flex gap-2 mb-4 justify-end">
         <button
           (click)="toggleCSVUpload()"
           title="Toggle CSV upload"
@@ -207,7 +217,7 @@ interface CSVRow {
       <!-- Add Subscriber Form -->
       @if (showAddForm) {
       <div class="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 mb-4 border border-gray-200 dark:border-gray-700">
-        <form (ngSubmit)="handleAddSubscriber()" class="space-y-3">
+        <form novalidate class="space-y-3">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
@@ -215,6 +225,7 @@ interface CSVRow {
                 type="text"
                 [(ngModel)]="newName"
                 name="newName"
+                (keydown.enter)="onManualAddFieldEnter($event)"
                 placeholder="John Doe"
                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
@@ -226,15 +237,30 @@ interface CSVRow {
                 type="email"
                 [(ngModel)]="newEmail"
                 name="newEmail"
+                (keydown.enter)="onManualAddFieldEnter($event)"
                 placeholder="john@example.com"
                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
           </div>
+          @if (submitting) {
+            <div
+              class="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300"
+              role="status"
+              aria-live="polite"
+            >
+              <span
+                class="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-blue-600 border-t-transparent dark:border-blue-400 dark:border-t-transparent"
+                aria-hidden="true"
+              ></span>
+              <span>Adding…</span>
+            </div>
+          }
           <div class="flex gap-2">
             <button
-              type="submit"
+              type="button"
+              (click)="handleAddSubscriber()"
               [disabled]="submitting"
               class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 transition-colors text-sm cursor-pointer"
             >
@@ -243,7 +269,8 @@ interface CSVRow {
             <button
               type="button"
               (click)="toggleAddForm()"
-              class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm cursor-pointer"
+              [disabled]="submitting"
+              class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:pointer-events-none transition-colors text-sm cursor-pointer"
             >
               Cancel
             </button>
@@ -524,17 +551,20 @@ interface CSVRow {
       <!-- end @if (!searching && hasSearched && subscribers.length > 0) -->
       }
 
-      <!-- Send Welcome Email Dialog -->
-      @if (showSendWelcomeEmailDialog) {
+          </div>
+        }
+      }
+    </app-admin-collapsible-section>
+
+    @if (showSendWelcomeEmailDialog) {
       <app-send-notification-dialog
         [notificationType]="'subscriber'"
         (confirm)="onConfirmSendWelcomeEmail()"
         (decline)="onDeclineSendWelcomeEmail()">
       </app-send-notification-dialog>
-      }
+    }
 
-      <!-- Confirmation Dialog -->
-      @if (showConfirmationDialog) {
+    @if (showConfirmationDialog) {
       <app-confirmation-dialog
         [title]="confirmationTitle"
         [message]="confirmationMessage"
@@ -544,10 +574,9 @@ interface CSVRow {
         (confirm)="onConfirmDialog()"
         (cancel)="onCancelDialog()">
       </app-confirmation-dialog>
-      }
+    }
 
-      <!-- Edit Subscriber Dialog -->
-      @if (showEditSubscriberDialog) {
+    @if (showEditSubscriberDialog) {
       <div class="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full border border-gray-200 dark:border-gray-700">
           <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
@@ -601,8 +630,6 @@ interface CSVRow {
           </div>
         </div>
       </div>
-      }
-    </div>
     }
   `,
   styles: [`
@@ -613,6 +640,10 @@ interface CSVRow {
 })
 export class EmailSubscribersComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
+
+  sectionExpanded = false;
+  private sectionInitialLoadDone = false;
+  isLoading = false;
 
   get activeTenantId(): string | null {
     return this.tenantContext.getActiveTenant()?.id ?? null;
@@ -688,15 +719,12 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
     this.tenantContext.activeTenant$
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
-        if (this.activeTenantId) {
-          this.handleSearch();
-        } else {
-          this.subscribers = [];
-          this.allSubscribers = [];
-          this.totalItems = 0;
-          this.hasSearched = false;
-          this.cdr.markForCheck();
+        if (!this.activeTenantId) {
+          this.resetSubscriberState();
+        } else if (this.sectionExpanded) {
+          void this.handleSearch();
         }
+        this.cdr.markForCheck();
       });
     
     // Fewer pagination buttons on small screens so they don't overflow
@@ -718,6 +746,41 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
     window.addEventListener('orientationchange', this.orientationChangeListener);
     // Also listen for resize events for broader compatibility
     window.addEventListener('resize', this.resizeListener);
+  }
+
+  onExpandedChange(expanded: boolean): void {
+    this.sectionExpanded = expanded;
+    if (this.sectionExpanded && !this.sectionInitialLoadDone) {
+      this.sectionInitialLoadDone = true;
+      void this.initialLoad();
+    }
+    this.cdr.markForCheck();
+  }
+
+  private resetSubscriberState(): void {
+    this.subscribers = [];
+    this.allSubscribers = [];
+    this.totalItems = 0;
+    this.hasSearched = false;
+    this.error = null;
+    this.csvSuccess = null;
+  }
+
+  private async initialLoad(): Promise<void> {
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      return;
+    }
+
+    this.isLoading = true;
+    this.cdr.markForCheck();
+
+    try {
+      await this.handleSearch();
+    } finally {
+      this.isLoading = false;
+      this.cdr.markForCheck();
+    }
   }
 
   ngOnDestroy() {
@@ -827,7 +890,7 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
     }
   }
 
-  async handleSearch() {
+  async handleSearch(options?: { preserveCsvSuccess?: boolean }) {
     const tenantId = this.activeTenantId;
     if (!tenantId) {
       return;
@@ -835,7 +898,9 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
     try {
       this.searching = true;
       this.error = null;
-      this.csvSuccess = null;
+      if (!options?.preserveCsvSuccess) {
+        this.csvSuccess = null;
+      }
       this.currentPage = 1; // Reset to first page on new search
       this.cdr.markForCheck();
 
@@ -1025,10 +1090,25 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
 
   readonly Math = Math;
 
+  onManualAddFieldEnter(event: Event): void {
+    event.preventDefault();
+    void this.handleAddSubscriber();
+  }
+
   async handleAddSubscriber() {
     if (!this.newName.trim() || !this.newEmail.trim()) {
       this.error = 'Name and email are required';
       this.cdr.markForCheck();
+      this.cdr.detectChanges();
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const normalizedEmail = this.newEmail.toLowerCase().trim();
+    if (!emailRegex.test(normalizedEmail)) {
+      this.error = 'Enter a valid email address';
+      this.cdr.markForCheck();
+      this.cdr.detectChanges();
       return;
     }
 
@@ -1037,12 +1117,14 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       this.error = null;
       this.csvSuccess = null;
       this.cdr.markForCheck();
+      this.cdr.detectChanges();
 
       const tid = this.activeTenantId;
       if (!tid) {
         this.error = 'Select an organization first';
         this.submitting = false;
         this.cdr.markForCheck();
+        this.cdr.detectChanges();
         return;
       }
 
@@ -1050,13 +1132,14 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
         .from('email_subscribers')
         .select('email')
         .eq('tenant_id', tid)
-        .eq('email', this.newEmail.toLowerCase().trim())
+        .eq('email', normalizedEmail)
         .maybeSingle();
 
       if (existing) {
         this.error = 'This email address is already subscribed';
         this.submitting = false;
         this.cdr.markForCheck();
+        this.cdr.detectChanges();
         return;
       }
 
@@ -1064,7 +1147,7 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
         .from('email_subscribers')
         .insert({
           name: this.newName.trim(),
-          email: this.newEmail.toLowerCase().trim(),
+          email: normalizedEmail,
           is_active: true,
           is_admin: false,
           receive_admin_emails: false,
@@ -1074,22 +1157,23 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       if (error) throw error;
 
       this.csvSuccess = 'Subscriber added successfully!';
-      // Store the email for the welcome dialog
-      this.pendingSubscriberEmail = this.newEmail.toLowerCase().trim();
+      this.pendingSubscriberEmail = normalizedEmail;
       this.newName = '';
       this.newEmail = '';
-      // Show the send welcome email dialog
       this.showSendWelcomeEmailDialog = true;
       this.cdr.markForCheck();
-      // Refresh the list in background
-      await this.handleSearch();
+      this.cdr.detectChanges();
+      await this.handleSearch({ preserveCsvSuccess: true });
     } catch (err: any) {
       console.error('Error adding subscriber:', err);
       this.error = err.message || 'Failed to add subscriber';
+      this.toast.error(this.error ?? 'Failed to add subscriber');
       this.cdr.markForCheck();
+      this.cdr.detectChanges();
     } finally {
       this.submitting = false;
       this.cdr.markForCheck();
+      this.cdr.detectChanges();
     }
   }
 

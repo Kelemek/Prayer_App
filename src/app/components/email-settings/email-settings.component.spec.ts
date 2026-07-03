@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ChangeDetectorRef } from '@angular/core';
-import { of } from 'rxjs';
+import { BehaviorSubject } from 'rxjs';
 import { EmailSettingsComponent } from './email-settings.component';
 
 const MOCK_TENANT = {
@@ -21,17 +21,31 @@ describe('EmailSettingsComponent', () => {
   beforeEach(() => {
     mockTenantContext = {
       getActiveTenant: vi.fn(() => MOCK_TENANT),
-      activeTenant$: of(MOCK_TENANT)
+      activeTenant$: new BehaviorSubject(MOCK_TENANT)
     };
 
     mockSupabaseService = {
       client: {
+        auth: {
+          getSession: vi.fn(() =>
+            Promise.resolve({
+              data: {
+                session: {
+                  access_token: 'test-jwt',
+                  user: { email: 'admin@test.com' }
+                }
+              }
+            })
+          )
+        },
+        rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
         from: vi.fn(() => ({
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null }))
             }))
           })),
+          upsert: vi.fn(() => Promise.resolve({ error: null })),
           update: vi.fn(() => ({
             eq: vi.fn(() => Promise.resolve({ error: null }))
           }))
@@ -78,8 +92,12 @@ describe('EmailSettingsComponent', () => {
       expect(component.daysBeforeArchive).toBe(7);
     });
 
-    it('should have loading default to true', () => {
-      expect(component.loading).toBe(true);
+    it('should have isLoading default to false', () => {
+      expect(component.isLoading).toBe(false);
+    });
+
+    it('should have sectionExpanded default to false', () => {
+      expect(component.sectionExpanded).toBe(false);
     });
 
     it('should have savingReminders default to false', () => {
@@ -100,18 +118,29 @@ describe('EmailSettingsComponent', () => {
   });
 
   describe('ngOnInit', () => {
-    it('should call loadSettings on initialization', () => {
+    it('should not load settings until section is expanded', async () => {
       const loadSettingsSpy = vi.spyOn(component, 'loadSettings');
       component.ngOnInit();
+      await Promise.resolve();
+      expect(loadSettingsSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onExpandedChange', () => {
+    it('should lazy-load settings on first expand', async () => {
+      const loadSettingsSpy = vi.spyOn(component, 'loadSettings').mockResolvedValue(undefined);
+      component.onExpandedChange(true);
+      await component.loadSettings();
+      expect(component.sectionExpanded).toBe(true);
       expect(loadSettingsSpy).toHaveBeenCalled();
     });
   });
 
   describe('loadSettings', () => {
-    it('should set loading to true initially', async () => {
-      component.loading = false;
+    it('should set isLoading to true initially', async () => {
+      component.isLoading = false;
       const promise = component.loadSettings();
-      expect(component.loading).toBe(true);
+      expect(component.isLoading).toBe(true);
       await promise;
     });
 
@@ -122,13 +151,9 @@ describe('EmailSettingsComponent', () => {
         enable_auto_archive: true,
         days_before_archive: 10
       };
-      mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: mockData, error: null }))
-          }))
-        }))
-      }));
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({ data: [mockData], error: null })
+      );
 
       await component.loadSettings();
 
@@ -136,7 +161,7 @@ describe('EmailSettingsComponent', () => {
       expect(component.reminderIntervalDays).toBe(14);
       expect(component.enableAutoArchive).toBe(true);
       expect(component.daysBeforeArchive).toBe(10);
-      expect(component.loading).toBe(false);
+      expect(component.isLoading).toBe(false);
       expect(mockChangeDetectorRef.markForCheck).toHaveBeenCalled();
     });
 
@@ -147,13 +172,9 @@ describe('EmailSettingsComponent', () => {
         enable_auto_archive: null,
         days_before_archive: null
       };
-      mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: mockData, error: null }))
-          }))
-        }))
-      }));
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({ data: [mockData], error: null })
+      );
 
       const originalReminders = component.enableReminders;
       const originalInterval = component.reminderIntervalDays;
@@ -162,7 +183,7 @@ describe('EmailSettingsComponent', () => {
 
       expect(component.enableReminders).toBe(originalReminders);
       expect(component.reminderIntervalDays).toBe(originalInterval);
-      expect(component.loading).toBe(false);
+      expect(component.isLoading).toBe(false);
     });
 
     it('should handle undefined data fields gracefully', async () => {
@@ -172,13 +193,9 @@ describe('EmailSettingsComponent', () => {
         enable_auto_archive: undefined,
         days_before_archive: undefined
       };
-      mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: mockData, error: null }))
-          }))
-        }))
-      }));
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({ data: [mockData], error: null })
+      );
 
       const originalReminders = component.enableReminders;
       const originalInterval = component.reminderIntervalDays;
@@ -187,51 +204,43 @@ describe('EmailSettingsComponent', () => {
 
       expect(component.enableReminders).toBe(originalReminders);
       expect(component.reminderIntervalDays).toBe(originalInterval);
-      expect(component.loading).toBe(false);
+      expect(component.isLoading).toBe(false);
     });
 
     it('should handle error when loading settings fails', async () => {
       const mockError = { message: 'Database error' };
-      mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: mockError }))
-          }))
-        }))
-      }));
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({ data: null, error: mockError })
+      );
 
       await component.loadSettings();
 
       expect(component.error).toBe('Failed to load email settings: Database error');
-      expect(component.loading).toBe(false);
+      expect(component.isLoading).toBe(false);
       expect(mockChangeDetectorRef.markForCheck).toHaveBeenCalled();
     });
 
     it('should handle error without message', async () => {
       const mockError = {};
-      mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: mockError }))
-          }))
-        }))
-      }));
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({ data: null, error: mockError })
+      );
 
       await component.loadSettings();
 
       expect(component.error).toBe('Failed to load email settings: Unknown error');
-      expect(component.loading).toBe(false);
+      expect(component.isLoading).toBe(false);
     });
 
     it('should handle exception when loading settings', async () => {
-      mockSupabaseService.client.from = vi.fn(() => {
+      mockSupabaseService.client.rpc = vi.fn(() => {
         throw new Error('Network error');
       });
 
       await component.loadSettings();
 
       expect(component.error).toBe('Failed to load email settings: Network error');
-      expect(component.loading).toBe(false);
+      expect(component.isLoading).toBe(false);
     });
   });
 
@@ -244,11 +253,9 @@ describe('EmailSettingsComponent', () => {
     });
 
     it('should save reminder settings successfully', async () => {
-      mockSupabaseService.client.from = vi.fn(() => ({
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ error: null }))
-        }))
-      }));
+      const rpcMock = vi.fn(() => Promise.resolve({ error: null }));
+      mockSupabaseService.client.rpc = rpcMock;
+      vi.spyOn(component, 'loadSettings').mockResolvedValue(undefined);
 
       component.enableReminders = true;
       component.reminderIntervalDays = 10;
@@ -259,6 +266,14 @@ describe('EmailSettingsComponent', () => {
 
       await component.saveReminderSettings();
 
+      expect(rpcMock).toHaveBeenCalledWith('update_tenant_reminder_settings', {
+        p_tenant_id: MOCK_TENANT.id,
+        p_enable_reminders: true,
+        p_reminder_interval_days: 10,
+        p_enable_auto_archive: true,
+        p_days_before_archive: 5,
+        p_email: 'admin@test.com'
+      });
       expect(component.successReminders).toBe(true);
       expect(component.error).toBe(null);
       expect(component.savingReminders).toBe(false);
@@ -269,11 +284,8 @@ describe('EmailSettingsComponent', () => {
 
     it('should clear success message after 3 seconds', async () => {
       vi.useFakeTimers();
-      mockSupabaseService.client.from = vi.fn(() => ({
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ error: null }))
-        }))
-      }));
+      mockSupabaseService.client.rpc = vi.fn(() => Promise.resolve({ error: null }));
+      vi.spyOn(component, 'loadSettings').mockResolvedValue(undefined);
 
       await component.saveReminderSettings();
 
@@ -289,11 +301,7 @@ describe('EmailSettingsComponent', () => {
 
     it('should handle error when saving fails', async () => {
       const mockError = { message: 'Update failed' };
-      mockSupabaseService.client.from = vi.fn(() => ({
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ error: mockError }))
-        }))
-      }));
+      mockSupabaseService.client.rpc = vi.fn(() => Promise.resolve({ error: mockError }));
 
       await component.saveReminderSettings();
 
@@ -306,11 +314,7 @@ describe('EmailSettingsComponent', () => {
 
     it('should handle error without message', async () => {
       const mockError = {};
-      mockSupabaseService.client.from = vi.fn(() => ({
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ error: mockError }))
-        }))
-      }));
+      mockSupabaseService.client.rpc = vi.fn(() => Promise.resolve({ error: mockError }));
 
       await component.saveReminderSettings();
 
@@ -319,7 +323,7 @@ describe('EmailSettingsComponent', () => {
     });
 
     it('should handle exception when saving', async () => {
-      mockSupabaseService.client.from = vi.fn(() => {
+      mockSupabaseService.client.rpc = vi.fn(() => {
         throw new Error('Network error');
       });
 
@@ -328,6 +332,133 @@ describe('EmailSettingsComponent', () => {
       expect(component.error).toBe('Failed to save reminder settings: Network error');
       expect(component.savingReminders).toBe(false);
       expect(mockToastService.error).toHaveBeenCalledWith('Failed to save reminder settings');
+    });
+    it('should save disabled reminders via RPC', async () => {
+      const rpcMock = vi.fn(() => Promise.resolve({ error: null }));
+      mockSupabaseService.client.rpc = rpcMock;
+      vi.spyOn(component, 'loadSettings').mockResolvedValue(undefined);
+
+      component.enableReminders = false;
+      component.enableAutoArchive = false;
+
+      await component.saveReminderSettings();
+
+      expect(rpcMock).toHaveBeenCalledWith('update_tenant_reminder_settings', {
+        p_tenant_id: MOCK_TENANT.id,
+        p_enable_reminders: false,
+        p_reminder_interval_days: 7,
+        p_enable_auto_archive: false,
+        p_days_before_archive: 7,
+        p_email: 'admin@test.com'
+      });
+    });
+
+    it('should save via RPC when MFA session has no Supabase JWT', async () => {
+      mockSupabaseService.client.auth.getSession = vi.fn(() =>
+        Promise.resolve({ data: { session: null } })
+      );
+      vi.stubGlobal(
+        'localStorage',
+        {
+          getItem: vi.fn((key: string) =>
+            key === 'mfa_authenticated_email' ? 'admin@test.com' : null
+          ),
+          setItem: vi.fn(),
+          removeItem: vi.fn(),
+          clear: vi.fn(),
+          length: 0,
+          key: vi.fn()
+        }
+      );
+
+      const rpcMock = vi.fn(() => Promise.resolve({ error: null }));
+      mockSupabaseService.client.rpc = rpcMock;
+
+      component.enableReminders = true;
+      vi.spyOn(component, 'loadSettings').mockResolvedValue(undefined);
+      await component.saveReminderSettings();
+
+      expect(rpcMock).toHaveBeenCalledWith('update_tenant_reminder_settings', {
+        p_tenant_id: MOCK_TENANT.id,
+        p_enable_reminders: true,
+        p_reminder_interval_days: 7,
+        p_enable_auto_archive: false,
+        p_days_before_archive: 7,
+        p_email: 'admin@test.com'
+      });
+      expect(component.successReminders).toBe(true);
+    });
+
+    it('should load via RPC when MFA session has no Supabase JWT', async () => {
+      mockSupabaseService.client.auth.getSession = vi.fn(() =>
+        Promise.resolve({ data: { session: null } })
+      );
+      vi.stubGlobal(
+        'localStorage',
+        {
+          getItem: vi.fn((key: string) =>
+            key === 'mfa_authenticated_email' ? 'admin@test.com' : null
+          ),
+          setItem: vi.fn(),
+          removeItem: vi.fn(),
+          clear: vi.fn(),
+          length: 0,
+          key: vi.fn()
+        }
+      );
+
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({
+          data: [
+            {
+              enable_reminders: true,
+              reminder_interval_days: 21,
+              enable_auto_archive: false,
+              days_before_archive: 14
+            }
+          ],
+          error: null
+        })
+      );
+
+      await component.loadSettings();
+
+      expect(mockSupabaseService.client.rpc).toHaveBeenCalledWith('get_tenant_reminder_settings', {
+        p_tenant_id: MOCK_TENANT.id,
+        p_email: 'admin@test.com'
+      });
+      expect(component.enableReminders).toBe(true);
+      expect(component.reminderIntervalDays).toBe(21);
+    });
+  });
+
+  describe('onFormFieldChange', () => {
+    it('should clear success and trigger change detection', () => {
+      component.successReminders = true;
+      component.onFormFieldChange();
+      expect(component.successReminders).toBe(false);
+      expect(mockChangeDetectorRef.markForCheck).toHaveBeenCalled();
+    });
+  });
+
+  describe('onEnableRemindersChange', () => {
+    it('should disable reminders and clear auto-archive when unchecked', () => {
+      component.enableReminders = true;
+      component.enableAutoArchive = true;
+
+      component.onEnableRemindersChange(false);
+
+      expect(component.enableReminders).toBe(false);
+      expect(component.enableAutoArchive).toBe(false);
+      expect(mockChangeDetectorRef.markForCheck).toHaveBeenCalled();
+    });
+
+    it('should enable reminders when checked', () => {
+      component.enableReminders = false;
+
+      component.onEnableRemindersChange(true);
+
+      expect(component.enableReminders).toBe(true);
     });
   });
 

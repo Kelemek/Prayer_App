@@ -18,32 +18,20 @@ export class TenantManagementService {
       throw new Error('You must be logged in to create a tenant');
     }
 
-    const { data: tenant, error } = await this.supabase.client
-      .from('tenants')
-      .insert({
-        name,
-        slug,
-        plan_tier: planTier,
-        plan_status: 'active',
-        created_by_email: userEmail
-      })
-      .select('id, name, slug, plan_tier, plan_status')
-      .single();
+    const { data: { session } } = await this.supabase.client.auth.getSession();
+    const hasSupabaseJwt = !!session?.access_token;
+
+    const { data: tenant, error } = await this.supabase.client.rpc('create_tenant_for_user', {
+      p_name: name,
+      p_slug: slug,
+      p_plan_tier: planTier,
+      p_plan_status: 'active',
+      // MFA-only sessions have no JWT; RPC needs explicit email + DB-side authorization.
+      ...(hasSupabaseJwt ? {} : { p_email: userEmail })
+    });
 
     if (error || !tenant) {
       throw new Error(error?.message || 'Failed to create tenant');
-    }
-
-    const { error: membershipError } = await this.supabase.client
-      .from('tenant_memberships')
-      .insert({
-        tenant_id: tenant.id,
-        user_email: userEmail,
-        role: 'tenant_admin'
-      });
-
-    if (membershipError) {
-      throw new Error(membershipError.message);
     }
 
     await this.tenantContext.refresh();
@@ -139,6 +127,31 @@ export class TenantManagementService {
     await this.tenantContext.refresh();
   }
 
+  /** Resolves the signed-in actor (Supabase session or MFA local email). */
+  getActorEmail(): Promise<string | null> {
+    return this.getCurrentUserEmail();
+  }
+
+  /**
+   * All super admin emails (caller must already be super admin; uses RPC for MFA-safe listing).
+   */
+  async listSuperAdmins(): Promise<{ user_email: string }[]> {
+    const actor = await this.getCurrentUserEmail();
+    if (!actor) {
+      throw new Error('You must be logged in');
+    }
+
+    const { data, error } = await this.supabase.client.rpc('list_super_admins_for_caller', {
+      p_actor_email: actor.toLowerCase().trim()
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data || []) as { user_email: string }[];
+  }
+
   async assignSuperAdmin(email: string): Promise<void> {
     const normalizedEmail = email.toLowerCase().trim();
     const { error } = await this.supabase.client
@@ -151,6 +164,8 @@ export class TenantManagementService {
     if (error) {
       throw new Error(error.message);
     }
+
+    await this.tenantContext.refresh();
   }
 
   async removeSuperAdmin(email: string): Promise<void> {
@@ -163,6 +178,8 @@ export class TenantManagementService {
     if (error) {
       throw new Error(error.message);
     }
+
+    await this.tenantContext.refresh();
   }
 
   async getMembershipsForActiveTenant(): Promise<TenantMembership[]> {

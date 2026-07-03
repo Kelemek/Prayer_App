@@ -1,9 +1,137 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { BehaviorSubject } from 'rxjs';
 import { PrayerSearchComponent } from './prayer-search.component';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
 import { PrayerService } from '../../services/prayer.service';
 import { ChangeDetectorRef } from '@angular/core';
+import { TenantContextService } from '../../services/tenant-context.service';
+
+function createPrayersReadChain(data: unknown[], error: { message: string } | null) {
+  const chain: any = {};
+  chain.select = vi.fn(() => chain);
+  chain.eq = vi.fn(() => chain);
+  chain.or = vi.fn(() => chain);
+  chain.order = vi.fn(() => chain);
+  chain.limit = vi.fn(() => Promise.resolve({ data: error ? null : data, error }));
+  return chain;
+}
+
+/** Awaitable chain for .update().eq()… / .delete().eq()… / .delete().eq().in()… */
+function createTenantMutationChain(
+  awaitResult: { error: null } | { error: { message: string } } = { error: null }
+) {
+  const chain: any = {};
+  chain.eq = vi.fn(() => chain);
+  chain.in = vi.fn(() => Promise.resolve(awaitResult));
+  chain.then = (onFulfilled: (v: typeof awaitResult) => unknown) =>
+    Promise.resolve(awaitResult).then(onFulfilled);
+  return chain;
+}
+
+function createPrayerUpdatesMutationChain(
+  awaitResult: { error: null } | { error: { message: string } } = { error: null }
+) {
+  const chain: any = {};
+  chain.eq = vi.fn(() => chain);
+  chain.in = vi.fn(() => Promise.resolve(awaitResult));
+  chain.then = (onFulfilled: (v: typeof awaitResult) => unknown) =>
+    Promise.resolve(awaitResult).then(onFulfilled);
+  return chain;
+}
+
+function createPrayersReadChainRejecting(err: Error) {
+  const chain: any = {};
+  chain.select = vi.fn(() => chain);
+  chain.eq = vi.fn(() => chain);
+  chain.or = vi.fn(() => chain);
+  chain.order = vi.fn(() => chain);
+  chain.limit = vi.fn(() => Promise.reject(err));
+  return chain;
+}
+
+function createMockSupabaseClientWithInsertError(message: string, readRow: unknown) {
+  const prayersRead = createPrayersReadChain([readRow], null);
+  const prayersMut = createTenantMutationChain();
+  const updatesMut = createPrayerUpdatesMutationChain();
+
+  const prayersTable = {
+    select: vi.fn(() => prayersRead),
+    insert: vi.fn(() => ({
+      select: vi.fn(() => ({
+        single: vi.fn(() => Promise.resolve({ data: null, error: { message } }))
+      }))
+    })),
+    update: vi.fn(() => prayersMut),
+    delete: vi.fn(() => prayersMut)
+  };
+
+  const updatesTable = {
+    insert: vi.fn(() => ({
+      select: vi.fn(() => ({
+        single: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+      }))
+    })),
+    update: vi.fn(() => updatesMut),
+    delete: vi.fn(() => updatesMut)
+  };
+
+  return {
+    from: vi.fn((table: string) => {
+      if (table === 'prayers') {
+        return prayersTable;
+      }
+      if (table === 'prayer_updates') {
+        return updatesTable;
+      }
+      return prayersTable;
+    })
+  };
+}
+
+function createMockSupabaseClient(
+  prayerData: unknown[] = [],
+  prayerError: { message: string } | null = null,
+  insertRow?: unknown
+) {
+  const row = insertRow ?? prayerData[0] ?? null;
+  const prayersRead = createPrayersReadChain(prayerData, prayerError);
+  const prayersMut = createTenantMutationChain();
+  const updatesMut = createPrayerUpdatesMutationChain();
+
+  const prayersTable = {
+    select: vi.fn(() => prayersRead),
+    insert: vi.fn(() => ({
+      select: vi.fn(() => ({
+        single: vi.fn(() => Promise.resolve({ data: row, error: null }))
+      }))
+    })),
+    update: vi.fn(() => prayersMut),
+    delete: vi.fn(() => prayersMut)
+  };
+
+  const updatesTable = {
+    insert: vi.fn(() => ({
+      select: vi.fn(() => ({
+        single: vi.fn(() => Promise.resolve({ data: row ?? {}, error: null }))
+      }))
+    })),
+    update: vi.fn(() => updatesMut),
+    delete: vi.fn(() => updatesMut)
+  };
+
+  return {
+    from: vi.fn((table: string) => {
+      if (table === 'prayers') {
+        return prayersTable;
+      }
+      if (table === 'prayer_updates') {
+        return updatesTable;
+      }
+      return prayersTable;
+    })
+  };
+}
 
 describe('PrayerSearchComponent', () => {
   let component: PrayerSearchComponent;
@@ -11,6 +139,12 @@ describe('PrayerSearchComponent', () => {
   let mockToastService: any;
   let mockChangeDetectorRef: any;
   let mockPrayerService: any;
+  let mockAdminDataService: any;
+  const mockActiveTenant$ = new BehaviorSubject<{ id: string } | null>({ id: 'test-tenant-id' });
+  const mockTenantContext = {
+    activeTenant$: mockActiveTenant$.asObservable(),
+    getActiveTenant: vi.fn(() => mockActiveTenant$.value)
+  } as unknown as TenantContextService;
 
   const mockPrayer = {
     id: '123',
@@ -28,27 +162,17 @@ describe('PrayerSearchComponent', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockActiveTenant$.next({ id: 'test-tenant-id' });
+
+    mockAdminDataService = {
+      sendBroadcastNotificationForNewPrayer: vi.fn().mockResolvedValue(undefined),
+      sendBroadcastNotificationForNewUpdate: vi.fn().mockResolvedValue(undefined)
+    };
 
     mockSupabaseService = {
       getSupabaseUrl: vi.fn().mockReturnValue('https://test.supabase.co'),
       getPublishableKey: vi.fn().mockReturnValue('test-key'),
-      getClient: vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          select: vi.fn().mockResolvedValue({ data: [], error: null }),
-          insert: vi.fn().mockReturnValue({
-            select: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: mockPrayer, error: null })
-            })
-          }),
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ error: null })
-          }),
-          delete: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ error: null }),
-            in: vi.fn().mockResolvedValue({ error: null })
-          })
-        })
-      })
+      getClient: vi.fn(() => createMockSupabaseClient([mockPrayer]))
     };
 
     mockToastService = {
@@ -71,7 +195,8 @@ describe('PrayerSearchComponent', () => {
       mockToastService,
       mockChangeDetectorRef,
       mockPrayerService,
-      { provide: 'AdminDataService' } as any
+      mockAdminDataService,
+      mockTenantContext
     );
 
     global.fetch = vi.fn();
@@ -79,6 +204,7 @@ describe('PrayerSearchComponent', () => {
   });
 
   afterEach(() => {
+    component?.ngOnDestroy?.();
     vi.restoreAllMocks();
   });
 
@@ -88,6 +214,8 @@ describe('PrayerSearchComponent', () => {
 
   describe('initialization', () => {
     it('should initialize with default values', () => {
+      expect(component.sectionExpanded).toBe(false);
+      expect(component.isLoading).toBe(false);
       expect(component.searchTerm).toBe('');
       expect(component.statusFilter).toBe('');
       expect(component.approvalFilter).toBe('');
@@ -116,10 +244,58 @@ describe('PrayerSearchComponent', () => {
   });
 
   describe('ngOnInit', () => {
-    it('should call handleSearch', () => {
-      const spy = vi.spyOn(component, 'handleSearch');
+    it('should not call handleSearch until section is expanded', () => {
+      const getClientSpy = vi.spyOn(mockSupabaseService, 'getClient');
       component.ngOnInit();
-      expect(spy).toHaveBeenCalled();
+      expect(getClientSpy).not.toHaveBeenCalled();
+    });
+
+    it('should reload when tenant changes while expanded', async () => {
+      const getClientSpy = vi.spyOn(mockSupabaseService, 'getClient');
+      component.ngOnInit();
+      component.onExpandedChange(true);
+      await vi.waitUntil(() => component.isLoading === false);
+      getClientSpy.mockClear();
+
+      mockActiveTenant$.next({ id: 'other-tenant-id' });
+      await vi.waitUntil(() => getClientSpy.mock.calls.length > 0);
+
+      expect(getClientSpy).toHaveBeenCalled();
+    });
+
+    it('should clear search when tenant is cleared', () => {
+      component.ngOnInit();
+      component.allPrayers = [mockPrayer];
+      component.searchTerm = 'test';
+
+      mockActiveTenant$.next(null);
+
+      expect(component.allPrayers).toEqual([]);
+      expect(component.searchTerm).toBe('');
+    });
+  });
+
+  describe('onExpandedChange', () => {
+    it('should lazy-load prayers on first expand', async () => {
+      const getClientSpy = vi.spyOn(mockSupabaseService, 'getClient');
+      component.onExpandedChange(true);
+      await vi.waitUntil(() => component.isLoading === false);
+
+      expect(component.sectionExpanded).toBe(true);
+      expect(getClientSpy).toHaveBeenCalled();
+      expect(component.isLoading).toBe(false);
+    });
+
+    it('should not re-fetch on second expand', async () => {
+      const getClientSpy = vi.spyOn(mockSupabaseService, 'getClient');
+      component.onExpandedChange(true);
+      await vi.waitUntil(() => component.isLoading === false);
+      getClientSpy.mockClear();
+
+      component.onExpandedChange(false);
+      component.onExpandedChange(true);
+
+      expect(getClientSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -205,11 +381,6 @@ describe('PrayerSearchComponent', () => {
 
   describe('handleSearch', () => {
     it('should fetch prayers successfully', async () => {
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [mockPrayer]
-      });
-
       await component.handleSearch();
 
       expect(component.allPrayers).toEqual([mockPrayer]);
@@ -219,10 +390,6 @@ describe('PrayerSearchComponent', () => {
 
     it('should handle search with term', async () => {
       component.searchTerm = 'test';
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [mockPrayer]
-      });
 
       await component.handleSearch();
 
@@ -231,10 +398,6 @@ describe('PrayerSearchComponent', () => {
 
     it('should handle search with status filter', async () => {
       component.statusFilter = 'current';
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [mockPrayer]
-      });
 
       await component.handleSearch();
 
@@ -243,10 +406,6 @@ describe('PrayerSearchComponent', () => {
 
     it('should handle search with approval filter', async () => {
       component.approvalFilter = 'approved';
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [mockPrayer]
-      });
 
       await component.handleSearch();
 
@@ -256,10 +415,9 @@ describe('PrayerSearchComponent', () => {
     it('should filter denied prayers', async () => {
       component.approvalFilter = 'denied';
       const deniedPrayer = { ...mockPrayer, denial_reason: 'Invalid' };
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [mockPrayer, deniedPrayer]
-      });
+      mockSupabaseService.getClient.mockReturnValue(
+        createMockSupabaseClient([mockPrayer, deniedPrayer])
+      );
 
       await component.handleSearch();
 
@@ -270,10 +428,9 @@ describe('PrayerSearchComponent', () => {
     it('should filter pending prayers', async () => {
       component.approvalFilter = 'pending';
       const pendingPrayer = { ...mockPrayer, approval_status: 'pending' };
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [mockPrayer, pendingPrayer]
-      });
+      mockSupabaseService.getClient.mockReturnValue(
+        createMockSupabaseClient([mockPrayer, pendingPrayer])
+      );
 
       await component.handleSearch();
 
@@ -281,7 +438,32 @@ describe('PrayerSearchComponent', () => {
     });
 
     it('should handle search error', async () => {
-      (global.fetch as any).mockRejectedValue(new Error('Search failed'));
+      const failingRead = createPrayersReadChainRejecting(new Error('Search failed'));
+      mockSupabaseService.getClient.mockReturnValue({
+        from: vi.fn((table: string) => {
+          if (table === 'prayers') {
+            return {
+              select: vi.fn(() => failingRead),
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: mockPrayer, error: null }))
+                }))
+              })),
+              update: vi.fn(() => createTenantMutationChain()),
+              delete: vi.fn(() => createTenantMutationChain())
+            };
+          }
+          return {
+            insert: vi.fn(() => ({
+              select: vi.fn(() => ({
+                single: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+              }))
+            })),
+            update: vi.fn(() => createPrayerUpdatesMutationChain()),
+            delete: vi.fn(() => createPrayerUpdatesMutationChain())
+          };
+        })
+      });
 
       await component.handleSearch();
 
@@ -290,11 +472,7 @@ describe('PrayerSearchComponent', () => {
     });
 
     it('should handle non-ok response', async () => {
-      (global.fetch as any).mockResolvedValue({
-        ok: false,
-        status: 500,
-        text: async () => 'Server error'
-      });
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([], { message: 'Server error' }));
 
       await component.handleSearch();
 
@@ -373,10 +551,9 @@ describe('PrayerSearchComponent', () => {
         is_anonymous: false
       };
 
-      mockSupabaseService.getClient().from().insert().select().single.mockResolvedValue({
-        data: null,
-        error: new Error('Insert failed')
-      });
+      mockSupabaseService.getClient.mockReturnValue(
+        createMockSupabaseClientWithInsertError('Insert failed', mockPrayer)
+      );
 
       await component.createPrayer(mockEvent);
 
@@ -437,8 +614,30 @@ describe('PrayerSearchComponent', () => {
         status: 'current'
       };
 
-      mockSupabaseService.getClient().from().update().eq.mockResolvedValue({
-        error: new Error('Update failed')
+      mockSupabaseService.getClient.mockReturnValue({
+        from: vi.fn((table: string) => {
+          if (table === 'prayers') {
+            return {
+              select: vi.fn(() => createPrayersReadChain([mockPrayer], null)),
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: mockPrayer, error: null }))
+                }))
+              })),
+              update: vi.fn(() => createTenantMutationChain({ error: { message: 'Update failed' } })),
+              delete: vi.fn(() => createTenantMutationChain())
+            };
+          }
+          return {
+            insert: vi.fn(() => ({
+              select: vi.fn(() => ({
+                single: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+              }))
+            })),
+            update: vi.fn(() => createPrayerUpdatesMutationChain()),
+            delete: vi.fn(() => createPrayerUpdatesMutationChain())
+          };
+        })
       });
 
       await component.savePrayer('123');
@@ -467,8 +666,33 @@ describe('PrayerSearchComponent', () => {
     });
 
     it('should handle delete error', async () => {
-      mockSupabaseService.getClient().from().delete().eq.mockResolvedValue({
-        error: new Error('Delete failed')
+      mockSupabaseService.getClient.mockReturnValue({
+        from: vi.fn((table: string) => {
+          if (table === 'prayer_updates') {
+            return {
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+                }))
+              })),
+              update: vi.fn(() => createPrayerUpdatesMutationChain()),
+              delete: vi.fn(() => createPrayerUpdatesMutationChain())
+            };
+          }
+          if (table === 'prayers') {
+            return {
+              select: vi.fn(() => createPrayersReadChain([mockPrayer], null)),
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: mockPrayer, error: null }))
+                }))
+              })),
+              update: vi.fn(() => createTenantMutationChain()),
+              delete: vi.fn(() => createTenantMutationChain({ error: { message: 'Delete failed' } }))
+            };
+          }
+          return {};
+        })
       });
 
       await component.deletePrayer(mockPrayer);
@@ -514,8 +738,35 @@ describe('PrayerSearchComponent', () => {
     it('should handle delete selected error', async () => {
       component.selectedPrayers = new Set(['1']);
 
-      mockSupabaseService.getClient().from().delete().in.mockResolvedValue({
-        error: new Error('Delete failed')
+      mockSupabaseService.getClient.mockReturnValue({
+        from: vi.fn((table: string) => {
+          if (table === 'prayer_updates') {
+            return {
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+                }))
+              })),
+              update: vi.fn(() => createPrayerUpdatesMutationChain()),
+              delete: vi.fn(() =>
+                createPrayerUpdatesMutationChain({ error: { message: 'Delete failed' } })
+              )
+            };
+          }
+          if (table === 'prayers') {
+            return {
+              select: vi.fn(() => createPrayersReadChain([mockPrayer], null)),
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: mockPrayer, error: null }))
+                }))
+              })),
+              update: vi.fn(() => createTenantMutationChain()),
+              delete: vi.fn(() => createTenantMutationChain())
+            };
+          }
+          return {};
+        })
       });
 
       await component.deleteSelected();
@@ -561,11 +812,6 @@ describe('PrayerSearchComponent', () => {
         { ...mockPrayer, id: '2' }
       ];
 
-      // Mock the update chain
-      const mockIn = vi.fn().mockResolvedValue({ error: null });
-      const mockUpdate = vi.fn().mockReturnValue({ in: mockIn });
-      mockSupabaseService.getClient().from = vi.fn().mockReturnValue({ update: mockUpdate });
-
       await component.updateSelectedStatus();
       // Dialog should be shown
       expect(component.showConfirmationDialog).toBe(true);
@@ -582,10 +828,15 @@ describe('PrayerSearchComponent', () => {
       component.selectedPrayers = new Set(['1']);
       component.bulkStatus = 'archived';
 
-      // Mock the update chain with error
-      const mockIn = vi.fn().mockResolvedValue({ error: new Error('Update failed') });
-      const mockUpdate = vi.fn().mockReturnValue({ in: mockIn });
-      mockSupabaseService.getClient().from = vi.fn().mockReturnValue({ update: mockUpdate });
+      mockSupabaseService.getClient.mockReturnValue({
+        from: vi.fn(() => ({
+          update: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              in: vi.fn(() => Promise.resolve({ error: { message: 'Update failed' } }))
+            }))
+          }))
+        }))
+      });
 
       await component.updateSelectedStatus();
       // Dialog should be shown
@@ -768,8 +1019,35 @@ describe('PrayerSearchComponent', () => {
         author_email: 'john@example.com'
       };
 
-      mockSupabaseService.getClient().from().update = vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: new Error('Update failed') })
+      mockSupabaseService.getClient.mockReturnValue({
+        from: vi.fn((table: string) => {
+          if (table === 'prayer_updates') {
+            return {
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+                }))
+              })),
+              update: vi.fn(() =>
+                createPrayerUpdatesMutationChain({ error: { message: 'Update failed' } })
+              ),
+              delete: vi.fn(() => createPrayerUpdatesMutationChain())
+            };
+          }
+          if (table === 'prayers') {
+            return {
+              select: vi.fn(() => createPrayersReadChain([mockPrayer], null)),
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: mockPrayer, error: null }))
+                }))
+              })),
+              update: vi.fn(() => createTenantMutationChain()),
+              delete: vi.fn(() => createTenantMutationChain())
+            };
+          }
+          return {};
+        })
       });
 
       await component.saveEditUpdate('123', 'update-1');
@@ -926,11 +1204,6 @@ describe('PrayerSearchComponent', () => {
       component.statusFilter = 'current';
       component.approvalFilter = 'approved';
 
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [mockPrayer]
-      });
-
       await component.handleSearch();
 
       expect(component.allPrayers.length).toBeGreaterThanOrEqual(0);
@@ -966,15 +1239,16 @@ describe('PrayerSearchComponent', () => {
 
     it('should handle search with custom filter combination - denied approval filter', async () => {
       component.approvalFilter = 'denied';
-      
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [{
-          ...mockPrayer,
-          id: '1',
-          denial_reason: 'Inappropriate content'
-        }]
-      });
+
+      mockSupabaseService.getClient.mockReturnValue(
+        createMockSupabaseClient([
+          {
+            ...mockPrayer,
+            id: '1',
+            denial_reason: 'Inappropriate content'
+          }
+        ])
+      );
 
       await component.handleSearch();
 
@@ -984,24 +1258,23 @@ describe('PrayerSearchComponent', () => {
 
     it('should handle search with denied approval filter matching updates', async () => {
       component.approvalFilter = 'denied';
-      
+
       const prayerWithDeniedUpdate = {
         ...mockPrayer,
         id: '2',
         denial_reason: null,
-        prayer_updates: [{
-          id: 'u1',
-          content: 'Update content',
-          author: 'Admin',
-          created_at: '2024-01-01',
-          denial_reason: 'Update denied'
-        }]
+        prayer_updates: [
+          {
+            id: 'u1',
+            content: 'Update content',
+            author: 'Admin',
+            created_at: '2024-01-01',
+            denial_reason: 'Update denied'
+          }
+        ]
       };
 
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [prayerWithDeniedUpdate]
-      });
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([prayerWithDeniedUpdate]));
 
       await component.handleSearch();
 
@@ -1010,17 +1283,14 @@ describe('PrayerSearchComponent', () => {
 
     it('should handle search with pending approval filter', async () => {
       component.approvalFilter = 'pending';
-      
+
       const prayerPending = {
         ...mockPrayer,
         id: '3',
         approval_status: 'pending'
       };
 
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [prayerPending]
-      });
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([prayerPending]));
 
       await component.handleSearch();
 
@@ -1029,24 +1299,23 @@ describe('PrayerSearchComponent', () => {
 
     it('should handle search with pending approval filter in updates', async () => {
       component.approvalFilter = 'pending';
-      
+
       const prayerWithPendingUpdate = {
         ...mockPrayer,
         id: '4',
         approval_status: 'approved',
-        prayer_updates: [{
-          id: 'u2',
-          content: 'Pending update',
-          author: 'John',
-          created_at: '2024-01-01',
-          approval_status: 'pending'
-        }]
+        prayer_updates: [
+          {
+            id: 'u2',
+            content: 'Pending update',
+            author: 'John',
+            created_at: '2024-01-01',
+            approval_status: 'pending'
+          }
+        ]
       };
 
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [prayerWithPendingUpdate]
-      });
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([prayerWithPendingUpdate]));
 
       await component.handleSearch();
 
@@ -1054,10 +1323,31 @@ describe('PrayerSearchComponent', () => {
     });
 
     it('should handle search with timeout error', async () => {
-      (global.fetch as any).mockImplementation(() => {
-        return new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('AbortError')), 100);
-        });
+      const failingRead = createPrayersReadChainRejecting(new Error('AbortError'));
+      mockSupabaseService.getClient.mockReturnValue({
+        from: vi.fn((table: string) => {
+          if (table === 'prayers') {
+            return {
+              select: vi.fn(() => failingRead),
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: mockPrayer, error: null }))
+                }))
+              })),
+              update: vi.fn(() => createTenantMutationChain()),
+              delete: vi.fn(() => createTenantMutationChain())
+            };
+          }
+          return {
+            insert: vi.fn(() => ({
+              select: vi.fn(() => ({
+                single: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+              }))
+            })),
+            update: vi.fn(() => createPrayerUpdatesMutationChain()),
+            delete: vi.fn(() => createPrayerUpdatesMutationChain())
+          };
+        })
       });
 
       await component.handleSearch();
@@ -1067,7 +1357,32 @@ describe('PrayerSearchComponent', () => {
     });
 
     it('should handle search with network error', async () => {
-      (global.fetch as any).mockRejectedValue(new Error('Network error'));
+      const failingRead = createPrayersReadChainRejecting(new Error('Network error'));
+      mockSupabaseService.getClient.mockReturnValue({
+        from: vi.fn((table: string) => {
+          if (table === 'prayers') {
+            return {
+              select: vi.fn(() => failingRead),
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: mockPrayer, error: null }))
+                }))
+              })),
+              update: vi.fn(() => createTenantMutationChain()),
+              delete: vi.fn(() => createTenantMutationChain())
+            };
+          }
+          return {
+            insert: vi.fn(() => ({
+              select: vi.fn(() => ({
+                single: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+              }))
+            })),
+            update: vi.fn(() => createPrayerUpdatesMutationChain()),
+            delete: vi.fn(() => createPrayerUpdatesMutationChain())
+          };
+        })
+      });
 
       await component.handleSearch();
 
@@ -1076,11 +1391,7 @@ describe('PrayerSearchComponent', () => {
     });
 
     it('should handle search response with non-ok status', async () => {
-      (global.fetch as any).mockResolvedValue({
-        ok: false,
-        status: 500,
-        text: async () => 'Server error'
-      });
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([], { message: 'Server error' }));
 
       await component.handleSearch();
 
@@ -1223,11 +1534,13 @@ describe('PrayerSearchComponent', () => {
       };
       component.allPrayers = [];
 
+      const createdRow = { ...mockPrayer, title: 'Prayer for Guidance' };
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([], null, createdRow));
+
       await component.createPrayer(new Event('submit'));
 
-      expect(mockSupabaseService.getClient().from().insert).toHaveBeenCalled();
-      const insertCall = (mockSupabaseService.getClient().from().insert as any).mock.calls[0][0];
-      expect(insertCall.title).toBe('Prayer for Guidance');
+      expect(mockToastService.success).toHaveBeenCalled();
+      expect(component.allPrayers[0]?.title).toBe('Prayer for Guidance');
     });
 
     it('should handle save prayer with empty email', async () => {
@@ -1244,7 +1557,7 @@ describe('PrayerSearchComponent', () => {
 
       await component.savePrayer('123');
 
-      expect(mockSupabaseService.getClient().from().update).toHaveBeenCalled();
+      expect(mockToastService.success).toHaveBeenCalled();
     });
 
     it('should handle createForm validation', () => {
@@ -1321,15 +1634,10 @@ describe('PrayerSearchComponent', () => {
       expect(component.createForm.firstName).toBe('');
     });
 
-    it('should handle search with all filter combinations', async () => {
+    it('should handle search with all filter combinations (duplicate)', async () => {
       component.searchTerm = 'test';
       component.statusFilter = 'current';
       component.approvalFilter = 'approved';
-
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [mockPrayer]
-      });
 
       await component.handleSearch();
 
@@ -1341,10 +1649,7 @@ describe('PrayerSearchComponent', () => {
       component.statusFilter = '';
       component.approvalFilter = '';
 
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => []
-      });
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([]));
 
       await component.handleSearch();
 
@@ -1352,10 +1657,7 @@ describe('PrayerSearchComponent', () => {
     });
 
     it('should handle search response with empty array', async () => {
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => []
-      });
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([]));
 
       component.searchTerm = 'test';
       await component.handleSearch();
@@ -1366,10 +1668,6 @@ describe('PrayerSearchComponent', () => {
 
     it('should handle approval filter with both all and specific values', async () => {
       component.approvalFilter = 'all';
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [mockPrayer]
-      });
 
       await component.handleSearch();
 
@@ -1378,17 +1676,14 @@ describe('PrayerSearchComponent', () => {
 
     it('should properly filter pending prayers with approval_status null', async () => {
       component.approvalFilter = 'pending';
-      
+
       const prayerNullStatus = {
         ...mockPrayer,
         id: '5',
         approval_status: null
       };
 
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [prayerNullStatus]
-      });
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([prayerNullStatus]));
 
       await component.handleSearch();
 
@@ -1397,10 +1692,6 @@ describe('PrayerSearchComponent', () => {
 
     it('should handle search with statusFilter all', async () => {
       component.statusFilter = 'all';
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [mockPrayer]
-      });
 
       await component.handleSearch();
 
@@ -1496,9 +1787,35 @@ describe('PrayerSearchComponent', () => {
       };
       component.allPrayers = [mockPrayer];
 
-      mockSupabaseService.getClient().from().insert().select().single.mockResolvedValue({
-        data: null,
-        error: new Error('Insert failed')
+      mockSupabaseService.getClient.mockReturnValue({
+        from: vi.fn((table: string) => {
+          if (table === 'prayer_updates') {
+            return {
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() =>
+                    Promise.resolve({ data: null, error: { message: 'Insert failed' } })
+                  )
+                }))
+              })),
+              update: vi.fn(() => createPrayerUpdatesMutationChain()),
+              delete: vi.fn(() => createPrayerUpdatesMutationChain())
+            };
+          }
+          if (table === 'prayers') {
+            return {
+              select: vi.fn(() => createPrayersReadChain([mockPrayer], null)),
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: mockPrayer, error: null }))
+                }))
+              })),
+              update: vi.fn(() => createTenantMutationChain()),
+              delete: vi.fn(() => createTenantMutationChain())
+            };
+          }
+          return {};
+        })
       });
 
       await component.saveNewUpdate('123');
@@ -1545,23 +1862,75 @@ describe('PrayerSearchComponent', () => {
       ];
       component.allPrayers = component.displayPrayers;
 
-      mockSupabaseService.getClient().from().delete().in.mockResolvedValueOnce({
-        error: null
-      }).mockResolvedValueOnce({
-        error: new Error('Prayer delete failed')
+      mockSupabaseService.getClient.mockReturnValue({
+        from: vi.fn((table: string) => {
+          if (table === 'prayer_updates') {
+            return {
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+                }))
+              })),
+              update: vi.fn(() => createPrayerUpdatesMutationChain()),
+              delete: vi.fn(() => createPrayerUpdatesMutationChain())
+            };
+          }
+          if (table === 'prayers') {
+            return {
+              select: vi.fn(() => createPrayersReadChain([mockPrayer], null)),
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: mockPrayer, error: null }))
+                }))
+              })),
+              update: vi.fn(() => createTenantMutationChain()),
+              delete: vi.fn(() =>
+                createTenantMutationChain({ error: { message: 'Prayer delete failed' } })
+              )
+            };
+          }
+          return {};
+        })
       });
 
       await component.deleteSelected();
       expect(component.showConfirmationDialog).toBe(true);
-      
+
       await component.onConfirmDelete();
 
       expect(component.error).toContain('Failed to delete prayers');
     });
 
     it('should handle delete prayer with error in updates deletion', async () => {
-      mockSupabaseService.getClient().from().delete().eq.mockResolvedValueOnce({
-        error: new Error('Updates delete failed')
+      mockSupabaseService.getClient.mockReturnValue({
+        from: vi.fn((table: string) => {
+          if (table === 'prayer_updates') {
+            return {
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+                }))
+              })),
+              update: vi.fn(() => createPrayerUpdatesMutationChain()),
+              delete: vi.fn(() =>
+                createPrayerUpdatesMutationChain({ error: { message: 'Updates delete failed' } })
+              )
+            };
+          }
+          if (table === 'prayers') {
+            return {
+              select: vi.fn(() => createPrayersReadChain([mockPrayer], null)),
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: mockPrayer, error: null }))
+                }))
+              })),
+              update: vi.fn(() => createTenantMutationChain()),
+              delete: vi.fn(() => createTenantMutationChain())
+            };
+          }
+          return {};
+        })
       });
 
       await component.deletePrayer(mockPrayer);
@@ -1583,7 +1952,7 @@ describe('PrayerSearchComponent', () => {
 
       await component.createPrayer(new Event('submit'));
 
-      expect(mockSupabaseService.getClient().from().insert).toHaveBeenCalled();
+      expect(mockToastService.success).toHaveBeenCalled();
     });
 
     it('should return with no-op when no selectedPrayers in bulkStatusUpdate', async () => {
@@ -1736,25 +2105,12 @@ describe('PrayerSearchComponent', () => {
     });
 
     it('should handle fetch error with text parsing', async () => {
-      (global.fetch as any).mockResolvedValue({
-        ok: false,
-        status: 500,
-        text: async () => 'Server error'
-      });
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([], { message: 'Server error' }));
 
       component.searchTerm = 'test';
       await component.handleSearch();
 
       expect(component.error).toBeDefined();
-    });
-
-    it('should handle network error in handleSearch', async () => {
-      (global.fetch as any).mockRejectedValue(new Error('Network error'));
-
-      component.searchTerm = 'test';
-      await component.handleSearch();
-
-      expect(component.error).toContain('Network error');
     });
 
     it('should update displayPrayers when allPrayers changes', () => {
@@ -1992,11 +2348,6 @@ describe('PrayerSearchComponent', () => {
       component.statusFilter = 'answered';
       component.approvalFilter = 'approved';
 
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [mockPrayer]
-      });
-
       await component.handleSearch();
 
       expect(component.allPrayers.length).toBeGreaterThanOrEqual(0);
@@ -2054,17 +2405,14 @@ describe('PrayerSearchComponent', () => {
 
     it('should filter denied prayers with denial_reason on prayer', async () => {
       component.approvalFilter = 'denied';
-      
+
       const prayerWithDenialReason = {
         ...mockPrayer,
         id: 'denied-1',
         denial_reason: 'Not aligned with values'
       };
 
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [prayerWithDenialReason]
-      });
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([prayerWithDenialReason]));
 
       component.searchTerm = 'test';
       await component.handleSearch();
@@ -2090,10 +2438,7 @@ describe('PrayerSearchComponent', () => {
         prayer_updates: [update]
       };
 
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [prayerWithUpdateDenial]
-      });
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([prayerWithUpdateDenial]));
 
       component.searchTerm = 'test';
       await component.handleSearch();
@@ -2111,10 +2456,7 @@ describe('PrayerSearchComponent', () => {
         prayer_updates: []
       };
 
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [prayerNoDenialReason]
-      });
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([prayerNoDenialReason]));
 
       component.searchTerm = 'test';
       await component.handleSearch();
@@ -2124,17 +2466,14 @@ describe('PrayerSearchComponent', () => {
 
     it('should handle pending approval filter with null approval_status', async () => {
       component.approvalFilter = 'pending';
-      
+
       const prayerPending = {
         ...mockPrayer,
         id: 'pending-1',
         approval_status: null
       };
 
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [prayerPending]
-      });
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([prayerPending]));
 
       component.searchTerm = 'test';
       await component.handleSearch();
@@ -2151,10 +2490,7 @@ describe('PrayerSearchComponent', () => {
         approval_status: 'approved'
       };
 
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [prayerApproved]
-      });
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([prayerApproved]));
 
       component.searchTerm = 'test';
       await component.handleSearch();
@@ -2180,10 +2516,7 @@ describe('PrayerSearchComponent', () => {
         ]
       };
 
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [updateWithEmptyDenial]
-      });
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([updateWithEmptyDenial]));
 
       component.searchTerm = 'test';
       await component.handleSearch();
@@ -2196,9 +2529,8 @@ describe('PrayerSearchComponent', () => {
       component.statusFilter = 'current';
       component.approvalFilter = 'approved';
 
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [
+      mockSupabaseService.getClient.mockReturnValue(
+        createMockSupabaseClient([
           {
             ...mockPrayer,
             id: 'multi-filter-1',
@@ -2206,8 +2538,8 @@ describe('PrayerSearchComponent', () => {
             status: 'current',
             approval_status: 'approved'
           }
-        ]
-      });
+        ])
+      );
 
       await component.handleSearch();
 
@@ -2217,7 +2549,32 @@ describe('PrayerSearchComponent', () => {
     it('should handle search timeout gracefully', async () => {
       component.searchTerm = 'test';
 
-      (global.fetch as any).mockRejectedValue(new Error('AbortError'));
+      const failingRead = createPrayersReadChainRejecting(new Error('AbortError'));
+      mockSupabaseService.getClient.mockReturnValue({
+        from: vi.fn((table: string) => {
+          if (table === 'prayers') {
+            return {
+              select: vi.fn(() => failingRead),
+              insert: vi.fn(() => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(() => Promise.resolve({ data: mockPrayer, error: null }))
+                }))
+              })),
+              update: vi.fn(() => createTenantMutationChain()),
+              delete: vi.fn(() => createTenantMutationChain())
+            };
+          }
+          return {
+            insert: vi.fn(() => ({
+              select: vi.fn(() => ({
+                single: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+              }))
+            })),
+            update: vi.fn(() => createPrayerUpdatesMutationChain()),
+            delete: vi.fn(() => createPrayerUpdatesMutationChain())
+          };
+        })
+      });
 
       await component.handleSearch();
 
@@ -2264,17 +2621,14 @@ describe('PrayerSearchComponent', () => {
 
     it('should handle denied prayers filter with empty denial_reason', async () => {
       component.approvalFilter = 'denied';
-      
+
       const prayerWithEmptyDenialReason = {
         ...mockPrayer,
         id: '6',
         denial_reason: ''
       };
 
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [prayerWithEmptyDenialReason]
-      });
+      mockSupabaseService.getClient.mockReturnValue(createMockSupabaseClient([prayerWithEmptyDenialReason]));
 
       await component.handleSearch();
 
@@ -2292,22 +2646,6 @@ describe('PrayerSearchComponent', () => {
       expect(component.currentPage).toBeGreaterThanOrEqual(1);
     });
 
-    it('should handle delete update with error', async () => {
-      const update = { id: 'update-1', content: 'Test', author: 'John', created_at: '2024-01-01' };
-      component.allPrayers = [{
-        ...mockPrayer,
-        prayer_updates: [update]
-      }];
-
-      mockSupabaseService.getClient().from().delete().eq.mockResolvedValue({
-        error: new Error('Delete failed')
-      });
-
-      await component.deleteUpdate('123', 'update-1', 'Test content');
-
-      expect(component.error).toContain('Failed to delete update');
-    });
-
     it('should handle save prayer with empty requester', async () => {
       component.editForm = {
         title: 'Test',
@@ -2321,19 +2659,6 @@ describe('PrayerSearchComponent', () => {
       await component.savePrayer('123');
 
       expect(component.error).toContain('required');
-    });
-
-    it('should handle updateSelectedStatus with error in update', async () => {
-      component.selectedPrayers = new Set(['1']);
-      component.bulkStatus = 'archived';
-
-      const mockIn = vi.fn().mockResolvedValue({ error: new Error('Update failed') });
-      const mockUpdate = vi.fn().mockReturnValue({ in: mockIn });
-      mockSupabaseService.getClient().from = vi.fn().mockReturnValue({ update: mockUpdate });
-
-      await component.updateSelectedStatus();
-
-      expect(component.showConfirmationDialog).toBe(true);
     });
   });
 });

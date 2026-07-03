@@ -1,32 +1,42 @@
-import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
+import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
+import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
 
 @Component({
   selector: 'app-test-account-settings',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, AdminSectionLoadingComponent, AdminCollapsibleSectionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-      <div class="flex items-center gap-2 mb-4">
-        <svg class="text-blue-600 dark:text-blue-400" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-          <line x1="12" y1="18" x2="12.01" y2="18"></line>
-        </svg>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Test Account (App Testing)
-        </h3>
-      </div>
+    <app-admin-collapsible-section
+      title="Test Account (App Testing)"
+      triggerId="test-account-settings-trigger"
+      panelId="test-account-panel"
+      [expanded]="sectionExpanded"
+      (expandedChange)="onExpandedChange($event)"
+    >
+      <svg
+        sectionIcon
+        class="text-blue-600 dark:text-blue-400 shrink-0"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+        <line x1="12" y1="18" x2="12.01" y2="18"></line>
+      </svg>
 
       @if (loading) {
-      <div class="flex items-center justify-center py-8">
-        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-      }
-
-      @if (!loading) {
+        <app-admin-section-loading message="Loading test account settings…" />
+      } @else {
         <!-- Info Box -->
         <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-4">
           <p class="text-sm text-blue-800 dark:text-blue-200">
@@ -136,7 +146,7 @@ import { ToastService } from '../../services/toast.service';
           </button>
         </div>
       }
-    </div>
+    </app-admin-collapsible-section>
   `,
   styles: [`
     :host {
@@ -144,7 +154,10 @@ import { ToastService } from '../../services/toast.service';
     }
   `]
 })
-export class TestAccountSettingsComponent implements OnInit {
+export class TestAccountSettingsComponent {
+  sectionExpanded = false;
+  private sectionInitialLoadDone = false;
+
   testAccountEmail = '';
   testAccountCode4 = '';
   testAccountCode6 = '';
@@ -159,8 +172,13 @@ export class TestAccountSettingsComponent implements OnInit {
     private cdr: ChangeDetectorRef
   ) {}
 
-  async ngOnInit() {
-    await this.loadSettings();
+  onExpandedChange(expanded: boolean): void {
+    this.sectionExpanded = expanded;
+    if (this.sectionExpanded && !this.sectionInitialLoadDone) {
+      this.sectionInitialLoadDone = true;
+      void this.loadSettings();
+    }
+    this.cdr.markForCheck();
   }
 
   async loadSettings() {

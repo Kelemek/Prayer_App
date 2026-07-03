@@ -1,12 +1,20 @@
-import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectorRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { PrayerRequest } from '../../services/prayer.service';
-import { AdminDataService } from '../../services/admin-data.service';
-import { ToastService } from '../../services/toast.service';
+import {
+  Component,
+  Input,
+  Output,
+  EventEmitter,
+  OnInit,
+  ChangeDetectorRef,
+  ChangeDetectionStrategy,
+} from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { PrayerRequest } from "../../services/prayer.service";
+import { AdminDataService } from "../../services/admin-data.service";
+import { ToastService } from "../../services/toast.service";
 
 @Component({
-  selector: 'app-admin-prayer-edit-modal',
+  selector: "app-admin-prayer-edit-modal",
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
@@ -21,8 +29,13 @@ import { ToastService } from '../../services/toast.service';
         aria-labelledby="edit-prayer-title"
       >
         <!-- Header -->
-        <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 id="edit-prayer-title" class="text-xl font-semibold text-gray-800 dark:text-gray-200">
+        <div
+          class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700"
+        >
+          <h2
+            id="edit-prayer-title"
+            class="text-xl font-semibold text-gray-800 dark:text-gray-200"
+          >
             Edit Prayer
           </h2>
           <button
@@ -30,17 +43,34 @@ import { ToastService } from '../../services/toast.service';
             aria-label="Close edit dialog"
             class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer"
           >
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              ></path>
             </svg>
           </button>
         </div>
 
         <!-- Form -->
-        <form #editForm="ngForm" (ngSubmit)="editForm.valid && handleSubmit()" class="p-6 space-y-4">
+        <form
+          #editForm="ngForm"
+          (ngSubmit)="editForm.valid && handleSubmit()"
+          class="p-6 space-y-4"
+        >
           <!-- Title -->
           <div>
-            <label for="prayer_title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label
+              for="prayer_title"
+              class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+            >
               Prayer For <span aria-label="required">*</span>
             </label>
             <input
@@ -57,8 +87,12 @@ import { ToastService } from '../../services/toast.service';
 
           <!-- Description -->
           <div>
-            <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Prayer Request Details <span class="text-gray-500 dark:text-gray-400">(optional)</span>
+            <label
+              for="description"
+              class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+            >
+              Prayer Request Details
+              <span class="text-gray-500 dark:text-gray-400">(optional)</span>
             </label>
             <textarea
               id="description"
@@ -77,7 +111,7 @@ import { ToastService } from '../../services/toast.service';
               class="flex-1 bg-blue-600 dark:bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
               aria-label="Save changes"
             >
-              {{ isSubmitting ? 'Saving...' : 'Save Changes' }}
+              {{ isSubmitting ? "Saving..." : "Save Changes" }}
             </button>
             <button
               type="button"
@@ -94,7 +128,8 @@ import { ToastService } from '../../services/toast.service';
     </div>
     }
   `,
-  styles: []
+  changeDetection: ChangeDetectionStrategy.Eager,
+  styles: [],
 })
 export class AdminPrayerEditModalComponent implements OnInit {
   @Input() isOpen = false;
@@ -103,8 +138,8 @@ export class AdminPrayerEditModalComponent implements OnInit {
   @Output() save = new EventEmitter<void>();
 
   formData = {
-    prayer_for: '',
-    description: ''
+    prayer_for: "",
+    description: "",
   };
 
   isSubmitting = false;
@@ -119,10 +154,13 @@ export class AdminPrayerEditModalComponent implements OnInit {
 
   ngOnChanges(): void {
     if (this.isOpen && this.prayer) {
-      console.log('[AdminPrayerEditModal.ngOnChanges] Modal opened for prayer:', this.prayer.id);
+      console.log(
+        "[AdminPrayerEditModal.ngOnChanges] Modal opened for prayer:",
+        this.prayer.id
+      );
       this.formData = {
         prayer_for: this.prayer.prayer_for,
-        description: this.prayer.description
+        description: this.prayer.description,
       };
     }
   }
@@ -136,19 +174,28 @@ export class AdminPrayerEditModalComponent implements OnInit {
 
       const updates: Partial<PrayerRequest> = {
         prayer_for: this.formData.prayer_for,
-        description: this.formData.description
+        description: this.formData.description,
       };
 
-      console.log('[AdminPrayerEditModal.handleSubmit] Saving prayer:', this.prayer.id, updates);
+      console.log(
+        "[AdminPrayerEditModal.handleSubmit] Saving prayer:",
+        this.prayer.id,
+        updates
+      );
 
       await this.adminDataService.editPrayer(this.prayer.id, updates as any);
-      
-      console.log('[AdminPrayerEditModal.handleSubmit] Prayer saved successfully');
+
+      console.log(
+        "[AdminPrayerEditModal.handleSubmit] Prayer saved successfully"
+      );
       this.save.emit();
       this.close.emit();
     } catch (error) {
-      console.error('[AdminPrayerEditModal.handleSubmit] Error updating prayer:', error);
-      this.toast.error('Failed to update prayer. Please try again.');
+      console.error(
+        "[AdminPrayerEditModal.handleSubmit] Error updating prayer:",
+        error
+      );
+      this.toast.error("Failed to update prayer. Please try again.");
     } finally {
       this.isSubmitting = false;
       this.cdr.markForCheck();
@@ -157,8 +204,8 @@ export class AdminPrayerEditModalComponent implements OnInit {
 
   cancel(): void {
     this.formData = {
-      prayer_for: '',
-      description: ''
+      prayer_for: "",
+      description: "",
     };
     this.close.emit();
   }

@@ -1,13 +1,35 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BadgeService } from './badge.service';
 import { UserSessionService } from './user-session.service';
+import { TenantContextService } from './tenant-context.service';
 import { SupabaseService } from './supabase.service';
 import { BehaviorSubject, firstValueFrom, skip, take } from 'rxjs';
 import { Injector } from '@angular/core';
 
+const defaultTenantContextMock = () => ({
+  getActiveTenant: vi.fn(() => null),
+  activeTenant$: new BehaviorSubject(null)
+});
+
+const createBadgeInjector = (
+  userSessionService: any,
+  tenantContextService = defaultTenantContextMock()
+) => ({
+  get: vi.fn((ServiceClass: any) => {
+    if (ServiceClass === UserSessionService) {
+      return userSessionService;
+    }
+    if (ServiceClass === TenantContextService) {
+      return tenantContextService;
+    }
+    return null;
+  })
+});
+
 describe('BadgeService', () => {
   let service: BadgeService;
   let mockUserSessionService: any;
+  let mockTenantContextService: any;
   let mockSupabaseService: any;
   let mockInjector: any;
 
@@ -25,6 +47,11 @@ describe('BadgeService', () => {
       })
     };
 
+    mockTenantContextService = {
+      getActiveTenant: vi.fn(() => null),
+      activeTenant$: new BehaviorSubject(null)
+    };
+
     // Mock SupabaseService
     mockSupabaseService = {
       client: {
@@ -39,14 +66,7 @@ describe('BadgeService', () => {
     };
 
     // Mock Injector
-    mockInjector = {
-      get: vi.fn((ServiceClass: any) => {
-        if (ServiceClass === UserSessionService) {
-          return mockUserSessionService;
-        }
-        return null;
-      })
-    };
+    mockInjector = createBadgeInjector(mockUserSessionService, mockTenantContextService);
 
     // Create service with mocked dependencies
     service = new BadgeService(mockSupabaseService, mockInjector);
@@ -437,9 +457,7 @@ describe('BadgeService', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 
@@ -526,9 +544,7 @@ describe('BadgeService', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 
@@ -628,9 +644,7 @@ describe('BadgeService', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 
@@ -708,9 +722,7 @@ describe('BadgeService', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 
@@ -787,9 +799,7 @@ describe('BadgeService', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 
@@ -832,9 +842,7 @@ describe('BadgeService', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 
@@ -898,9 +906,7 @@ describe('BadgeService', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 
@@ -1337,9 +1343,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 
@@ -1390,9 +1394,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 
@@ -1532,9 +1534,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 
@@ -1616,9 +1616,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 
@@ -1674,9 +1672,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 
@@ -1713,9 +1709,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 
@@ -1752,9 +1746,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 
@@ -1840,9 +1832,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 
@@ -1909,9 +1899,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 
@@ -1965,9 +1953,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
           })
         }
       };
-      const mockInjector = {
-        get: vi.fn().mockReturnValue(mockUserSessionService)
-      };
+      const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
     });
 

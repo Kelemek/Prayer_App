@@ -1,38 +1,52 @@
-import { Component, OnDestroy, OnInit, Injector, NgZone, ChangeDetectorRef, HostListener } from '@angular/core';
-import { Router, RouterOutlet, NavigationEnd } from '@angular/router';
-import { CommonModule } from '@angular/common';
-import { Capacitor } from '@capacitor/core';
-import { ToastContainerComponent } from './components/toast-container/toast-container.component';
-import { AdminDataService } from './services/admin-data.service';
-import { Subject, filter, takeUntil } from 'rxjs';
-import { TenantContextService } from './services/tenant-context.service';
+import {
+  Component,
+  OnDestroy,
+  OnInit,
+  Injector,
+  NgZone,
+  ChangeDetectorRef,
+  HostListener,
+  ChangeDetectionStrategy,
+} from "@angular/core";
+import { Router, RouterOutlet, NavigationEnd } from "@angular/router";
+import { CommonModule } from "@angular/common";
+import { Capacitor } from "@capacitor/core";
+import { ToastContainerComponent } from "./components/toast-container/toast-container.component";
+import { AdminDataService } from "./services/admin-data.service";
+import { Subject, filter, takeUntil } from "rxjs";
+import { TenantContextService } from "./services/tenant-context.service";
 
 @Component({
-  selector: 'app-root',
+  selector: "app-root",
   standalone: true,
   imports: [CommonModule, RouterOutlet, ToastContainerComponent],
   template: `
     <ng-container>
-      <div class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+      <div
+        class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+      >
         @if (showImpersonationBanner) {
-          <div class="sticky top-0 z-[60] border-b border-amber-300 bg-amber-100/95 px-4 py-2 text-center text-xs font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-900/90 dark:text-amber-100">
-            Viewing app as tenant:
-            <span class="font-semibold">{{ impersonatedTenantName }}</span>
-          </div>
+        <div
+          class="sticky top-0 z-[60] border-b border-amber-300 bg-amber-100/95 px-4 py-2 text-center text-xs font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-900/90 dark:text-amber-100"
+        >
+          Viewing app as tenant:
+          <span class="font-semibold">{{ impersonatedTenantName }}</span>
+        </div>
         }
         <router-outlet></router-outlet>
         <app-toast-container></app-toast-container>
       </div>
     </ng-container>
   `,
-  styles: []
+  changeDetection: ChangeDetectionStrategy.Eager,
+  styles: [],
 })
 export class AppComponent implements OnInit, OnDestroy {
-  title = 'prayerapp';
+  title = "prayerapp";
   private lastVisibilityState = !document.hidden;
   private destroy$ = new Subject<void>();
   showImpersonationBanner = false;
-  impersonatedTenantName = '';
+  impersonatedTenantName = "";
 
   constructor(
     private router: Router,
@@ -43,7 +57,7 @@ export class AppComponent implements OnInit, OnDestroy {
   ) {
     // Add native-app class immediately so bottom blur strip shows before first paint
     if (Capacitor.isNativePlatform()) {
-      document.documentElement.classList.add('native-app');
+      document.documentElement.classList.add("native-app");
     }
     // Set up global error handler for unhandled errors
     this.setupGlobalErrorHandler();
@@ -59,16 +73,18 @@ export class AppComponent implements OnInit, OnDestroy {
    */
   private async initializeCapacitor(): Promise<void> {
     try {
-      const { Capacitor } = await import('@capacitor/core');
+      const { Capacitor } = await import("@capacitor/core");
       if (Capacitor.isNativePlatform()) {
-        document.documentElement.classList.add('native-app');
+        document.documentElement.classList.add("native-app");
       }
-      const { CapacitorService } = await import('./services/capacitor.service');
-      const { PushNotificationService } = await import('./services/push-notification.service');
+      const { CapacitorService } = await import("./services/capacitor.service");
+      const { PushNotificationService } = await import(
+        "./services/push-notification.service"
+      );
       this.injector.get(CapacitorService);
       this.injector.get(PushNotificationService);
     } catch (error) {
-      console.debug('Capacitor service not available (running on web)', error);
+      console.debug("Capacitor service not available (running on web)", error);
     }
   }
 
@@ -78,11 +94,11 @@ export class AppComponent implements OnInit, OnDestroy {
    */
   private setupScrollToTopOnNavigation(): void {
     this.router.events
-      .pipe(filter(event => event instanceof NavigationEnd))
+      .pipe(filter((event) => event instanceof NavigationEnd))
       .subscribe(() => {
         // Small delay to ensure DOM is updated
         setTimeout(() => {
-          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          window.scrollTo({ top: 0, left: 0, behavior: "instant" });
           // Also try setting document scroll for older browsers
           if (document.documentElement) {
             document.documentElement.scrollTop = 0;
@@ -100,14 +116,17 @@ export class AppComponent implements OnInit, OnDestroy {
   private setupGlobalErrorHandler(): void {
     // Catch unhandled promise rejections
     this.ngZone.run(() => {
-      window.addEventListener('unhandledrejection', (event) => {
-        console.error('[GlobalErrorHandler] Unhandled promise rejection:', event.reason);
+      window.addEventListener("unhandledrejection", (event) => {
+        console.error(
+          "[GlobalErrorHandler] Unhandled promise rejection:",
+          event.reason
+        );
         // Don't auto-reload - let the app handle recovery gracefully
       });
 
       // Catch global errors
-      window.addEventListener('error', (event) => {
-        console.error('[GlobalErrorHandler] Global error:', event.error);
+      window.addEventListener("error", (event) => {
+        console.error("[GlobalErrorHandler] Global error:", event.error);
         // Don't auto-reload - let the app handle recovery gracefully
       });
     });
@@ -117,9 +136,11 @@ export class AppComponent implements OnInit, OnDestroy {
    * Handle window focus event - Edge on iOS needs explicit change detection trigger
    * Safari handles this automatically, but Edge doesn't always
    */
-  @HostListener('window:focus')
+  @HostListener("window:focus")
   onWindowFocus(): void {
-    console.log('[AppComponent] Window regained focus, triggering change detection');
+    console.log(
+      "[AppComponent] Window regained focus, triggering change detection"
+    );
     this.lastVisibilityState = !document.hidden;
     // Force change detection on focus
     this.cdr.markForCheck();
@@ -131,16 +152,18 @@ export class AppComponent implements OnInit, OnDestroy {
    * Handle visibility change - critical for Edge on iOS
    * When app returns from background, manually trigger recovery
    */
-  @HostListener('document:visibilitychange')
+  @HostListener("document:visibilitychange")
   onVisibilityChange(): void {
     if (!document.hidden && this.lastVisibilityState === true) {
-      console.log('[AppComponent] Page became visible, triggering change detection and recovery');
+      console.log(
+        "[AppComponent] Page became visible, triggering change detection and recovery"
+      );
       this.lastVisibilityState = !document.hidden;
-      
+
       // Force change detection
       this.cdr.markForCheck();
       this.cdr.detectChanges();
-      
+
       // Check DOM integrity
       this.triggerDOMRecoveryIfNeeded();
     }
@@ -153,29 +176,33 @@ export class AppComponent implements OnInit, OnDestroy {
    */
   private triggerDOMRecoveryIfNeeded(): void {
     try {
-      const appRoot = document.querySelector('app-root');
-      const routerOutlet = document.querySelector('router-outlet');
-      
+      const appRoot = document.querySelector("app-root");
+      const routerOutlet = document.querySelector("router-outlet");
+
       if (appRoot && routerOutlet) {
         // Check if router outlet is actually in the DOM tree
         if (!appRoot.contains(routerOutlet)) {
-          console.warn('[AppComponent] RouterOutlet detached from DOM, triggering recovery');
+          console.warn(
+            "[AppComponent] RouterOutlet detached from DOM, triggering recovery"
+          );
           // Dispatch recovery event for services to listen to
-          window.dispatchEvent(new CustomEvent('app-became-visible'));
+          window.dispatchEvent(new CustomEvent("app-became-visible"));
         }
       }
-      
+
       // Also check if any content is actually being rendered
-      const content = document.querySelector('[role="main"], main, .content, [class*="prayer"], [class*="card"]');
+      const content = document.querySelector(
+        '[role="main"], main, .content, [class*="prayer"], [class*="card"]'
+      );
       if (!content && !document.hidden) {
-        console.warn('[AppComponent] No content detected, may need recovery');
+        console.warn("[AppComponent] No content detected, may need recovery");
         // Give a small delay for async data loading
         setTimeout(() => {
           this.cdr.detectChanges();
         }, 100);
       }
     } catch (err) {
-      console.debug('[AppComponent] DOM recovery check failed:', err);
+      console.debug("[AppComponent] DOM recovery check failed:", err);
     }
   }
 
@@ -196,42 +223,49 @@ export class AppComponent implements OnInit, OnDestroy {
    */
   private async handleApprovalCode() {
     const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
+    const code = params.get("code");
 
     if (!code) return;
 
     // Check for account approval/denial codes first
-    if (code.startsWith('account_approve_') || code.startsWith('account_deny_')) {
+    if (
+      code.startsWith("account_approve_") ||
+      code.startsWith("account_deny_")
+    ) {
       await this.handleAccountApprovalCode(code);
       return;
     }
 
     // For other approval codes, just navigate to admin
     // Admin guard will redirect to login if not authenticated
-    window.history.replaceState({}, '', window.location.pathname);
-    this.router.navigate(['/admin']);
+    window.history.replaceState({}, "", window.location.pathname);
+    this.router.navigate(["/admin"]);
   }
 
   private async handleAccountApprovalCode(code: string) {
     try {
       // Lazy load required services
-      const { ApprovalLinksService } = await import('./services/approval-links.service');
-      const { SupabaseService } = await import('./services/supabase.service');
-      const { EmailNotificationService } = await import('./services/email-notification.service');
-      const { ToastService } = await import('./services/toast.service');
-      
+      const { ApprovalLinksService } = await import(
+        "./services/approval-links.service"
+      );
+      const { SupabaseService } = await import("./services/supabase.service");
+      const { EmailNotificationService } = await import(
+        "./services/email-notification.service"
+      );
+      const { ToastService } = await import("./services/toast.service");
+
       const approvalLinks = this.injector.get(ApprovalLinksService);
       const supabase = this.injector.get(SupabaseService);
       const emailService = this.injector.get(EmailNotificationService);
       const toast = this.injector.get(ToastService);
-      
+
       // Decode the code to get email and action type
       const decoded = approvalLinks.decodeAccountCode(code);
-      
+
       if (!decoded) {
-        console.error('Invalid account approval code format');
-        toast.showToast('Invalid approval link', 'error');
-        this.router.navigate(['/login']);
+        console.error("Invalid account approval code format");
+        toast.showToast("Invalid approval link", "error");
+        this.router.navigate(["/login"]);
         return;
       }
 
@@ -243,163 +277,197 @@ export class AppComponent implements OnInit, OnDestroy {
         last_name: string;
         approval_status: string;
         tenant_id: string | null;
-      }>(
-        'account_approval_requests',
-        {
-          select: 'id, email, first_name, last_name, approval_status, tenant_id',
-          eq: { email: decoded.email.toLowerCase() },
-          limit: 1
-        }
-      );
+      }>("account_approval_requests", {
+        select: "id, email, first_name, last_name, approval_status, tenant_id",
+        eq: { email: decoded.email.toLowerCase() },
+        limit: 1,
+      });
 
-      if (fetchError || !requests || !Array.isArray(requests) || requests.length === 0) {
-        console.error('Account approval request not found:', fetchError);
-        toast.showToast('Approval request not found', 'error');
-        this.router.navigate(['/login']);
+      if (
+        fetchError ||
+        !requests ||
+        !Array.isArray(requests) ||
+        requests.length === 0
+      ) {
+        console.error("Account approval request not found:", fetchError);
+        toast.showToast("Approval request not found", "error");
+        this.router.navigate(["/login"]);
         return;
       }
 
       const request = requests[0];
 
-      if (request.approval_status !== 'pending') {
-        toast.showToast(`This request has already been ${request.approval_status}`, 'info');
-        this.router.navigate(['/login']);
+      if (request.approval_status !== "pending") {
+        toast.showToast(
+          `This request has already been ${request.approval_status}`,
+          "info"
+        );
+        this.router.navigate(["/login"]);
         return;
       }
 
-      if (decoded.type === 'approve') {
+      if (decoded.type === "approve") {
         // Approve the account - add to email_subscribers
         const approvalTenantId = request.tenant_id;
         if (!approvalTenantId) {
-          console.error('Approval request missing tenant_id');
-          toast.showToast('Cannot approve: missing organization on request', 'error');
-          this.router.navigate(['/login']);
+          console.error("Approval request missing tenant_id");
+          toast.showToast(
+            "Cannot approve: missing organization on request",
+            "error"
+          );
+          this.router.navigate(["/login"]);
           return;
         }
 
         const { error: insertError } = await supabase.directMutation(
-          'email_subscribers',
+          "email_subscribers",
           {
-            method: 'POST',
+            method: "POST",
             body: {
               email: request.email.toLowerCase(),
               name: `${request.first_name} ${request.last_name}`,
               is_active: true,
               is_admin: false,
               receive_admin_emails: false,
-              tenant_id: approvalTenantId
+              tenant_id: approvalTenantId,
             },
-            returning: false
+            returning: false,
           }
         );
 
         if (insertError) {
-          console.error('Failed to create subscriber:', insertError);
-          toast.showToast('Failed to approve account', 'error');
-          this.router.navigate(['/login']);
+          console.error("Failed to create subscriber:", insertError);
+          toast.showToast("Failed to approve account", "error");
+          this.router.navigate(["/login"]);
           return;
         }
 
         // Delete the approval request
-        await supabase.directMutation(
-          'account_approval_requests',
-          {
-            method: 'DELETE',
-            eq: { id: request.id },
-            returning: false
-          }
-        );
+        await supabase.directMutation("account_approval_requests", {
+          method: "DELETE",
+          eq: { id: request.id },
+          returning: false,
+        });
 
         // Send approval email to user
         try {
-          const template = await emailService.getTemplate('account_approved', approvalTenantId);
+          const template = await emailService.getTemplate(
+            "account_approved",
+            approvalTenantId
+          );
           if (template) {
-            const subject = emailService.applyTemplateVariables(template.subject, {
-              firstName: request.first_name
-            });
-            const html = emailService.applyTemplateVariables(template.html_body, {
-              firstName: request.first_name,
-              lastName: request.last_name,
-              email: request.email,
-              loginLink: `${emailService.getEmailBaseUrl()}/login`
-            });
-            const text = emailService.applyTemplateVariables(template.text_body, {
-              firstName: request.first_name,
-              lastName: request.last_name,
-              email: request.email,
-              loginLink: `${emailService.getEmailBaseUrl()}/login`
-            });
+            const subject = emailService.applyTemplateVariables(
+              template.subject,
+              {
+                firstName: request.first_name,
+              }
+            );
+            const html = emailService.applyTemplateVariables(
+              template.html_body,
+              {
+                firstName: request.first_name,
+                lastName: request.last_name,
+                email: request.email,
+                loginLink: `${emailService.getEmailBaseUrl()}/login`,
+              }
+            );
+            const text = emailService.applyTemplateVariables(
+              template.text_body,
+              {
+                firstName: request.first_name,
+                lastName: request.last_name,
+                email: request.email,
+                loginLink: `${emailService.getEmailBaseUrl()}/login`,
+              }
+            );
 
             await emailService.sendEmail({
               to: request.email,
               subject,
               htmlBody: html,
-              textBody: text
+              textBody: text,
             });
           }
         } catch (emailError) {
-          console.error('Failed to send approval email:', emailError);
+          console.error("Failed to send approval email:", emailError);
         }
 
-        toast.showToast(`Account approved for ${request.first_name} ${request.last_name}`, 'success');
+        toast.showToast(
+          `Account approved for ${request.first_name} ${request.last_name}`,
+          "success"
+        );
       } else {
         // Deny the account - delete the request
-        await supabase.directMutation(
-          'account_approval_requests',
-          {
-            method: 'DELETE',
-            eq: { id: request.id },
-            returning: false
-          }
-        );
+        await supabase.directMutation("account_approval_requests", {
+          method: "DELETE",
+          eq: { id: request.id },
+          returning: false,
+        });
 
         // Send denial email to user
         try {
-          const template = await emailService.getTemplate('account_denied', request.tenant_id);
+          const template = await emailService.getTemplate(
+            "account_denied",
+            request.tenant_id
+          );
           if (template) {
-            const subject = emailService.applyTemplateVariables(template.subject, {
-              firstName: request.first_name
-            });
-            const html = emailService.applyTemplateVariables(template.html_body, {
-              firstName: request.first_name,
-              lastName: request.last_name,
-              supportEmail: 'support@example.com' // TODO: Get from settings
-            });
-            const text = emailService.applyTemplateVariables(template.text_body, {
-              firstName: request.first_name,
-              lastName: request.last_name,
-              supportEmail: 'support@example.com'
-            });
+            const subject = emailService.applyTemplateVariables(
+              template.subject,
+              {
+                firstName: request.first_name,
+              }
+            );
+            const html = emailService.applyTemplateVariables(
+              template.html_body,
+              {
+                firstName: request.first_name,
+                lastName: request.last_name,
+                supportEmail: "support@example.com", // TODO: Get from settings
+              }
+            );
+            const text = emailService.applyTemplateVariables(
+              template.text_body,
+              {
+                firstName: request.first_name,
+                lastName: request.last_name,
+                supportEmail: "support@example.com",
+              }
+            );
 
             await emailService.sendEmail({
               to: request.email,
               subject,
               htmlBody: html,
-              textBody: text
+              textBody: text,
             });
           }
         } catch (emailError) {
-          console.error('Failed to send denial email:', emailError);
+          console.error("Failed to send denial email:", emailError);
         }
 
-        toast.showToast(`Account denied for ${request.first_name} ${request.last_name}`, 'info');
+        toast.showToast(
+          `Account denied for ${request.first_name} ${request.last_name}`,
+          "info"
+        );
       }
 
       // Clear URL params and navigate
-      window.history.replaceState({}, '', window.location.pathname);
-      this.router.navigate(['/login']);
+      window.history.replaceState({}, "", window.location.pathname);
+      this.router.navigate(["/login"]);
     } catch (error) {
-      console.error('Error handling account approval code:', error);
+      console.error("Error handling account approval code:", error);
       try {
-        const { ToastService } = await import('./services/toast.service');
-        const toast = this.injector.get(ToastService) as { showToast?: (msg: string, type: string) => void };
-        if (toast && typeof toast.showToast === 'function') {
-          toast.showToast('Failed to process approval', 'error');
+        const { ToastService } = await import("./services/toast.service");
+        const toast = this.injector.get(ToastService) as {
+          showToast?: (msg: string, type: string) => void;
+        };
+        if (toast && typeof toast.showToast === "function") {
+          toast.showToast("Failed to process approval", "error");
         }
       } catch (toastError) {
-        console.error('Failed to show approval error toast:', toastError);
+        console.error("Failed to show approval error toast:", toastError);
       }
-      this.router.navigate(['/login']);
+      this.router.navigate(["/login"]);
     }
   }
 
@@ -409,48 +477,61 @@ export class AppComponent implements OnInit, OnDestroy {
    */
   private async setupPushRefreshListener(): Promise<void> {
     try {
-      const { CapacitorService } = await import('./services/capacitor.service');
-      const { PrayerService } = await import('./services/prayer.service');
+      const { CapacitorService } = await import("./services/capacitor.service");
+      const { PrayerService } = await import("./services/prayer.service");
 
       const capacitorService = this.injector.get(CapacitorService);
       const prayerService = this.injector.get(PrayerService);
 
       capacitorService.notificationEvents$
         .pipe(
-          filter((event) => event.source === 'tap'),
-          filter((event) =>
-            event.type === 'prayer_update' ||
-            event.type === 'prayer_approved' ||
-            event.type === 'update_approved'
+          filter((event) => event.source === "tap"),
+          filter(
+            (event) =>
+              event.type === "prayer_update" ||
+              event.type === "prayer_approved" ||
+              event.type === "update_approved"
           )
         )
         .subscribe((event) => {
-          console.log('[AppComponent] Push notification tapped, refreshing prayers:', event);
+          console.log(
+            "[AppComponent] Push notification tapped, refreshing prayers:",
+            event
+          );
           prayerService.loadPrayers(false).catch((err) => {
-            console.error('[AppComponent] Failed to refresh prayers after push:', err);
+            console.error(
+              "[AppComponent] Failed to refresh prayers after push:",
+              err
+            );
           });
         });
 
       // Navigate to admin when an admin push notification is tapped
       capacitorService.notificationEvents$
         .pipe(
-          filter((event) => event.source === 'tap'),
-          filter((event) => event.data?.['target'] === 'admin')
+          filter((event) => event.source === "tap"),
+          filter((event) => event.data?.["target"] === "admin")
         )
         .subscribe(() => {
           // Pre-fetch admin data so the approval list is ready when the page loads.
           // Run in NgZone so change detection runs when the app was resumed from background.
           const adminDataService = this.injector.get(AdminDataService);
           adminDataService.fetchAdminData(false, true).catch((err) => {
-            console.error('[AppComponent] Failed to pre-fetch admin data after push tap:', err);
+            console.error(
+              "[AppComponent] Failed to pre-fetch admin data after push tap:",
+              err
+            );
           });
           this.ngZone.run(() => {
-            this.router.navigate(['/admin']);
+            this.router.navigate(["/admin"]);
           });
         });
     } catch (error) {
       // Likely running on web where Capacitor/PrayerService lazy imports may not be needed
-      console.debug('[AppComponent] Push refresh listener not initialized (probably web):', error);
+      console.debug(
+        "[AppComponent] Push refresh listener not initialized (probably web):",
+        error
+      );
     }
   }
 
@@ -460,7 +541,9 @@ export class AppComponent implements OnInit, OnDestroy {
       .subscribe((tenant) => {
         const isImpersonating = this.tenantContext.getIsImpersonatingTenant();
         this.showImpersonationBanner = isImpersonating;
-        this.impersonatedTenantName = isImpersonating ? tenant?.name || 'Unknown tenant' : '';
+        this.impersonatedTenantName = isImpersonating
+          ? tenant?.name || "Unknown tenant"
+          : "";
         this.cdr.markForCheck();
       });
   }

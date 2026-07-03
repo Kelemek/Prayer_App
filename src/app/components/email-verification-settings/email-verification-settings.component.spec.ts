@@ -46,6 +46,10 @@ describe('EmailVerificationSettingsComponent', () => {
   });
 
   describe('default property values', () => {
+    it('should have default collapsed state', () => {
+      expect(component.sectionExpanded).toBe(false);
+    });
+
     it('should have verificationCodeLength default to 6', () => {
       expect(component.verificationCodeLength).toBe(6);
     });
@@ -64,10 +68,30 @@ describe('EmailVerificationSettingsComponent', () => {
   });
 
   describe('ngOnInit', () => {
-    it('should call loadSettings on initialization', () => {
-      const loadSettingsSpy = vi.spyOn(component, 'loadSettings');
-      component.ngOnInit();
-      expect(loadSettingsSpy).toHaveBeenCalled();
+    it('should not load settings until section is expanded', async () => {
+      await Promise.resolve();
+      expect(mockSupabaseService.client.from).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onExpandedChange', () => {
+    it('should lazy-load settings on first expand', async () => {
+      component.onExpandedChange(true);
+      await component.loadSettings();
+
+      expect(component.sectionExpanded).toBe(true);
+      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('admin_settings');
+    });
+
+    it('should not re-fetch on second expand', async () => {
+      component.onExpandedChange(true);
+      await component.loadSettings();
+      mockSupabaseService.client.from.mockClear();
+
+      component.onExpandedChange(false);
+      component.onExpandedChange(true);
+
+      expect(mockSupabaseService.client.from).not.toHaveBeenCalled();
     });
   });
 

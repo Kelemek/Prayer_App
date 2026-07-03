@@ -1,11 +1,20 @@
-import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectorRef, OnChanges } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { PrayerService, PrayerUpdate } from '../../services/prayer.service';
-import { ToastService } from '../../services/toast.service';
+import {
+  Component,
+  Input,
+  Output,
+  EventEmitter,
+  OnInit,
+  ChangeDetectorRef,
+  OnChanges,
+  ChangeDetectionStrategy,
+} from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { PrayerService, PrayerUpdate } from "../../services/prayer.service";
+import { ToastService } from "../../services/toast.service";
 
 @Component({
-  selector: 'app-personal-prayer-update-edit-modal',
+  selector: "app-personal-prayer-update-edit-modal",
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
@@ -20,8 +29,13 @@ import { ToastService } from '../../services/toast.service';
         aria-labelledby="edit-update-title"
       >
         <!-- Header -->
-        <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 id="edit-update-title" class="text-xl font-semibold text-gray-800 dark:text-gray-200">
+        <div
+          class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700"
+        >
+          <h2
+            id="edit-update-title"
+            class="text-xl font-semibold text-gray-800 dark:text-gray-200"
+          >
             Edit Prayer Update
           </h2>
           <button
@@ -29,17 +43,34 @@ import { ToastService } from '../../services/toast.service';
             aria-label="Close edit dialog"
             class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1"
           >
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              ></path>
             </svg>
           </button>
         </div>
 
         <!-- Form -->
-        <form #editForm="ngForm" (ngSubmit)="editForm.valid && handleSubmit()" class="p-6 space-y-4">
+        <form
+          #editForm="ngForm"
+          (ngSubmit)="editForm.valid && handleSubmit()"
+          class="p-6 space-y-4"
+        >
           <!-- Content -->
           <div>
-            <label for="content" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label
+              for="content"
+              class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+            >
               Update Content <span aria-label="required">*</span>
             </label>
             <textarea
@@ -61,7 +92,7 @@ import { ToastService } from '../../services/toast.service';
               class="flex-1 bg-blue-600 dark:bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               aria-label="Save changes"
             >
-              {{ isSubmitting ? 'Saving...' : 'Save Changes' }}
+              {{ isSubmitting ? "Saving..." : "Save Changes" }}
             </button>
             <button
               type="button"
@@ -78,17 +109,20 @@ import { ToastService } from '../../services/toast.service';
     </div>
     }
   `,
-  styles: []
+  changeDetection: ChangeDetectionStrategy.Eager,
+  styles: [],
 })
-export class PersonalPrayerUpdateEditModalComponent implements OnInit, OnChanges {
+export class PersonalPrayerUpdateEditModalComponent
+  implements OnInit, OnChanges
+{
   @Input() isOpen = false;
   @Input() update: PrayerUpdate | null = null;
-  @Input() prayerId: string = '';
+  @Input() prayerId: string = "";
   @Output() close = new EventEmitter<void>();
   @Output() save = new EventEmitter<Partial<PrayerUpdate>>();
 
   formData = {
-    content: ''
+    content: "",
   };
 
   isSubmitting = false;
@@ -104,7 +138,7 @@ export class PersonalPrayerUpdateEditModalComponent implements OnInit, OnChanges
   ngOnChanges(): void {
     if (this.isOpen && this.update) {
       this.formData = {
-        content: this.update.content
+        content: this.update.content,
       };
     }
   }
@@ -117,7 +151,7 @@ export class PersonalPrayerUpdateEditModalComponent implements OnInit, OnChanges
       this.cdr.markForCheck();
 
       const updates: Partial<PrayerUpdate> = {
-        content: this.formData.content
+        content: this.formData.content,
       };
 
       const success = await this.prayerService.updatePersonalPrayerUpdate(
@@ -131,8 +165,8 @@ export class PersonalPrayerUpdateEditModalComponent implements OnInit, OnChanges
         this.close.emit();
       }
     } catch (error) {
-      console.error('Error updating prayer update:', error);
-      this.toast.error('Failed to save prayer update. Please try again.');
+      console.error("Error updating prayer update:", error);
+      this.toast.error("Failed to save prayer update. Please try again.");
     } finally {
       this.isSubmitting = false;
       this.cdr.markForCheck();
@@ -141,7 +175,7 @@ export class PersonalPrayerUpdateEditModalComponent implements OnInit, OnChanges
 
   cancel(): void {
     this.formData = {
-      content: ''
+      content: "",
     };
     this.close.emit();
   }

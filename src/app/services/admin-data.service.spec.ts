@@ -112,7 +112,8 @@ describe('AdminDataService', () => {
         return result;
       }),
       getEmailBaseUrl: vi.fn(() => 'http://localhost:4200'),
-      sendEmail: vi.fn(() => Promise.resolve())
+      sendEmail: vi.fn(() => Promise.resolve()),
+      sendSubscriberWelcomeNotification: vi.fn(() => Promise.resolve())
     } as unknown as EmailNotificationService;
 
     mockPushNotificationService = {
@@ -851,7 +852,7 @@ describe('AdminDataService', () => {
 
       await service.approveAccountRequest('1');
 
-      expect(mockEmailNotificationService.getTemplate).toHaveBeenCalledWith('account_approved');
+      expect(mockEmailNotificationService.getTemplate).toHaveBeenCalledWith('account_approved', 'test-tenant-id');
       expect(mockEmailNotificationService.sendEmail).toHaveBeenCalled();
     });
 
@@ -1105,7 +1106,7 @@ describe('AdminDataService', () => {
 
       await service.denyAccountRequest('1', 'Duplicate account');
 
-      expect(mockEmailNotificationService.getTemplate).toHaveBeenCalledWith('account_denied');
+      expect(mockEmailNotificationService.getTemplate).toHaveBeenCalledWith('account_denied', 'test-tenant-id');
       expect(mockEmailNotificationService.sendEmail).toHaveBeenCalled();
     });
   });
@@ -1354,7 +1355,8 @@ describe('AdminDataService', () => {
         description: mockPrayer.description,
         requester: mockPrayer.requester,
         requesterEmail: mockPrayer.email,
-        denialReason: longReason
+        denialReason: longReason,
+        tenantId: 'test-tenant-id'
       });
     });
 

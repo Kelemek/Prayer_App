@@ -4,49 +4,64 @@ import { Subject, takeUntil } from 'rxjs';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
 import { TenantContextService } from '../../services/tenant-context.service';
-import { EmailTemplatesManagerComponent } from '../email-templates-manager/email-templates-manager.component';
-import { EmailSubscribersComponent } from '../email-subscribers/email-subscribers.component';
+import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
+import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
 
 @Component({
   selector: 'app-email-settings',
   standalone: true,
-  imports: [FormsModule, EmailTemplatesManagerComponent, EmailSubscribersComponent],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    FormsModule,
+    AdminSectionLoadingComponent,
+    AdminCollapsibleSectionComponent,
+  ],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <div class="space-y-6">
-      @if (!activeTenantId) {
-      <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-        Select an organization above to manage email subscribers, reminders, and templates for that tenant.
-      </p>
-      }
-      @if (activeTenantId) {
-      <!-- Email Subscribers Component -->
-      <app-email-subscribers></app-email-subscribers>
+      <app-admin-collapsible-section
+        title="Prayer Update Reminders"
+        triggerId="prayer-update-reminders-trigger"
+        panelId="prayer-update-reminders-panel"
+        [expanded]="sectionExpanded"
+        (expandedChange)="onExpandedChange($event)"
+      >
+        <svg
+          sectionIcon
+          class="text-blue-600 dark:text-blue-400 shrink-0"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
 
-      <!-- Prayer Update Reminders Section -->
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
-        <div class="flex items-center gap-2 mb-4">
-          <svg class="text-blue-600 dark:text-blue-400" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-            <polyline points="22,6 12,13 2,6"></polyline>
-          </svg>
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Prayer Update Reminders
-          </h3>
-        </div>
+        @if (isLoading) {
+          <app-admin-section-loading message="Loading reminder settings…" />
+        } @else {
+          @if (!activeTenantId) {
+          <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
+            Select an organization above to configure prayer update reminders for that tenant.
+          </p>
+          } @else {
+          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Automatically send email reminders to prayer requesters and optionally archive prayers without updates.
+          </p>
 
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          Automatically send email reminders to prayer requesters and optionally archive prayers without updates.
-        </p>
-
-        <div class="mb-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
+          <form (ngSubmit)="saveReminderSettings()" class="mb-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
           <!-- Enable Reminders Checkbox -->
           <label class="flex items-start cursor-pointer mb-4">
             <input
               type="checkbox"
               [(ngModel)]="enableReminders"
+              (ngModelChange)="onEnableRemindersChange($event)"
               id="enableReminders"
               name="enableReminders"
+              [disabled]="savingReminders"
               aria-label="Enable prayer update reminders"
               class="mt-0.5 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 focus:ring-2"
             />
@@ -67,7 +82,7 @@ import { EmailSubscribersComponent } from '../email-subscribers/email-subscriber
                   max="90"
                   [(ngModel)]="reminderIntervalDays"
                   name="reminderIntervalDays"
-                  (ngModelChange)="validateReminderDays()"
+                  (ngModelChange)="validateReminderDays(); onFormFieldChange()"
                   aria-label="Days before sending reminder"
                   aria-describedby="reminderDaysHelp"
                   class="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -85,8 +100,10 @@ import { EmailSubscribersComponent } from '../email-subscribers/email-subscriber
                 <input
                   type="checkbox"
                   [(ngModel)]="enableAutoArchive"
+                  (ngModelChange)="onEnableAutoArchiveChange($event)"
                   id="enableAutoArchive"
                   name="enableAutoArchive"
+                  [disabled]="savingReminders"
                   aria-label="Auto-archive prayers after reminder"
                   class="mt-0.5 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 focus:ring-2"
                 />
@@ -104,7 +121,7 @@ import { EmailSubscribersComponent } from '../email-subscribers/email-subscriber
                       min="1"
                       max="90"
                       [(ngModel)]="daysBeforeArchive"
-                      (ngModelChange)="validateArchiveDays()"
+                      (ngModelChange)="validateArchiveDays(); onFormFieldChange()"
                       class="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
                     />
                     <span class="text-sm text-gray-700 dark:text-gray-300">days</span>
@@ -121,7 +138,7 @@ import { EmailSubscribersComponent } from '../email-subscribers/email-subscriber
               }
             </div>
           }
-        </div>
+        </form>
 
         @if (successReminders) {
           <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-md p-4 mb-4" role="status" aria-live="polite" aria-atomic="true">
@@ -131,8 +148,15 @@ import { EmailSubscribersComponent } from '../email-subscribers/email-subscriber
           </div>
         }
 
+        @if (error) {
+          <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md p-4 mb-4" role="alert" aria-live="assertive" aria-atomic="true">
+            <p class="text-sm text-red-800 dark:text-red-200">{{ error }}</p>
+          </div>
+        }
+
         <div class="flex justify-end">
           <button
+            type="button"
             (click)="saveReminderSettings()"
             [disabled]="savingReminders"
             class="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
@@ -151,31 +175,9 @@ import { EmailSubscribersComponent } from '../email-subscribers/email-subscriber
             {{ savingReminders ? 'Saving...' : 'Save Reminder Settings' }}
           </button>
         </div>
-      </div>
-
-      <!-- Global Error Message -->
-      @if (error) {
-        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md p-4" role="alert" aria-live="assertive" aria-atomic="true">
-          <p class="text-sm text-red-800 dark:text-red-200">{{ error }}</p>
-        </div>
-      }
-
-      <!-- Loading State -->
-      @if (loading) {
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6">
-          <div class="text-center">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-            <p class="text-sm text-gray-600 dark:text-gray-400">Loading email settings...</p>
-          </div>
-        </div>
-      }
-
-      <!-- Email Templates Manager -->
-      <div class="mt-8">
-        <app-email-templates-manager></app-email-templates-manager>
-      </div>
-      }
-    </div>
+          }
+        }
+      </app-admin-collapsible-section>
   `,
   styles: []
 })
@@ -188,12 +190,15 @@ export class EmailSettingsComponent implements OnInit, OnDestroy {
     return this.tenantContext.getActiveTenant()?.id ?? null;
   }
 
+  sectionExpanded = false;
+  private sectionInitialLoadDone = false;
+  isLoading = false;
+
   enableReminders = false;
   reminderIntervalDays = 7;
   enableAutoArchive = false;
   daysBeforeArchive = 7;
-  
-  loading = true;
+
   savingReminders = false;
   error: string | null = null;
   successVerification = false;
@@ -210,12 +215,12 @@ export class EmailSettingsComponent implements OnInit, OnDestroy {
     this.tenantContext.activeTenant$
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
-        if (this.activeTenantId) {
-          this.loadSettings();
-        } else {
-          this.loading = false;
-          this.cdr.markForCheck();
+        if (!this.activeTenantId) {
+          this.resetReminderState();
+        } else if (this.sectionExpanded) {
+          void this.loadSettings();
         }
+        this.cdr.markForCheck();
       });
   }
 
@@ -224,23 +229,83 @@ export class EmailSettingsComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  async loadSettings() {
+  onExpandedChange(expanded: boolean): void {
+    this.sectionExpanded = expanded;
+    if (this.sectionExpanded && !this.sectionInitialLoadDone) {
+      this.sectionInitialLoadDone = true;
+      void this.loadSettings();
+    }
+    this.cdr.markForCheck();
+  }
+
+  onFormFieldChange(): void {
+    this.successReminders = false;
+    this.cdr.markForCheck();
+  }
+
+  onEnableRemindersChange(enabled: boolean): void {
+    this.enableReminders = enabled;
+    if (!enabled) {
+      this.enableAutoArchive = false;
+    }
+    this.onFormFieldChange();
+  }
+
+  onEnableAutoArchiveChange(enabled: boolean): void {
+    this.enableAutoArchive = enabled;
+    this.onFormFieldChange();
+  }
+
+  private async getCallerEmail(): Promise<string | null> {
+    const mfaEmail = localStorage.getItem('mfa_authenticated_email')?.toLowerCase().trim();
+    if (mfaEmail) {
+      return mfaEmail;
+    }
+    const { data: { session } } = await this.supabase.client.auth.getSession();
+    return session?.user?.email?.toLowerCase().trim() || null;
+  }
+
+  private resetReminderState(): void {
+    this.enableReminders = false;
+    this.reminderIntervalDays = 7;
+    this.enableAutoArchive = false;
+    this.daysBeforeArchive = 7;
+    this.error = null;
+    this.successReminders = false;
+  }
+
+  async loadSettings(options?: { silent?: boolean }) {
     const tenantId = this.activeTenantId;
     if (!tenantId) {
       return;
     }
     try {
-      this.loading = true;
-      this.cdr.markForCheck();
+      if (!options?.silent) {
+        this.isLoading = true;
+        this.cdr.markForCheck();
+      }
       this.error = null;
 
-      const { data, error } = await this.supabase.client
-        .from('tenant_settings')
-        .select('enable_reminders, reminder_interval_days, enable_auto_archive, days_before_archive')
-        .eq('tenant_id', tenantId)
-        .maybeSingle();
+      const callerEmail = await this.getCallerEmail();
+      if (!callerEmail) {
+        throw new Error('Not authenticated');
+      }
 
+      type ReminderSettingsRow = {
+        enable_reminders?: boolean | null;
+        reminder_interval_days?: number | null;
+        enable_auto_archive?: boolean | null;
+        days_before_archive?: number | null;
+      };
+
+      let data: ReminderSettingsRow | null = null;
+
+      const { data: rows, error } = await this.supabase.client.rpc('get_tenant_reminder_settings', {
+        p_tenant_id: tenantId,
+        p_email: callerEmail
+      });
       if (error) throw error;
+      data = (rows as ReminderSettingsRow[] | null)?.[0] ?? null;
 
       if (data) {
         if (data.enable_reminders !== null && data.enable_reminders !== undefined) {
@@ -264,7 +329,9 @@ export class EmailSettingsComponent implements OnInit, OnDestroy {
       this.error = `Failed to load email settings: ${message}`;
       this.cdr.markForCheck();
     } finally {
-      this.loading = false;
+      if (!options?.silent) {
+        this.isLoading = false;
+      }
       this.cdr.markForCheck();
     }
   }
@@ -281,23 +348,27 @@ export class EmailSettingsComponent implements OnInit, OnDestroy {
       this.error = null;
       this.successReminders = false;
 
-      const { error } = await this.supabase.client
-        .from('tenant_settings')
-        .update({
-          enable_reminders: this.enableReminders,
-          reminder_interval_days: this.reminderIntervalDays,
-          enable_auto_archive: this.enableAutoArchive,
-          days_before_archive: this.daysBeforeArchive,
-          updated_at: new Date().toISOString()
-        })
-        .eq('tenant_id', tenantId);
+      const callerEmail = await this.getCallerEmail();
+      if (!callerEmail) {
+        this.toast.error('Not authenticated');
+        return;
+      }
 
+      const { error } = await this.supabase.client.rpc('update_tenant_reminder_settings', {
+        p_tenant_id: tenantId,
+        p_enable_reminders: this.enableReminders,
+        p_reminder_interval_days: this.reminderIntervalDays,
+        p_enable_auto_archive: this.enableAutoArchive,
+        p_days_before_archive: this.daysBeforeArchive,
+        p_email: callerEmail
+      });
       if (error) throw error;
 
       this.successReminders = true;
       this.cdr.markForCheck();
       this.toast.success('Prayer reminder settings saved!');
       this.onSave.emit();
+      await this.loadSettings({ silent: true });
 
       setTimeout(() => {
         this.successReminders = false;

@@ -72,7 +72,7 @@ describe('PromptManagerComponent', () => {
   });
 
   describe('ngOnInit', () => {
-    it('should fetch prayer types on init', async () => {
+    it('should not fetch prayer types until section is expanded', async () => {
       const mockTypes = [
         { name: 'Type1', display_order: 1, is_active: true },
         { name: 'Type2', display_order: 2, is_active: true }
@@ -84,6 +84,25 @@ describe('PromptManagerComponent', () => {
       });
 
       component.ngOnInit();
+      await Promise.resolve();
+
+      expect(mockSupabaseService.directQuery).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onExpandedChange', () => {
+    it('should fetch prayer types on first expand', async () => {
+      const mockTypes = [
+        { name: 'Type1', display_order: 1, is_active: true },
+        { name: 'Type2', display_order: 2, is_active: true }
+      ];
+
+      mockSupabaseService.directQuery.mockResolvedValue({
+        data: mockTypes,
+        error: null
+      });
+
+      component.onExpandedChange(true);
       await Promise.resolve();
       await Promise.resolve();
 

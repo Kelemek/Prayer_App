@@ -20,6 +20,77 @@ export interface AnalyticsStats {
   loading: boolean;
 }
 
+/** Presets for Site Analytics activity chart (maps to window + RPC bucket). */
+export type PageViewTimeSeriesPreset =
+  | '12h'
+  | '24h'
+  | '48h'
+  | '7d'
+  | '30d'
+  | '90d'
+  | '180d'
+  | '365d';
+
+export interface PageViewTimeSeriesPoint {
+  bucketStart: string;
+  /** Logged-in activity samples (page_view) for this bucket. */
+  count: number;
+  /** Approved prayers + updates in this bucket (subscriber bulk send at approval). */
+  approvalCount: number;
+  /** First 8 titles, newline-separated; "+ N more" if count > 8. */
+  approvalLabels: string;
+}
+
+const PAGE_VIEW_PRESET_MS: Record<PageViewTimeSeriesPreset, number> = {
+  '12h': 12 * 60 * 60 * 1000,
+  '24h': 24 * 60 * 60 * 1000,
+  '48h': 48 * 60 * 60 * 1000,
+  '7d': 7 * 24 * 60 * 60 * 1000,
+  '30d': 30 * 24 * 60 * 60 * 1000,
+  '90d': 90 * 24 * 60 * 60 * 1000,
+  '180d': 180 * 24 * 60 * 60 * 1000,
+  '365d': 365 * 24 * 60 * 60 * 1000
+};
+
+const PAGE_VIEW_PRESET_BUCKET: Record<PageViewTimeSeriesPreset, 'hour' | 'day'> = {
+  '12h': 'hour',
+  '24h': 'hour',
+  '48h': 'hour',
+  '7d': 'day',
+  '30d': 'day',
+  '90d': 'day',
+  '180d': 'day',
+  '365d': 'day'
+};
+
+/**
+ * UTC bucket starts matching Postgres `date_trunc('hour'|'day', created_at)` with UTC session TZ.
+ */
+function enumerateUtcBucketStarts(
+  rangeStart: Date,
+  rangeEnd: Date,
+  bucket: 'hour' | 'day'
+): string[] {
+  const keys: string[] = [];
+  if (bucket === 'hour') {
+    const cur = new Date(rangeStart);
+    cur.setUTCMinutes(0, 0, 0);
+    while (cur.getTime() < rangeEnd.getTime()) {
+      keys.push(cur.toISOString());
+      cur.setTime(cur.getTime() + 60 * 60 * 1000);
+    }
+  } else {
+    const cur = new Date(
+      Date.UTC(rangeStart.getUTCFullYear(), rangeStart.getUTCMonth(), rangeStart.getUTCDate())
+    );
+    while (cur.getTime() < rangeEnd.getTime()) {
+      keys.push(cur.toISOString());
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+  }
+  return keys;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -250,5 +321,71 @@ export class AnalyticsService {
     }
 
     return stats;
+  }
+
+  /**
+   * Activity samples and approval events per time bucket for the Site Analytics chart.
+   */
+  async getPageViewTimeSeries(
+    tenantId: string,
+    preset: PageViewTimeSeriesPreset
+  ): Promise<PageViewTimeSeriesPoint[]> {
+    if (!tenantId?.trim()) {
+      return [];
+    }
+
+    const rangeEnd = new Date();
+    const rangeStart = new Date(rangeEnd.getTime() - PAGE_VIEW_PRESET_MS[preset]);
+    const bucket = PAGE_VIEW_PRESET_BUCKET[preset];
+    const bucketKeys = enumerateUtcBucketStarts(rangeStart, rangeEnd, bucket);
+    const pStart = rangeStart.toISOString();
+    const pEnd = rangeEnd.toISOString();
+
+    const [pvResult, apResult] = await Promise.all([
+      this.supabase.client.rpc('analytics_page_view_buckets', {
+        p_tenant_id: tenantId,
+        p_start: pStart,
+        p_end: pEnd,
+        p_bucket: bucket
+      }),
+      this.supabase.client.rpc('analytics_approval_buckets', {
+        p_tenant_id: tenantId,
+        p_start: pStart,
+        p_end: pEnd,
+        p_bucket: bucket
+      })
+    ]);
+
+    if (pvResult.error) {
+      console.error('[Analytics] getPageViewTimeSeries page views:', pvResult.error);
+    }
+    if (apResult.error) {
+      console.error('[Analytics] getPageViewTimeSeries approvals:', apResult.error);
+    }
+
+    const counts = new Map<string, number>();
+    for (const row of pvResult.data ?? []) {
+      const key = new Date(row.bucket_start as string).toISOString();
+      counts.set(key, Number(row.event_count));
+    }
+
+    const approvals = new Map<string, { count: number; labels: string }>();
+    for (const row of apResult.data ?? []) {
+      const key = new Date(row.bucket_start as string).toISOString();
+      approvals.set(key, {
+        count: Number(row.approval_count),
+        labels: String(row.approval_labels ?? '')
+      });
+    }
+
+    return bucketKeys.map((bucketStart) => {
+      const ap = approvals.get(bucketStart);
+      return {
+        bucketStart,
+        count: pvResult.error ? 0 : (counts.get(bucketStart) ?? 0),
+        approvalCount: apResult.error ? 0 : (ap?.count ?? 0),
+        approvalLabels: apResult.error ? '' : (ap?.labels ?? '')
+      };
+    });
   }
 }

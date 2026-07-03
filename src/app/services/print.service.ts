@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { SupabaseService } from './supabase.service';
 import { PrayerService } from './prayer.service';
+import { TenantContextService } from './tenant-context.service';
 import { Printer } from '@capgo/capacitor-printer';
 
 export interface Prayer {
@@ -29,7 +30,8 @@ export type TimeRange = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
 export class PrintService {
   constructor(
     private supabase: SupabaseService,
-    private prayerService: PrayerService
+    private prayerService: PrayerService,
+    private tenantContext: TenantContextService
   ) {}
 
   /**
@@ -120,10 +122,18 @@ export class PrintService {
           break;
       }
 
-      // Fetch ALL prayers (no date filter in query - we'll filter after combining with updates)
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+      if (!tenantId) {
+        alert('Select an active organization to print shared prayers.');
+        if (newWindow) newWindow.close();
+        return;
+      }
+
+      // Fetch prayers for active tenant (no date filter in query - we'll filter after combining with updates)
       const { data: allPrayers, error: prayersError } = await this.supabase.client
         .from('prayers')
         .select('*')
+        .eq('tenant_id', tenantId)
         .eq('approval_status', 'approved')
         .neq('status', 'closed')
         .order('created_at', { ascending: false });
@@ -135,10 +145,10 @@ export class PrintService {
         return;
       }
 
-      // Fetch ALL updates
       const { data: allUpdates, error: updatesError } = await this.supabase.client
         .from('prayer_updates')
-        .select('*');
+        .select('*')
+        .eq('tenant_id', tenantId);
 
       if (updatesError) {
         console.error('[PrintService] Error fetching updates:', updatesError);
@@ -668,10 +678,17 @@ export class PrintService {
    */
   async downloadPrintablePromptList(selectedTypes: string[] = [], newWindow: Window | null = null): Promise<void> {
     try {
-      // Fetch all prayer prompts
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+      if (!tenantId) {
+        alert('Select an active organization to print prayer prompts.');
+        if (newWindow) newWindow.close();
+        return;
+      }
+
       const { data: promptsData, error: promptsError } = await this.supabase.client
         .from('prayer_prompts')
         .select('*')
+        .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false });
 
       if (promptsError) {
@@ -687,10 +704,10 @@ export class PrintService {
         return;
       }
 
-      // Fetch prayer types for ordering
       const { data: typesData, error: typesError } = await this.supabase.client
         .from('prayer_types')
         .select('name, display_order')
+        .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .order('display_order', { ascending: true });
 

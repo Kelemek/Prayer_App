@@ -1,23 +1,23 @@
-import { bootstrapApplication } from '@angular/platform-browser';
-import { provideRouter, withInMemoryScrolling } from '@angular/router';
-import { provideHttpClient } from '@angular/common/http';
-import { provideAnimations } from '@angular/platform-browser/animations';
+import { bootstrapApplication } from "@angular/platform-browser";
+import { provideRouter, withInMemoryScrolling } from "@angular/router";
+import { provideHttpClient, withXhr } from "@angular/common/http";
+import { provideAnimations } from "@angular/platform-browser/animations";
 
-import { IMAGE_CONFIG } from '@angular/common';
-import { APP_INITIALIZER } from '@angular/core';
-import { AppComponent } from './app/app.component';
-import { routes } from './app/app.routes';
-import { AdminAuthService } from './app/services/admin-auth.service';
-import { BrandingService } from './app/services/branding.service';
-import { BRANDING_SERVICE_TOKEN } from './app/components/app-logo/app-logo.component';
+import { IMAGE_CONFIG } from "@angular/common";
+import { APP_INITIALIZER } from "@angular/core";
+import { AppComponent } from "./app/app.component";
+import { routes } from "./app/app.routes";
+import { AdminAuthService } from "./app/services/admin-auth.service";
+import { BrandingService } from "./app/services/branding.service";
+import { BRANDING_SERVICE_TOKEN } from "./app/components/app-logo/app-logo.component";
 
 // Initialize Vercel Analytics
 const initVercelAnalytics = async () => {
   try {
-    const { inject } = await import('@vercel/analytics');
+    const { inject } = await import("@vercel/analytics");
     inject();
   } catch (error) {
-    console.error('Failed to initialize Vercel Analytics:', error);
+    console.error("Failed to initialize Vercel Analytics:", error);
   }
 };
 
@@ -26,10 +26,10 @@ initVercelAnalytics();
 // Initialize Vercel Speed Insights
 const initVercelSpeedInsights = async () => {
   try {
-    const { injectSpeedInsights } = await import('@vercel/speed-insights');
+    const { injectSpeedInsights } = await import("@vercel/speed-insights");
     injectSpeedInsights();
   } catch (error) {
-    console.error('Failed to initialize Vercel Speed Insights:', error);
+    console.error("Failed to initialize Vercel Speed Insights:", error);
   }
 };
 
@@ -38,29 +38,33 @@ initVercelSpeedInsights();
 // Add a global visibility check to ensure content stays visible during background refresh
 const setupVisibilityRecovery = () => {
   const handleVisibilityChange = () => {
-    if (document.visibilityState === 'visible') {
-      console.log('[AppInitialization] Page became visible');
-      
+    if (document.visibilityState === "visible") {
+      console.log("[AppInitialization] Page became visible");
+
       // Verify router outlet exists
-      const routerOutlet = document.querySelector('router-outlet');
+      const routerOutlet = document.querySelector("router-outlet");
       if (!routerOutlet) {
-        console.warn('[AppInitialization] Router outlet not found when page became visible');
+        console.warn(
+          "[AppInitialization] Router outlet not found when page became visible"
+        );
         // Don't reload - let services handle the refresh
       } else {
-        console.log('[AppInitialization] Page visible and router outlet intact');
+        console.log(
+          "[AppInitialization] Page visible and router outlet intact"
+        );
         // Dispatch event to services that the app became visible
-        window.dispatchEvent(new CustomEvent('app-became-visible'));
+        window.dispatchEvent(new CustomEvent("app-became-visible"));
       }
     }
   };
 
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-  
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+
   // Also handle focus event which may fire before visibilitychange on some browsers
-  window.addEventListener('focus', () => {
+  window.addEventListener("focus", () => {
     if (!document.hidden) {
-      console.log('[AppInitialization] Focus event - app became visible');
-      window.dispatchEvent(new CustomEvent('app-became-visible'));
+      console.log("[AppInitialization] Focus event - app became visible");
+      window.dispatchEvent(new CustomEvent("app-became-visible"));
     }
   });
 };
@@ -69,8 +73,11 @@ setupVisibilityRecovery();
 
 bootstrapApplication(AppComponent, {
   providers: [
-    provideRouter(routes, withInMemoryScrolling({ scrollPositionRestoration: 'top' })),
-    provideHttpClient(),
+    provideRouter(
+      routes,
+      withInMemoryScrolling({ scrollPositionRestoration: "top" })
+    ),
+    provideHttpClient(withXhr()),
     provideAnimations(),
     BrandingService,
     { provide: BRANDING_SERVICE_TOKEN, useExisting: BrandingService },
@@ -78,51 +85,66 @@ bootstrapApplication(AppComponent, {
       provide: IMAGE_CONFIG,
       useValue: {
         disableImageSizeWarning: true,
-        disableImageLazyLoadWarning: true
-      }
+        disableImageLazyLoadWarning: true,
+      },
     },
     {
       provide: APP_INITIALIZER,
       useFactory: (brandingService: BrandingService) => {
         return async () => {
           try {
-            console.log('[AppInitialization] Initializing BrandingService to load logos before rendering');
+            console.log(
+              "[AppInitialization] Initializing BrandingService to load logos before rendering"
+            );
             await brandingService.initialize();
-            console.log('[AppInitialization] BrandingService initialization complete');
+            console.log(
+              "[AppInitialization] BrandingService initialization complete"
+            );
           } catch (error) {
-            console.error('[AppInitialization] BrandingService initialization failed:', error);
+            console.error(
+              "[AppInitialization] BrandingService initialization failed:",
+              error
+            );
             // Continue initialization even if branding fails
           }
         };
       },
       deps: [BrandingService],
-      multi: true
+      multi: true,
     },
     {
       provide: APP_INITIALIZER,
       useFactory: (adminAuthService: AdminAuthService) => {
         return () => {
-          console.log('[AppInitialization] Initializing AdminAuthService for session restoration');
+          console.log(
+            "[AppInitialization] Initializing AdminAuthService for session restoration"
+          );
           // Wait for the loading state to complete (loading goes from true -> false)
-          return new Promise(resolve => {
+          return new Promise((resolve) => {
             let resolved = false;
-            
+
             // Subscribe to loading state
-            const subscription = adminAuthService.loading$.subscribe(isLoading => {
-              // Once loading completes (becomes false), resolve
-              if (!isLoading && !resolved) {
-                resolved = true;
-                console.log('[AppInitialization] AdminAuthService initialization complete');
-                subscription.unsubscribe();
-                resolve(true);
+            const subscription = adminAuthService.loading$.subscribe(
+              (isLoading) => {
+                // Once loading completes (becomes false), resolve
+                if (!isLoading && !resolved) {
+                  resolved = true;
+                  console.log(
+                    "[AppInitialization] AdminAuthService initialization complete"
+                  );
+                  subscription.unsubscribe();
+                  resolve(true);
+                }
               }
-            });
-            
+            );
+
             // Safety timeout in case loading never completes
             setTimeout(() => {
               if (!resolved) {
                 resolved = true;
-                console.warn('[AppInitialization] AdminAuthService initialization timed out after 5s');
+                console.warn(
+                  "[AppInitialization] AdminAuthService initialization timed out after 5s"
+                );
                 subscription.unsubscribe();
                 resolve(true);
               }
@@ -131,13 +153,13 @@ bootstrapApplication(AppComponent, {
         };
       },
       deps: [AdminAuthService],
-      multi: true
-    }
-  ]
-}).catch(err => {
-  console.error('[AppInitialization] Bootstrap error:', err);
+      multi: true,
+    },
+  ],
+}).catch((err) => {
+  console.error("[AppInitialization] Bootstrap error:", err);
   // Ensure user sees something instead of blank page
-  const rootElement = document.querySelector('app-root');
+  const rootElement = document.querySelector("app-root");
   if (rootElement) {
     rootElement.innerHTML = `
       <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #f3f4f6; font-family: system-ui, -apple-system, sans-serif;">

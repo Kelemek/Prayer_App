@@ -1204,7 +1204,8 @@ describe('AppComponent', () => {
       email: 'test@example.com',
       first_name: 'Jane',
       last_name: 'Doe',
-      approval_status: status
+      approval_status: status,
+      tenant_id: 'test-tenant-id'
     });
 
     let approvalLinksServiceInstance: { decodeAccountCode: () => { email: string; type: string } | null };

@@ -3,6 +3,7 @@ import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { distinctUntilChanged, startWith } from 'rxjs/operators';
 import { SupabaseService } from './supabase.service';
 import { UserSessionService } from './user-session.service';
+import { TenantContextService } from './tenant-context.service';
 
 /**
  * Prayer or Prompt object structure
@@ -40,6 +41,7 @@ export class BadgeService {
 
   // Use Injector to avoid circular dependency with UserSessionService
   private userSessionService: UserSessionService | null = null;
+  private tenantContext: TenantContextService | null = null;
 
   constructor(
     private supabase: SupabaseService,
@@ -49,6 +51,37 @@ export class BadgeService {
     this.attachStorageListener();
     // Listen for user session changes to get badge preference
     this.attachUserSessionListener();
+    this.attachTenantChangeListener();
+  }
+
+  /** localStorage keys must match PrayerService / PromptService cache keys for the active tenant. */
+  private getPrayersCacheStorageKey(): string {
+    const tid = this.getTenantContext().getActiveTenant()?.id;
+    return tid ? `tenant_${tid}_prayers` : 'prayers_cache';
+  }
+
+  private getPromptsCacheStorageKey(): string {
+    const tid = this.getTenantContext().getActiveTenant()?.id;
+    return tid ? `prompts:${tid}` : 'prompts_cache';
+  }
+
+  private getTenantContext(): TenantContextService {
+    if (!this.tenantContext) {
+      this.tenantContext = this.injector.get(TenantContextService);
+    }
+    return this.tenantContext;
+  }
+
+  private attachTenantChangeListener(): void {
+    setTimeout(() => {
+      try {
+        this.getTenantContext()
+          .activeTenant$.pipe(distinctUntilChanged((a, b) => a?.id === b?.id))
+          .subscribe(() => this.refreshBadgeCounts());
+      } catch {
+        // ignore
+      }
+    }, 0);
   }
 
   /**
@@ -171,7 +204,7 @@ export class BadgeService {
       }
 
       // Get the item to update status-specific badge
-      const cacheKey = type === 'prayers' ? 'prayers_cache' : 'prompts_cache';
+      const cacheKey = type === 'prayers' ? this.getPrayersCacheStorageKey() : this.getPromptsCacheStorageKey();
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
         const parsedCache = JSON.parse(cached);
@@ -210,7 +243,7 @@ export class BadgeService {
    * Mark all prayers or prompts as read
    */
   markAllAsRead(type: 'prayers' | 'prompts'): void {
-    const cacheKey = type === 'prayers' ? 'prayers_cache' : 'prompts_cache';
+    const cacheKey = type === 'prayers' ? this.getPrayersCacheStorageKey() : this.getPromptsCacheStorageKey();
 
     try {
       const cached = localStorage.getItem(cacheKey);
@@ -258,7 +291,7 @@ export class BadgeService {
    * Mark all prayers/prompts with a specific status as read
    */
   markAllAsReadByStatus(type: 'prayers' | 'prompts', status: 'current' | 'answered'): void {
-    const cacheKey = type === 'prayers' ? 'prayers_cache' : 'prompts_cache';
+    const cacheKey = type === 'prayers' ? this.getPrayersCacheStorageKey() : this.getPromptsCacheStorageKey();
 
     try {
       const cached = localStorage.getItem(cacheKey);
@@ -331,7 +364,7 @@ export class BadgeService {
    * Get array of unread IDs for a given type
    */
   getUnreadIds(type: 'prayers' | 'prompts'): string[] {
-    const cacheKey = type === 'prayers' ? 'prayers_cache' : 'prompts_cache';
+    const cacheKey = type === 'prayers' ? this.getPrayersCacheStorageKey() : this.getPromptsCacheStorageKey();
 
     try {
       const cached = localStorage.getItem(cacheKey);
@@ -379,7 +412,7 @@ export class BadgeService {
           this.setReadPrayersData(data);
           
           // Get the prayer's status to update status-specific badge
-          const cacheKey = 'prayers_cache';
+          const cacheKey = this.getPrayersCacheStorageKey();
           const cached = localStorage.getItem(cacheKey);
           if (cached) {
             const parsedCache = JSON.parse(cached);
@@ -497,7 +530,7 @@ export class BadgeService {
   private preCreateIndividualBadgeSubjects(): void {
     try {
       // Create subjects for all prayers
-      const prayersCached = localStorage.getItem('prayers_cache');
+      const prayersCached = localStorage.getItem(this.getPrayersCacheStorageKey());
       if (prayersCached) {
         const parsedCache = JSON.parse(prayersCached);
         const prayers = parsedCache?.data || parsedCache || [];
@@ -512,7 +545,7 @@ export class BadgeService {
       }
 
       // Create subjects for all prompts
-      const promptsCached = localStorage.getItem('prompts_cache');
+      const promptsCached = localStorage.getItem(this.getPromptsCacheStorageKey());
       if (promptsCached) {
         const parsedCache = JSON.parse(promptsCached);
         const prompts = parsedCache?.data || parsedCache || [];
@@ -535,7 +568,7 @@ export class BadgeService {
    * Counts unread prayers + unread updates as individual items
    */
   private calculateBadgeCount(type: 'prayers' | 'prompts', status?: 'current' | 'answered'): number {
-    const cacheKey = type === 'prayers' ? 'prayers_cache' : 'prompts_cache';
+    const cacheKey = type === 'prayers' ? this.getPrayersCacheStorageKey() : this.getPromptsCacheStorageKey();
 
     try {
       const cached = localStorage.getItem(cacheKey);
@@ -624,7 +657,7 @@ export class BadgeService {
    * Private helper: Check if an individual item has a badge
    */
   private checkIndividualBadge(type: 'prayers' | 'prompts', id: string): boolean {
-    const cacheKey = type === 'prayers' ? 'prayers_cache' : 'prompts_cache';
+    const cacheKey = type === 'prayers' ? this.getPrayersCacheStorageKey() : this.getPromptsCacheStorageKey();
 
     try {
       const cached = localStorage.getItem(cacheKey);
@@ -700,7 +733,7 @@ export class BadgeService {
    * Private helper: Mark updates for a specific item as read
    */
   private markItemUpdatesAsRead(itemId: string, type: 'prayers' | 'prompts'): void {
-    const cacheKey = type === 'prayers' ? 'prayers_cache' : 'prompts_cache';
+    const cacheKey = type === 'prayers' ? this.getPrayersCacheStorageKey() : this.getPromptsCacheStorageKey();
 
     try {
       const cached = localStorage.getItem(cacheKey);

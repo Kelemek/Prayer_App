@@ -1,37 +1,68 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import {
+  Component,
+  Input,
+  Output,
+  EventEmitter,
+  OnInit,
+  OnChanges,
+  ChangeDetectionStrategy,
+} from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 
-type ContentType = 'prayers' | 'prompts' | 'personal' | 'all';
-type ThemeOption = 'light' | 'dark' | 'system';
-type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
+type ContentType = "prayers" | "prompts" | "personal" | "all";
+type ThemeOption = "light" | "dark" | "system";
+type TimeFilter = "week" | "twoweeks" | "month" | "year" | "all";
 
 @Component({
-  selector: 'app-presentation-settings-modal',
+  selector: "app-presentation-settings-modal",
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
     @if (visible) {
-    <div class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 safe-area-overlay">
-      <div class="bg-white dark:bg-gray-900 rounded-xl sm:rounded-2xl max-w-md w-full shadow-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col">
-        <div class="flex items-center justify-between p-4 sm:p-6 lg:p-8 pb-3 sm:pb-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 class="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h2>
+    <div
+      class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 safe-area-overlay"
+    >
+      <div
+        class="bg-white dark:bg-gray-900 rounded-xl sm:rounded-2xl max-w-md w-full shadow-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col"
+      >
+        <div
+          class="flex items-center justify-between p-4 sm:p-6 lg:p-8 pb-3 sm:pb-4 border-b border-gray-200 dark:border-gray-700"
+        >
+          <h2
+            class="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100"
+          >
+            Settings
+          </h2>
           <button
             (click)="close.emit()"
-            class="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg transition-colors cursor-pointer">
-            <svg class="w-6 h-6 sm:w-7 sm:h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            class="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg transition-colors cursor-pointer"
+          >
+            <svg
+              class="w-6 h-6 sm:w-7 sm:h-7"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
           </button>
         </div>
 
-        <div class="space-y-4 sm:space-y-5 lg:space-y-6 px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6 lg:pb-8 overflow-y-auto">
+        <div
+          class="space-y-4 sm:space-y-5 lg:space-y-6 px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6 lg:pb-8 overflow-y-auto"
+        >
           <!-- Theme Selection -->
-          <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 mt-3 sm:mt-4">
+          <div
+            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 mt-3 sm:mt-4"
+          >
             <div class="flex items-start gap-2 sm:gap-3">
               <div class="flex-1">
-                <div class="font-medium text-gray-800 dark:text-gray-100 mb-2 sm:mb-3 text-sm sm:text-base">
+                <div
+                  class="font-medium text-gray-800 dark:text-gray-100 mb-2 sm:mb-3 text-sm sm:text-base"
+                >
                   Theme Preference
                 </div>
                 <div class="grid grid-cols-3 gap-1.5 sm:gap-2">
@@ -39,10 +70,23 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
                     (click)="themeChange.emit('light')"
                     class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer"
                     [ngClass]="{
-                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20': theme === 'light',
-                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600': theme !== 'light'
-                    }">
-                    <svg width="18" height="18" class="text-amber-600 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20':
+                        theme === 'light',
+                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600':
+                        theme !== 'light'
+                    }"
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      class="text-amber-600 sm:w-5 sm:h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
                       <circle cx="12" cy="12" r="5"></circle>
                       <line x1="12" y1="1" x2="12" y2="3"></line>
                       <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -53,32 +97,76 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
                       <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
                       <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
                     </svg>
-                    <span class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100">Light</span>
+                    <span
+                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                      >Light</span
+                    >
                   </button>
                   <button
                     (click)="themeChange.emit('dark')"
                     class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer"
                     [ngClass]="{
-                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20': theme === 'dark',
-                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600': theme !== 'dark'
-                    }">
-                    <svg width="18" height="18" class="text-blue-600 dark:text-blue-400 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20':
+                        theme === 'dark',
+                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600':
+                        theme !== 'dark'
+                    }"
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      class="text-blue-600 dark:text-blue-400 sm:w-5 sm:h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path
+                        d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
+                      ></path>
                     </svg>
-                    <span class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100">Dark</span>
+                    <span
+                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                      >Dark</span
+                    >
                   </button>
                   <button
                     (click)="themeChange.emit('system')"
                     class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer"
                     [ngClass]="{
-                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20': theme === 'system',
-                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600': theme !== 'system'
-                    }">
-                    <svg width="18" height="18" class="text-gray-600 dark:text-gray-400 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20':
+                        theme === 'system',
+                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600':
+                        theme !== 'system'
+                    }"
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      class="text-gray-600 dark:text-gray-400 sm:w-5 sm:h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <rect
+                        x="2"
+                        y="3"
+                        width="20"
+                        height="14"
+                        rx="2"
+                        ry="2"
+                      ></rect>
                       <line x1="8" y1="21" x2="16" y2="21"></line>
                     </svg>
-                    <span class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100">System</span>
+                    <span
+                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                      >System</span
+                    >
                   </button>
                 </div>
                 <p class="text-sm text-gray-700 dark:text-gray-300 mt-2">
@@ -90,13 +178,18 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
 
           <!-- Smart Mode -->
           <div>
-            <label class="flex items-center gap-2 sm:gap-3 cursor-pointer mb-4 sm:mb-6">
+            <label
+              class="flex items-center gap-2 sm:gap-3 cursor-pointer mb-4 sm:mb-6"
+            >
               <input
                 type="checkbox"
                 [(ngModel)]="localSmartMode"
                 (ngModelChange)="smartModeChange.emit($event)"
-                class="w-4 h-4 sm:w-5 sm:h-5 rounded border-gray-900 dark:border-white focus:ring-2 focus:ring-[#39704D] flex-shrink-0">
-              <span class="text-base sm:text-lg lg:text-xl text-gray-900 dark:text-gray-100">
+                class="w-4 h-4 sm:w-5 sm:h-5 rounded border-gray-900 dark:border-white focus:ring-2 focus:ring-[#39704D] flex-shrink-0"
+              />
+              <span
+                class="text-base sm:text-lg lg:text-xl text-gray-900 dark:text-gray-100"
+              >
                 Smart Mode (adjust time based on content length)
               </span>
             </label>
@@ -105,7 +198,10 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
           <!-- Duration Slider and Quick Buttons (when not smart mode) -->
           @if (!localSmartMode) {
           <div>
-            <label class="block text-base sm:text-lg lg:text-xl mb-2 sm:mb-3 text-gray-900 dark:text-gray-100">Auto-advance interval (seconds)</label>
+            <label
+              class="block text-base sm:text-lg lg:text-xl mb-2 sm:mb-3 text-gray-900 dark:text-gray-100"
+              >Auto-advance interval (seconds)</label
+            >
             <input
               type="range"
               min="5"
@@ -113,26 +209,36 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
               step="5"
               [(ngModel)]="localDisplayDuration"
               (ngModelChange)="displayDurationChange.emit($event)"
-              [style.--value-percent]="((localDisplayDuration - 5) / 55 * 100) + '%'"
+              [style.--value-percent]="
+                ((localDisplayDuration - 5) / 55) * 100 + '%'
+              "
               style="--fill-color: #2563eb"
-              class="presentation-range w-full h-2.5 sm:h-3 bg-gray-300 dark:bg-gray-700 rounded-lg cursor-pointer accent-blue-600">
-            <div class="text-center text-xl sm:text-2xl mt-2 font-semibold text-gray-900 dark:text-gray-100">{{ localDisplayDuration }}s</div>
-            
+              class="presentation-range w-full h-2.5 sm:h-3 bg-gray-300 dark:bg-gray-700 rounded-lg cursor-pointer accent-blue-600"
+            />
+            <div
+              class="text-center text-xl sm:text-2xl mt-2 font-semibold text-gray-900 dark:text-gray-100"
+            >
+              {{ localDisplayDuration }}s
+            </div>
+
             <!-- Quick Duration Buttons -->
             <div class="flex gap-2 sm:gap-3 mt-3 sm:mt-4">
               <button
                 (click)="setDuration(10)"
-                class="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-lg text-base sm:text-lg transition-colors cursor-pointer">
+                class="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-lg text-base sm:text-lg transition-colors cursor-pointer"
+              >
                 10s
               </button>
               <button
                 (click)="setDuration(20)"
-                class="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-lg text-base sm:text-lg transition-colors cursor-pointer">
+                class="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-lg text-base sm:text-lg transition-colors cursor-pointer"
+              >
                 20s
               </button>
               <button
                 (click)="setDuration(30)"
-                class="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-lg text-base sm:text-lg transition-colors cursor-pointer">
+                class="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-lg text-base sm:text-lg transition-colors cursor-pointer"
+              >
                 30s
               </button>
             </div>
@@ -141,26 +247,36 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
 
           <!-- Smart Mode Info Box -->
           @if (localSmartMode) {
-          <div class="bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded-lg p-4">
+          <div
+            class="bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded-lg p-4"
+          >
             <p class="text-lg text-gray-800 dark:text-gray-100 mb-2">
-              Smart mode automatically adjusts display time based on prayer length, giving you more time to read longer prayers and updates.
+              Smart mode automatically adjusts display time based on prayer
+              length, giving you more time to read longer prayers and updates.
             </p>
             <button
               (click)="showSmartModeDetails = !showSmartModeDetails"
-              class="text-blue-600 dark:text-blue-400 hover:underline text-base font-medium flex items-center gap-1 cursor-pointer">
-              {{ showSmartModeDetails ? '− Hide details' : '+ Show details' }}
+              class="text-blue-600 dark:text-blue-400 hover:underline text-base font-medium flex items-center gap-1 cursor-pointer"
+            >
+              {{ showSmartModeDetails ? "− Hide details" : "+ Show details" }}
             </button>
             @if (showSmartModeDetails) {
-            <div class="mt-3 pt-3 border-t border-blue-300 dark:border-blue-700 text-base text-gray-700 dark:text-gray-300 space-y-2">
+            <div
+              class="mt-3 pt-3 border-t border-blue-300 dark:border-blue-700 text-base text-gray-700 dark:text-gray-300 space-y-2"
+            >
               <p><strong>How it works:</strong></p>
               <ul class="list-disc list-inside space-y-1 ml-2">
-                <li>Counts characters in prayer description and up to 3 recent updates</li>
+                <li>
+                  Counts characters in prayer description and up to 3 recent
+                  updates
+                </li>
                 <li>Reading pace: ~120 characters per 10 seconds</li>
                 <li>Minimum time: 10 seconds per prayer</li>
                 <li>Maximum time: 120 seconds (2 minutes) per prayer</li>
               </ul>
               <p class="text-sm italic mt-2">
-                Example: A prayer with 240 characters will display for about 20 seconds
+                Example: A prayer with 240 characters will display for about 20
+                seconds
               </p>
             </div>
             }
@@ -169,18 +285,32 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
 
           <!-- Content Type -->
           <div>
-            <label class="block text-base sm:text-lg lg:text-xl mb-2 sm:mb-3 text-gray-900 dark:text-gray-100">Content Type</label>
+            <label
+              class="block text-base sm:text-lg lg:text-xl mb-2 sm:mb-3 text-gray-900 dark:text-gray-100"
+              >Content Type</label
+            >
             <div class="relative">
               <select
                 [(ngModel)]="localContentType"
                 (ngModelChange)="contentTypeChange.emit($event)"
-                class="w-full appearance-none px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-base sm:text-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#0047AB] focus:border-transparent pr-10 sm:pr-12">
+                class="w-full appearance-none px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-base sm:text-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#0047AB] focus:border-transparent pr-10 sm:pr-12"
+              >
                 <option value="prayers">Prayers</option>
                 <option value="prompts">Prompts</option>
                 <option value="personal">Personal</option>
                 <option value="all">All</option>
               </select>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-700 dark:text-gray-300 z-10">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-700 dark:text-gray-300 z-10"
+              >
                 <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
             </div>
@@ -189,14 +319,20 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
           <!-- Randomize Toggle -->
           <div>
             <label class="flex items-center justify-between cursor-pointer">
-              <span class="text-base sm:text-lg lg:text-xl text-gray-900 dark:text-gray-100">Randomize Order</span>
+              <span
+                class="text-base sm:text-lg lg:text-xl text-gray-900 dark:text-gray-100"
+                >Randomize Order</span
+              >
               <div class="relative">
                 <input
                   type="checkbox"
                   [(ngModel)]="localRandomize"
                   (ngModelChange)="randomizeChange.emit($event)"
-                  class="sr-only peer">
-                <div class="w-14 h-8 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"></div>
+                  class="sr-only peer"
+                />
+                <div
+                  class="w-14 h-8 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"
+                ></div>
               </div>
             </label>
             <p class="text-sm text-gray-700 dark:text-gray-300 mt-2">
@@ -205,21 +341,36 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
           </div>
 
           <!-- Time Filter (for prayers and personal prayers) -->
-          @if (localContentType === 'prayers' || localContentType === 'personal') {
+          @if (localContentType === 'prayers' || localContentType ===
+          'personal') {
           <div>
-            <label class="block text-base sm:text-lg lg:text-xl mb-2 sm:mb-3 text-gray-900 dark:text-gray-100">Time Period</label>
+            <label
+              class="block text-base sm:text-lg lg:text-xl mb-2 sm:mb-3 text-gray-900 dark:text-gray-100"
+              >Time Period</label
+            >
             <div class="relative">
               <select
                 [(ngModel)]="localTimeFilter"
                 (ngModelChange)="timeFilterChange.emit($event)"
-                class="w-full appearance-none px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-base sm:text-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#0047AB] focus:border-transparent pr-10 sm:pr-12">
+                class="w-full appearance-none px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-base sm:text-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#0047AB] focus:border-transparent pr-10 sm:pr-12"
+              >
                 <option value="week">Last Week</option>
                 <option value="twoweeks">Last 2 Weeks</option>
                 <option value="month">Last Month</option>
                 <option value="year">Last Year</option>
                 <option value="all">All Time</option>
               </select>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-700 dark:text-gray-300 z-10">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-700 dark:text-gray-300 z-10"
+              >
                 <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
             </div>
@@ -227,50 +378,84 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
           }
 
           <!-- Personal Prayer Categories (only for personal content) -->
-          @if (localContentType === 'personal' && availableCategories && availableCategories.length > 0) {
+          @if (localContentType === 'personal' && availableCategories &&
+          availableCategories.length > 0) {
           <div>
-            <label class="block text-base sm:text-lg lg:text-xl mb-2 sm:mb-3 text-gray-900 dark:text-gray-100">Categories</label>
+            <label
+              class="block text-base sm:text-lg lg:text-xl mb-2 sm:mb-3 text-gray-900 dark:text-gray-100"
+              >Categories</label
+            >
             <div class="space-y-2">
               @for (category of availableCategories; track category) {
-                <label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
-                  <input
-                    type="checkbox"
-                    [checked]="isCategorySelected(category)"
-                    (change)="toggleCategory($event, category)"
-                    class="w-4 h-4 sm:w-5 sm:h-5 rounded text-blue-600">
-                  <span class="text-base sm:text-lg text-gray-900 dark:text-gray-100">{{ category }}</span>
-                </label>
+              <label
+                class="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+              >
+                <input
+                  type="checkbox"
+                  [checked]="isCategorySelected(category)"
+                  (change)="toggleCategory($event, category)"
+                  class="w-4 h-4 sm:w-5 sm:h-5 rounded text-blue-600"
+                />
+                <span
+                  class="text-base sm:text-lg text-gray-900 dark:text-gray-100"
+                  >{{ category }}</span
+                >
+              </label>
               }
             </div>
           </div>
           }
 
           <!-- Prayer Status (for prayers and personal prayers) -->
-          @if (localContentType === 'prayers' || localContentType === 'personal') {
+          @if (localContentType === 'prayers' || localContentType ===
+          'personal') {
           <div>
-            <label class="block text-base sm:text-lg lg:text-xl mb-2 sm:mb-3 text-gray-900 dark:text-gray-100">Prayer Status</label>
+            <label
+              class="block text-base sm:text-lg lg:text-xl mb-2 sm:mb-3 text-gray-900 dark:text-gray-100"
+              >Prayer Status</label
+            >
             <div class="relative">
               <div class="flex">
-                <div class="flex-1 flex items-center px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-l-lg text-base sm:text-lg border border-r-0 border-gray-300 dark:border-gray-600">
+                <div
+                  class="flex-1 flex items-center px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-l-lg text-base sm:text-lg border border-r-0 border-gray-300 dark:border-gray-600"
+                >
                   <span>{{ getStatusFilterDisplay() }}</span>
                 </div>
                 <button
                   (click)="toggleStatusDropdown()"
-                  class="flex items-center justify-center px-2.5 sm:px-3 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-r-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer">
-                  <svg class="w-5 h-5 sm:w-6 sm:h-6 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                    [class.rotate-180]="showStatusDropdown">
+                  class="flex items-center justify-center px-2.5 sm:px-3 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-r-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                >
+                  <svg
+                    class="w-5 h-5 sm:w-6 sm:h-6 transition-transform"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    [class.rotate-180]="showStatusDropdown"
+                  >
                     <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
                 </button>
               </div>
               @if (showStatusDropdown) {
               <div>
-                <div class="fixed inset-0 z-[60]" (click)="applyStatusFilter()"></div>
-                <div class="absolute left-0 right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-[70]">
-                  @for (status of ['current', 'answered', 'archived']; track status) {
+                <div
+                  class="fixed inset-0 z-[60]"
+                  (click)="applyStatusFilter()"
+                ></div>
+                <div
+                  class="absolute left-0 right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-[70]"
+                >
+                  @for (status of ['current', 'answered', 'archived']; track
+                  status) {
                   <div
-                    (mousedown)="togglePendingStatus(status); $event.preventDefault()"
-                    class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between capitalize cursor-pointer">
+                    (mousedown)="
+                      togglePendingStatus(status); $event.preventDefault()
+                    "
+                    class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between capitalize cursor-pointer"
+                  >
                     <span>{{ status }}</span>
                     @if (isPendingStatusSelected(status)) {
                     <span class="text-green-600 dark:text-green-400">✓</span>
@@ -279,7 +464,8 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
                   }
                   <div
                     (mousedown)="clearPendingStatus(); $event.preventDefault()"
-                    class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer border-t border-gray-200 dark:border-gray-700">
+                    class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer border-t border-gray-200 dark:border-gray-700"
+                  >
                     <span>All Statuses</span>
                     @if (pendingStatusFilter.length === 0) {
                     <span class="text-green-600 dark:text-green-400">✓</span>
@@ -293,10 +479,14 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
           }
 
           <!-- Prayer Timer -->
-          <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4">
+          <div
+            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4"
+          >
             <div class="flex items-start gap-2 sm:gap-3 mb-3 sm:mb-4">
               <div class="flex-1">
-                <div class="font-medium text-gray-800 dark:text-gray-100 mb-1 sm:mb-2 text-sm sm:text-base">
+                <div
+                  class="font-medium text-gray-800 dark:text-gray-100 mb-1 sm:mb-2 text-sm sm:text-base"
+                >
                   Prayer Timer
                 </div>
                 <p class="text-xs sm:text-sm text-gray-700 dark:text-gray-300">
@@ -304,8 +494,11 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
                 </p>
               </div>
             </div>
-            
-            <label class="block text-base sm:text-lg mb-2 sm:mb-3 text-gray-900 dark:text-gray-100">Duration (minutes)</label>
+
+            <label
+              class="block text-base sm:text-lg mb-2 sm:mb-3 text-gray-900 dark:text-gray-100"
+              >Duration (minutes)</label
+            >
             <input
               type="range"
               min="1"
@@ -313,14 +506,22 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
               step="1"
               [(ngModel)]="localPrayerTimerMinutes"
               (ngModelChange)="prayerTimerMinutesChange.emit($event)"
-              [style.--value-percent]="((localPrayerTimerMinutes - 1) / 59 * 100) + '%'"
+              [style.--value-percent]="
+                ((localPrayerTimerMinutes - 1) / 59) * 100 + '%'
+              "
               style="--fill-color: #2F5F54"
-              class="presentation-range w-full h-2.5 sm:h-3 bg-gray-300 dark:bg-gray-700 rounded-lg cursor-pointer accent-[#2F5F54]">
-            <div class="text-center text-xl sm:text-2xl mt-2 font-semibold text-gray-900 dark:text-gray-100">{{ localPrayerTimerMinutes }} min</div>
-            
+              class="presentation-range w-full h-2.5 sm:h-3 bg-gray-300 dark:bg-gray-700 rounded-lg cursor-pointer accent-[#2F5F54]"
+            />
+            <div
+              class="text-center text-xl sm:text-2xl mt-2 font-semibold text-gray-900 dark:text-gray-100"
+            >
+              {{ localPrayerTimerMinutes }} min
+            </div>
+
             <button
               (click)="startPrayerTimer.emit()"
-              class="w-full mt-3 sm:mt-4 px-4 sm:px-6 py-2.5 sm:py-3 bg-[#2F5F54] hover:bg-[#1a3a2e] text-white rounded-lg text-base sm:text-lg font-semibold transition-colors cursor-pointer">
+              class="w-full mt-3 sm:mt-4 px-4 sm:px-6 py-2.5 sm:py-3 bg-[#2F5F54] hover:bg-[#1a3a2e] text-white rounded-lg text-base sm:text-lg font-semibold transition-colors cursor-pointer"
+            >
               Start Prayer Timer
             </button>
           </div>
@@ -328,7 +529,8 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
           <!-- Refresh Button -->
           <button
             (click)="refresh.emit()"
-            class="w-full px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 text-gray-100 rounded-lg text-base sm:text-lg font-semibold transition-colors cursor-pointer">
+            class="w-full px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 text-gray-100 rounded-lg text-base sm:text-lg font-semibold transition-colors cursor-pointer"
+          >
             Refresh Prayers
           </button>
         </div>
@@ -336,74 +538,89 @@ type TimeFilter = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
     </div>
     }
   `,
-  styles: [`
-    :host {
-      display: contents;
-    }
-    :host .presentation-range {
-      -webkit-appearance: none;
-      appearance: none;
-      background: transparent;
-    }
-    :host .presentation-range::-webkit-slider-runnable-track {
-      width: 100%;
-      height: 12px;
-      background: linear-gradient(to right, var(--fill-color, #2F5F54) 0%, var(--fill-color, #2F5F54) var(--value-percent, 0%), #d1d5db var(--value-percent, 0%), #d1d5db 100%);
-      border-radius: 0.5rem;
-    }
-    :host .presentation-range::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 32px !important;
-      height: 32px !important;
-      min-width: 32px;
-      min-height: 32px;
-      border-radius: 50%;
-      background: #2F5F54;
-      cursor: pointer;
-      margin-top: -10px;
-      border: 2px solid white;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    }
-    :host .presentation-range.accent-blue-600::-webkit-slider-thumb {
-      background: #2563eb;
-    }
-    :host .presentation-range::-moz-range-track {
-      width: 100%;
-      height: 12px;
-      background: linear-gradient(to right, var(--fill-color, #2F5F54) 0%, var(--fill-color, #2F5F54) var(--value-percent, 0%), #d1d5db var(--value-percent, 0%), #d1d5db 100%);
-      border-radius: 0.5rem;
-    }
-    :host .presentation-range::-moz-range-thumb {
-      width: 32px !important;
-      height: 32px !important;
-      min-width: 32px;
-      min-height: 32px;
-      border-radius: 50%;
-      background: #2F5F54;
-      cursor: pointer;
-      border: 2px solid white;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    }
-    :host .presentation-range.accent-blue-600::-moz-range-thumb {
-      background: #2563eb;
-    }
-  `]
+  changeDetection: ChangeDetectionStrategy.Eager,
+  styles: [
+    `
+      :host {
+        display: contents;
+      }
+      :host .presentation-range {
+        -webkit-appearance: none;
+        appearance: none;
+        background: transparent;
+      }
+      :host .presentation-range::-webkit-slider-runnable-track {
+        width: 100%;
+        height: 12px;
+        background: linear-gradient(
+          to right,
+          var(--fill-color, #2f5f54) 0%,
+          var(--fill-color, #2f5f54) var(--value-percent, 0%),
+          #d1d5db var(--value-percent, 0%),
+          #d1d5db 100%
+        );
+        border-radius: 0.5rem;
+      }
+      :host .presentation-range::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 32px !important;
+        height: 32px !important;
+        min-width: 32px;
+        min-height: 32px;
+        border-radius: 50%;
+        background: #2f5f54;
+        cursor: pointer;
+        margin-top: -10px;
+        border: 2px solid white;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      }
+      :host .presentation-range.accent-blue-600::-webkit-slider-thumb {
+        background: #2563eb;
+      }
+      :host .presentation-range::-moz-range-track {
+        width: 100%;
+        height: 12px;
+        background: linear-gradient(
+          to right,
+          var(--fill-color, #2f5f54) 0%,
+          var(--fill-color, #2f5f54) var(--value-percent, 0%),
+          #d1d5db var(--value-percent, 0%),
+          #d1d5db 100%
+        );
+        border-radius: 0.5rem;
+      }
+      :host .presentation-range::-moz-range-thumb {
+        width: 32px !important;
+        height: 32px !important;
+        min-width: 32px;
+        min-height: 32px;
+        border-radius: 50%;
+        background: #2f5f54;
+        cursor: pointer;
+        border: 2px solid white;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      }
+      :host .presentation-range.accent-blue-600::-moz-range-thumb {
+        background: #2563eb;
+      }
+    `,
+  ],
 })
 export class PresentationSettingsModalComponent implements OnInit, OnChanges {
   @Input() visible = false;
-  @Input() theme: ThemeOption = 'system';
+  @Input() theme: ThemeOption = "system";
   @Input() smartMode = true;
   @Input() displayDuration = 10;
-  @Input() contentType: ContentType = 'prayers';
+  @Input() contentType: ContentType = "prayers";
   @Input() randomize = false;
-  @Input() timeFilter: TimeFilter = 'month';
+  @Input() timeFilter: TimeFilter = "month";
   @Input() statusFiltersCurrent = true;
   @Input() statusFiltersAnswered = true;
   @Input() prayerTimerMinutes = 10;
   @Input() availableCategories: string[] = [];
   @Input() selectedCategories: string[] = [];
-  
+
   @Output() close = new EventEmitter<void>();
   @Output() themeChange = new EventEmitter<ThemeOption>();
   @Output() smartModeChange = new EventEmitter<boolean>();
@@ -411,7 +628,10 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
   @Output() contentTypeChange = new EventEmitter<ContentType>();
   @Output() randomizeChange = new EventEmitter<boolean>();
   @Output() timeFilterChange = new EventEmitter<TimeFilter>();
-  @Output() statusFiltersChange = new EventEmitter<{current: boolean, answered: boolean}>();
+  @Output() statusFiltersChange = new EventEmitter<{
+    current: boolean;
+    answered: boolean;
+  }>();
   @Output() prayerTimerMinutesChange = new EventEmitter<number>();
   @Output() startPrayerTimer = new EventEmitter<void>();
   @Output() refresh = new EventEmitter<void>();
@@ -420,12 +640,12 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
   // Local state for two-way binding
   localSmartMode = true;
   localDisplayDuration = 10;
-  localContentType: ContentType = 'prayers';
+  localContentType: ContentType = "prayers";
   localRandomize = false;
-  localTimeFilter: TimeFilter = 'month';
+  localTimeFilter: TimeFilter = "month";
   localPrayerTimerMinutes = 10;
   localSelectedCategories: string[] = [];
-  
+
   showSmartModeDetails = false;
   showStatusDropdown = false;
   pendingStatusFilter: string[] = [];
@@ -452,8 +672,8 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
 
   initPendingStatusFilter() {
     const filters: string[] = [];
-    if (this.statusFiltersCurrent) filters.push('current');
-    if (this.statusFiltersAnswered) filters.push('answered');
+    if (this.statusFiltersCurrent) filters.push("current");
+    if (this.statusFiltersAnswered) filters.push("answered");
     this.pendingStatusFilter = filters;
   }
 
@@ -474,7 +694,9 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
   togglePendingStatus(status: string) {
     const index = this.pendingStatusFilter.indexOf(status);
     if (index > -1) {
-      this.pendingStatusFilter = this.pendingStatusFilter.filter(s => s !== status);
+      this.pendingStatusFilter = this.pendingStatusFilter.filter(
+        (s) => s !== status
+      );
     } else {
       this.pendingStatusFilter = [...this.pendingStatusFilter, status];
     }
@@ -489,19 +711,19 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
   }
 
   applyStatusFilter() {
-    const current = this.pendingStatusFilter.includes('current');
-    const answered = this.pendingStatusFilter.includes('answered');
+    const current = this.pendingStatusFilter.includes("current");
+    const answered = this.pendingStatusFilter.includes("answered");
     this.statusFiltersChange.emit({ current, answered });
     this.showStatusDropdown = false;
   }
 
   getStatusFilterDisplay(): string {
     const filters: string[] = [];
-    if (this.statusFiltersCurrent) filters.push('Current');
-    if (this.statusFiltersAnswered) filters.push('Answered');
-    
-    if (filters.length === 0) return 'All Statuses';
-    return filters.join(', ');
+    if (this.statusFiltersCurrent) filters.push("Current");
+    if (this.statusFiltersAnswered) filters.push("Answered");
+
+    if (filters.length === 0) return "All Statuses";
+    return filters.join(", ");
   }
 
   isCategorySelected(category: string): boolean {
@@ -512,10 +734,15 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
     const checkbox = event.target as HTMLInputElement;
     if (checkbox.checked) {
       if (!this.localSelectedCategories.includes(category)) {
-        this.localSelectedCategories = [...this.localSelectedCategories, category];
+        this.localSelectedCategories = [
+          ...this.localSelectedCategories,
+          category,
+        ];
       }
     } else {
-      this.localSelectedCategories = this.localSelectedCategories.filter(c => c !== category);
+      this.localSelectedCategories = this.localSelectedCategories.filter(
+        (c) => c !== category
+      );
     }
     this.categoriesChange.emit(this.localSelectedCategories);
   }

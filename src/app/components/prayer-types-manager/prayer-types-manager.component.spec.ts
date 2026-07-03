@@ -96,7 +96,9 @@ describe('PrayerTypesManagerComponent', () => {
 
   it('should have initial state', () => {
     expect(component.types).toEqual([]);
-    expect(component.loading).toBe(true);
+    expect(component.loading).toBe(false);
+    expect(component.isLoading).toBe(false);
+    expect(component.sectionExpanded).toBe(false);
     expect(component.showAddForm).toBe(false);
     expect(component.error).toBeNull();
     expect(component.success).toBeNull();
@@ -107,9 +109,17 @@ describe('PrayerTypesManagerComponent', () => {
   });
 
   describe('ngOnInit', () => {
-    it('should fetch types on initialization', () => {
+    it('should not fetch types until section is expanded', () => {
       const spy = vi.spyOn(component, 'fetchTypes');
       component.ngOnInit();
+      expect(spy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onExpandedChange', () => {
+    it('should fetch types on first expand', () => {
+      const spy = vi.spyOn(component, 'loadSectionData');
+      component.onExpandedChange(true);
       expect(spy).toHaveBeenCalled();
     });
   });

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { ChangeDetectorRef } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { GitHubSettingsComponent } from './github-settings.component';
 import { GitHubFeedbackService } from '../../services/github-feedback.service';
@@ -33,7 +34,16 @@ describe('GitHubSettingsComponent', () => {
       activeTenant$: new BehaviorSubject({ id: 't1', name: 'T', slug: 't' })
     };
 
-    component = new GitHubSettingsComponent(mockGitHubFeedbackService, mockTenantContext as any);
+    const mockChangeDetectorRef = {
+      detectChanges: vi.fn(),
+      markForCheck: vi.fn()
+    };
+
+    component = new GitHubSettingsComponent(
+      mockGitHubFeedbackService,
+      mockTenantContext as any,
+      mockChangeDetectorRef as ChangeDetectorRef
+    );
   });
 
   afterEach(() => {
@@ -58,8 +68,15 @@ describe('GitHubSettingsComponent', () => {
       expect(component.isTestingConnection).toBe(false);
     });
 
-    it('should load configuration on init', async () => {
+    it('should not load configuration on init before section expand', async () => {
       component.ngOnInit();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(mockGitHubFeedbackService.getGitHubConfig).not.toHaveBeenCalled();
+    });
+
+    it('should load configuration when section is expanded', async () => {
+      component.onExpandedChange(true);
       await Promise.resolve();
       await Promise.resolve();
       expect(mockGitHubFeedbackService.getGitHubConfig).toHaveBeenCalled();

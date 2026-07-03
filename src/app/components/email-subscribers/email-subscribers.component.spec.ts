@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { of } from 'rxjs';
+import { BehaviorSubject } from 'rxjs';
+import { ChangeDetectorRef } from '@angular/core';
 import { EmailSubscribersComponent } from './email-subscribers.component';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
@@ -47,7 +48,7 @@ describe('EmailSubscribersComponent', () => {
 
     mockTenantContext = {
       getActiveTenant: vi.fn(() => MOCK_TENANT),
-      activeTenant$: of(MOCK_TENANT)
+      activeTenant$: new BehaviorSubject(MOCK_TENANT)
     };
 
     const fromChain = createFromMock();
@@ -105,6 +106,24 @@ describe('EmailSubscribersComponent', () => {
     expect(component.searchQuery).toBe('');
     expect(component.sortBy).toBe('last_activity_date');
     expect(component.showAddForm).toBe(false);
+    expect(component.sectionExpanded).toBe(false);
+    expect(component.isLoading).toBe(false);
+  });
+
+  it('should not load subscribers on ngOnInit until section is expanded', async () => {
+    const searchSpy = vi.spyOn(component, 'handleSearch');
+    component.ngOnInit();
+    await Promise.resolve();
+    expect(searchSpy).not.toHaveBeenCalled();
+  });
+
+  it('should lazy-load subscribers on first expand', async () => {
+    const searchSpy = vi.spyOn(component, 'handleSearch').mockResolvedValue(undefined);
+    component.onExpandedChange(true);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(component.sectionExpanded).toBe(true);
+    expect(searchSpy).toHaveBeenCalled();
   });
 
   it('toggleSort should toggle direction when same column', () => {

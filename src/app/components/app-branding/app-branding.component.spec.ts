@@ -67,8 +67,8 @@ describe('AppBrandingComponent', () => {
       expect(component.darkModeLogoUrl).toBe('');
     });
 
-    it('should have loading default to false', () => {
-      expect(component.loading).toBe(false);
+    it('should have isLoading default to false', () => {
+      expect(component.isLoading).toBe(false);
     });
 
     it('should have saving default to false', () => {
@@ -89,19 +89,26 @@ describe('AppBrandingComponent', () => {
   });
 
   describe('ngOnInit', () => {
-    it('should call loadSettings on initialization', () => {
+    it('should not call loadSettings on initialization before section expand', () => {
       const loadSettingsSpy = vi.spyOn(component, 'loadSettings');
       component.ngOnInit();
+      expect(loadSettingsSpy).not.toHaveBeenCalled();
+      loadSettingsSpy.mockRestore();
+    });
+
+    it('should call loadSettings when section is expanded', async () => {
+      const loadSettingsSpy = vi.spyOn(component, 'loadSettings');
+      component.onExpandedChange(true);
       expect(loadSettingsSpy).toHaveBeenCalled();
       loadSettingsSpy.mockRestore();
     });
   });
 
   describe('loadSettings', () => {
-    it('should set loading to true initially', async () => {
-      component.loading = false;
+    it('should set isLoading to true initially', async () => {
+      component.isLoading = false;
       const promise = component.loadSettings();
-      expect(component.loading).toBe(true);
+      expect(component.isLoading).toBe(true);
       await promise;
     });
 
@@ -128,7 +135,7 @@ describe('AppBrandingComponent', () => {
       expect(component.useLogo).toBe(true);
       expect(component.lightModeLogoUrl).toBe('data:image/png;base64,light');
       expect(component.darkModeLogoUrl).toBe('data:image/png;base64,dark');
-      expect(component.loading).toBe(false);
+      expect(component.isLoading).toBe(false);
       expect(mockChangeDetectorRef.markForCheck).toHaveBeenCalled();
     });
 
@@ -155,7 +162,7 @@ describe('AppBrandingComponent', () => {
 
       expect(component.appTitle).toBe(originalTitle);
       expect(component.appSubtitle).toBe(originalSubtitle);
-      expect(component.loading).toBe(false);
+      expect(component.isLoading).toBe(false);
     });
 
     it('should handle error when loading settings fails', async () => {
@@ -171,7 +178,7 @@ describe('AppBrandingComponent', () => {
       await component.loadSettings();
 
       expect(component.error).toBe('Failed to load branding settings');
-      expect(component.loading).toBe(false);
+      expect(component.isLoading).toBe(false);
       expect(mockChangeDetectorRef.markForCheck).toHaveBeenCalled();
     });
 
@@ -183,7 +190,7 @@ describe('AppBrandingComponent', () => {
       await component.loadSettings();
 
       expect(component.error).toBe('Failed to load branding settings');
-      expect(component.loading).toBe(false);
+      expect(component.isLoading).toBe(false);
     });
   });
 

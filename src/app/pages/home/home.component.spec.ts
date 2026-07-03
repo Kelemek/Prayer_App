@@ -98,14 +98,95 @@ const makeMocks = () => {
       from: vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            maybeSingle: vi.fn()
+            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null }))
           }))
         }))
       }))
     }
   };
 
-  return { prayerService, promptService, adminAuthService, userSessionService, badgeService, cacheService, toastService, analyticsService, cdr, router, supabaseService, prayersSubject, promptsSubject, userSessionSubject, allPersonalPrayersSubject };
+  const tenantPermissionService: any = {
+    canAccessShared: vi.fn(() => true),
+    canAccessAdmin: vi.fn(() => false)
+  };
+
+  const tenantContextService: any = {
+    getActiveTenant: vi.fn(() => ({
+      id: 'test-tenant-id',
+      name: 'Test Tenant',
+      slug: 'test-tenant',
+      plan_tier: 'churches',
+      plan_status: 'active'
+    })),
+    activeTenant$: new BehaviorSubject({
+      id: 'test-tenant-id',
+      name: 'Test Tenant',
+      slug: 'test-tenant',
+      plan_tier: 'churches',
+      plan_status: 'active'
+    }),
+    memberships$: of([]),
+    availableTenants$: of([])
+  };
+
+  return { prayerService, promptService, adminAuthService, userSessionService, badgeService, cacheService, toastService, analyticsService, cdr, router, supabaseService, tenantPermissionService, tenantContextService, prayersSubject, promptsSubject, userSessionSubject, allPersonalPrayersSubject };
+};
+
+let mocks: ReturnType<typeof makeMocks>;
+
+const defaultTenantContextMock = () => ({
+  getActiveTenant: vi.fn(() => null),
+  activeTenant$: new BehaviorSubject(null)
+});
+
+const createBadgeInjector = (
+  userSessionService: any,
+  tenantContextService = defaultTenantContextMock()
+) => ({
+  get: vi.fn((ServiceClass: any) => {
+    if (ServiceClass === UserSessionService) {
+      return userSessionService;
+    }
+    if (ServiceClass === TenantContextService) {
+      return tenantContextService;
+    }
+    return null;
+  })
+});
+
+const createHomeComponent = (
+  prayerService: any,
+  promptService: any,
+  adminAuthService: any,
+  userSessionService: any,
+  badgeService: any,
+  toastService: any,
+  analyticsService: any,
+  cdr: any,
+  router: any,
+  supabaseService: any,
+  tenantPermissionService?: any,
+  tenantContextService?: any
+) => {
+  const m = mocks;
+  const comp = new HomeComponent(
+    prayerService,
+    promptService,
+    adminAuthService,
+    userSessionService,
+    badgeService,
+    toastService,
+    analyticsService,
+    cdr,
+    router,
+    supabaseService,
+    tenantPermissionService ?? m.tenantPermissionService,
+    tenantContextService ?? m.tenantContextService
+  );
+  const permissions = tenantPermissionService ?? m.tenantPermissionService;
+  comp.canAccessShared = permissions.canAccessShared();
+  comp.canAccessAdminFeatures = permissions.canAccessAdmin();
+  return comp;
 };
 
 interface SupabaseEmailOptions {
@@ -123,9 +204,15 @@ const makeSupabaseForEmail = (options: SupabaseEmailOptions = {}) => {
     eq: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue(selectResult)
   };
-  const updateEq = vi.fn().mockResolvedValue(options.updateResult ?? { error: null });
+  const updateEqChain: any = {
+    eq: vi.fn(function (this: any) {
+      return this;
+    })
+  };
+  updateEqChain.then = (onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) =>
+    Promise.resolve(options.updateResult ?? { error: null }).then(onFulfilled, onRejected);
   const updateChain: any = {
-    update: vi.fn(() => ({ eq: updateEq }))
+    update: vi.fn(() => updateEqChain)
   };
   const insertChain: any = {
     insert: vi.fn().mockResolvedValue(options.insertResult ?? { error: null })
@@ -157,7 +244,6 @@ const makeSupabaseForEmail = (options: SupabaseEmailOptions = {}) => {
 };
 
 describe('HomeComponent', () => {
-  let mocks: ReturnType<typeof makeMocks>;
   beforeEach(() => {
     mocks = makeMocks();
     // ensure localStorage is clean for each test
@@ -170,7 +256,7 @@ describe('HomeComponent', () => {
   it('constructor uses window cache to set hasLogo', () => {
     // @ts-ignore
     (window as any).__cachedLogos = { useLogo: true };
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -187,7 +273,7 @@ describe('HomeComponent', () => {
 
   it('getUserEmail returns cached email from UserSessionService if available', () => {
     const mockServiceWithEmail = { getUserEmail: () => 'cached@example.com' };
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -204,7 +290,7 @@ describe('HomeComponent', () => {
 
   it('getUserEmail falls back to localStorage when service returns null', () => {
     localStorage.setItem('approvalAdminEmail', 'a@b.com');
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -220,7 +306,7 @@ describe('HomeComponent', () => {
   });
 
   it('getUserEmail falls back to userEmail localStorage key', () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -237,7 +323,7 @@ describe('HomeComponent', () => {
   });
 
   it('getUserEmail falls back to prayerapp_user_email localStorage key', () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -254,7 +340,7 @@ describe('HomeComponent', () => {
   });
 
   it('getUserEmail returns Not logged in when no email sources are available', () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -272,7 +358,7 @@ describe('HomeComponent', () => {
 
 
   it('getUserEmail returns Not logged in when service and localStorage are empty', () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -289,7 +375,7 @@ describe('HomeComponent', () => {
 
   it('ngOnInit wires observables and updates counts and promptsCount', async () => {
     const { prayersSubject, promptsSubject, prayerService } = mocks;
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -332,7 +418,7 @@ describe('HomeComponent', () => {
   });
 
   it.skip('onFiltersChange preserves status and calls applyFilters', () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -351,7 +437,7 @@ describe('HomeComponent', () => {
   });
 
   it('ngOnDestroy completes subscriptions without throwing', () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -369,7 +455,7 @@ describe('HomeComponent', () => {
   });
 
   it('setFilter sets prompts branch correctly', () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -390,7 +476,7 @@ describe('HomeComponent', () => {
   });
 
   it('setFilter total branch', () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -409,7 +495,7 @@ describe('HomeComponent', () => {
   });
 
   it('setFilter other branch (current)', () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -428,7 +514,7 @@ describe('HomeComponent', () => {
   });
 
   it('markAsAnswered and deletePrayer call service', () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -447,7 +533,7 @@ describe('HomeComponent', () => {
   });
 
   it('addUpdate success and failure paths', async () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -471,7 +557,7 @@ describe('HomeComponent', () => {
   });
 
   it('deleteUpdate success and failure paths', async () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -493,7 +579,7 @@ describe('HomeComponent', () => {
   });
 
   it('requestDeletion and requestUpdateDeletion success/failure', async () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -521,7 +607,7 @@ describe('HomeComponent', () => {
   });
 
   it('deletePrompt calls promptService.deletePrompt', async () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -538,7 +624,7 @@ describe('HomeComponent', () => {
   });
 
   it('togglePromptType and isPromptTypeSelected behave correctly', () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -560,7 +646,7 @@ describe('HomeComponent', () => {
 
   it('getDisplayedPrompts respects activeFilter and search/type filters', () => {
     const { promptsSubject } = mocks;
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -603,7 +689,7 @@ describe('HomeComponent', () => {
 
   it('getUniquePromptTypes and getPromptCountByType', () => {
     const { promptsSubject } = mocks;
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -627,7 +713,7 @@ describe('HomeComponent', () => {
   });
 
   it('formatDate returns localized short format', () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -648,7 +734,7 @@ describe('HomeComponent', () => {
   });
 
   it('logout calls adminAuthService.logout and shows toast', async () => {
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -664,13 +750,11 @@ describe('HomeComponent', () => {
     expect(mocks.adminAuthService.logout).toHaveBeenCalled();
   });
 
-  it('navigateToAdmin navigates when isAdmin true, otherwise shows MFA modal', () => {
-    // admin true
-    const adminServiceTrue: any = { isAdmin$: new BehaviorSubject(true).asObservable() };
-    const compTrue = new HomeComponent(
+  it('navigateToAdmin navigates when admin access is allowed', () => {
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
-      adminServiceTrue,
+      mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
       mocks.toastService,
@@ -679,15 +763,16 @@ describe('HomeComponent', () => {
       mocks.router,
       mocks.supabaseService
     );
-    compTrue.navigateToAdmin();
+    comp.canAccessAdminFeatures = true;
+    comp.navigateToAdmin();
     expect(mocks.router.navigate).toHaveBeenCalledWith(['/admin']);
+  });
 
-    // admin false -> showAdminMfaModal -> no email set -> error toast
-    const adminServiceFalse: any = { isAdmin$: new BehaviorSubject(false).asObservable() };
-    const compFalse = new HomeComponent(
+  it('navigateToAdmin shows error when tenant member lacks admin access', () => {
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
-      adminServiceFalse,
+      mocks.adminAuthService,
       mocks.userSessionService,
       mocks.badgeService,
       mocks.toastService,
@@ -696,14 +781,13 @@ describe('HomeComponent', () => {
       mocks.router,
       mocks.supabaseService
     );
-    localStorage.clear();
-    compFalse.navigateToAdmin();
-    expect(mocks.toastService.error).toHaveBeenCalledWith('Email not found. Please log in again.');
-
-    // when email in localStorage, it should navigate to /login with query params
-    localStorage.setItem('userEmail', 'u@e.com');
-    compFalse.navigateToAdmin();
-    expect(mocks.router.navigate).toHaveBeenCalledWith(['/login'], { queryParams: { email: 'u@e.com', sessionExpired: true } });
+    comp.canAccessAdminFeatures = false;
+    comp.tenantMemberships = [{ tenant_id: 'test-tenant-id' } as any];
+    comp.navigateToAdmin();
+    expect(mocks.toastService.error).toHaveBeenCalledWith(
+      'Admin access is not available for this account'
+    );
+    expect(mocks.router.navigate).not.toHaveBeenCalled();
   });
 
   it('loadAdminSettings loads deletion and update policies successfully', async () => {
@@ -725,7 +809,7 @@ describe('HomeComponent', () => {
       }
     };
 
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -761,7 +845,7 @@ describe('HomeComponent', () => {
       }
     };
 
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -794,7 +878,7 @@ describe('HomeComponent', () => {
       }
     };
 
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -830,7 +914,7 @@ describe('HomeComponent', () => {
       }
     };
 
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -869,7 +953,7 @@ describe('HomeComponent', () => {
       }
     };
 
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -895,7 +979,7 @@ describe('HomeComponent', () => {
       getUserEmail: () => null
     };
 
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -922,7 +1006,7 @@ describe('HomeComponent', () => {
       updateUserSession: vi.fn().mockResolvedValue(undefined)
     };
 
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -954,7 +1038,7 @@ describe('HomeComponent', () => {
       updateUserSession: vi.fn().mockResolvedValue(undefined)
     };
 
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -973,6 +1057,11 @@ describe('HomeComponent', () => {
     expect(supabase.supabaseService.client.from).toHaveBeenCalledTimes(2);
     expect(supabase.insertChain.insert).toHaveBeenCalledWith({
       email: 'fresh@example.com',
+      name: 'fresh',
+      is_active: true,
+      is_admin: false,
+      receive_admin_emails: false,
+      tenant_id: 'test-tenant-id',
       default_prayer_view: 'current'
     });
     expect(userSessionService.updateUserSession).toHaveBeenCalledWith({ defaultPrayerView: 'current' });
@@ -988,7 +1077,7 @@ describe('HomeComponent', () => {
       updateUserSession: vi.fn().mockResolvedValue(undefined)
     };
 
-    const comp = new HomeComponent(
+    const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
       mocks.adminAuthService,
@@ -1008,7 +1097,7 @@ describe('HomeComponent', () => {
 
   describe('Badge count functionality', () => {
     it('should have getUnreadPromptCountByType method', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1033,7 +1122,7 @@ describe('HomeComponent', () => {
 
       mocks.promptService.prompts$ = of(prompts);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1062,7 +1151,7 @@ describe('HomeComponent', () => {
         prompts$: promptsSubject.asObservable()
       };
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         customPromptService,
         mocks.adminAuthService,
@@ -1091,7 +1180,7 @@ describe('HomeComponent', () => {
         prompts$: promptsSubject.asObservable()
       };
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         customPromptService,
         mocks.adminAuthService,
@@ -1115,7 +1204,7 @@ describe('HomeComponent', () => {
         prompts$: promptsSubject.asObservable()
       };
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         customPromptService,
         mocks.adminAuthService,
@@ -1151,7 +1240,7 @@ describe('HomeComponent', () => {
       };
       mocks.badgeService.isPromptUnread.mockImplementation((id: string) => id === '2');
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         customPromptService,
         mocks.adminAuthService,
@@ -1171,7 +1260,7 @@ describe('HomeComponent', () => {
 
   describe('Category selection helpers', () => {
     it('togglePersonalCategory clears selection when already chosen', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1191,7 +1280,7 @@ describe('HomeComponent', () => {
     });
 
     it('togglePersonalCategory selects a new category and isPersonalCategorySelected reports true', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1212,7 +1301,7 @@ describe('HomeComponent', () => {
 
   describe('Personal Prayers functionality', () => {
     it('onPrayerFormClose with isPersonal=true just closes form', async () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1232,7 +1321,7 @@ describe('HomeComponent', () => {
     });
 
     it('onPrayerFormClose without isPersonal just closes form', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1259,7 +1348,7 @@ describe('HomeComponent', () => {
       mocks.prayerService.deletePersonalPrayer.mockResolvedValue(true);
       mocks.prayerService.getPersonalPrayers.mockResolvedValue(prayers);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1281,7 +1370,7 @@ describe('HomeComponent', () => {
     it('deletePersonalPrayer failure does not refresh', async () => {
       mocks.prayerService.deletePersonalPrayer.mockResolvedValue(false);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1306,7 +1395,7 @@ describe('HomeComponent', () => {
       mocks.cacheService.get.mockReturnValue(null);
       mocks.prayerService.getPersonalPrayers.mockResolvedValue([]);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1334,7 +1423,7 @@ describe('HomeComponent', () => {
       mocks.cacheService.get.mockReturnValue(null);
       mocks.prayerService.getPersonalPrayers.mockResolvedValue([]);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1360,7 +1449,7 @@ describe('HomeComponent', () => {
     it('addPersonalUpdate error handling', async () => {
       mocks.prayerService.addPersonalPrayerUpdate.mockRejectedValue(new Error('Add failed'));
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1386,7 +1475,7 @@ describe('HomeComponent', () => {
       mocks.cacheService.get.mockReturnValue(null);
       mocks.prayerService.getPersonalPrayers.mockResolvedValue([]);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1408,7 +1497,7 @@ describe('HomeComponent', () => {
     it('deletePersonalUpdate error handling', async () => {
       mocks.prayerService.deletePersonalPrayerUpdate.mockRejectedValue(new Error('Delete failed'));
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1432,7 +1521,7 @@ describe('HomeComponent', () => {
         { id: 'p2', title: 'Prayer 2', description: 'Desc', prayer_for: 'Person', status: 'current' as any, requester: 'Me', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), date_requested: new Date().toISOString(), updates: [] }
       ];
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1458,7 +1547,7 @@ describe('HomeComponent', () => {
         { id: 'p2', title: 'Other', description: 'Desc', prayer_for: 'Person', status: 'current' as any, requester: 'Me', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), date_requested: new Date().toISOString(), updates: [] }
       ];
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1507,7 +1596,7 @@ describe('HomeComponent', () => {
         }
       ];
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1534,7 +1623,7 @@ describe('HomeComponent', () => {
         { id: 'p2', title: 'Beta', description: 'Desc', prayer_for: 'Person', status: 'current' as any, requester: 'Me', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), date_requested: new Date().toISOString(), updates: [], category: 'Evening' }
       ];
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1556,7 +1645,7 @@ describe('HomeComponent', () => {
     });
 
     it('markAllCurrentAsRead calls badgeService', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1575,7 +1664,7 @@ describe('HomeComponent', () => {
     });
 
     it('markAllAnsweredAsRead calls badgeService', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1594,7 +1683,7 @@ describe('HomeComponent', () => {
     });
 
     it('markAllPromptsAsRead calls badgeService', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1615,7 +1704,7 @@ describe('HomeComponent', () => {
 
   describe('Filter functionality for personal prayers', () => {
     it('setFilter personal sets activeFilter and calls applyFilters', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1638,7 +1727,7 @@ describe('HomeComponent', () => {
 
   describe('Personal Prayer Drag and Drop', () => {
     it('onPersonalPrayerDrop should return early if index does not change', async () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1669,7 +1758,7 @@ describe('HomeComponent', () => {
     });
 
     it('onPersonalPrayerDrop shows error when multiple categories are selected', async () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1712,7 +1801,7 @@ describe('HomeComponent', () => {
       mocks.prayerService.updatePersonalPrayerOrder.mockResolvedValue(true);
       mocks.prayerService.getPersonalPrayers.mockResolvedValue(reorderedPrayers);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1756,7 +1845,7 @@ describe('HomeComponent', () => {
       // Mock cache to return null on get so it forces a reload
       mocks.cacheService.get.mockReturnValue(null);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1788,7 +1877,7 @@ describe('HomeComponent', () => {
 
   describe('Category Drag and Drop', () => {
     it('onCategoryDragStarted should set dragging flag and cursor', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1808,7 +1897,7 @@ describe('HomeComponent', () => {
     });
 
     it('onCategoryDragEnded should clear dragging flag and cursor', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1831,7 +1920,7 @@ describe('HomeComponent', () => {
     });
 
     it('onCategoryDrop should return early if index does not change', async () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1858,7 +1947,7 @@ describe('HomeComponent', () => {
     });
 
     it('onCategoryDrop should return early if already swapping', async () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1891,7 +1980,7 @@ describe('HomeComponent', () => {
         { id: '2', title: 'Prayer 2', category: 'Members', display_order: 2 } as PrayerRequest
       ]);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1928,7 +2017,7 @@ describe('HomeComponent', () => {
         { id: '1', title: 'Prayer 1', category: 'C', display_order: 1 } as PrayerRequest
       ]);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1956,7 +2045,7 @@ describe('HomeComponent', () => {
     it('onCategoryDrop should show error and rollback on swap failure', async () => {
       mocks.prayerService.swapCategoryRanges.mockResolvedValue(false);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -1987,7 +2076,7 @@ describe('HomeComponent', () => {
     it('onCategoryDrop should show error and rollback on swap exception', async () => {
       mocks.prayerService.swapCategoryRanges.mockRejectedValue(new Error('Swap error'));
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2027,7 +2116,7 @@ describe('HomeComponent', () => {
       mocks.prayerService.getPersonalPrayers.mockResolvedValue(reloadedPrayers);
       mocks.cacheService.get.mockReturnValue(null);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2062,7 +2151,7 @@ describe('HomeComponent', () => {
         { id: '1', title: 'Prayer 1', category: 'Members', display_order: 1 } as PrayerRequest
       ]);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2094,7 +2183,7 @@ describe('HomeComponent', () => {
     it('onPersonalPrayerDrop should handle error and show error toast on exception', async () => {
       mocks.prayerService.updatePersonalPrayerOrder.mockRejectedValue(new Error('Update error'));
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2133,7 +2222,7 @@ describe('HomeComponent', () => {
         { id: '1', title: 'Prayer 1', category: 'Members', display_order: 1 } as PrayerRequest
       ]);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2168,7 +2257,7 @@ describe('HomeComponent', () => {
 
   describe('Utility methods', () => {
     it('formatDate should return formatted date string', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2190,7 +2279,7 @@ describe('HomeComponent', () => {
     it('getUserEmail should return cached email from userSessionService', () => {
       mocks.userSessionService.getUserEmail.mockReturnValue('test@example.com');
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2211,7 +2300,7 @@ describe('HomeComponent', () => {
       mocks.userSessionService.getUserEmail.mockReturnValue(null);
       localStorage.setItem('approvalAdminEmail', 'admin@example.com');
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2230,7 +2319,7 @@ describe('HomeComponent', () => {
     });
 
     it('markAllCurrentAsRead should call badgeService', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2248,7 +2337,7 @@ describe('HomeComponent', () => {
     });
 
     it('markAllAnsweredAsRead should call badgeService', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2266,7 +2355,7 @@ describe('HomeComponent', () => {
     });
 
     it('markAllPromptsAsRead should call badgeService', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2286,7 +2375,7 @@ describe('HomeComponent', () => {
 
   describe('Modal and editing methods', () => {
     it('openEditModal should set state and mark for check', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2308,7 +2397,7 @@ describe('HomeComponent', () => {
     });
 
     it('onPersonalPrayerSaved should clear state and reload', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2333,7 +2422,7 @@ describe('HomeComponent', () => {
     });
 
     it('openEditUpdateModal should set state', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2355,7 +2444,7 @@ describe('HomeComponent', () => {
     });
 
     it('onPersonalUpdateSaved should clear state and reload', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2382,10 +2471,8 @@ describe('HomeComponent', () => {
   });
 
   describe('Admin navigation', () => {
-    it('navigateToAdmin should navigate when admin is active', () => {
-      mocks.adminAuthService.isAdmin$ = new BehaviorSubject(true).asObservable();
-
-      const comp = new HomeComponent(
+    it('navigateToAdmin should navigate when admin access is allowed', () => {
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2397,17 +2484,15 @@ describe('HomeComponent', () => {
         mocks.router,
         mocks.supabaseService
       );
+      comp.canAccessAdminFeatures = true;
 
       comp.navigateToAdmin();
 
       expect(mocks.router.navigate).toHaveBeenCalledWith(['/admin']);
     });
 
-    it('navigateToAdmin should show MFA modal when admin session expired', () => {
-      mocks.adminAuthService.isAdmin$ = new BehaviorSubject(false).asObservable();
-      localStorage.setItem('userEmail', 'user@example.com');
-
-      const comp = new HomeComponent(
+    it('navigateToAdmin should block tenant members without admin access', () => {
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2419,20 +2504,19 @@ describe('HomeComponent', () => {
         mocks.router,
         mocks.supabaseService
       );
+      comp.canAccessAdminFeatures = false;
+      comp.tenantMemberships = [{ tenant_id: 'test-tenant-id' } as any];
 
       comp.navigateToAdmin();
 
-      expect(mocks.router.navigate).toHaveBeenCalledWith(['/login'], {
-        queryParams: {
-          email: 'user@example.com',
-          sessionExpired: true
-        }
-      });
-      localStorage.removeItem('userEmail');
+      expect(mocks.toastService.error).toHaveBeenCalledWith(
+        'Admin access is not available for this account'
+      );
+      expect(mocks.router.navigate).not.toHaveBeenCalled();
     });
 
     it('logout should call adminAuthService and show success toast', async () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2451,90 +2535,9 @@ describe('HomeComponent', () => {
     });
   });
 
-  describe('Show admin MFA modal', () => {
-    it('showAdminMfaModal should navigate with userEmail from localStorage', () => {
-      localStorage.setItem('userEmail', 'admin@example.com');
-
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      comp['showAdminMfaModal']();
-
-      expect(mocks.router.navigate).toHaveBeenCalledWith(['/login'], {
-        queryParams: {
-          email: 'admin@example.com',
-          sessionExpired: true
-        }
-      });
-
-      localStorage.removeItem('userEmail');
-    });
-
-    it('showAdminMfaModal should show error when no email found', () => {
-      localStorage.clear();
-
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      comp['showAdminMfaModal']();
-
-      expect(mocks.toastService.error).toHaveBeenCalledWith('Email not found. Please log in again.');
-      expect(mocks.router.navigate).not.toHaveBeenCalled();
-    });
-
-    it('showAdminMfaModal should try multiple localStorage keys', () => {
-      localStorage.clear();
-      localStorage.setItem('prayerapp_user_email', 'user@prayer.app');
-
-      const comp = new HomeComponent(
-        mocks.prayerService,
-        mocks.promptService,
-        mocks.adminAuthService,
-        mocks.userSessionService,
-        mocks.badgeService,
-        mocks.toastService,
-        mocks.analyticsService,
-        mocks.cdr,
-        mocks.router,
-        mocks.supabaseService
-      );
-
-      comp['showAdminMfaModal']();
-
-      expect(mocks.router.navigate).toHaveBeenCalledWith(['/login'], {
-        queryParams: {
-          email: 'user@prayer.app',
-          sessionExpired: true
-        }
-      });
-
-      localStorage.clear();
-    });
-  });
-
   describe('Personal category count', () => {
     it('getPersonalCategoryCount should count prayers by category', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2558,7 +2561,7 @@ describe('HomeComponent', () => {
     });
 
     it('getPersonalCategoryCount should return 0 for non-existent category', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2579,7 +2582,7 @@ describe('HomeComponent', () => {
     });
 
     it('getPersonalCategoryCount should work with empty prayers array', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2602,7 +2605,7 @@ describe('HomeComponent', () => {
     it('submitUpdate should call prayerService.addUpdate', async () => {
       mocks.prayerService.addUpdate.mockResolvedValue(undefined);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2624,7 +2627,7 @@ describe('HomeComponent', () => {
     it('submitDeletion should call prayerService.requestDeletion', async () => {
       mocks.prayerService.requestDeletion.mockResolvedValue(undefined);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2646,7 +2649,7 @@ describe('HomeComponent', () => {
     it('submitUpdateDeletion should call prayerService.requestUpdateDeletion', async () => {
       mocks.prayerService.requestUpdateDeletion.mockResolvedValue(undefined);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2668,7 +2671,7 @@ describe('HomeComponent', () => {
 
   describe('getDisplayedPrompts', () => {
     it('should return empty array when activeFilter is not prompts', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2689,7 +2692,7 @@ describe('HomeComponent', () => {
     });
 
     it('should return prompts when activeFilter is prompts', () => {
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2722,7 +2725,7 @@ describe('HomeComponent', () => {
       const mockPersonalPrayers = [{ id: 'p1', title: 'Prayer 1' }];
       const { allPersonalPrayersSubject } = mocks;
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2753,7 +2756,7 @@ describe('HomeComponent', () => {
       mocks.prayerService.getPersonalPrayers.mockResolvedValue([]);
       mocks.prayerService.getUniqueCategoriesForUser.mockResolvedValue([]);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2783,7 +2786,7 @@ describe('HomeComponent', () => {
       mocks.prayerService.getPersonalPrayers.mockResolvedValue([]);
       mocks.prayerService.getUniqueCategoriesForUser.mockResolvedValue([]);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,
@@ -2816,7 +2819,7 @@ describe('HomeComponent', () => {
       const error = new Error('Failed to load personal prayers');
       mocks.prayerService.getPersonalPrayers.mockRejectedValue(error);
 
-      const comp = new HomeComponent(
+      const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
         mocks.adminAuthService,

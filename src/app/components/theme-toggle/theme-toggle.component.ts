@@ -1,15 +1,15 @@
-import { Component, inject } from '@angular/core';
-import { ThemeService } from '../../services/theme.service';
+import { Component, inject, ChangeDetectionStrategy } from "@angular/core";
+import { ThemeService } from "../../services/theme.service";
 
 @Component({
-  selector: 'app-theme-toggle',
+  selector: "app-theme-toggle",
   standalone: true,
   imports: [],
   template: `
     <button
       (click)="toggleTheme()"
       class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-      [title]="'Current theme: ' + (themeService.getTheme())"
+      [title]="'Current theme: ' + themeService.getTheme()"
     >
       <!-- Sun icon (light mode) -->
       @if (!themeService.isDark()) {
@@ -27,7 +27,7 @@ import { ThemeService } from '../../services/theme.service';
         ></path>
       </svg>
       }
-      
+
       <!-- Moon icon (dark mode) -->
       @if (themeService.isDark()) {
       <svg
@@ -46,7 +46,8 @@ import { ThemeService } from '../../services/theme.service';
       }
     </button>
   `,
-  styles: []
+  changeDetection: ChangeDetectionStrategy.Eager,
+  styles: [],
 })
 export class ThemeToggleComponent {
   public themeService = inject(ThemeService);

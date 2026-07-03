@@ -68,7 +68,24 @@ const makeMocks = () => {
 
   const cdr: any = { markForCheck: vi.fn() };
 
-  return { adminAuthService, supabaseService, emailNotificationService, userSessionService, themeService, brandingService, router, route, cdr, requireSiteLogin$, isAdmin$ };
+  const tenantContextService: any = {
+    getActiveTenant: vi.fn(() => ({
+      id: 'test-tenant-id',
+      name: 'Test Tenant',
+      slug: 'test-tenant',
+      plan_tier: 'churches',
+      plan_status: 'active'
+    })),
+    activeTenant$: new BehaviorSubject({
+      id: 'test-tenant-id',
+      name: 'Test Tenant',
+      slug: 'test-tenant',
+      plan_tier: 'churches',
+      plan_status: 'active'
+    })
+  };
+
+  return { adminAuthService, supabaseService, emailNotificationService, userSessionService, themeService, brandingService, tenantContextService, router, route, cdr, requireSiteLogin$, isAdmin$ };
 };
 
 const mockMatchMedia = (matches = false) => ({
@@ -87,6 +104,7 @@ const makeComponent = (mocks: any) => {
     mocks.userSessionService,
     mocks.themeService,
     mocks.brandingService,
+    mocks.tenantContextService,
     mocks.router,
     mocks.route,
     mocks.cdr
@@ -100,7 +118,7 @@ const makeComponent = (mocks: any) => {
 
 // Helper to create LoginComponent with custom service mocks (for tests with modified mocks)
 let componentsToCleanup: LoginComponent[] = [];
-const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, userSession: any, theme: any, branding: any, router: any, route: any, cdr: any) => {
+const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, userSession: any, theme: any, branding: any, tenantContext: any, router: any, route: any, cdr: any) => {
   const comp = new LoginComponent(
     adminAuth,
     supabase,
@@ -108,6 +126,7 @@ const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, 
     userSession,
     theme,
     branding,
+    tenantContext,
     router,
     route,
     cdr
@@ -287,6 +306,7 @@ describe('LoginComponent', () => {
       mocks.userSessionService,
       mocks.themeService,
       mocks.brandingService,
+      mocks.tenantContextService,
       mocks.router,
       mocks.route,
       mocks.cdr
@@ -313,6 +333,7 @@ describe('LoginComponent', () => {
       mocks.userSessionService,
       mocks.themeService,
       mocks.brandingService,
+      mocks.tenantContextService,
       mocks.router,
       mocks.route,
       mocks.cdr
@@ -334,6 +355,7 @@ describe('LoginComponent', () => {
       mocks.userSessionService,
       mocks.themeService,
       mocks.brandingService,
+      mocks.tenantContextService,
       mocks.router,
       mocks.route,
       mocks.cdr
@@ -356,6 +378,7 @@ describe('LoginComponent', () => {
       mocks.userSessionService,
       mocks.themeService,
       mocks.brandingService,
+      mocks.tenantContextService,
       mocks.router,
       mocks.route,
       mocks.cdr
@@ -379,6 +402,7 @@ describe('LoginComponent', () => {
       mocks.userSessionService,
       mocks.themeService,
       mocks.brandingService,
+      mocks.tenantContextService,
       mocks.router,
       mocks.route,
       mocks.cdr
@@ -528,6 +552,7 @@ describe('LoginComponent', () => {
       sysMocks.userSessionService,
       sysMocks.themeService,
       sysMocks.brandingService,
+      sysMocks.tenantContextService,
       sysMocks.router,
       sysMocks.route,
       sysMocks.cdr
@@ -546,6 +571,7 @@ describe('LoginComponent', () => {
       badMocks.userSessionService,
       badMocks.themeService,
       badMocks.brandingService,
+      badMocks.tenantContextService,
       badMocks.router,
       badMocks.route,
       badMocks.cdr
@@ -578,6 +604,7 @@ describe('LoginComponent', () => {
       compMocks.userSessionService,
       compMocks.themeService,
       compMocks.brandingService,
+      compMocks.tenantContextService,
       compMocks.router,
       compMocks.route,
       compMocks.cdr
@@ -604,6 +631,7 @@ describe('LoginComponent', () => {
       compMocks.userSessionService,
       compMocks.themeService,
       compMocks.brandingService,
+      compMocks.tenantContextService,
       compMocks.router,
       compMocks.route,
       compMocks.cdr
@@ -641,6 +669,7 @@ describe('LoginComponent', () => {
       queryMocks.userSessionService,
       queryMocks.themeService,
       queryMocks.brandingService,
+      queryMocks.tenantContextService,
       queryMocks.router,
       queryMocks.route,
       queryMocks.cdr
@@ -664,6 +693,7 @@ describe('LoginComponent', () => {
       queryMocks.userSessionService,
       queryMocks.themeService,
       queryMocks.brandingService,
+      queryMocks.tenantContextService,
       queryMocks.router,
       queryMocks.route,
       queryMocks.cdr
@@ -687,6 +717,7 @@ describe('LoginComponent', () => {
       queryMocks.userSessionService,
       queryMocks.themeService,
       queryMocks.brandingService,
+      queryMocks.tenantContextService,
       queryMocks.router,
       queryMocks.route,
       queryMocks.cdr
@@ -708,6 +739,7 @@ describe('LoginComponent', () => {
       queryMocks.userSessionService,
       queryMocks.themeService,
       queryMocks.brandingService,
+      queryMocks.tenantContextService,
       queryMocks.router,
       queryMocks.route,
       queryMocks.cdr
@@ -732,6 +764,7 @@ describe('LoginComponent', () => {
       queryMocks.userSessionService,
       queryMocks.themeService,
       queryMocks.brandingService,
+      queryMocks.tenantContextService,
       queryMocks.router,
       queryMocks.route,
       queryMocks.cdr
@@ -756,6 +789,7 @@ describe('LoginComponent', () => {
       authMocks.userSessionService,
       authMocks.themeService,
       authMocks.brandingService,
+      authMocks.tenantContextService,
       authMocks.router,
       authMocks.route,
       authMocks.cdr
@@ -786,6 +820,7 @@ describe('LoginComponent', () => {
       themeMocks.userSessionService,
       themeMocks.themeService,
       themeMocks.brandingService,
+      themeMocks.tenantContextService,
       themeMocks.router,
       themeMocks.route,
       themeMocks.cdr
@@ -823,6 +858,7 @@ describe('LoginComponent', () => {
       themeMocks.userSessionService,
       themeMocks.themeService,
       themeMocks.brandingService,
+      themeMocks.tenantContextService,
       themeMocks.router,
       themeMocks.route,
       themeMocks.cdr
@@ -854,6 +890,7 @@ describe('LoginComponent', () => {
       themeMocks.userSessionService,
       themeMocks.themeService,
       themeMocks.brandingService,
+      themeMocks.tenantContextService,
       themeMocks.router,
       themeMocks.route,
       themeMocks.cdr
@@ -1077,6 +1114,7 @@ describe('LoginComponent', () => {
       themeMocks.userSessionService,
       themeMocks.themeService,
       themeMocks.brandingService,
+      themeMocks.tenantContextService,
       themeMocks.router,
       themeMocks.route,
       themeMocks.cdr
@@ -1114,6 +1152,7 @@ describe('LoginComponent', () => {
       compMocks.userSessionService,
       compMocks.themeService,
       compMocks.brandingService,
+      compMocks.tenantContextService,
       compMocks.router,
       compMocks.route,
       compMocks.cdr

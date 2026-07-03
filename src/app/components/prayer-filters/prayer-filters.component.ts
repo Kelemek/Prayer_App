@@ -1,34 +1,43 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { CommonModule } from '@angular/common';
+import {
+  Component,
+  EventEmitter,
+  Input,
+  Output,
+  ChangeDetectionStrategy,
+} from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { CommonModule } from "@angular/common";
 
 export interface PrayerFilters {
   searchTerm?: string;
-  status?: 'current' | 'answered';
-  type?: 'prompt';
+  status?: "current" | "answered";
+  type?: "prompt";
 }
 
 @Component({
-  selector: 'app-prayer-filters',
+  selector: "app-prayer-filters",
   standalone: true,
   imports: [FormsModule, CommonModule],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 mb-6 transition-colors">
+    <div
+      class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 mb-6 transition-colors"
+    >
       <div class="grid grid-cols-1 gap-4">
         <!-- Search -->
         <div>
           <div class="relative">
             <!-- Search Icon -->
-            <svg 
-              class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-400 w-4 h-4 pointer-events-none" 
-              fill="none" 
-              stroke="currentColor" 
+            <svg
+              class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-400 w-4 h-4 pointer-events-none"
+              fill="none"
+              stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path 
-                stroke-linecap="round" 
-                stroke-linejoin="round" 
-                stroke-width="2" 
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
               />
             </svg>
@@ -41,29 +50,29 @@ export interface PrayerFilters {
             />
             <!-- Clear Search Button (inside input) -->
             @if (filters.searchTerm) {
-              <button
-                type="button"
-                (click)="clearFilters()"
-                class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xs sm:text-sm whitespace-nowrap"
-              >
-                <span class="hidden sm:inline">Clear Search</span>
-                <span class="sm:hidden">Clear</span>
-              </button>
+            <button
+              type="button"
+              (click)="clearFilters()"
+              class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xs sm:text-sm whitespace-nowrap"
+            >
+              <span class="hidden sm:inline">Clear Search</span>
+              <span class="sm:hidden">Clear</span>
+            </button>
             }
           </div>
         </div>
       </div>
     </div>
-  `
+  `,
 })
 export class PrayerFiltersComponent {
   @Input() filters: PrayerFilters = {};
   @Output() filtersChange = new EventEmitter<PrayerFilters>();
 
   onSearchChange(searchTerm: string) {
-    const newFilters = { 
-      ...this.filters, 
-      searchTerm: searchTerm || undefined 
+    const newFilters = {
+      ...this.filters,
+      searchTerm: searchTerm || undefined,
     };
     this.filtersChange.emit(newFilters);
   }

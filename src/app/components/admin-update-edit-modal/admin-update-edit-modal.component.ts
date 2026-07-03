@@ -1,12 +1,21 @@
-import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectorRef, OnChanges } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { PrayerUpdate } from '../../services/prayer.service';
-import { AdminDataService } from '../../services/admin-data.service';
-import { ToastService } from '../../services/toast.service';
+import {
+  Component,
+  Input,
+  Output,
+  EventEmitter,
+  OnInit,
+  ChangeDetectorRef,
+  OnChanges,
+  ChangeDetectionStrategy,
+} from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { PrayerUpdate } from "../../services/prayer.service";
+import { AdminDataService } from "../../services/admin-data.service";
+import { ToastService } from "../../services/toast.service";
 
 @Component({
-  selector: 'app-admin-update-edit-modal',
+  selector: "app-admin-update-edit-modal",
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
@@ -21,8 +30,13 @@ import { ToastService } from '../../services/toast.service';
         aria-labelledby="edit-update-title"
       >
         <!-- Header -->
-        <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 id="edit-update-title" class="text-xl font-semibold text-gray-800 dark:text-gray-200">
+        <div
+          class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700"
+        >
+          <h2
+            id="edit-update-title"
+            class="text-xl font-semibold text-gray-800 dark:text-gray-200"
+          >
             Edit Prayer Update
           </h2>
           <button
@@ -30,17 +44,34 @@ import { ToastService } from '../../services/toast.service';
             aria-label="Close edit dialog"
             class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer"
           >
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              ></path>
             </svg>
           </button>
         </div>
 
         <!-- Form -->
-        <form #editForm="ngForm" (ngSubmit)="editForm.valid && handleSubmit()" class="p-6 space-y-4">
+        <form
+          #editForm="ngForm"
+          (ngSubmit)="editForm.valid && handleSubmit()"
+          class="p-6 space-y-4"
+        >
           <!-- Content -->
           <div>
-            <label for="content" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label
+              for="content"
+              class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+            >
               Update Content <span aria-label="required">*</span>
             </label>
             <textarea
@@ -62,7 +93,7 @@ import { ToastService } from '../../services/toast.service';
               class="flex-1 bg-blue-600 dark:bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
               aria-label="Save changes"
             >
-              {{ isSubmitting ? 'Saving...' : 'Save Changes' }}
+              {{ isSubmitting ? "Saving..." : "Save Changes" }}
             </button>
             <button
               type="button"
@@ -79,7 +110,8 @@ import { ToastService } from '../../services/toast.service';
     </div>
     }
   `,
-  styles: []
+  changeDetection: ChangeDetectionStrategy.Eager,
+  styles: [],
 })
 export class AdminUpdateEditModalComponent implements OnInit, OnChanges {
   @Input() isOpen = false;
@@ -88,7 +120,7 @@ export class AdminUpdateEditModalComponent implements OnInit, OnChanges {
   @Output() save = new EventEmitter<void>();
 
   formData = {
-    content: ''
+    content: "",
   };
 
   isSubmitting = false;
@@ -103,9 +135,12 @@ export class AdminUpdateEditModalComponent implements OnInit, OnChanges {
 
   ngOnChanges(): void {
     if (this.isOpen && this.update) {
-      console.log('[AdminUpdateEditModal.ngOnChanges] Modal opened for update:', this.update.id);
+      console.log(
+        "[AdminUpdateEditModal.ngOnChanges] Modal opened for update:",
+        this.update.id
+      );
       this.formData = {
-        content: this.update.content
+        content: this.update.content,
       };
     }
   }
@@ -118,19 +153,28 @@ export class AdminUpdateEditModalComponent implements OnInit, OnChanges {
       this.cdr.markForCheck();
 
       const updates: Partial<PrayerUpdate> = {
-        content: this.formData.content
+        content: this.formData.content,
       };
 
-      console.log('[AdminUpdateEditModal.handleSubmit] Saving update:', this.update.id, updates);
+      console.log(
+        "[AdminUpdateEditModal.handleSubmit] Saving update:",
+        this.update.id,
+        updates
+      );
 
       await this.adminDataService.editUpdate(this.update.id, updates as any);
-      
-      console.log('[AdminUpdateEditModal.handleSubmit] Update saved successfully');
+
+      console.log(
+        "[AdminUpdateEditModal.handleSubmit] Update saved successfully"
+      );
       this.save.emit();
       this.close.emit();
     } catch (error) {
-      console.error('[AdminUpdateEditModal.handleSubmit] Error updating:', error);
-      this.toast.error('Failed to update. Please try again.');
+      console.error(
+        "[AdminUpdateEditModal.handleSubmit] Error updating:",
+        error
+      );
+      this.toast.error("Failed to update. Please try again.");
     } finally {
       this.isSubmitting = false;
       this.cdr.markForCheck();
@@ -139,7 +183,7 @@ export class AdminUpdateEditModalComponent implements OnInit, OnChanges {
 
   cancel(): void {
     this.formData = {
-      content: ''
+      content: "",
     };
     this.close.emit();
   }
