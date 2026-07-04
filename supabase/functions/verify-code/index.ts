@@ -210,7 +210,7 @@ serve(async (req) => {
     if (testAccountEmail !== '' && verificationRecord.action_type === 'admin_login' && emailNormalized === testAccountEmail) {
       try {
         const adminsRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/email_subscribers?is_admin=eq.true&receive_admin_emails=eq.true&select=email`,
+          `${SUPABASE_URL}/rest/v1/tenant_memberships?role=eq.tenant_admin&receive_admin_emails=eq.true&select=user_email`,
           {
             headers: {
               'apikey': SUPABASE_SERVICE_ROLE_KEY,
@@ -221,7 +221,7 @@ serve(async (req) => {
         );
         if (adminsRes.ok) {
           const admins = await adminsRes.json();
-          const adminEmails = Array.isArray(admins) ? admins.map((a: { email: string }) => a.email).filter(Boolean) : [];
+          const adminEmails = Array.isArray(admins) ? admins.map((a: { user_email: string }) => a.user_email).filter(Boolean) : [];
           if (adminEmails.length > 0) {
             const subject = 'Test account logged into the prayer app';
             const htmlBody = `<p>The test account <strong>${testAccountEmail}</strong> was used to sign in to the prayer app.</p><p>Time: ${new Date().toISOString()}</p>`;

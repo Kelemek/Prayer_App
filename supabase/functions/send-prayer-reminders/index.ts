@@ -160,10 +160,10 @@ serve(async (req) => {
             const appLink = `${baseUrl}/`
 
             const { data: subRow } = await supabaseClient
-              .from('email_subscribers')
+              .from('tenant_memberships')
               .select('unsubscribe_token')
               .eq('tenant_id', tenantId)
-              .eq('email', prayer.email.toLowerCase().trim())
+              .eq('user_email', prayer.email.toLowerCase().trim())
               .maybeSingle()
 
             const unsubTok =

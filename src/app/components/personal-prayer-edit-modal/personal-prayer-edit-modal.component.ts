@@ -6,6 +6,7 @@ import {
   OnInit,
   ChangeDetectorRef,
   HostListener,
+  ViewChild,
   ChangeDetectionStrategy,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
@@ -13,11 +14,12 @@ import { FormsModule } from "@angular/forms";
 import { PrayerRequest } from "../../services/prayer.service";
 import { PrayerService } from "../../services/prayer.service";
 import { ToastService } from "../../services/toast.service";
+import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.component";
 
 @Component({
   selector: "app-personal-prayer-edit-modal",
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RichTextEditorComponent],
   template: `
     @if (isOpen && prayer) {
     <div
@@ -95,13 +97,15 @@ import { ToastService } from "../../services/toast.service";
               Prayer Request Details
               <span class="text-gray-500 dark:text-gray-400">(optional)</span>
             </label>
-            <textarea
-              id="description"
+            <app-rich-text-editor
+              #descriptionEditor
               [(ngModel)]="formData.description"
               name="description"
-              aria-label="Prayer Request Details"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 h-24"
-            ></textarea>
+              ngDefaultControl
+              ariaLabel="Prayer Request Details"
+              placeholder="Describe the prayer request"
+              minHeight="6rem"
+            ></app-rich-text-editor>
           </div>
 
           <!-- Category -->
@@ -180,6 +184,8 @@ import { ToastService } from "../../services/toast.service";
   styles: [],
 })
 export class PersonalPrayerEditModalComponent implements OnInit {
+  @ViewChild("descriptionEditor") descriptionEditor?: RichTextEditorComponent;
+
   @Input() isOpen = false;
   @Input() prayer: PrayerRequest | null = null;
   @Output() close = new EventEmitter<void>();
@@ -301,6 +307,8 @@ export class PersonalPrayerEditModalComponent implements OnInit {
     try {
       this.isSubmitting = true;
       this.cdr.markForCheck();
+
+      this.descriptionEditor?.flushMarkdownToForm();
 
       const updates: Partial<PrayerRequest> = {
         prayer_for: this.formData.prayer_for,

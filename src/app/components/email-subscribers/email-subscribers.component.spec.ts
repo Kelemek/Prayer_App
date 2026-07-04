@@ -162,9 +162,9 @@ describe('EmailSubscribersComponent', () => {
 
     expect(insertMock).toHaveBeenCalledWith({
       name: 'Test User',
-      email: 'test@example.com',
+      user_email: 'test@example.com',
       is_active: true,
-      is_admin: false,
+      role: 'member',
       receive_admin_emails: false,
       tenant_id: MOCK_TENANT.id
     });

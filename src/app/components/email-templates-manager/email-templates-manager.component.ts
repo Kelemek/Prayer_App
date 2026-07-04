@@ -371,11 +371,14 @@ interface EmailTemplate {
                       prayer-related emails)
                     </li>
                     <li>
-                      • {{'{{prayerDescription}}'}} - Original prayer
-                      description/content
+                      • {{'{{prayerDescription}}'}} - Prayer description (plain
+                      in direct sends; use {{'{{prayerDescriptionHtml}}'}} /
+                      {{'{{prayerDescriptionText}}'}} in queued subscriber emails)
                     </li>
                     <li>
-                      • {{'{{updateContent}}'}} - New update or change content
+                      • {{'{{updateContent}}'}} - Update content (use
+                      {{'{{updateContentHtml}}'}} / {{'{{updateContentText}}'}}
+                      in queued subscriber emails)
                     </li>
                     <li>
                       • {{'{{requesterName}}'}} - Name of prayer requester

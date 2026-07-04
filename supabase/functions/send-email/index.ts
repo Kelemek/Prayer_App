@@ -284,8 +284,8 @@ serve(async (req) => {
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
       const { data: subscribers, error } = await supabase
-        .from('email_subscribers')
-        .select('email, unsubscribe_token')
+        .from('tenant_memberships')
+        .select('user_email, unsubscribe_token')
         .eq('is_active', true)
         .eq('is_blocked', false)
 
@@ -308,8 +308,10 @@ serve(async (req) => {
         )
       }
 
-      const rows = subscribers as { email: string; unsubscribe_token: string }[]
-      const result = await sendBulkToSubscribers(rows, SUPABASE_URL, {
+      const rows = subscribers as { user_email: string; unsubscribe_token: string }[]
+      const result = await sendBulkToSubscribers(
+        rows.map((r) => ({ email: r.user_email, unsubscribe_token: r.unsubscribe_token })),
+        SUPABASE_URL, {
         subject,
         htmlBody,
         textBody,

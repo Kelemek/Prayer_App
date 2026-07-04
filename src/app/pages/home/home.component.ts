@@ -1330,10 +1330,10 @@ export class HomeComponent implements OnInit, OnDestroy {
       // Check if subscriber record exists
       const { data: existingRecord, error: fetchError } =
         await this.supabaseService.client
-          .from("email_subscribers")
+          .from("tenant_memberships")
           .select("id")
           .eq("tenant_id", tenantId)
-          .eq("email", email.toLowerCase().trim())
+          .eq("user_email", email.toLowerCase().trim())
           .maybeSingle();
 
       if (fetchError) {
@@ -1343,10 +1343,10 @@ export class HomeComponent implements OnInit, OnDestroy {
       if (existingRecord) {
         // Update existing record
         const { error: updateError } = await this.supabaseService.client
-          .from("email_subscribers")
+          .from("tenant_memberships")
           .update({ default_prayer_view: preference })
           .eq("tenant_id", tenantId)
-          .eq("email", email.toLowerCase().trim());
+          .eq("user_email", email.toLowerCase().trim());
 
         if (updateError) {
           throw updateError;
@@ -1354,12 +1354,12 @@ export class HomeComponent implements OnInit, OnDestroy {
       } else {
         // Create new record
         const { error: insertError } = await this.supabaseService.client
-          .from("email_subscribers")
+          .from("tenant_memberships")
           .insert({
-            email: email.toLowerCase().trim(),
+            user_email: email.toLowerCase().trim(),
             name: email.split("@")[0] || "User",
             is_active: true,
-            is_admin: false,
+            role: "member",
             receive_admin_emails: false,
             tenant_id: tenantId,
             default_prayer_view: preference,

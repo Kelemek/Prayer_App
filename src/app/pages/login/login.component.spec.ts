@@ -393,13 +393,13 @@ describe('LoginComponent', () => {
     const res = await comp.saveNewSubscriber();
     expect(res).toBe(true);
     expect(mutationSpy).toHaveBeenCalledWith(
-      'email_subscribers',
+      'tenant_memberships',
       expect.objectContaining({
         body: expect.objectContaining({
-          email: 'x3@y.com',
+          user_email: 'x3@y.com',
           name: 'A B',
           is_active: true,
-          is_admin: false,
+          role: 'member',
           receive_admin_emails: false
         })
       })

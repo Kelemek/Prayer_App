@@ -808,6 +808,56 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  /** Map tenant_memberships row to display-friendly EmailSubscriber (user_email → email). */
+  private mapMembershipRow(row: Record<string, unknown>): EmailSubscriber {
+    return {
+      id: row['id'] as string,
+      name: (row['name'] as string) || '',
+      email: ((row['user_email'] as string) || '').toLowerCase(),
+      is_active: (row['is_active'] as boolean) ?? true,
+      is_blocked: (row['is_blocked'] as boolean) ?? false,
+      receive_push: row['receive_push'] as boolean | undefined,
+      is_admin: row['role'] === 'tenant_admin',
+      created_at: row['created_at'] as string,
+      last_activity_date: row['last_activity_date'] as string | null | undefined,
+    };
+  }
+
+  private async isSuperAdminEmail(email: string): Promise<boolean> {
+    const { data, error } = await this.supabase.client.rpc('is_super_admin', {
+      email_to_check: email.toLowerCase().trim(),
+    });
+    if (error) {
+      console.warn('is_super_admin check failed:', error);
+      return false;
+    }
+    return data === true;
+  }
+
+  /** Super admins are platform-level; they should not appear in tenant subscriber lists. */
+  private async filterSubscribersExcludingSuper(
+    subscribers: EmailSubscriber[]
+  ): Promise<EmailSubscriber[]> {
+    const checks = await Promise.all(
+      subscribers.map(async (sub) => ({
+        sub,
+        isSuper: await this.isSuperAdminEmail(sub.email),
+      }))
+    );
+    return checks.filter(({ isSuper }) => !isSuper).map(({ sub }) => sub);
+  }
+
+  private removeSubscriberFromLocalState(id: string): void {
+    this.allSubscribers = this.allSubscribers.filter((s) => s.id !== id);
+    this.totalItems = this.allSubscribers.length;
+    this.totalActiveCount = this.allSubscribers.filter((s) => s.is_active).length;
+    const startIndex = (this.currentPage - 1) * this.pageSize;
+    if (startIndex >= this.allSubscribers.length && this.currentPage > 1) {
+      this.currentPage--;
+    }
+    this.loadPageData();
+  }
+
   toggleAddForm() {
     this.showAddForm = !this.showAddForm;
     this.showCSVUpload = false;
@@ -864,7 +914,7 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
 
       const { error } = await this.supabase.client
-        .from('email_subscribers')
+        .from('tenant_memberships')
         .update({ name: trimmedName })
         .eq('id', this.editSubscriberId);
 
@@ -906,24 +956,27 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
 
       // Build query without caching
       let query = this.supabase.client
-        .from('email_subscribers')
+        .from('tenant_memberships')
         .select('*', { count: 'exact' })
         .eq('tenant_id', tenantId)
         .order(this.sortBy, { ascending: this.sortDirection === 'asc' });
 
       if (this.searchQuery.trim()) {
-        query = query.or(`email.ilike.%${this.searchQuery}%,name.ilike.%${this.searchQuery}%`);
+        query = query.or(`user_email.ilike.%${this.searchQuery}%,name.ilike.%${this.searchQuery}%`);
       }
 
-      const { data, error, count } = await query;
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching subscribers:', error);
         throw error;
       }
 
-      this.allSubscribers = data || [];
-      this.totalItems = count || 0;
+      const mapped = (data || []).map((row) =>
+        this.mapMembershipRow(row as Record<string, unknown>)
+      );
+      this.allSubscribers = await this.filterSubscribersExcludingSuper(mapped);
+      this.totalItems = this.allSubscribers.length;
       this.totalActiveCount = this.allSubscribers.filter(s => s.is_active).length;
       this.hasSearched = true;
       this.sortSubscribers();
@@ -1129,10 +1182,10 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       }
 
       const { data: existing } = await this.supabase.client
-        .from('email_subscribers')
-        .select('email')
+        .from('tenant_memberships')
+        .select('user_email')
         .eq('tenant_id', tid)
-        .eq('email', normalizedEmail)
+        .eq('user_email', normalizedEmail)
         .maybeSingle();
 
       if (existing) {
@@ -1144,12 +1197,12 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       }
 
       const { error } = await this.supabase.client
-        .from('email_subscribers')
+        .from('tenant_memberships')
         .insert({
           name: this.newName.trim(),
-          email: normalizedEmail,
+          user_email: normalizedEmail,
           is_active: true,
-          is_admin: false,
+          role: 'member',
           receive_admin_emails: false,
           tenant_id: tid
         });
@@ -1181,8 +1234,8 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
     try {
       // Fetch subscriber to get their email for the confirmation dialog
       const { data: subscriber, error: fetchError } = await this.supabase.client
-        .from('email_subscribers')
-        .select('email')
+        .from('tenant_memberships')
+        .select('user_email')
         .eq('id', id)
         .maybeSingle();
 
@@ -1192,8 +1245,8 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       // Show confirmation dialog
       this.confirmationTitle = currentStatus ? 'Deactivate Subscriber' : 'Activate Subscriber';
       this.confirmationMessage = currentStatus 
-        ? `Are you sure you want to stop sending email notifications to ${subscriber.email}?`
-        : `Are you sure you want to start sending email notifications to ${subscriber.email}?`;
+        ? `Are you sure you want to stop sending email notifications to ${subscriber.user_email}?`
+        : `Are you sure you want to start sending email notifications to ${subscriber.user_email}?`;
       this.confirmationDetails = currentStatus 
         ? 'This user will no longer receive prayer request emails.'
         : 'This user will begin receiving prayer request emails again.';
@@ -1203,7 +1256,7 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       this.confirmationAction = async () => {
         try {
           const { error } = await this.supabase.client
-            .from('email_subscribers')
+            .from('tenant_memberships')
             .update({ is_active: !currentStatus })
             .eq('id', id);
 
@@ -1235,8 +1288,8 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
   async handleToggleReceivePush(id: string, currentReceivePush: boolean) {
     try {
       const { data: subscriber, error: fetchError } = await this.supabase.client
-        .from('email_subscribers')
-        .select('email')
+        .from('tenant_memberships')
+        .select('user_email')
         .eq('id', id)
         .maybeSingle();
 
@@ -1245,8 +1298,8 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
 
       this.confirmationTitle = currentReceivePush ? 'Disable push notifications' : 'Enable push notifications';
       this.confirmationMessage = currentReceivePush
-        ? `Stop sending push notifications to ${subscriber.email}?`
-        : `Start sending push notifications to ${subscriber.email}?`;
+        ? `Stop sending push notifications to ${subscriber.user_email}?`
+        : `Start sending push notifications to ${subscriber.user_email}?`;
       this.confirmationDetails = currentReceivePush
         ? 'This user will no longer receive push notifications on their devices.'
         : 'This user will receive push notifications on their devices.';
@@ -1256,7 +1309,7 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       this.confirmationAction = async () => {
         try {
           const { error } = await this.supabase.client
-            .from('email_subscribers')
+            .from('tenant_memberships')
             .update({ receive_push: !currentReceivePush })
             .eq('id', id);
 
@@ -1287,8 +1340,8 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
     // Fetch subscriber to get their email for the confirmation dialog
     try {
       const { data: subscriber, error: fetchError } = await this.supabase.client
-        .from('email_subscribers')
-        .select('email')
+        .from('tenant_memberships')
+        .select('user_email')
         .eq('id', id)
         .maybeSingle();
 
@@ -1300,12 +1353,12 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       
       if (currentStatus) {
         // Unblocking
-        this.confirmationMessage = `Unblock ${subscriber.email}?`;
+        this.confirmationMessage = `Unblock ${subscriber.user_email}?`;
         this.confirmationDetails = 'This user will be able to log in to the site again.';
         this.confirmationConfirmText = 'Unblock';
       } else {
         // Blocking
-        this.confirmationMessage = `Block ${subscriber.email}?`;
+        this.confirmationMessage = `Block ${subscriber.user_email}?`;
         this.confirmationDetails = 'This user will not be able to log in to the site.';
         this.confirmationConfirmText = 'Block';
       }
@@ -1314,7 +1367,7 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       this.confirmationAction = async () => {
         try {
           const { error } = await this.supabase.client
-            .from('email_subscribers')
+            .from('tenant_memberships')
             .update({ is_blocked: !currentStatus })
             .eq('id', id);
 
@@ -1343,22 +1396,28 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
   }
 
   async handleDelete(id: string, email: string) {
-    // Fetch subscriber to check if admin
     try {
-      const { data: subscriber, error: fetchError } = await this.supabase.client
-        .from('email_subscribers')
-        .select('is_admin')
-        .eq('id', id)
-        .maybeSingle();
+      const [{ data: subscriber, error: fetchError }, isSuperAdmin] = await Promise.all([
+        this.supabase.client
+          .from('tenant_memberships')
+          .select('role')
+          .eq('id', id)
+          .maybeSingle(),
+        this.isSuperAdminEmail(email),
+      ]);
 
       if (fetchError) throw fetchError;
 
-      // Show confirmation dialog
       this.confirmationTitle = 'Remove Subscriber';
-      
-      if (subscriber?.is_admin) {
+
+      if (isSuperAdmin) {
+        this.confirmationMessage = `Remove ${email} from this organization's subscriber list?`;
+        this.confirmationDetails =
+          'They will keep platform super admin access and can still manage all tenants.';
+      } else if (subscriber?.role === 'tenant_admin') {
         this.confirmationMessage = `Are you sure you want to remove ${email} from the subscriber list?`;
-        this.confirmationDetails = 'This admin will be unsubscribed from emails but will retain admin access to the portal.';
+        this.confirmationDetails =
+          'This admin will be unsubscribed from emails but will retain admin access to the portal.';
       } else {
         this.confirmationMessage = `Are you sure you want to remove ${email} from the subscriber list?`;
         this.confirmationDetails = 'This action will permanently delete the subscriber record.';
@@ -1368,41 +1427,33 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       this.confirmationConfirmText = 'Delete';
       this.confirmationAction = async () => {
         try {
-          if (subscriber?.is_admin) {
+          if (isSuperAdmin || subscriber?.role !== 'tenant_admin') {
+            const { error } = await this.supabase.client
+              .from('tenant_memberships')
+              .delete()
+              .eq('id', id);
+
+            if (error) throw error;
+            this.toast.success(
+              isSuperAdmin
+                ? 'Removed from subscriber list (super admin access unchanged)'
+                : 'Subscriber removed'
+            );
+            this.removeSubscriberFromLocalState(id);
+          } else {
             const { error: updateError } = await this.supabase.client
-              .from('email_subscribers')
+              .from('tenant_memberships')
               .update({ is_active: false })
               .eq('id', id);
 
             if (updateError) throw updateError;
             this.csvSuccess = `Admin ${email} has been unsubscribed from emails but retains admin access to the portal.`;
-            
-            // Update the local data instead of resetting pagination
-            const sub = this.allSubscribers.find(s => s.id === id);
+
+            const sub = this.allSubscribers.find((s) => s.id === id);
             if (sub) {
               sub.is_active = false;
-              this.totalActiveCount = this.allSubscribers.filter(s => s.is_active).length;
+              this.totalActiveCount = this.allSubscribers.filter((s) => s.is_active).length;
             }
-            // Reload the current page data to update display
-            this.loadPageData();
-          } else {
-            const { error } = await this.supabase.client
-              .from('email_subscribers')
-              .delete()
-              .eq('id', id);
-
-            if (error) throw error;
-            this.toast.success('Subscriber removed');
-            
-            // Update the local data instead of resetting pagination
-            this.allSubscribers = this.allSubscribers.filter(s => s.id !== id);
-            this.totalItems = this.allSubscribers.length;
-            // If current page is now empty, go to previous page
-            const startIndex = (this.currentPage - 1) * this.pageSize;
-            if (startIndex >= this.allSubscribers.length && this.currentPage > 1) {
-              this.currentPage--;
-            }
-            // Reload the current page data to update display
             this.loadPageData();
           }
 
@@ -1501,12 +1552,12 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
 
       const emails = validRows.map(r => r.email.toLowerCase());
       const { data: existing } = await this.supabase.client
-        .from('email_subscribers')
-        .select('email')
+        .from('tenant_memberships')
+        .select('user_email')
         .eq('tenant_id', tid)
-        .in('email', emails);
+        .in('user_email', emails);
 
-      const existingEmails = new Set((existing || []).map((e: any) => e.email));
+      const existingEmails = new Set((existing || []).map((e: { user_email: string }) => e.user_email.toLowerCase()));
       const newRows = validRows.filter(r => !existingEmails.has(r.email.toLowerCase()));
 
       if (newRows.length === 0) {
@@ -1518,15 +1569,15 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
 
       const subscribersToInsert = newRows.map((r) => ({
         name: r.name,
-        email: r.email.toLowerCase(),
+        user_email: r.email.toLowerCase(),
         is_active: true,
-        is_admin: false,
+        role: 'member' as const,
         receive_admin_emails: false,
         tenant_id: tid
       }));
 
       const { error } = await this.supabase.client
-        .from('email_subscribers')
+        .from('tenant_memberships')
         .insert(subscribersToInsert);
 
       if (error) throw error;

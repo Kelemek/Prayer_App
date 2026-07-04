@@ -98,7 +98,7 @@ jobs:
               'prayers',
               'prayer_updates',
               'prayer_prompts',
-              'email_subscribers',
+              'tenant_memberships',
               'user_preferences',
               'update_deletion_requests',
               'admin_settings',

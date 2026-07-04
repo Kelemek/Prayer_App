@@ -231,7 +231,7 @@ describe('UserSessionService', () => {
       await service.loadUserSession('test@example.com');
 
       const session = service.getCurrentSession();
-      // Note: notification preferences are hardcoded defaults since they're not in email_subscribers table
+      // Note: notification preferences are hardcoded defaults since they're not stored on tenant_memberships
       expect(session?.receiveNotifications).toBe(true);
     });
 

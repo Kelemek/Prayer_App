@@ -693,20 +693,20 @@ export class PrayerService {
       if (prayer.email && tenantId) {
         try {
           const { data: existing } = await this.supabase.client
-            .from('email_subscribers')
+            .from('tenant_memberships')
             .select('id')
             .eq('tenant_id', tenantId)
-            .eq('email', prayer.email.toLowerCase().trim())
+            .eq('user_email', prayer.email.toLowerCase().trim())
             .maybeSingle();
 
           if (!existing) {
             await this.supabase.client
-              .from('email_subscribers')
+              .from('tenant_memberships')
               .insert({
                 name: prayer.requester,
-                email: prayer.email.toLowerCase().trim(),
+                user_email: prayer.email.toLowerCase().trim(),
                 is_active: true,
-                is_admin: false,
+                role: 'member',
                 tenant_id: tenantId
               });
           }

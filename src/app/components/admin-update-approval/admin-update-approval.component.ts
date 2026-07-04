@@ -1,12 +1,14 @@
 import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RichTextEditorComponent } from '../rich-text-editor/rich-text-editor.component';
+import { RichTextViewComponent } from '../rich-text-view/rich-text-view.component';
 
 @Component({
   selector: 'app-admin-update-approval',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, DatePipe],
+  imports: [CommonModule, FormsModule, DatePipe, RichTextEditorComponent, RichTextViewComponent],
   template: `
     <div class="space-y-4">
       <!-- Update Card (Frontend Style) -->
@@ -28,11 +30,14 @@ import { FormsModule } from '@angular/forms';
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Update Content
               </label>
-              <textarea
+              <app-rich-text-editor
                 [(ngModel)]="editedUpdate.content"
-                rows="3"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              ></textarea>
+                name="editUpdateContent"
+                ngDefaultControl
+                ariaLabel="Update content"
+                placeholder="Update details…"
+                minHeight="5rem"
+              ></app-rich-text-editor>
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -50,7 +55,7 @@ import { FormsModule } from '@angular/forms';
           <div class="mb-4">
             <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Update:</p>
             <div class="bg-gray-50 dark:bg-gray-700 rounded p-4 text-gray-800 dark:text-gray-100">
-              {{ update.content }}
+              <app-rich-text-view [text]="update.content"></app-rich-text-view>
             </div>
           </div>
 

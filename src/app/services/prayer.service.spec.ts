@@ -153,7 +153,7 @@ describe('PrayerService', () => {
           insert: () => Promise.resolve({ data: null, error: null })
         };
       }
-      if (table === 'email_subscribers') {
+      if (table === 'tenant_memberships') {
         return {
           select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }),
           insert: () => Promise.resolve({ data: { id: 'e1' }, error: null })
@@ -178,7 +178,7 @@ describe('PrayerService', () => {
           insert: () => Promise.resolve({ data: null, error: null })
         };
       }
-      if (table === 'email_subscribers') {
+      if (table === 'tenant_memberships') {
         // simulate maybeSingle throwing to hit the subscribeError catch
         return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.reject(new Error('subscribe fail')) }) }) };
       }
@@ -659,7 +659,7 @@ describe('PrayerService', () => {
           if (table === 'prayers') {
             return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'pX' }, error: null } ) }) }) };
           }
-          if (table === 'email_subscribers') {
+          if (table === 'tenant_memberships') {
             return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { id: 'exists' }, error: null }) }) }), insert: () => Promise.resolve({ data: null, error: null }) };
           }
           return { insert: () => Promise.resolve({ data: null, error: null }) };
@@ -1523,7 +1523,7 @@ describe('PrayerService - Integration Tests', () => {
         if (table === 'prayers') {
           return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'pnew' }, error: null } ) }) }) };
         }
-        if (table === 'email_subscribers') {
+        if (table === 'tenant_memberships') {
           return {
             select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { id: 'exists' }, error: null } ) }) }),
             insert: emailInsertSpy
@@ -1543,7 +1543,7 @@ describe('PrayerService - Integration Tests', () => {
         if (table === 'prayers') {
           return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'p2' }, error: null } ) }) }) };
         }
-        if (table === 'email_subscribers') {
+        if (table === 'tenant_memberships') {
           return {
             select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }),
             insert: () => Promise.reject(new Error('subscribe fail'))
@@ -1626,7 +1626,7 @@ describe('PrayerService - Integration Tests', () => {
         if (table === 'prayers') {
           return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'pX' }, error: null } ) }) }) };
         }
-        if (table === 'email_subscribers') {
+        if (table === 'tenant_memberships') {
           return { select: () => ({ eq: () => ({ maybeSingle: () => { throw new Error('select fail'); } }) }), insert: () => Promise.resolve({ data: { id: 'eX' }, error: null }) };
         }
         return { insert: () => Promise.resolve({ data: null, error: null }) };
@@ -1646,7 +1646,7 @@ describe('PrayerService - Integration Tests', () => {
         if (table === 'prayers') {
           return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'pN' }, error: null } ) }) }) };
         }
-        if (table === 'email_subscribers') {
+        if (table === 'tenant_memberships') {
           return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }), insert: () => Promise.resolve({ data: { id: 'eN' }, error: null }) };
         }
         return { insert: () => Promise.resolve({ data: null, error: null }) };
@@ -2853,7 +2853,7 @@ describe('PrayerService - Integration Tests', () => {
         if (table === 'prayers') {
           return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'new' }, error: null }) }) }) };
         }
-        if (table === 'email_subscribers') {
+        if (table === 'tenant_memberships') {
           return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { id: 'existing' }, error: null }) }) }), insert: () => Promise.resolve({ data: null, error: null }) };
         }
         return { insert: () => Promise.resolve({ data: null, error: null }) };

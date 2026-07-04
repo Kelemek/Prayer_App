@@ -152,7 +152,7 @@ export class UserSessionService {
         this.userSessionSubject.next(sessionData);
         this.saveToCache(sessionData);
       } else {
-        // User not in email_subscribers yet, create minimal session with email only
+        // User not in tenant_memberships yet, create minimal session with email only
         const sessionData: UserSessionData = {
           email,
           fullName: '',

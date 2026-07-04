@@ -71,7 +71,7 @@ jobs:
                 'admin_settings',
                 'analytics',
                 'backup_logs',
-                'email_subscribers',
+                'tenant_memberships',
                 'email_templates',
                 'prayer_prompts',
                 'prayer_types',

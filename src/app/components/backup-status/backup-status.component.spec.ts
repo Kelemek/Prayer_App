@@ -445,7 +445,7 @@ describe('BackupStatusComponent', () => {
     tables_backed_up: {
       prayers: 10,
       prayer_updates: 5,
-      email_subscribers: 3
+      tenant_memberships: 3
     },
     total_records: 18,
     duration_seconds: 45,

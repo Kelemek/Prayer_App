@@ -1,10 +1,13 @@
 import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, OnInit, ChangeDetectorRef, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import type { PrayerRequest } from '../../types/prayer';
+import { RichTextEditorComponent } from '../rich-text-editor/rich-text-editor.component';
+import { RichTextViewComponent } from '../rich-text-view/rich-text-view.component';
+
 @Component({
   selector: 'app-pending-prayer-card',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, RichTextEditorComponent, RichTextViewComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 mb-4">
@@ -14,9 +17,10 @@ import type { PrayerRequest } from '../../types/prayer';
           <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">
             Prayer for {{ prayer.prayer_for }}
           </h3>
-          <p class="text-gray-600 dark:text-gray-300 mb-4">
-            {{ prayer.description }}
-          </p>
+          <app-rich-text-view
+            class="block text-gray-600 dark:text-gray-300 mb-4"
+            [text]="prayer.description"
+          ></app-rich-text-view>
           <div class="text-sm text-gray-500 dark:text-gray-400 space-y-1">
             <p>Requested by: {{ prayer.requester }} 
               @if (prayer.is_anonymous) {
@@ -54,11 +58,14 @@ import type { PrayerRequest } from '../../types/prayer';
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Description
           </label>
-          <textarea
+          <app-rich-text-editor
             [(ngModel)]="editedPrayer.description"
-            rows="3"
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-          ></textarea>
+            name="editedPrayerDescription"
+            ngDefaultControl
+            ariaLabel="Prayer description"
+            placeholder="Describe the prayer request"
+            minHeight="5rem"
+          ></app-rich-text-editor>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

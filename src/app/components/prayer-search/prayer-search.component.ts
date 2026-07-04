@@ -22,6 +22,8 @@ import {
 import { ConfirmationDialogComponent } from "../confirmation-dialog/confirmation-dialog.component";
 import { AdminSectionLoadingComponent } from "../admin-section-loading/admin-section-loading.component";
 import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/admin-collapsible-section.component";
+import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.component";
+import { RichTextViewComponent } from "../rich-text-view/rich-text-view.component";
 
 interface PrayerUpdate {
   id: string;
@@ -90,6 +92,8 @@ interface EditUpdateForm {
     ConfirmationDialogComponent,
     AdminSectionLoadingComponent,
     AdminCollapsibleSectionComponent,
+    RichTextEditorComponent,
+    RichTextViewComponent,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
@@ -255,13 +259,16 @@ interface EditUpdateForm {
             >
               Description *
             </label>
-            <textarea
+            <app-rich-text-editor
+              #createDescriptionEditor
               [(ngModel)]="createForm.description"
               name="description"
+              ngDefaultControl
               required
-              rows="3"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            ></textarea>
+              ariaLabel="Prayer description"
+              placeholder="Describe the prayer request"
+              minHeight="5rem"
+            ></app-rich-text-editor>
           </div>
 
           <div class="flex items-center cursor-pointer">
@@ -882,12 +889,15 @@ interface EditUpdateForm {
                   >
                     Description *
                   </label>
-                  <textarea
+                  <app-rich-text-editor
+                    #editPrayerDescriptionEditor
                     [(ngModel)]="editForm.description"
-                    rows="4"
-                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+                    [name]="'editPrayerDescription-' + prayer.id"
+                    ngDefaultControl
+                    ariaLabel="Prayer description"
                     placeholder="Prayer description"
-                  ></textarea>
+                    minHeight="6rem"
+                  ></app-rich-text-editor>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1098,11 +1108,10 @@ interface EditUpdateForm {
                 >
                   Prayer Description
                 </h6>
-                <p
-                  class="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap leading-relaxed"
-                >
-                  {{ prayer.description }}
-                </p>
+                <app-rich-text-view
+                  class="block text-sm text-gray-600 dark:text-gray-400 leading-relaxed"
+                  [text]="prayer.description"
+                ></app-rich-text-view>
               </div>
               }
 
@@ -1228,12 +1237,15 @@ interface EditUpdateForm {
                         >
                           Update Content *
                         </label>
-                        <textarea
+                        <app-rich-text-editor
                           [(ngModel)]="editUpdateForm.content"
+                          [name]="'editUpdateContent-' + update.id"
+                          ngDefaultControl
                           required
-                          rows="3"
-                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
-                        ></textarea>
+                          ariaLabel="Update content"
+                          placeholder="Update details…"
+                          minHeight="5rem"
+                        ></app-rich-text-editor>
                       </div>
 
                       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1344,11 +1356,10 @@ interface EditUpdateForm {
                         </button>
                       </div>
                     </div>
-                    <p
-                      class="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap mb-2"
-                    >
-                      {{ update.content }}
-                    </p>
+                    <app-rich-text-view
+                      class="block text-sm text-gray-600 dark:text-gray-400 mb-2"
+                      [text]="update.content"
+                    ></app-rich-text-view>
                     } @if (update.denial_reason) {
                     <div
                       class="mt-2 p-2 bg-red-100 dark:bg-red-900/30 rounded border-l-2 border-red-500"
@@ -1508,13 +1519,15 @@ interface EditUpdateForm {
                     >
                       Update Content *
                     </label>
-                    <textarea
+                    <app-rich-text-editor
                       [(ngModel)]="newUpdate.content"
+                      [name]="'newUpdateContent-' + prayer.id"
+                      ngDefaultControl
                       required
-                      rows="4"
-                      placeholder="Enter the update content..."
-                      class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
-                    ></textarea>
+                      ariaLabel="Update content"
+                      placeholder="Enter the update content…"
+                      minHeight="6rem"
+                    ></app-rich-text-editor>
                   </div>
                 </div>
                 } @if (addingUpdate !== prayer.id) {
@@ -1828,6 +1841,10 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
 
   // Template references
   @ViewChild("prayerEditorContainer") prayerEditorContainer!: ElementRef;
+  @ViewChild("createDescriptionEditor")
+  createDescriptionEditor?: RichTextEditorComponent;
+  @ViewChild("editPrayerDescriptionEditor")
+  editPrayerDescriptionEditor?: RichTextEditorComponent;
 
   constructor(
     private supabaseService: SupabaseService,
@@ -2425,6 +2442,9 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
   async createPrayer(event: Event): Promise<void> {
     event.preventDefault();
 
+    this.createDescriptionEditor?.flushMarkdownToForm();
+    this.cdr.markForCheck();
+
     if (!this.isCreateFormValid()) {
       this.error = "All fields are required";
       this.toast.error(this.error);
@@ -2500,6 +2520,9 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
   }
 
   async savePrayer(prayerId: string): Promise<void> {
+    this.editPrayerDescriptionEditor?.flushMarkdownToForm();
+    this.cdr.markForCheck();
+
     if (
       !this.editForm.title.trim() ||
       !this.editForm.description.trim() ||

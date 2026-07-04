@@ -164,7 +164,7 @@ describe('AdminDataService', () => {
           return createMockQueryChain(mockPendingUpdates, null);
         } else if (table === 'account_approval_requests') {
           return createMockQueryChain(mockPendingAccounts, null);
-        } else if (table === 'email_subscribers') {
+        } else if (table === 'tenant_memberships') {
           return {
             select: vi.fn(() => ({
               in: vi.fn(() => ({
@@ -842,7 +842,7 @@ describe('AdminDataService', () => {
               eq: vi.fn(() => Promise.resolve({ error: null }))
             }))
           };
-        } else if (table === 'email_subscribers') {
+        } else if (table === 'tenant_memberships') {
           return {
             insert: vi.fn(() => Promise.resolve({ error: null }))
           };
@@ -876,7 +876,7 @@ describe('AdminDataService', () => {
               eq: vi.fn(() => Promise.resolve({ error: null }))
             }))
           };
-        } else if (table === 'email_subscribers') {
+        } else if (table === 'tenant_memberships') {
           return {
             insert: vi.fn(() => Promise.resolve({ error: null }))
           };
@@ -1906,7 +1906,7 @@ describe('AdminDataService', () => {
               eq: vi.fn(() => Promise.resolve({ error: null }))
             }))
           };
-        } else if (table === 'email_subscribers') {
+        } else if (table === 'tenant_memberships') {
           return {
             insert: vi.fn(() => Promise.resolve({ error: new Error('Insert failed') }))
           };
@@ -1937,7 +1937,7 @@ describe('AdminDataService', () => {
               eq: vi.fn(() => Promise.resolve({ error: new Error('Delete failed') }))
             }))
           };
-        } else if (table === 'email_subscribers') {
+        } else if (table === 'tenant_memberships') {
           return {
             insert: vi.fn(() => Promise.resolve({ error: null }))
           };
@@ -1968,7 +1968,7 @@ describe('AdminDataService', () => {
               eq: vi.fn(() => Promise.resolve({ error: null }))
             }))
           };
-        } else if (table === 'email_subscribers') {
+        } else if (table === 'tenant_memberships') {
           return {
             insert: vi.fn(() => Promise.resolve({ error: null }))
           };
@@ -2056,7 +2056,7 @@ describe('AdminDataService', () => {
       mockSupabaseClient.from = vi.fn((table: string) => {
         if (table === 'prayers') {
           return createMockQueryChain(mockPrayers, null);
-        } else if (table === 'email_subscribers') {
+        } else if (table === 'tenant_memberships') {
           return {
             select: vi.fn(() => ({
               in: vi.fn(() => ({

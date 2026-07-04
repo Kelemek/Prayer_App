@@ -1,19 +1,23 @@
-import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, OnChanges, SimpleChanges, TemplateRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, OnChanges, SimpleChanges, TemplateRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Observable, BehaviorSubject, Subject } from 'rxjs';import { takeUntil } from 'rxjs/operators';import { PrayerRequest, PrayerService } from '../../services/prayer.service';
+import { Observable, BehaviorSubject, Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
+import { PrayerRequest, PrayerService } from '../../services/prayer.service';
 import { SupabaseService } from '../../services/supabase.service';
 import { UserSessionService } from '../../services/user-session.service';
 import { BadgeService } from '../../services/badge.service';
 import { PrayerEncouragementService } from '../../services/prayer-encouragement.service';
 import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
+import { RichTextEditorComponent } from '../rich-text-editor/rich-text-editor.component';
+import { RichTextViewComponent } from '../rich-text-view/rich-text-view.component';
 
 const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
 
 @Component({
   selector: 'app-prayer-card',
   standalone: true,
-  imports: [CommonModule, FormsModule, ConfirmationDialogComponent],
+  imports: [CommonModule, FormsModule, ConfirmationDialogComponent, RichTextEditorComponent, RichTextViewComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div 
@@ -109,7 +113,10 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
         {{ formatDate(prayer.created_at) }}
       </span>
       <!-- Prayer Description -->
-      <p class="text-gray-600 dark:text-gray-300 mb-4">{{ prayer.description }}</p>
+      <app-rich-text-view
+        class="block text-gray-600 dark:text-gray-300 mb-4"
+        [text]="prayer.description"
+      ></app-rich-text-view>
 
       <!-- Action buttons - flex-nowrap, reduced padding so row fits without wrap or scroll -->
       @if (showAddUpdateButton()) {
@@ -156,15 +163,18 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
       <form #updateForm="ngForm" (ngSubmit)="updateForm.valid && handleAddUpdate()" class="mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-[#39704D] dark:border-[#39704D] rounded-lg" role="region" [attr.aria-labelledby]="'addUpdateTitle-' + prayer.id">
         <h4 [id]="'addUpdateTitle-' + prayer.id" class="text-sm font-medium text-[#39704D] dark:text-[#5FB876] mb-3">Add Prayer Update</h4>
         <div class="space-y-2">
-          <textarea
-            [id]="'updateContent-' + prayer.id"
-            placeholder="Prayer update..."
-            [(ngModel)]="updateContent"
-            name="updateContent"
-            aria-label="Prayer update details"
-            class="w-full px-3 py-2 text-sm border border-[#39704D] dark:border-[#39704D] rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#39704D] h-20"
-            required
-          ></textarea>
+          <div [id]="'updateContent-' + prayer.id">
+            <app-rich-text-editor
+              #addUpdateRichText
+              [(ngModel)]="updateContent"
+              name="updateContent"
+              ngDefaultControl
+              required
+              ariaLabel="Prayer update details"
+              placeholder="Prayer update..."
+              minHeight="5rem"
+            ></app-rich-text-editor>
+          </div>
           @if (!isPersonal) {
           <div class="flex items-center gap-2">
             <input
@@ -329,7 +339,10 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
             }
 
             <!-- Update content on its own row below meta (Answered / Updated by + buttons) for all types; min-h-8 on row above prevents overlap when left column is empty -->
-            <p class="text-sm text-gray-700 dark:text-gray-300">{{ update.content }}</p>
+            <app-rich-text-view
+              class="block text-sm text-gray-700 dark:text-gray-300"
+              [text]="update.content"
+            ></app-rich-text-view>
 
             @if (showUpdateDeleteRequestForm === update.id && !isAdmin) {
             <form #updateDeleteForm="ngForm" (ngSubmit)="updateDeleteForm.valid && handleUpdateDeletionRequest()" class="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg" role="region" [attr.aria-labelledby]="'updateDeleteFormTitle-' + update.id">
@@ -457,6 +470,8 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
   styles: []
 })
 export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
+  @ViewChild('addUpdateRichText') addUpdateRichText?: RichTextEditorComponent;
+
   @Input() prayer!: PrayerRequest;
   @Input() isAdmin = false;
   @Input() isPersonal = false;
@@ -800,6 +815,8 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   async handleAddUpdate(): Promise<void> {
+    this.addUpdateRichText?.flushMarkdownToForm();
+
     const userEmail = this.getCurrentUserEmail();
     
     // Get user name from UserSessionService cache

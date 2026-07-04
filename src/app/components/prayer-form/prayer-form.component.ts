@@ -9,6 +9,7 @@ import {
   ChangeDetectorRef,
   HostListener,
   ChangeDetectionStrategy,
+  ViewChild,
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { NgClass } from "@angular/common";
@@ -20,11 +21,12 @@ import { UserSessionService } from "../../services/user-session.service";
 import { SupabaseService } from "../../services/supabase.service";
 import { ToastService } from "../../services/toast.service";
 import { TenantContextService } from "../../services/tenant-context.service";
+import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.component";
 
 @Component({
   selector: "app-prayer-form",
   standalone: true,
-  imports: [FormsModule, NgClass],
+  imports: [FormsModule, NgClass, RichTextEditorComponent],
   template: `
     @if (isOpen) {
     <div
@@ -133,16 +135,16 @@ import { TenantContextService } from "../../services/tenant-context.service";
             >
               Prayer Request Details <span aria-label="required">*</span>
             </label>
-            <textarea
-              id="description"
+            <app-rich-text-editor
+              #descriptionEditor
               [(ngModel)]="formData.description"
               name="description"
+              ngDefaultControl
               required
-              aria-required="true"
-              aria-label="Prayer Request Details"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 h-24"
+              ariaLabel="Prayer Request Details"
               placeholder="Describe the prayer request in detail"
-            ></textarea>
+              minHeight="6rem"
+            ></app-rich-text-editor>
           </div>
 
           <!-- Prayer Visibility Toggle Buttons -->
@@ -351,6 +353,8 @@ import { TenantContextService } from "../../services/tenant-context.service";
   styles: [],
 })
 export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
+  @ViewChild("descriptionEditor") descriptionEditor?: RichTextEditorComponent;
+
   @Input() isOpen = false;
   @Output() close = new EventEmitter<{ isPersonal?: boolean }>();
 
@@ -557,6 +561,7 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     try {
+      this.descriptionEditor?.flushMarkdownToForm();
       this.isSubmitting = true;
       this.cdr.markForCheck();
 

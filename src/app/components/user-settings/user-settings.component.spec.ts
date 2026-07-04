@@ -11,6 +11,17 @@ import { UserSessionService } from '../../services/user-session.service';
 import { CapacitorService } from '../../services/capacitor.service';
 import { ChangeDetectorRef, SimpleChanges } from '@angular/core';
 
+/** Supabase select chain supporting .eq() and .match() before .maybeSingle(). */
+function supabaseSelectResult(data: unknown, error: unknown = null) {
+  const result = { data, error };
+  const chain = {
+    eq: vi.fn((): typeof chain => chain),
+    match: vi.fn((): typeof chain => chain),
+    maybeSingle: vi.fn(async () => result),
+  };
+  return chain;
+}
+
 describe('UserSettingsComponent', () => {
   let component: UserSettingsComponent;
   let mockThemeService: any;
@@ -45,23 +56,30 @@ describe('UserSettingsComponent', () => {
       setTextSize: vi.fn()
     };
 
+    const chainableEq = (result: { data: unknown; error: unknown } = { data: null, error: null }) => {
+      const chain: {
+        eq: ReturnType<typeof vi.fn>;
+        match: ReturnType<typeof vi.fn>;
+        maybeSingle: ReturnType<typeof vi.fn>;
+        order: ReturnType<typeof vi.fn>;
+      } = {
+        eq: vi.fn(),
+        match: vi.fn(),
+        maybeSingle: vi.fn(() => Promise.resolve(result)),
+        order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+      };
+      chain.eq.mockImplementation(() => chain);
+      chain.match.mockImplementation(() => chain);
+      return chain;
+    };
+
     mockSupabaseService = {
       client: {
         from: vi.fn(() => ({
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
-                order: vi.fn(() => Promise.resolve({ data: [], error: null }))
-              })),
-              order: vi.fn(() => Promise.resolve({ data: [], error: null }))
-            })),
-            update: vi.fn(() => ({
-              eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-            })),
+            select: vi.fn(() => chainableEq()),
+            update: vi.fn(() => chainableEq()),
             insert: vi.fn(() => Promise.resolve({ data: null, error: null })),
-            delete: vi.fn(() => ({
-              eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-            }))
+            delete: vi.fn(() => chainableEq()),
         }))
       }
     };
@@ -108,6 +126,10 @@ describe('UserSettingsComponent', () => {
       removeSlot: vi.fn(() => Promise.resolve([]))
     };
 
+    const mockTenantContextService = {
+      getActiveTenant: vi.fn(() => ({ id: 'test-tenant-id', name: 'Test', slug: 'test' }))
+    };
+
     mockChangeDetectorRef = {
       detectChanges: vi.fn(),
       markForCheck: vi.fn()
@@ -125,6 +147,7 @@ describe('UserSettingsComponent', () => {
       mockUserSessionService,
       mockCapacitorService as CapacitorService,
       mockUserPrayerReminderService as any,
+      mockTenantContextService as any,
       mockChangeDetectorRef as ChangeDetectorRef
     );
   });
@@ -185,11 +208,7 @@ describe('UserSettingsComponent', () => {
     it('should load preferences when email changes after initial load', async () => {
       const loadPreferencesSpy = vi.spyOn(component as any, 'loadPreferencesAutomatically');
       mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null }))
-          }))
-        }))
+        select: vi.fn(() => supabaseSelectResult(null))
       });
 
       component.ngOnInit();
@@ -317,12 +336,7 @@ describe('UserSettingsComponent', () => {
       
       const mockSubscriber = { name: 'Test User', is_active: true };
       mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: mockSubscriber, error: null })),
-            order: vi.fn(() => Promise.resolve({ data: [], error: null }))
-          }))
-        }))
+        select: vi.fn(() => supabaseSelectResult(mockSubscriber))
       });
 
       const changes: SimpleChanges = {
@@ -641,11 +655,7 @@ describe('UserSettingsComponent', () => {
 
       const mockExisting = { id: 'sub-123' };
       mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: mockExisting, error: null }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult(mockExisting)),
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
         }))
@@ -665,11 +675,7 @@ describe('UserSettingsComponent', () => {
       component.receiveNotifications = true;
 
       mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult(null)),
         insert: vi.fn(() => Promise.resolve({ data: null, error: null }))
       });
 
@@ -686,11 +692,7 @@ describe('UserSettingsComponent', () => {
       component.receiveNotifications = initialValue;
 
       mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: new Error('DB error') }))
-          }))
-        }))
+        select: vi.fn(() => supabaseSelectResult(null, new Error('DB error')))
       });
 
       await component.onNotificationToggle();
@@ -709,11 +711,7 @@ describe('UserSettingsComponent', () => {
 
       const mockExisting = { id: 'sub-123' };
       mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: mockExisting, error: null }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult(mockExisting)),
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
         }))
@@ -736,11 +734,7 @@ describe('UserSettingsComponent', () => {
 
       const mockExisting = { id: 'sub-123' };
       mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: mockExisting, error: null }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult(mockExisting)),
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ data: null, error: new Error('Update failed') }))
         }))
@@ -762,11 +756,7 @@ describe('UserSettingsComponent', () => {
       component.receiveNotifications = initialValue;
 
       mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult(null)),
         insert: vi.fn(() => Promise.resolve({ data: null, error: new Error('Insert failed') }))
       });
 
@@ -800,11 +790,7 @@ describe('UserSettingsComponent', () => {
 
       const mockExisting = { id: 'sub-456' };
       mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: mockExisting, error: null }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult(mockExisting)),
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
         }))
@@ -859,17 +845,20 @@ describe('UserSettingsComponent', () => {
       expect(component.showDeleteAccountVerification).toBe(true);
     });
 
-    it('deleteAccountKeepPrayers should delete only email_subscribers then call logout', async () => {
-      const eqMock = vi.fn(() => Promise.resolve({ data: null, error: null }));
-      const deleteMock = vi.fn(() => ({ eq: eqMock }));
+    it('deleteAccountKeepPrayers should delete only tenant_memberships then call logout', async () => {
+      const matchMock = vi.fn(() => Promise.resolve({ data: null, error: null }));
+      const deleteMock = vi.fn(() => ({ match: matchMock }));
       mockSupabaseService.client.from.mockReturnValue({ delete: deleteMock });
 
       component.showDeleteAccountVerification = true;
       await component.deleteAccountKeepPrayers();
 
-      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('email_subscribers');
+      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('tenant_memberships');
       expect(deleteMock).toHaveBeenCalled();
-      expect(eqMock).toHaveBeenCalledWith('email', 'test@example.com');
+      expect(matchMock).toHaveBeenCalledWith({
+        user_email: 'test@example.com',
+        tenant_id: 'test-tenant-id',
+      });
       expect(mockAdminAuthService.logout).toHaveBeenCalled();
       expect(component.showDeleteAccountVerification).toBe(false);
       expect(component.deletingAccount).toBe(false);
@@ -878,7 +867,7 @@ describe('UserSettingsComponent', () => {
     it('deleteAccountKeepPrayers on delete failure should set error and not call logout', async () => {
       mockSupabaseService.client.from.mockReturnValue({
         delete: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: { message: 'DB error' } }))
+          match: vi.fn(() => Promise.resolve({ data: null, error: { message: 'DB error' } }))
         }))
       });
       await component.deleteAccountKeepPrayers();
@@ -888,9 +877,10 @@ describe('UserSettingsComponent', () => {
       expect(component.showDeleteAccountVerification).toBe(false);
     });
 
-    it('deleteAccountAndPrayers should delete prayer_updates, prayers, personal_prayers, email_subscribers then logout', async () => {
+    it('deleteAccountAndPrayers should delete prayer_updates, prayers, personal_prayers, tenant_memberships then logout', async () => {
       const deleteEq = vi.fn(() => Promise.resolve({ data: null, error: null }));
-      const deleteChain = vi.fn(() => ({ eq: deleteEq }));
+      const deleteMatch = vi.fn(() => Promise.resolve({ data: null, error: null }));
+      const deleteChain = vi.fn(() => ({ eq: deleteEq, match: deleteMatch }));
       mockSupabaseService.client.from.mockReturnValue({ delete: deleteChain });
 
       await component.deleteAccountAndPrayers();
@@ -898,11 +888,14 @@ describe('UserSettingsComponent', () => {
       expect(mockSupabaseService.client.from).toHaveBeenCalledWith('prayer_updates');
       expect(mockSupabaseService.client.from).toHaveBeenCalledWith('prayers');
       expect(mockSupabaseService.client.from).toHaveBeenCalledWith('personal_prayers');
-      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('email_subscribers');
+      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('tenant_memberships');
       expect(deleteEq).toHaveBeenCalledWith('author_email', 'test@example.com');
       expect(deleteEq).toHaveBeenCalledWith('email', 'test@example.com');
       expect(deleteEq).toHaveBeenCalledWith('user_email', 'test@example.com');
-      expect(deleteEq).toHaveBeenCalledWith('email', 'test@example.com');
+      expect(deleteMatch).toHaveBeenCalledWith({
+        user_email: 'test@example.com',
+        tenant_id: 'test-tenant-id',
+      });
       expect(mockAdminAuthService.logout).toHaveBeenCalled();
       expect(component.showDeleteAccountVerification).toBe(false);
       expect(component.deletingAccount).toBe(false);
@@ -976,11 +969,7 @@ describe('UserSettingsComponent', () => {
       const mockSubscriber = { name: 'Existing User', is_active: false, receive_push: false };
       
       mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: mockSubscriber, error: null }))
-          }))
-        }))
+        select: vi.fn(() => supabaseSelectResult(mockSubscriber))
       });
 
       await component['loadPreferencesAutomatically']('test@example.com');
@@ -992,11 +981,7 @@ describe('UserSettingsComponent', () => {
 
     it('should set defaults for new users', async () => {
       mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null }))
-          }))
-        }))
+        select: vi.fn(() => supabaseSelectResult(null))
       });
 
       component.receiveNotifications = false;
@@ -1010,11 +995,7 @@ describe('UserSettingsComponent', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
       mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: new Error('DB error') }))
-          }))
-        }))
+        select: vi.fn(() => supabaseSelectResult(null, new Error('DB error')))
       });
 
       await component['loadPreferencesAutomatically']('test@example.com');
@@ -1380,14 +1361,7 @@ describe('UserSettingsComponent', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: { id: '123' },
-              error: null
-            }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult({ id: '123' })),
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ error: new Error('Update failed') }))
         }))
@@ -2033,11 +2007,7 @@ describe('UserSettingsComponent', () => {
 
     // Mock successful toggle
     mockSupabaseService.client.from = vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null }))
-        }))
-      })),
+      select: vi.fn(() => supabaseSelectResult(null)),
       insert: vi.fn(() => Promise.resolve({ data: null, error: null }))
     }));
 
@@ -2150,14 +2120,7 @@ describe('UserSettingsComponent', () => {
     component.badgeFunctionalityEnabled = true;
 
     mockSupabaseService.client.from = vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          maybeSingle: vi.fn(() => Promise.resolve({
-            data: { id: 'existing-id' },
-            error: null
-          }))
-        }))
-      })),
+      select: vi.fn(() => supabaseSelectResult({ id: 'existing-id' })),
       update: vi.fn(() => ({
         eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
       }))
@@ -2204,14 +2167,7 @@ describe('UserSettingsComponent', () => {
     const initialState = component.badgeFunctionalityEnabled;
 
     mockSupabaseService.client.from = vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          maybeSingle: vi.fn(() => Promise.resolve({
-            data: null,
-            error: new Error('DB error')
-          }))
-        }))
-      }))
+      select: vi.fn(() => supabaseSelectResult(null, new Error('DB error')))
     }));
 
     component.badgeFunctionalityEnabled = !initialState;
@@ -2244,14 +2200,7 @@ describe('UserSettingsComponent', () => {
 
     it('should update default view when email exists', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: { id: 'subscriber-id' },
-              error: null
-            }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
         }))
@@ -2267,14 +2216,7 @@ describe('UserSettingsComponent', () => {
     it('should create new record if subscriber does not exist', async () => {
       const insertSpy = vi.fn(() => Promise.resolve({ data: null, error: null }));
       mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: null,
-              error: null
-            }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult(null)),
         insert: insertSpy
       }));
 
@@ -2282,8 +2224,10 @@ describe('UserSettingsComponent', () => {
 
       expect(insertSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          email: 'test@example.com',
-          default_prayer_view: 'current'
+          user_email: 'test@example.com',
+          default_prayer_view: 'current',
+          role: 'member',
+          tenant_id: 'test-tenant-id',
         })
       );
       expect(component.defaultPrayerView).toBe('current');
@@ -2300,14 +2244,7 @@ describe('UserSettingsComponent', () => {
 
     it('should handle fetch error when checking subscriber', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: null,
-              error: new Error('Fetch error')
-            }))
-          }))
-        }))
+        select: vi.fn(() => supabaseSelectResult(null, new Error('Fetch error')))
       }));
 
       await component.onDefaultViewChange('personal');
@@ -2318,14 +2255,7 @@ describe('UserSettingsComponent', () => {
 
     it('should handle update error', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: { id: 'subscriber-id' },
-              error: null
-            }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({
             data: null,
@@ -2343,14 +2273,7 @@ describe('UserSettingsComponent', () => {
 
     it('should handle insert error', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: null,
-              error: null
-            }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult(null)),
         insert: vi.fn(() => Promise.resolve({
           data: null,
           error: new Error('Insert error')
@@ -2366,14 +2289,7 @@ describe('UserSettingsComponent', () => {
 
     it('should update user session service', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: { id: 'subscriber-id' },
-              error: null
-            }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
         }))
@@ -2388,14 +2304,7 @@ describe('UserSettingsComponent', () => {
 
     it('should clear success message after 3 seconds', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: { id: 'subscriber-id' },
-              error: null
-            }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
         }))
@@ -2411,14 +2320,7 @@ describe('UserSettingsComponent', () => {
 
     it('should set proper text for current view', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: { id: 'subscriber-id' },
-              error: null
-            }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
         }))
@@ -2431,14 +2333,7 @@ describe('UserSettingsComponent', () => {
 
     it('should set proper text for personal view', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: { id: 'subscriber-id' },
-              error: null
-            }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
         }))
@@ -2457,14 +2352,7 @@ describe('UserSettingsComponent', () => {
       const markAllItemsSpy = vi.spyOn(component as any, 'markAllItemsAsRead');
 
       mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: { id: 'subscriber-id' },
-              error: null
-            }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
         }))
@@ -2482,14 +2370,7 @@ describe('UserSettingsComponent', () => {
       const markAllItemsSpy = vi.spyOn(component as any, 'markAllItemsAsRead');
 
       mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: { id: 'subscriber-id' },
-              error: null
-            }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
         }))
@@ -2506,14 +2387,7 @@ describe('UserSettingsComponent', () => {
       component.badgeFunctionalityEnabled = false;
 
       mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: { id: 'subscriber-id' },
-              error: null
-            }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
         }))
@@ -2533,14 +2407,7 @@ describe('UserSettingsComponent', () => {
       component.badgeFunctionalityEnabled = false;
 
       mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: { id: 'subscriber-id' },
-              error: null
-            }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
         }))
@@ -2557,14 +2424,7 @@ describe('UserSettingsComponent', () => {
       component.badgeFunctionalityEnabled = true;
 
       mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: { id: 'subscriber-id' },
-              error: null
-            }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
         update: vi.fn(() => ({
           eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
         }))
@@ -2594,14 +2454,7 @@ describe('UserSettingsComponent', () => {
       component.badgeFunctionalityEnabled = false;
 
       mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: null,
-              error: null
-            }))
-          }))
-        })),
+        select: vi.fn(() => supabaseSelectResult(null)),
         insert: vi.fn(() => Promise.resolve({
           data: null,
           error: new Error('Insert error')
@@ -2621,14 +2474,7 @@ describe('UserSettingsComponent', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({
-              data: null,
-              error: new Error('Load error')
-            }))
-          }))
-        }))
+        select: vi.fn(() => supabaseSelectResult(null, new Error('Load error')))
       }));
 
       await component['loadPreferencesAutomatically']('test@example.com');

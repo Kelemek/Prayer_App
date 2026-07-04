@@ -307,7 +307,7 @@ export class AppComponent implements OnInit, OnDestroy {
       }
 
       if (decoded.type === "approve") {
-        // Approve the account - add to email_subscribers
+        // Approve the account - add to tenant_memberships
         const approvalTenantId = request.tenant_id;
         if (!approvalTenantId) {
           console.error("Approval request missing tenant_id");
@@ -320,14 +320,14 @@ export class AppComponent implements OnInit, OnDestroy {
         }
 
         const { error: insertError } = await supabase.directMutation(
-          "email_subscribers",
+          "tenant_memberships",
           {
             method: "POST",
             body: {
-              email: request.email.toLowerCase(),
+              user_email: request.email.toLowerCase(),
               name: `${request.first_name} ${request.last_name}`,
               is_active: true,
-              is_admin: false,
+              role: "member",
               receive_admin_emails: false,
               tenant_id: approvalTenantId,
             },

@@ -1,6 +1,6 @@
 /**
  * Hourly job: send self prayer reminders.
- * Email when email_subscribers.is_active !== false (matches UserSessionData.isActive).
+ * Email when tenant_memberships.is_active !== false (matches UserSessionData.isActive).
  * Push when receive_push and a device_tokens row exists (matches receivePush + native token).
  * Both run when both are enabled.
  * Email body uses email_templates.user_hourly_prayer_reminder with {{appLink}} (same pattern as send-verification-code).
@@ -135,12 +135,12 @@ serve(async (req) => {
     const uniqueEmails = [...byLower.values()];
 
     const { data: subscribers, error: subErr } = await supabase
-      .from('email_subscribers')
-      .select('email, receive_push, is_active, is_blocked, unsubscribe_token')
-      .in('email', uniqueEmails);
+      .from('tenant_memberships')
+      .select('user_email, receive_push, is_active, is_blocked, unsubscribe_token')
+      .in('user_email', uniqueEmails);
 
     if (subErr) {
-      console.error('email_subscribers batch failed:', subErr);
+      console.error('tenant_memberships batch failed:', subErr);
       return new Response(
         JSON.stringify({ error: 'Failed to load subscribers', details: subErr.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -148,7 +148,7 @@ serve(async (req) => {
     }
 
     const subByLower = new Map(
-      (subscribers ?? []).map((s: { email: string }) => [s.email.toLowerCase(), s])
+      (subscribers ?? []).map((s: { user_email: string }) => [s.user_email.toLowerCase(), s])
     );
 
     const { data: tokenRows, error: tokErr } = await supabase
@@ -175,7 +175,7 @@ serve(async (req) => {
     for (const canonicalEmail of uniqueEmails) {
       const sub = subByLower.get(canonicalEmail.toLowerCase()) as
         | {
-          email: string;
+          user_email: string;
           receive_push: boolean | null;
           is_active: boolean | null;
           is_blocked: boolean | null;
@@ -187,7 +187,7 @@ serve(async (req) => {
         continue;
       }
 
-      const recipient = sub.email;
+      const recipient = sub.user_email;
       const lower = recipient.toLowerCase();
       // Align with UserSessionService: is_active ?? true for "email subscription"
       const wantEmail = sub.is_active !== false;

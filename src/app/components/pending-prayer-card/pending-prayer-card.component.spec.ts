@@ -280,10 +280,10 @@ describe('PendingPrayerCardComponent', () => {
       await user.click(editButton);
 
       const inputs = container.querySelectorAll('input');
-      const textareas = container.querySelectorAll('textarea');
+      const descriptionEditor = container.querySelector('.ProseMirror');
 
       expect(inputs[0].value).toBe('Jane Doe'); // prayer_for
-      expect(textareas[0].value).toBe('Test description');
+      expect(descriptionEditor?.textContent).toBe('Test description');
       expect(inputs[1].value).toBe('John Doe'); // requester
       expect(inputs[2].value).toBe('test@example.com'); // email
     });

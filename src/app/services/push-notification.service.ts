@@ -122,16 +122,16 @@ export class PushNotificationService {
   }
 
   /**
-   * Set receive_push for a subscriber when they register a device (or turn push off).
+   * Set receive_push for a member when they register a device (or turn push off).
    * Called with true when we successfully store a device token.
    */
   private async setReceivePushForEmail(email: string, value: boolean): Promise<void> {
     const { error } = await this.supabase.client
-      .from('email_subscribers')
+      .from('tenant_memberships')
       .update({ receive_push: value })
-      .eq('email', email.trim().toLowerCase());
+      .eq('user_email', email.trim().toLowerCase());
     if (error) {
-      console.warn('Could not update receive_push for subscriber:', error.message);
+      console.warn('Could not update receive_push for member:', error.message);
     }
   }
 
@@ -187,7 +187,7 @@ export class PushNotificationService {
   }
 
   /**
-   * Send a push notification to all subscribers who have receive_push enabled and the app installed.
+   * Send a push notification to all members who have receive_push enabled and the app installed.
    * Independent of is_active (email preference): a user can get push only, email only, both, or neither.
    * Failures are logged but do not throw.
    */
@@ -197,19 +197,19 @@ export class PushNotificationService {
     data?: Record<string, string>;
   }): Promise<void> {
     try {
-      const { data: subscribers, error: fetchError } = await this.supabase.client
-        .from('email_subscribers')
-        .select('email')
+      const { data: members, error: fetchError } = await this.supabase.client
+        .from('tenant_memberships')
+        .select('user_email')
         .eq('is_blocked', false)
         .eq('receive_push', true);
 
       if (fetchError) {
-        console.error('Failed to fetch subscribers for push:', fetchError);
+        console.error('Failed to fetch members for push:', fetchError);
         return;
       }
-      if (!subscribers?.length) return;
+      if (!members?.length) return;
 
-      const emails = subscribers.map((s: { email: string }) => s.email);
+      const emails = members.map((s: { user_email: string }) => s.user_email);
       const { error: invokeError } = await this.supabase.client.functions.invoke(
         'send-push-notification',
         {
@@ -243,9 +243,9 @@ export class PushNotificationService {
     if (!normalized.length) return;
     try {
       const { data: rows, error: fetchError } = await this.supabase.client
-        .from('email_subscribers')
-        .select('email')
-        .in('email', normalized)
+        .from('tenant_memberships')
+        .select('user_email')
+        .in('user_email', normalized)
         .eq('is_blocked', false)
         .eq('receive_push', true);
 
@@ -255,7 +255,7 @@ export class PushNotificationService {
       }
       if (!rows?.length) return;
 
-      const allowed = rows.map((r: { email: string }) => r.email);
+      const allowed = rows.map((r: { user_email: string }) => r.user_email);
       const { error: invokeError } = await this.supabase.client.functions.invoke(
         'send-push-notification',
         {
@@ -286,9 +286,9 @@ export class PushNotificationService {
   }): Promise<void> {
     try {
       const { data: admins, error: fetchError } = await this.supabase.client
-        .from('email_subscribers')
-        .select('email')
-        .eq('is_admin', true)
+        .from('tenant_memberships')
+        .select('user_email')
+        .eq('role', 'tenant_admin')
         .eq('receive_admin_push', true);
 
       if (fetchError) {
@@ -297,7 +297,7 @@ export class PushNotificationService {
       }
       if (!admins?.length) return;
 
-      const emails = admins.map((a: { email: string }) => a.email);
+      const emails = admins.map((a: { user_email: string }) => a.user_email);
       const { error: invokeError } = await this.supabase.client.functions.invoke(
         'send-push-notification',
         {

@@ -1,5 +1,5 @@
 /**
- * Public unsubscribe: sets email_subscribers.is_active = false by opaque token.
+ * Public unsubscribe: sets tenant_memberships.is_active = false by opaque token.
  * GET: browser link; POST: RFC 8058 one-click (form) or JSON { token } from SPA.
  */
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -68,7 +68,7 @@ async function deactivateByToken(
   token: string
 ): Promise<boolean> {
   const { data, error } = await supabase
-    .from('email_subscribers')
+    .from('tenant_memberships')
     .update({ is_active: false, updated_at: new Date().toISOString() })
     .eq('unsubscribe_token', token)
     .select('id')

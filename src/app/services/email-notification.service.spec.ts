@@ -17,7 +17,7 @@ function doubleEqMaybeSingleRow(result: { data: unknown; error: unknown }) {
   };
 }
 
-/** email_subscribers broadcast: select → eq ×3 → await */
+/** tenant_memberships broadcast: select → eq ×3 → await */
 function tripleEqThenableRow(rows: unknown[], error: unknown = null) {
   const result = { data: rows, error };
   return {
@@ -67,31 +67,18 @@ function emailSubscribersUnsubAndListMock(tokenLookup: { data: unknown; error: u
   };
 }
 
-function tenantMembershipsAdmins(emails: string[]) {
-  const result = { data: emails.map((e) => ({ user_email: e })), error: null as unknown };
-  return {
-    select: () => ({
-      eq: () => ({
-        eq: () => ({
-          then: (onFulfilled: (r: typeof result) => void) => Promise.resolve(result).then(onFulfilled),
-        }),
-      }),
-    }),
-  };
-}
-
-function emailSubscribersAdminPrefs(rows: { email: string; receive_admin_emails?: boolean }[]) {
+function tenantMembershipsAdmins(emails: string[], receiveAdminEmails = true) {
   const result = {
-    data: rows.map((r) => ({
-      email: r.email,
-      receive_admin_emails: r.receive_admin_emails ?? true,
+    data: emails.map((e) => ({
+      user_email: e,
+      receive_admin_emails: receiveAdminEmails,
     })),
     error: null as unknown,
   };
   return {
     select: () => ({
       eq: () => ({
-        in: () => ({
+        eq: () => ({
           then: (onFulfilled: (r: typeof result) => void) => Promise.resolve(result).then(onFulfilled),
         }),
       }),
@@ -119,8 +106,6 @@ function createDefaultSupabaseFromRouter() {
       case 'email_templates':
         return doubleEqMaybeSingleRow({ data: null, error: null });
       case 'tenant_memberships':
-        return tenantMembershipsAdmins([]);
-      case 'email_subscribers':
         return emailSubscribersUnsubAndListMock({ data: null, error: null });
       case 'email_queue':
         return emailQueueInsertMock();
@@ -139,16 +124,13 @@ function fromMockTenantAdmins(adminEmails: string[]) {
     if (table === 'tenant_memberships') {
       return tenantMembershipsAdmins(adminEmails);
     }
-    if (table === 'email_subscribers') {
-      return emailSubscribersAdminPrefs(adminEmails.map((e) => ({ email: e, receive_admin_emails: true })));
-    }
     return emailQueueInsertMock();
   });
 }
 
 function fromMockWelcomeFlow(templateRow: Record<string, unknown> | null, templateError: unknown = null) {
   return vi.fn((table: string) => {
-    if (table === 'email_subscribers') {
+    if (table === 'tenant_memberships') {
       return emailSubscribersUnsubAndListMock({ data: null, error: null });
     }
     if (table === 'email_templates') {
@@ -158,9 +140,9 @@ function fromMockWelcomeFlow(templateRow: Record<string, unknown> | null, templa
   });
 }
 
-function fromMockBroadcastAndQueue(subscribers: { email: string; unsubscribe_token?: string }[]) {
+function fromMockBroadcastAndQueue(subscribers: { user_email: string; unsubscribe_token?: string }[]) {
   return vi.fn((table: string) => {
-    if (table === 'email_subscribers') {
+    if (table === 'tenant_memberships') {
       return tripleEqThenableRow(subscribers);
     }
     return emailQueueInsertMock();
@@ -246,7 +228,7 @@ describe('EmailNotificationService', () => {
   });
 
   it('sendApprovedPrayerNotification uses fallback when template missing', async () => {
-    const mockSubscribers = [{ email: 'user@test.com' }];
+    const mockSubscribers = [{ user_email: 'user@test.com' }];
     mockSupabase.client.from = fromMockBroadcastAndQueue(mockSubscribers);
 
     const enqueueSpy = vi.spyOn(service as any, 'enqueueEmail').mockResolvedValue(undefined);
@@ -262,7 +244,7 @@ describe('EmailNotificationService', () => {
   });
 
   it('sendApprovedPrayerNotification logs queue and trigger failures', async () => {
-    mockSupabase.client.from = fromMockBroadcastAndQueue([{ email: 'user@test.com' }]);
+    mockSupabase.client.from = fromMockBroadcastAndQueue([{ user_email: 'user@test.com' }]);
 
     vi.spyOn(service as any, 'enqueueEmail').mockRejectedValueOnce(new Error('Queue failed'));
     vi.spyOn(service as any, 'triggerEmailProcessor').mockRejectedValueOnce(new Error('Trigger failed'));
@@ -563,7 +545,7 @@ describe('EmailNotificationService', () => {
     mockSupabase.client.from = vi.fn().mockReturnValue({
       select: () => ({
         eq: () => ({
-          eq: async () => ({ data: [{ email: 'admin@test.com' }], error: null })
+          eq: async () => ({ data: [{ user_email: 'admin@test.com' }], error: null })
         })
       })
     });
@@ -574,7 +556,7 @@ describe('EmailNotificationService', () => {
 
   it('sendApprovedUpdateNotification returns early when no active subscribers exist', async () => {
     mockSupabase.client.from = vi.fn((table: string) => {
-      if (table === 'email_subscribers') {
+      if (table === 'tenant_memberships') {
         return {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
@@ -599,11 +581,11 @@ describe('EmailNotificationService', () => {
 
   it('sendApprovedUpdateNotification logs queue failures and trigger failures', async () => {
     mockSupabase.client.from = vi.fn((table: string) => {
-      if (table === 'email_subscribers') {
+      if (table === 'tenant_memberships') {
         return {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({ data: [{ email: 'user@test.com' }], error: null })
+              eq: vi.fn().mockResolvedValue({ data: [{ user_email: 'user@test.com' }], error: null })
             })
           })
         };
@@ -858,9 +840,9 @@ describe('EmailNotificationService - Additional Logic', () => {
 
     it('should handle multiple subscribers', () => {
       const subscribers = [
-        { email: 'user1@test.com' },
-        { email: 'user2@test.com' },
-        { email: 'user3@test.com' }
+        { user_email: 'user1@test.com' },
+        { user_email: 'user2@test.com' },
+        { user_email: 'user3@test.com' }
       ];
       expect(subscribers.length).toBe(3);
     });
@@ -880,8 +862,8 @@ describe('EmailNotificationService - Additional Logic', () => {
 
     it('should send to multiple admins', () => {
       const admins = [
-        { email: 'admin1@test.com' },
-        { email: 'admin2@test.com' }
+        { user_email: 'admin1@test.com' },
+        { user_email: 'admin2@test.com' }
       ];
       expect(admins.length).toBe(2);
     });
@@ -1578,8 +1560,8 @@ describe('EmailNotificationService - Additional Logic', () => {
     describe('Approved Prayer Notifications', () => {
       it('should send approved prayer notification with current status', async () => {
         mockSupabase.client.from = fromMockBroadcastAndQueue([
-          { email: 'user1@test.com' },
-          { email: 'user2@test.com' },
+          { user_email: 'user1@test.com' },
+          { user_email: 'user2@test.com' },
         ]);
 
         const enqueueSpy = vi.spyOn(service as any, 'enqueueEmail').mockResolvedValue(undefined);
@@ -1598,7 +1580,7 @@ describe('EmailNotificationService - Additional Logic', () => {
       });
 
       it('should use prayer_answered template when status is answered', async () => {
-        mockSupabase.client.from = fromMockBroadcastAndQueue([{ email: 'user@test.com' }]);
+        mockSupabase.client.from = fromMockBroadcastAndQueue([{ user_email: 'user@test.com' }]);
 
         const enqueueSpy = vi.spyOn(service as any, 'enqueueEmail').mockResolvedValue(undefined);
         vi.spyOn(service as any, 'triggerEmailProcessor').mockResolvedValue(undefined);
@@ -1632,7 +1614,7 @@ describe('EmailNotificationService - Additional Logic', () => {
 
       it('should handle subscriber fetch error gracefully', async () => {
         mockSupabase.client.from = vi.fn((table: string) => {
-          if (table === 'email_subscribers') {
+          if (table === 'tenant_memberships') {
             return tripleEqThenableResult(null, { message: 'Fetch error' });
           }
           return emailQueueInsertMock();
@@ -1651,9 +1633,9 @@ describe('EmailNotificationService - Additional Logic', () => {
 
       it('should queue emails for each subscriber independently', async () => {
         const subscribers = [
-          { email: 'user1@test.com' },
-          { email: 'user2@test.com' },
-          { email: 'user3@test.com' }
+          { user_email: 'user1@test.com' },
+          { user_email: 'user2@test.com' },
+          { user_email: 'user3@test.com' }
         ];
 
         mockSupabase.client.from = fromMockBroadcastAndQueue(subscribers);
@@ -1674,7 +1656,7 @@ describe('EmailNotificationService - Additional Logic', () => {
       });
 
       it('should trigger email processor after queueing', async () => {
-        mockSupabase.client.from = fromMockBroadcastAndQueue([{ email: 'user@test.com' }]);
+        mockSupabase.client.from = fromMockBroadcastAndQueue([{ user_email: 'user@test.com' }]);
 
         vi.spyOn(service as any, 'enqueueEmail').mockResolvedValue(undefined);
         const triggerSpy = vi.spyOn(service as any, 'triggerEmailProcessor').mockResolvedValue(undefined);
@@ -1694,7 +1676,7 @@ describe('EmailNotificationService - Additional Logic', () => {
 
     describe('Approved Update Notifications', () => {
       it('should send approved update notification', async () => {
-        mockSupabase.client.from = fromMockBroadcastAndQueue([{ email: 'user@test.com' }]);
+        mockSupabase.client.from = fromMockBroadcastAndQueue([{ user_email: 'user@test.com' }]);
 
         const enqueueSpy = vi.spyOn(service as any, 'enqueueEmail').mockResolvedValue(undefined);
         vi.spyOn(service as any, 'triggerEmailProcessor').mockResolvedValue(undefined);
@@ -1711,7 +1693,7 @@ describe('EmailNotificationService - Additional Logic', () => {
       });
 
       it('should use prayer_answered template when update marked as answered', async () => {
-        mockSupabase.client.from = fromMockBroadcastAndQueue([{ email: 'user@test.com' }]);
+        mockSupabase.client.from = fromMockBroadcastAndQueue([{ user_email: 'user@test.com' }]);
 
         const enqueueSpy = vi.spyOn(service as any, 'enqueueEmail').mockResolvedValue(undefined);
         vi.spyOn(service as any, 'triggerEmailProcessor').mockResolvedValue(undefined);
@@ -1730,7 +1712,7 @@ describe('EmailNotificationService - Additional Logic', () => {
 
       it('should handle update notification with missing subscribers gracefully', async () => {
         mockSupabase.client.from = vi.fn((table: string) => {
-          if (table === 'email_subscribers') {
+          if (table === 'tenant_memberships') {
             return tripleEqThenableResult(null, { message: 'Error' });
           }
           return emailQueueInsertMock();

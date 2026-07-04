@@ -48,7 +48,7 @@ Deno.serve(async (req: Request) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    const [superAdminResult, tenantAdminResult, legacyAdminResult] = await Promise.all([
+    const [superAdminResult, tenantAdminResult, anyTenantAdminResult] = await Promise.all([
       supabase
         .from('global_roles')
         .select('role')
@@ -65,14 +65,15 @@ Deno.serve(async (req: Request) => {
             .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
       supabase
-        .from("email_subscribers")
-        .select("is_admin")
-        .eq("email", normalizedEmail)
-        .eq("is_admin", true)
+        .from('tenant_memberships')
+        .select('role')
+        .eq('user_email', normalizedEmail)
+        .eq('role', 'tenant_admin')
+        .limit(1)
         .maybeSingle()
     ]);
 
-    if (superAdminResult.error || tenantAdminResult.error || legacyAdminResult.error) {
+    if (superAdminResult.error || tenantAdminResult.error || anyTenantAdminResult.error) {
       return new Response(
         JSON.stringify({
           success: false,
@@ -88,8 +89,8 @@ Deno.serve(async (req: Request) => {
 
     const isSuperAdmin = !!superAdminResult.data;
     const isTenantAdmin = !!tenantAdminResult.data;
-    const hasLegacyAdmin = !!legacyAdminResult.data;
-    const isAdmin = isSuperAdmin || isTenantAdmin || hasLegacyAdmin;
+    const hasAnyTenantAdmin = !!anyTenantAdminResult.data;
+    const isAdmin = isSuperAdmin || isTenantAdmin || hasAnyTenantAdmin;
 
     return new Response(
       JSON.stringify({

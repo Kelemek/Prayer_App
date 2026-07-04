@@ -1194,11 +1194,11 @@ export class LoginComponent implements OnInit, OnDestroy {
       );
       const { data, error } = await this.supabaseService.directQuery<{
         id: string;
-        email: string;
+        user_email: string;
         is_blocked: boolean;
-      }>("email_subscribers", {
-        select: "id, email, is_blocked",
-        eq: { email: email.toLowerCase() },
+      }>("tenant_memberships", {
+        select: "id, user_email, is_blocked",
+        eq: { user_email: email.toLowerCase() },
         limit: 1,
       });
 
@@ -1369,13 +1369,13 @@ export class LoginComponent implements OnInit, OnDestroy {
 
       const { data, error } = await this.supabaseService.directMutation<{
         id: string;
-      }>("email_subscribers", {
+      }>("tenant_memberships", {
         method: "POST",
         body: {
-          email: this.email.toLowerCase(),
+          user_email: this.email.toLowerCase(),
           name: `${this.firstName.trim()} ${this.lastName.trim()}`,
           is_active: true,
-          is_admin: false,
+          role: "member",
           receive_admin_emails: false,
           tenant_id: subscriberTenantId,
         },

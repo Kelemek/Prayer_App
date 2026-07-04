@@ -265,10 +265,10 @@ describe('PendingUpdateCardComponent', () => {
       const editButton = screen.getByText('Edit');
       await user.click(editButton);
 
-      const textarea = container.querySelector('textarea');
+      const contentEditor = container.querySelector('.ProseMirror');
       const input = container.querySelector('input');
 
-      expect(textarea?.value).toBe('Test update content');
+      expect(contentEditor?.textContent).toBe('Test update content');
       expect(input?.value).toBe('John Doe');
     });
 

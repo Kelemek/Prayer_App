@@ -1,15 +1,26 @@
-import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminPrayerEditModalComponent } from '../admin-prayer-edit-modal/admin-prayer-edit-modal.component';
 import { AdminUpdateEditModalComponent } from '../admin-update-edit-modal/admin-update-edit-modal.component';
+import { RichTextEditorComponent } from '../rich-text-editor/rich-text-editor.component';
+import { RichTextViewComponent } from '../rich-text-view/rich-text-view.component';
 import type { PrayerRequest } from '../../services/prayer.service';
+import { AdminDataService } from '../../services/admin-data.service';
+import { ToastService } from '../../services/toast.service';
 
 @Component({
   selector: 'app-consolidated-prayer-approval',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, FormsModule, AdminPrayerEditModalComponent, AdminUpdateEditModalComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    AdminPrayerEditModalComponent,
+    AdminUpdateEditModalComponent,
+    RichTextEditorComponent,
+    RichTextViewComponent,
+  ],
   template: `
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border-[2px] border-green-500 dark:border-green-600 p-6 mb-4 transition-colors">
       <!-- Prayer Header -->
@@ -55,7 +66,10 @@ import type { PrayerRequest } from '../../services/prayer.service';
       </div>
 
       <!-- Prayer Description -->
-      <p class="text-gray-600 dark:text-gray-300 mb-6">{{ prayer.description }}</p>
+      <app-rich-text-view
+        class="block text-gray-600 dark:text-gray-300 mb-6"
+        [text]="prayer.description"
+      ></app-rich-text-view>
 
       <!-- Updates Section (within the card) -->
       <!-- For shared personal prayers, updates are shown but approved as a unit with the prayer -->
@@ -94,19 +108,65 @@ import type { PrayerRequest } from '../../services/prayer.service';
                     <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
                       {{ formatUpdateDate(update.created_at) }}
                     </p>
-                    <p class="text-sm text-gray-700 dark:text-gray-300">{{ update.content }}</p>
+                    @if (inlineEditingUpdateId === update.id) {
+                      <div class="space-y-3">
+                        <app-rich-text-editor
+                          [ngModel]="inlineEditingUpdateContent"
+                          (ngModelChange)="inlineEditingUpdateContent = $event"
+                          [name]="'inlineUpdate-' + update.id"
+                          ngDefaultControl
+                          ariaLabel="Update content"
+                          placeholder="Update details…"
+                          minHeight="4rem"
+                        ></app-rich-text-editor>
+                        <div class="flex gap-2 justify-end">
+                          <button
+                            type="button"
+                            (click)="saveInlineUpdate(update.id)"
+                            [disabled]="isSavingUpdate"
+                            class="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                          >{{ isSavingUpdate ? 'Saving…' : 'Save' }}</button>
+                          <button
+                            type="button"
+                            (click)="cancelInlineUpdate()"
+                            [disabled]="isSavingUpdate"
+                            class="px-3 py-1.5 text-xs bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-100 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors font-medium"
+                          >Cancel</button>
+                        </div>
+                      </div>
+                    } @else {
+                      <app-rich-text-view
+                        class="block text-sm text-gray-700 dark:text-gray-300"
+                        [text]="update.content"
+                      ></app-rich-text-view>
+                    }
                   </div>
-                  <button
-                    (click)="editUpdate = update; showEditUpdate = true"
-                    aria-label="Edit update"
-                    title="Edit update"
-                    class="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 p-1 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md ml-2 flex-shrink-0 cursor-pointer"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                    </svg>
-                  </button>
+                  <div class="flex flex-col gap-1 ml-2 flex-shrink-0">
+                    @if (inlineEditingUpdateId !== update.id) {
+                      <button
+                        (click)="startInlineUpdateEdit(update)"
+                        aria-label="Inline edit update"
+                        title="Inline edit update"
+                        class="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 p-1 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md cursor-pointer"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
+                      <button
+                        (click)="editUpdate = update; showEditUpdate = true"
+                        aria-label="Edit update"
+                        title="Edit update"
+                        class="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 p-1 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md cursor-pointer"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
+                    }
+                  </div>
                 </div>
 
                 <!-- Denial Form for Update -->
@@ -274,6 +334,16 @@ export class ConsolidatedPrayerApprovalComponent {
   denyingUpdateId: string | null = null;
   updateDenialReasons: Map<string, string> = new Map();
 
+  inlineEditingUpdateId: string | null = null;
+  inlineEditingUpdateContent = '';
+  isSavingUpdate = false;
+
+  constructor(
+    private adminDataService: AdminDataService,
+    private toast: ToastService,
+    private cdr: ChangeDetectorRef,
+  ) {}
+
   getRequester(): string {
     if (this.prayer?.requester) {
       return this.prayer.requester;
@@ -353,5 +423,38 @@ export class ConsolidatedPrayerApprovalComponent {
 
   trackByUpdateId(index: number, update: any): string {
     return update?.id || index.toString();
+  }
+
+  startInlineUpdateEdit(update: { id: string; content: string }): void {
+    this.inlineEditingUpdateId = update.id;
+    this.inlineEditingUpdateContent = update.content || '';
+  }
+
+  cancelInlineUpdate(): void {
+    this.inlineEditingUpdateId = null;
+    this.inlineEditingUpdateContent = '';
+  }
+
+  async saveInlineUpdate(updateId: string): Promise<void> {
+    if (this.isSavingUpdate) return;
+    this.isSavingUpdate = true;
+    this.cdr.markForCheck();
+    try {
+      await this.adminDataService.editUpdate(updateId, { content: this.inlineEditingUpdateContent });
+      const target = this.pendingUpdates.find((u) => u?.id === updateId);
+      if (target) {
+        target.content = this.inlineEditingUpdateContent;
+      }
+      this.onUpdateEdited.emit({ id: updateId, updates: { content: this.inlineEditingUpdateContent } });
+      this.inlineEditingUpdateId = null;
+      this.inlineEditingUpdateContent = '';
+      this.toast.success('Update edited.');
+    } catch (err) {
+      console.error('Failed to update prayer update:', err);
+      this.toast.error('Failed to edit update.');
+    } finally {
+      this.isSavingUpdate = false;
+      this.cdr.markForCheck();
+    }
   }
 }

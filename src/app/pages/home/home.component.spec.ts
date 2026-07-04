@@ -1126,10 +1126,10 @@ describe('HomeComponent', () => {
     expect(result).toBe(true);
     expect(supabase.supabaseService.client.from).toHaveBeenCalledTimes(2);
     expect(supabase.insertChain.insert).toHaveBeenCalledWith({
-      email: 'fresh@example.com',
+      user_email: 'fresh@example.com',
       name: 'fresh',
       is_active: true,
-      is_admin: false,
+      role: 'member',
       receive_admin_emails: false,
       tenant_id: 'test-tenant-id',
       default_prayer_view: 'current'

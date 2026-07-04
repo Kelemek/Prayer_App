@@ -1111,14 +1111,14 @@ export class AdminDataService {
     if (fetchError) throw fetchError;
     if (!request) throw new Error('Account approval request not found');
     
-    // Create the email subscriber
+    // Create the tenant membership
     const { error: insertError } = await supabaseClient
-      .from('email_subscribers')
+      .from('tenant_memberships')
       .insert({
-        email: request.email.toLowerCase(),
+        user_email: request.email.toLowerCase(),
         name: `${request.first_name} ${request.last_name}`,
         is_active: true,
-        is_admin: false,
+        role: 'member',
         receive_admin_emails: false,
         tenant_id: tenantId
       });

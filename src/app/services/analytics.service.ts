@@ -104,7 +104,7 @@ export class AnalyticsService {
   /**
    * Track a page view and update user's last activity date
    * Only tracks logged-in users to prevent admin page views from skewing analytics
-   * Inserts a record into the analytics table and updates email_subscribers last_activity_date
+   * Inserts a record into the analytics table and updates tenant_memberships last_activity_date
    * Both operations are throttled to every 5 minutes to reduce database writes
    * Should be called from main site pages only, not from admin routes
    */
@@ -141,13 +141,13 @@ export class AnalyticsService {
         }
       });
 
-      // Update the user's last activity date in email_subscribers (active tenant row)
+      // Update the user's last activity date in tenant_memberships (active tenant row)
       if (tenantId) {
         await this.supabase.client
-          .from('email_subscribers')
+          .from('tenant_memberships')
           .update({ last_activity_date: new Date().toISOString() })
           .eq('tenant_id', tenantId)
-          .eq('email', userEmail);
+          .eq('user_email', userEmail.toLowerCase().trim());
       }
 
       // Record the update time in localStorage

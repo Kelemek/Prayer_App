@@ -25,6 +25,7 @@ import { CapacitorService } from "../../services/capacitor.service";
 import { Subject, takeUntil, debounceTime, distinctUntilChanged } from "rxjs";
 import { getUserInfo } from "../../../utils/userInfoStorage";
 import { UserPrayerReminderService } from "../../services/user-prayer-reminder.service";
+import { TenantContextService } from "../../services/tenant-context.service";
 import type { UserPrayerHourReminderSlot } from "../../types/user-prayer-hour-reminder";
 
 type ThemeOption = "light" | "dark" | "system";
@@ -1512,8 +1513,37 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     public userSessionService: UserSessionService,
     public capacitorService: CapacitorService,
     private userPrayerReminderService: UserPrayerReminderService,
+    private tenantContext: TenantContextService,
     private cdr: ChangeDetectorRef
   ) {}
+
+  private getActiveTenantId(): string | null {
+    return this.tenantContext.getActiveTenant()?.id ?? null;
+  }
+
+  private membershipInsertPayload(
+    email: string,
+    fields: Record<string, unknown>
+  ): Record<string, unknown> {
+    const tenantId = this.getActiveTenantId();
+    return {
+      user_email: email,
+      role: "member",
+      ...(tenantId ? { tenant_id: tenantId } : {}),
+      ...fields,
+    };
+  }
+
+  private membershipMatchFilter(email: string): { user_email: string; tenant_id?: string } {
+    const filter: { user_email: string; tenant_id?: string } = {
+      user_email: email,
+    };
+    const tenantId = this.getActiveTenantId();
+    if (tenantId) {
+      filter.tenant_id = tenantId;
+    }
+    return filter;
+  }
 
   ngOnInit(): void {
     this.reminderHourOptions = Array.from({ length: 24 }, (_, h) => ({
@@ -1924,11 +1954,11 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     }
 
     try {
-      // Check for approved preferences in email_subscribers
+      // Check for approved preferences in tenant_memberships
       const { data: subscriberData, error } = await this.supabase.client
-        .from("email_subscribers")
+        .from("tenant_memberships")
         .select("*")
-        .eq("email", emailAddress.toLowerCase().trim())
+        .match(this.membershipMatchFilter(emailAddress.toLowerCase().trim()))
         .maybeSingle();
 
       if (error) {
@@ -1987,12 +2017,12 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
         this.receiveNotifications
       );
 
-      // Check if subscriber exists
+      // Check if membership exists
       const { data: existingSubscriber, error: fetchError } =
         await this.supabase.client
-          .from("email_subscribers")
+          .from("tenant_memberships")
           .select("id")
-          .eq("email", email)
+          .match(this.membershipMatchFilter(email))
           .maybeSingle();
 
       if (fetchError) {
@@ -2006,7 +2036,7 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
         // Update existing subscriber
         console.log("Updating existing subscriber...");
         const { error: updateError } = await this.supabase.client
-          .from("email_subscribers")
+          .from("tenant_memberships")
           .update({ is_active: this.receiveNotifications })
           .eq("id", existingSubscriber.id);
 
@@ -2019,12 +2049,13 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
         // Create new subscriber
         console.log("Creating new subscriber...");
         const { error: insertError } = await this.supabase.client
-          .from("email_subscribers")
-          .insert({
-            email,
-            is_active: this.receiveNotifications,
-            name: this.name || "",
-          });
+          .from("tenant_memberships")
+          .insert(
+            this.membershipInsertPayload(email, {
+              is_active: this.receiveNotifications,
+              name: this.name || "",
+            })
+          );
 
         if (insertError) {
           console.error("Insert error:", insertError);
@@ -2077,28 +2108,29 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     try {
       const { data: existingSubscriber, error: fetchError } =
         await this.supabase.client
-          .from("email_subscribers")
+          .from("tenant_memberships")
           .select("id")
-          .eq("email", email)
+          .match(this.membershipMatchFilter(email))
           .maybeSingle();
 
       if (fetchError) throw fetchError;
 
       if (existingSubscriber) {
         const { error: updateError } = await this.supabase.client
-          .from("email_subscribers")
+          .from("tenant_memberships")
           .update({ receive_push: this.receivePushNotifications })
           .eq("id", existingSubscriber.id);
         if (updateError) throw updateError;
       } else {
         const { error: insertError } = await this.supabase.client
-          .from("email_subscribers")
-          .insert({
-            email,
-            is_active: this.receiveNotifications ?? true,
-            receive_push: this.receivePushNotifications ?? false,
-            name: this.name || "",
-          });
+          .from("tenant_memberships")
+          .insert(
+            this.membershipInsertPayload(email, {
+              is_active: this.receiveNotifications ?? true,
+              receive_push: this.receivePushNotifications ?? false,
+              name: this.name || "",
+            })
+          );
         if (insertError) throw insertError;
       }
 
@@ -2138,12 +2170,12 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     this.success = null;
 
     try {
-      // Check if subscriber record exists
+      // Check if membership record exists
       const { data: existingRecord, error: fetchError } =
         await this.supabase.client
-          .from("email_subscribers")
+          .from("tenant_memberships")
           .select("id")
-          .eq("email", email)
+          .match(this.membershipMatchFilter(email))
           .maybeSingle();
 
       if (fetchError) {
@@ -2153,11 +2185,11 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
       if (existingRecord) {
         // Update existing record
         const { error: updateError } = await this.supabase.client
-          .from("email_subscribers")
+          .from("tenant_memberships")
           .update({
             badge_functionality_enabled: this.badgeFunctionalityEnabled,
           })
-          .eq("email", email);
+          .eq("user_email", email);
 
         if (updateError) {
           throw updateError;
@@ -2165,11 +2197,12 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
       } else {
         // Create new record
         const { error: insertError } = await this.supabase.client
-          .from("email_subscribers")
-          .insert({
-            email,
-            badge_functionality_enabled: this.badgeFunctionalityEnabled,
-          });
+          .from("tenant_memberships")
+          .insert(
+            this.membershipInsertPayload(email, {
+              badge_functionality_enabled: this.badgeFunctionalityEnabled,
+            })
+          );
 
         if (insertError) {
           throw insertError;
@@ -2226,12 +2259,12 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     this.success = null;
 
     try {
-      // Check if subscriber record exists
+      // Check if membership record exists
       const { data: existingRecord, error: fetchError } =
         await this.supabase.client
-          .from("email_subscribers")
+          .from("tenant_memberships")
           .select("id")
-          .eq("email", email)
+          .match(this.membershipMatchFilter(email))
           .maybeSingle();
 
       if (fetchError) {
@@ -2241,9 +2274,9 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
       if (existingRecord) {
         // Update existing record
         const { error: updateError } = await this.supabase.client
-          .from("email_subscribers")
+          .from("tenant_memberships")
           .update({ default_prayer_view: newView })
-          .eq("email", email);
+          .eq("user_email", email);
 
         if (updateError) {
           throw updateError;
@@ -2251,11 +2284,12 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
       } else {
         // Create new record
         const { error: insertError } = await this.supabase.client
-          .from("email_subscribers")
-          .insert({
-            email,
-            default_prayer_view: newView,
-          });
+          .from("tenant_memberships")
+          .insert(
+            this.membershipInsertPayload(email, {
+              default_prayer_view: newView,
+            })
+          );
 
         if (insertError) {
           throw insertError;
@@ -2396,9 +2430,9 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     this.cdr.markForCheck();
     try {
       const { error } = await this.supabase.client
-        .from("email_subscribers")
+        .from("tenant_memberships")
         .delete()
-        .eq("email", email);
+        .match(this.membershipMatchFilter(email));
       if (error) throw error;
       this.showDeleteAccountVerification = false;
       this.deletingAccount = false;
@@ -2441,9 +2475,9 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
         .eq("user_email", email);
       if (err3) throw err3;
       const { error: err4 } = await client
-        .from("email_subscribers")
+        .from("tenant_memberships")
         .delete()
-        .eq("email", email);
+        .match(this.membershipMatchFilter(email));
       if (err4) throw err4;
       this.showDeleteAccountVerification = false;
       this.deletingAccount = false;

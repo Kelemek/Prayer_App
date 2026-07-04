@@ -16,4 +16,20 @@ export interface TenantMembership {
   user_email: string;
   role: TenantMembershipRole;
   tenants?: Tenant | Tenant[] | null;
+  name?: string;
+  is_active?: boolean;
+  is_blocked?: boolean;
+  receive_admin_emails?: boolean;
+  receive_push?: boolean;
+  receive_admin_push?: boolean;
+  badge_functionality_enabled?: boolean;
+  default_prayer_view?: string;
+  in_planning_center?: boolean;
+  planning_center_checked_at?: string | null;
+  planning_center_list_id?: string | null;
+  last_activity_date?: string | null;
+  unsubscribe_token?: string;
+  updated_at?: string;
+  auth_user_id?: string | null;
+  created_at?: string;
 }

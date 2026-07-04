@@ -18,6 +18,7 @@ import { TenantContextService } from "../../services/tenant-context.service";
 import { PresentationToolbarComponent } from "../../components/presentation-toolbar/presentation-toolbar.component";
 import { PrayerDisplayCardComponent } from "../../components/prayer-display-card/prayer-display-card.component";
 import { PresentationSettingsModalComponent } from "../../components/presentation-settings-modal/presentation-settings-modal.component";
+import { markdownToPlainText } from "../../../utils/markdown";
 
 interface Prayer {
   id: string;
@@ -841,7 +842,7 @@ export class PresentationComponent implements OnInit, OnDestroy {
     if (!item) return this.displayDuration;
 
     if (this.isPrayer(item)) {
-      let totalChars = item.description?.length || 0;
+      let totalChars = markdownToPlainText(item.description).length;
 
       if (item.prayer_updates && item.prayer_updates.length > 0) {
         const recentUpdates = item.prayer_updates
@@ -853,13 +854,13 @@ export class PresentationComponent implements OnInit, OnDestroy {
           .slice(0, 3);
 
         recentUpdates.forEach((update) => {
-          totalChars += update.content?.length || 0;
+          totalChars += markdownToPlainText(update.content).length;
         });
       }
 
       return Math.max(10, Math.min(120, Math.ceil(totalChars / 12)));
     } else {
-      const totalChars = item.description?.length || 0;
+      const totalChars = markdownToPlainText(item.description).length;
       return Math.max(10, Math.min(120, Math.ceil(totalChars / 12)));
     }
   }

@@ -1,5 +1,6 @@
 import { Component, Input, ChangeDetectionStrategy } from "@angular/core";
 import { NgClass } from "@angular/common";
+import { RichTextViewComponent } from "../rich-text-view/rich-text-view.component";
 
 interface Prayer {
   id: string;
@@ -41,7 +42,7 @@ interface PrayerPrompt {
 @Component({
   selector: "app-prayer-display-card",
   standalone: true,
-  imports: [NgClass],
+  imports: [NgClass, RichTextViewComponent],
   template: `
     <!-- Prayer Card -->
     @if (prayer) {
@@ -78,11 +79,10 @@ interface PrayerPrompt {
       </div>
 
       <div class="mb-6">
-        <div
-          class="text-lg md:text-2xl lg:text-3xl leading-relaxed text-gray-800 dark:text-gray-100"
-        >
-          {{ prayer.description }}
-        </div>
+        <app-rich-text-view
+          class="block text-lg md:text-2xl lg:text-3xl leading-relaxed text-gray-800 dark:text-gray-100"
+          [text]="prayer.description"
+        ></app-rich-text-view>
       </div>
 
       <!-- Meta Info -->
@@ -160,11 +160,10 @@ interface PrayerPrompt {
                 }
               </div>
             </div>
-            <div
-              class="text-base md:text-lg lg:text-xl text-gray-800 dark:text-gray-200"
-            >
-              {{ update.content }}
-            </div>
+            <app-rich-text-view
+              class="block text-base md:text-lg lg:text-xl text-gray-800 dark:text-gray-200"
+              [text]="update.content"
+            ></app-rich-text-view>
           </div>
           }
         </div>

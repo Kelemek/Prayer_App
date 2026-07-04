@@ -84,7 +84,7 @@ describe('AnalyticsService', () => {
       }));
 
       mockSupabaseClient.from = vi.fn((table: string) => {
-        if (table === 'email_subscribers') {
+        if (table === 'tenant_memberships') {
           return { update: updateMock };
         }
         return {
@@ -94,7 +94,7 @@ describe('AnalyticsService', () => {
 
       await service.trackPageView();
 
-      expect(mockSupabaseClient.from).toHaveBeenCalledWith('email_subscribers');
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('tenant_memberships');
       expect(updateMock).toHaveBeenCalledWith(
         expect.objectContaining({
           last_activity_date: expect.any(String)
@@ -108,7 +108,7 @@ describe('AnalyticsService', () => {
         if (table === 'analytics') {
           return { insert: insertMock };
         }
-        if (table === 'email_subscribers') {
+        if (table === 'tenant_memberships') {
           return {
             update: vi.fn(() => ({
               eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
@@ -140,7 +140,7 @@ describe('AnalyticsService', () => {
       const updateMock = vi.fn(() => updateEqChain);
 
       mockSupabaseClient.from = vi.fn((table: string) => {
-        if (table === 'email_subscribers') {
+        if (table === 'tenant_memberships') {
           return { update: updateMock };
         }
         return {
@@ -497,7 +497,7 @@ describe('AnalyticsService', () => {
       }));
 
       mockSupabaseClient.from = vi.fn((table: string) => {
-        if (table === 'email_subscribers') {
+        if (table === 'tenant_memberships') {
           return {
             update: updateMock,
             insert: vi.fn(() => Promise.resolve({ data: null, error: null }))
@@ -540,7 +540,7 @@ describe('AnalyticsService', () => {
             insert: vi.fn(() => Promise.reject(error))
           };
         }
-        if (table === 'email_subscribers') {
+        if (table === 'tenant_memberships') {
           return {
             update: vi.fn(() => ({
               eq: vi.fn(() => Promise.reject(error))

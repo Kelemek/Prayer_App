@@ -51,8 +51,8 @@ describe('PushNotificationService', () => {
   });
 
   describe('sendPushToAdmins', () => {
-    it('queries email_subscribers with is_admin and receive_admin_push and invokes edge function', async () => {
-      const admins = [{ email: 'admin1@test.com' }, { email: 'admin2@test.com' }];
+    it('queries tenant_memberships with role tenant_admin and receive_admin_push and invokes edge function', async () => {
+      const admins = [{ user_email: 'admin1@test.com' }, { user_email: 'admin2@test.com' }];
       const selectMock = vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
           eq: vi.fn().mockResolvedValue({ data: admins, error: null }),
@@ -67,8 +67,8 @@ describe('PushNotificationService', () => {
         data: { type: 'prayer' },
       });
 
-      expect(mockSupabase.client.from).toHaveBeenCalledWith('email_subscribers');
-      expect(selectMock).toHaveBeenCalledWith('email');
+      expect(mockSupabase.client.from).toHaveBeenCalledWith('tenant_memberships');
+      expect(selectMock).toHaveBeenCalledWith('user_email');
       expect(mockSupabase.client.functions.invoke).toHaveBeenCalledWith(
         'send-push-notification',
         {
@@ -98,8 +98,8 @@ describe('PushNotificationService', () => {
   });
 
   describe('sendPushToEmails', () => {
-    it('queries email_subscribers with in(), is_blocked and receive_push, invokes edge function with allowed emails', async () => {
-      const rows = [{ email: 'user1@test.com' }];
+    it('queries tenant_memberships with in(), is_blocked and receive_push, invokes edge function with allowed emails', async () => {
+      const rows = [{ user_email: 'user1@test.com' }];
       const selectMock = vi.fn().mockReturnValue({
         in: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -115,8 +115,8 @@ describe('PushNotificationService', () => {
         { title: 'Prayer approved', body: 'Your prayer was approved', data: { type: 'prayer_approved', prayerId: '1' } }
       );
 
-      expect(mockSupabase.client.from).toHaveBeenCalledWith('email_subscribers');
-      expect(selectMock).toHaveBeenCalledWith('email');
+      expect(mockSupabase.client.from).toHaveBeenCalledWith('tenant_memberships');
+      expect(selectMock).toHaveBeenCalledWith('user_email');
       expect(mockSupabase.client.functions.invoke).toHaveBeenCalledWith(
         'send-push-notification',
         {
@@ -167,7 +167,7 @@ describe('PushNotificationService', () => {
       const selectMock = vi.fn().mockReturnValue({
         in: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ data: [{ email: 'u@test.com' }], error: null }),
+            eq: vi.fn().mockResolvedValue({ data: [{ user_email: 'u@test.com' }], error: null }),
           }),
         }),
       });
@@ -205,7 +205,7 @@ describe('PushNotificationService', () => {
         if (table === 'device_tokens') {
           return { select: selectMock, insert: vi.fn().mockReturnValue(Promise.resolve({ error: null })) };
         }
-        if (table === 'email_subscribers') {
+        if (table === 'tenant_memberships') {
           return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) };
         }
         return {};
@@ -218,7 +218,7 @@ describe('PushNotificationService', () => {
       pushTokenCallback(token);
       await new Promise((r) => setTimeout(r, 0));
       expect(mockSupabase.client.from).toHaveBeenCalledWith('device_tokens');
-      expect(mockSupabase.client.from).toHaveBeenCalledWith('email_subscribers');
+      expect(mockSupabase.client.from).toHaveBeenCalledWith('tenant_memberships');
     });
   });
 
@@ -240,7 +240,7 @@ describe('PushNotificationService', () => {
             insert: vi.fn().mockResolvedValue({ error: null }),
           };
         }
-        if (table === 'email_subscribers') {
+        if (table === 'tenant_memberships') {
           return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) };
         }
         return {};
@@ -452,7 +452,7 @@ describe('PushNotificationService', () => {
       expect(mockSupabase.client.from).toHaveBeenCalled();
     });
 
-    it('logs warn when setReceivePushForEmail (email_subscribers update) fails', async () => {
+    it('logs warn when setReceivePushForEmail (tenant_memberships update) fails', async () => {
       mockUserSession.getCurrentSession.mockReturnValue({ email: 'u@test.com' });
       mockSupabase.client.from = vi.fn((table: string) => {
         if (table === 'device_tokens') {
@@ -467,7 +467,7 @@ describe('PushNotificationService', () => {
             insert: vi.fn().mockResolvedValue({ error: null }),
           };
         }
-        if (table === 'email_subscribers') {
+        if (table === 'tenant_memberships') {
           return {
             update: vi.fn().mockReturnValue({
               eq: vi.fn().mockResolvedValue({ error: { message: 'constraint violation' } }),
@@ -477,7 +477,7 @@ describe('PushNotificationService', () => {
         return {};
       });
       await service.storeDeviceToken(token);
-      expect(mockSupabase.client.from).toHaveBeenCalledWith('email_subscribers');
+      expect(mockSupabase.client.from).toHaveBeenCalledWith('tenant_memberships');
     });
   });
 
@@ -566,7 +566,7 @@ describe('PushNotificationService', () => {
 
   describe('sendPushToSubscribers', () => {
     it('fetches subscribers and invokes edge function with emails', async () => {
-      const subscribers = [{ email: 's1@test.com' }, { email: 's2@test.com' }];
+      const subscribers = [{ user_email: 's1@test.com' }, { user_email: 's2@test.com' }];
       const selectMock = vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
           eq: vi.fn().mockResolvedValue({ data: subscribers, error: null }),
@@ -575,7 +575,7 @@ describe('PushNotificationService', () => {
       mockSupabase.client.from = vi.fn().mockReturnValue({ select: selectMock });
       mockSupabase.client.functions.invoke = vi.fn().mockResolvedValue({ error: null });
       await service.sendPushToSubscribers({ title: 'Hi', body: 'Body', data: { key: 'v' } });
-      expect(mockSupabase.client.from).toHaveBeenCalledWith('email_subscribers');
+      expect(mockSupabase.client.from).toHaveBeenCalledWith('tenant_memberships');
       expect(mockSupabase.client.functions.invoke).toHaveBeenCalledWith('send-push-notification', {
         body: { emails: ['s1@test.com', 's2@test.com'], title: 'Hi', body: 'Body', data: { key: 'v' } },
       });
@@ -609,7 +609,7 @@ describe('PushNotificationService', () => {
       mockSupabase.client.from = vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ data: [{ email: 'a@test.com' }], error: null }),
+            eq: vi.fn().mockResolvedValue({ data: [{ user_email: 'a@test.com' }], error: null }),
           }),
         }),
       });
@@ -644,7 +644,7 @@ describe('PushNotificationService', () => {
       mockSupabase.client.from = vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ data: [{ email: 'admin@test.com' }], error: null }),
+            eq: vi.fn().mockResolvedValue({ data: [{ user_email: 'admin@test.com' }], error: null }),
           }),
         }),
       });

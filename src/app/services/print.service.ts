@@ -3,6 +3,7 @@ import { SupabaseService } from './supabase.service';
 import { PrayerService } from './prayer.service';
 import { TenantContextService } from './tenant-context.service';
 import { Printer } from '@capgo/capacitor-printer';
+import { markdownToSafeHtml } from '../../utils/markdown';
 
 export interface Prayer {
   id: string;
@@ -647,7 +648,7 @@ export class PrintService {
             day: 'numeric'
           });
           const authorName = (update as any).is_anonymous ? 'Anonymous' : (update.author || 'Anonymous');
-          return `<div class="update-item"><span class="update-meta">Updated by: ${this.escapeHtml(authorName)} • ${updateDate}:</span> ${this.escapeHtml(update.content)}</div>`;
+          return `<div class="update-item"><span class="update-meta">Updated by: ${this.escapeHtml(authorName)} • ${updateDate}:</span> ${this.renderMarkdown(update.content)}</div>`;
         }).join('')}
       </div>
     ` : '';
@@ -665,7 +666,7 @@ export class PrintService {
           <span>${requesterText} • ${createdDate}</span>
           <span>${rightMeta}</span>
         </div>
-        <div class="prayer-description">${this.escapeHtml(prayer.description)}</div>
+        <div class="prayer-description">${this.renderMarkdown(prayer.description)}</div>
         ${updatesHTML}
       </div>
     `;
@@ -1208,7 +1209,7 @@ export class PrintService {
             month: 'short',
             day: 'numeric'
           });
-          return `<div class="update-item"><span class="update-meta">${updateDate}:</span> ${this.escapeHtml(update.content)}</div>`;
+          return `<div class="update-item"><span class="update-meta">${updateDate}:</span> ${this.renderMarkdown(update.content)}</div>`;
         }).join('')}
       </div>
     ` : '';
@@ -1219,7 +1220,7 @@ export class PrintService {
         <div class="prayer-meta">
           <span>${createdDate}</span>
         </div>
-        ${prayer.description ? `<div class="prayer-description">${this.escapeHtml(prayer.description)}</div>` : ''}
+        ${prayer.description ? `<div class="prayer-description">${this.renderMarkdown(prayer.description)}</div>` : ''}
         ${updatesHTML}
       </div>
     `;
@@ -1463,6 +1464,10 @@ export class PrintService {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  private renderMarkdown(text: string | null | undefined): string {
+    return markdownToSafeHtml(text || '');
   }
 
   /**

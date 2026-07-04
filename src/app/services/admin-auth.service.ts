@@ -221,10 +221,10 @@ export class AdminAuthService {
 
     // Fire and forget – do not block UI rendering
     this.supabase.directQuery<{ is_blocked: boolean }>(
-      'email_subscribers',
+      'tenant_memberships',
       {
         select: 'is_blocked',
-        eq: { email: this.userSubject.value?.email?.toLowerCase() || '' },
+        eq: { user_email: this.userSubject.value?.email?.toLowerCase() || '' },
         limit: 1,
         timeout: 5000
       }
