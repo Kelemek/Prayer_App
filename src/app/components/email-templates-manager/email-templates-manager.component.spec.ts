@@ -44,6 +44,18 @@ describe('EmailTemplatesManagerComponent', () => {
 
     mockSupabaseService = {
       client: {
+        auth: {
+          getSession: vi.fn(() =>
+            Promise.resolve({
+              data: {
+                session: {
+                  user: { email: 'admin@test.com' },
+                },
+              },
+            })
+          ),
+        },
+        rpc: vi.fn(() => Promise.resolve({ error: null })),
         from: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
@@ -109,9 +121,21 @@ describe('EmailTemplatesManagerComponent', () => {
   it('onExpandedChange should lazy-load templates on first expand', async () => {
     const spy = vi.spyOn(component, 'loadTemplates').mockResolvedValue(undefined);
     component.onExpandedChange(true);
-    await component.loadTemplates();
+    await vi.waitUntil(() => spy.mock.calls.length > 0);
     expect(component.sectionExpanded).toBe(true);
     expect(spy).toHaveBeenCalled();
+  });
+
+  it('loadTemplates filters by active tenant and seeds missing templates', async () => {
+    await component.loadTemplates();
+    expect(mockSupabaseService.client.rpc).toHaveBeenCalledWith(
+      'ensure_tenant_email_templates',
+      {
+        p_tenant_id: MOCK_TENANT.id,
+        p_email: 'admin@test.com',
+      }
+    );
+    expect(mockSupabaseService.client.from).toHaveBeenCalledWith('email_templates');
   });
 
   describe('getSafeHtml', () => {

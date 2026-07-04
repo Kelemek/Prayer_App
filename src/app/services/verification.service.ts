@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { SupabaseService } from './supabase.service';
+import { TenantContextService } from './tenant-context.service';
 
 interface VerifiedSession {
   email: string;
@@ -20,7 +21,10 @@ export class VerificationService {
   isEnabled$ = this.isEnabledSubject.asObservable();
   expiryMinutes$ = this.expiryMinutesSubject.asObservable();
 
-  constructor(private supabase: SupabaseService) {
+  constructor(
+    private supabase: SupabaseService,
+    private tenantContext: TenantContextService
+  ) {
     // Delay the check slightly to ensure Supabase client is ready
     setTimeout(() => this.checkIfEnabled(), 100);
   }
@@ -135,13 +139,19 @@ export class VerificationService {
     }
 
     try {
+      const tenantId = this.tenantContext.getActiveTenant()?.id ?? null;
+      const payload = {
+        ...(actionData && typeof actionData === 'object' ? actionData : {}),
+        ...(tenantId ? { tenant_id: tenantId } : {}),
+      };
+
       const { data, error: functionError, response } = await this.supabase.client.functions.invoke(
         'send-verification-code',
         {
           body: {
             email: email.toLowerCase().trim(),
             actionType,
-            actionData
+            actionData: payload
           }
         }
       );

@@ -57,9 +57,7 @@ describe('TestAccountSettingsComponent', () => {
     it('should have default collapsed state', () => {
       expect(component.sectionExpanded).toBe(false);
       expect(component.testAccountEmail).toBe('');
-      expect(component.testAccountCode4).toBe('');
       expect(component.testAccountCode6).toBe('');
-      expect(component.testAccountCode8).toBe('');
       expect(component.loading).toBe(false);
       expect(component.saving).toBe(false);
       expect(component.error).toBe(null);
@@ -108,16 +106,14 @@ describe('TestAccountSettingsComponent', () => {
 
       expect(mockSupabaseService.client.from).toHaveBeenCalledWith('admin_settings');
       expect(selectMock).toHaveBeenCalledWith(
-        'test_account_email, test_account_code_4, test_account_code_6, test_account_code_8'
+        'test_account_email, test_account_code_6'
       );
     });
 
     it('should load settings successfully and populate all fields', async () => {
       const mockData = {
         test_account_email: 'app-test@example.com',
-        test_account_code_4: '1777',
-        test_account_code_6: '111777',
-        test_account_code_8: '11111777'
+        test_account_code_6: '111777'
       };
 
       mockSupabaseService.client.from = vi.fn(() => ({
@@ -131,9 +127,7 @@ describe('TestAccountSettingsComponent', () => {
       await component.loadSettings();
 
       expect(component.testAccountEmail).toBe('app-test@example.com');
-      expect(component.testAccountCode4).toBe('1777');
       expect(component.testAccountCode6).toBe('111777');
-      expect(component.testAccountCode8).toBe('11111777');
       expect(component.loading).toBe(false);
       expect(mockChangeDetectorRef.markForCheck).toHaveBeenCalled();
     });
@@ -141,9 +135,7 @@ describe('TestAccountSettingsComponent', () => {
     it('should treat null data fields as empty string', async () => {
       const mockData = {
         test_account_email: null,
-        test_account_code_4: null,
-        test_account_code_6: null,
-        test_account_code_8: null
+        test_account_code_6: null
       };
 
       mockSupabaseService.client.from = vi.fn(() => ({
@@ -157,9 +149,7 @@ describe('TestAccountSettingsComponent', () => {
       await component.loadSettings();
 
       expect(component.testAccountEmail).toBe('');
-      expect(component.testAccountCode4).toBe('');
       expect(component.testAccountCode6).toBe('');
-      expect(component.testAccountCode8).toBe('');
     });
 
     it('should handle errors when loading settings', async () => {
@@ -221,18 +211,14 @@ describe('TestAccountSettingsComponent', () => {
       }));
 
       component.testAccountEmail = '  test@example.com  ';
-      component.testAccountCode4 = '1777';
       component.testAccountCode6 = '111777';
-      component.testAccountCode8 = '11111777';
 
       await component.save();
 
       expect(updateMock).toHaveBeenCalledWith(
         expect.objectContaining({
           test_account_email: 'test@example.com',
-          test_account_code_4: '1777',
-          test_account_code_6: '111777',
-          test_account_code_8: '11111777'
+          test_account_code_6: '111777'
         })
       );
     });
@@ -247,18 +233,14 @@ describe('TestAccountSettingsComponent', () => {
       }));
 
       component.testAccountEmail = '   ';
-      component.testAccountCode4 = '';
       component.testAccountCode6 = '';
-      component.testAccountCode8 = '';
 
       await component.save();
 
       expect(updateMock).toHaveBeenCalledWith(
         expect.objectContaining({
           test_account_email: null,
-          test_account_code_4: null,
-          test_account_code_6: null,
-          test_account_code_8: null
+          test_account_code_6: null
         })
       );
     });

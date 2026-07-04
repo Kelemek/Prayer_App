@@ -61,7 +61,6 @@ export class PushNotificationService {
       const userEmail =
         sessionEmail ||
         localStorage.getItem('prayerapp_user_email')?.trim() ||
-        localStorage.getItem('mfa_authenticated_email')?.trim() ||
         (await this.supabase.client.auth.getSession()).data.session?.user?.email?.trim() ||
         '';
 

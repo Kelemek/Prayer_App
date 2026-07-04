@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, HostListener, ChangeDetectionStrategy, ChangeDetectorRef, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Subject, distinctUntilChanged, filter, map, skip, take, takeUntil } from 'rxjs';
 import { AdminDataService } from '../../services/admin-data.service';
@@ -25,7 +26,6 @@ import { PrayerArchiveTimelineComponent } from '../../components/prayer-archive-
 import { BackupStatusComponent } from '../../components/backup-status/backup-status.component';
 import { SecurityPolicySettingsComponent } from '../../components/security-policy-settings/security-policy-settings.component';
 import { TestAccountSettingsComponent } from '../../components/test-account-settings/test-account-settings.component';
-import { EmailVerificationSettingsComponent } from '../../components/email-verification-settings/email-verification-settings.component';
 import { GitHubSettingsComponent } from '../../components/github-settings/github-settings.component';
 import { GitHubFeedbackFormComponent } from '../../components/github-feedback-form/github-feedback-form.component';
 import { GitHubFeedbackService } from '../../services/github-feedback.service';
@@ -34,6 +34,8 @@ import { ConfirmationDialogComponent } from '../../components/confirmation-dialo
 import { TenantManagementComponent } from '../../components/tenant-management/tenant-management.component';
 import { SiteAnalyticsActivityChartComponent } from '../../components/site-analytics-activity-chart/site-analytics-activity-chart.component';
 import { TenantContextService } from '../../services/tenant-context.service';
+import { ToastService } from '../../services/toast.service';
+import type { Tenant } from '../../types/tenant';
 
 type AdminTab = 'prayers' | 'updates' | 'deletions' | 'accounts' | 'settings';
 type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 'tenant_manager';
@@ -44,6 +46,7 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
+    FormsModule,
     ConsolidatedPrayerApprovalComponent,
     PendingDeletionCardComponent,
     PendingUpdateDeletionCardComponent,
@@ -61,7 +64,6 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
     BackupStatusComponent,
     SecurityPolicySettingsComponent,
     TestAccountSettingsComponent,
-    EmailVerificationSettingsComponent,
     GitHubSettingsComponent,
     GitHubFeedbackFormComponent,
     PrayerEncouragementSettingsComponent,
@@ -111,26 +113,40 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
             </div>
             
             <!-- Right side: Email indicator and navigation controls -->
-            <div class="flex flex-col items-end gap-2">
-              <!-- Email Indicator -->
-              @if ((userSessionService.userSession$ | async); as session) {
-                <button
-                  (click)="showLogoutConfirmation = true"
-                  class="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors cursor-pointer"
-                  title="Click to log out"
+            <div class="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
+              <div class="flex items-center gap-2 w-full sm:w-auto flex-wrap justify-end">
+                @if (showTenantSwitcher) {
+                <select
+                  [ngModel]="activeTenantId"
+                  (ngModelChange)="onTenantSelect($event)"
+                  class="flex-1 sm:flex-none min-w-0 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-gray-700 dark:text-gray-200"
+                  title="Switch active tenant"
                 >
-                  {{ session.email }}
-                </button>
-              } @else {
-                <button
-                  (click)="showLogoutConfirmation = true"
-                  class="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors cursor-pointer"
-                  title="Click to log out"
-                >
-                  {{ getAdminEmail() }}
-                </button>
-              }
-              
+                  @for (tenant of tenantSwitchOptions; track tenant.id) {
+                  <option [ngValue]="tenant.id">{{ tenant.name }}</option>
+                  }
+                </select>
+                }
+                <!-- Email Indicator -->
+                @if ((userSessionService.userSession$ | async); as session) {
+                  <button
+                    (click)="showLogoutConfirmation = true"
+                    class="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors cursor-pointer shrink-0"
+                    title="Click to log out"
+                  >
+                    {{ session.email }}
+                  </button>
+                } @else {
+                  <button
+                    (click)="showLogoutConfirmation = true"
+                    class="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors cursor-pointer shrink-0"
+                    title="Click to log out"
+                  >
+                    {{ getAdminEmail() }}
+                  </button>
+                }
+              </div>
+
               <!-- Navigation Controls -->
               <button
                 (click)="goToHome()"
@@ -684,9 +700,6 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
                   <app-admin-user-management></app-admin-user-management>
                 </div>
                 <div class="mb-4">
-                  <app-email-verification-settings></app-email-verification-settings>
-                </div>
-                <div class="mb-4">
                   <app-security-policy-settings></app-security-policy-settings>
                 </div>
               </div>
@@ -781,6 +794,7 @@ export class AdminComponent implements OnInit, OnDestroy {
   private hasFetchStarted = false;
   isSuperAdmin = false;
   githubFeedbackEnabled = false;
+  tenantContextLoading = true;
 
   constructor(
     private router: Router,
@@ -790,6 +804,7 @@ export class AdminComponent implements OnInit, OnDestroy {
     public userSessionService: UserSessionService,
     private tenantContextService: TenantContextService,
     private githubFeedbackService: GitHubFeedbackService,
+    private toastService: ToastService,
     private ngZone: NgZone,
     public cdr: ChangeDetectorRef
   ) {}
@@ -825,6 +840,13 @@ export class AdminComponent implements OnInit, OnDestroy {
       .subscribe((isSuperAdmin) => {
         this.isSuperAdmin = isSuperAdmin;
         this.ensureSettingsTabAllowed();
+        this.cdr.markForCheck();
+      });
+
+    this.tenantContextService.loading$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((loading) => {
+        this.tenantContextLoading = loading;
         this.cdr.markForCheck();
       });
 
@@ -1063,6 +1085,43 @@ export class AdminComponent implements OnInit, OnDestroy {
 
   goToHome() {
     this.router.navigate(['/']);
+  }
+
+  get activeTenantId(): string | null {
+    return this.tenantContextService.getActiveTenant()?.id ?? null;
+  }
+
+  get showTenantSwitcher(): boolean {
+    return (
+      !this.tenantContextLoading &&
+      !!this.activeTenantId &&
+      this.tenantSwitchOptions.length > 1
+    );
+  }
+
+  get tenantSwitchOptions(): Tenant[] {
+    const options = this.tenantContextService.getTenantSwitcherOptions();
+    const unique = new Map(options.map((tenant) => [tenant.id, tenant]));
+    const activeTenant = this.tenantContextService.getActiveTenant();
+    if (activeTenant?.id && !unique.has(activeTenant.id)) {
+      unique.set(activeTenant.id, activeTenant);
+    }
+
+    return Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async onTenantSelect(tenantId: string): Promise<void> {
+    if (!tenantId || tenantId === this.activeTenantId) {
+      return;
+    }
+
+    const changed = await this.tenantContextService.switchTenant(tenantId);
+    if (!changed) {
+      this.toastService.error('Unable to switch tenant');
+      return;
+    }
+
+    this.cdr.markForCheck();
   }
 
   async handleLogout(): Promise<void> {

@@ -7,6 +7,7 @@ import { CacheService } from './cache.service';
 import { PushNotificationService } from './push-notification.service';
 import { PrayerEncouragementService } from './prayer-encouragement.service';
 import { TenantContextService } from './tenant-context.service';
+import { AuthIdentityService } from './auth-identity.service';
 import type { User } from '@supabase/supabase-js';
 
 @Injectable({
@@ -24,7 +25,6 @@ export class AdminAuthService {
   private sessionStart: number | null = null;
   private adminSessionStart: number | null = null;
   private lastBlockedCheck = 0;
-  private hasLoggedMissingJwtForAdminCheck = false;
 
   public user$ = this.userSubject.asObservable();
   public isAdmin$ = this.isAdminSubject.asObservable();
@@ -40,7 +40,8 @@ export class AdminAuthService {
   constructor(
     private supabase: SupabaseService,
     private cacheService: CacheService,
-    private tenantContext: TenantContextService
+    private tenantContext: TenantContextService,
+    private authIdentity: AuthIdentityService
   ) {
     this.tenantContext.activeTenant$
       .pipe(distinctUntilChanged((prev, curr) => prev?.id === curr?.id))
@@ -81,39 +82,6 @@ export class AdminAuthService {
       this.isAuthenticatedSubject.next(true);
       this.sessionStart = this.getPersistedSessionStart() || Date.now();
       this.persistSessionStart(this.sessionStart);
-    } else {
-      // Check if user has an MFA-based session stored in localStorage
-      const mfaAuthenticatedEmail = localStorage.getItem('mfa_authenticated_email');
-      if (mfaAuthenticatedEmail) {
-        console.log('[AdminAuth] Restoring MFA authenticated session for:', mfaAuthenticatedEmail);
-        // Create a mock user object to satisfy the type system
-        const mockUser: User = {
-          id: 'mfa-auth-' + mfaAuthenticatedEmail.replace(/[^a-zA-Z0-9]/g, ''),
-          email: mfaAuthenticatedEmail,
-          user_metadata: {},
-          app_metadata: {},
-          aud: 'authenticated',
-          created_at: localStorage.getItem('mfa_session_start') || new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          email_confirmed_at: new Date().toISOString(),
-          phone: '',
-          confirmed_at: new Date().toISOString()
-        } as User;
-        
-        this.userSubject.next(mockUser);
-        // Check admin status and wait for it to complete
-        try {
-          await this.checkAdminStatus(mockUser);
-        } catch (error) {
-          console.error('[AdminAuth] Error checking admin status for restored MFA session:', error);
-          this.isAdminSubject.next(false);
-          this.hasAdminEmailSubject.next(false);
-        }
-        // Set authenticated for MFA session
-        this.isAuthenticatedSubject.next(true);
-        this.sessionStart = this.getPersistedSessionStart() || Date.now();
-        this.persistSessionStart(this.sessionStart);
-      }
     }
 
     // Listen for auth state changes
@@ -134,30 +102,22 @@ export class AdminAuthService {
           this.persistSessionStart(this.sessionStart);
         }
       } else {
-        // Only clear auth state if we don't have an MFA authenticated user
-        // MFA users don't have Supabase sessions so this listener won't find them
-        const mfaAuthenticatedEmail = localStorage.getItem('mfa_authenticated_email');
-        if (!mfaAuthenticatedEmail) {
-          // Get user email before clearing auth state
-          const userEmail = this.userSubject.value?.email;
-          
-          this.userSubject.next(null);
-          this.isAdminSubject.next(false);
-          this.isAuthenticatedSubject.next(false);
-          this.sessionStart = null;
-          this.persistSessionStart(null);
-          
-          // Clear user-specific caches when session ends
-          this.cacheService.invalidateCategory('personalTenant_');
-          this.cacheService.invalidateCategory('prayers');
-          this.cacheService.invalidateCategory('prompts');
-          localStorage.removeItem('read_prayers_data');
-          localStorage.removeItem('read_prompts_data');
-          
-          // Clear analytics activity tracking for this user
-          if (userEmail) {
-            localStorage.removeItem(`last_activity_update_${userEmail}`);
-          }
+        const userEmail = this.userSubject.value?.email;
+
+        this.userSubject.next(null);
+        this.isAdminSubject.next(false);
+        this.isAuthenticatedSubject.next(false);
+        this.sessionStart = null;
+        this.persistSessionStart(null);
+
+        this.cacheService.invalidateCategory('personalTenant_');
+        this.cacheService.invalidateCategory('prayers');
+        this.cacheService.invalidateCategory('prompts');
+        localStorage.removeItem('read_prayers_data');
+        localStorage.removeItem('read_prompts_data');
+
+        if (userEmail) {
+          localStorage.removeItem(`last_activity_update_${userEmail}`);
         }
       }
     });
@@ -339,69 +299,66 @@ export class AdminAuthService {
   }
 
   /**
-   * Send MFA code via email for admin login (replaces magic link)
+   * Send login OTP via Supabase Auth (or skip send for app test account).
    */
-  async sendMfaCode(email: string): Promise<{ success: boolean; error?: string; codeId?: string }> {
+  async sendMfaCode(email: string): Promise<{ success: boolean; error?: string; isTestAccount?: boolean }> {
     try {
-      console.log('[AdminAuth] Requesting MFA code for:', email);
-      
-      // Check if site-wide protection is enabled by fetching from database
+      const normalizedEmail = email.toLowerCase().trim();
+      console.log('[AdminAuth] Requesting login OTP for:', normalizedEmail);
+
       const { data: settings } = await this.supabase.client
         .from('admin_settings')
         .select('require_site_login')
         .eq('id', 1)
         .maybeSingle();
-      
+
       const siteProtectionEnabled = settings?.require_site_login ?? true;
-      console.log('[AdminAuth] Site protection enabled:', siteProtectionEnabled);
-      
-      // If site protection is enabled, allow any email
-      // Otherwise, only allow admin emails
       if (!siteProtectionEnabled) {
-        const isAdmin = await this.isEmailAdmin(email);
+        const isAdmin = await this.isEmailAdmin(normalizedEmail);
         if (!isAdmin) {
           return { success: false, error: 'Email address is not authorized for admin access' };
         }
       }
 
-      // Use existing send-verification-code function with admin_login action
-      const { data, error, response } = await this.supabase.client.functions.invoke(
-        'send-verification-code',
-        {
-          body: {
-            email,
-            actionType: 'admin_login',
-            actionData: { timestamp: new Date().toISOString() }
-          }
+      const isTestAccount = await this.authIdentity.isTestAccountEmail(normalizedEmail);
+      this.authIdentity.setPendingLogin(normalizedEmail, isTestAccount);
+
+      if (isTestAccount) {
+        console.log('[AdminAuth] Test account login — no email sent');
+        return { success: true, isTestAccount: true };
+      }
+
+      if (siteProtectionEnabled) {
+        const { data: allowed, error: allowedError } = await this.supabase.client.rpc(
+          'is_login_allowed_email',
+          { p_email: normalizedEmail }
+        );
+        if (allowedError) {
+          console.error('[AdminAuth] is_login_allowed_email error:', allowedError);
+          return { success: false, error: 'Unable to verify account. Please try again.' };
         }
-      );
+        if (!allowed) {
+          return {
+            success: false,
+            error: 'This email is not registered or is pending approval. Please sign up or contact an administrator.'
+          };
+        }
+      }
+
+      const { error } = await this.supabase.client.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: { shouldCreateUser: true }
+      });
 
       if (error) {
-        console.error('[AdminAuth] Send verification code error:', error);
-        const message = await this.supabase.describeFunctionInvokeFailure(
-          error,
-          response,
-          'send-verification-code'
-        );
-        return { success: false, error: message };
+        console.error('[AdminAuth] signInWithOtp error:', error);
+        return { success: false, error: error.message };
       }
 
-      if (data.error) {
-        console.error('[AdminAuth] Verification code service error:', data.error);
-        return { success: false, error: data.error };
-      }
-
-      // Store the code ID for verification
-      const codeId = data.codeId;
-      if (codeId) {
-        localStorage.setItem('mfa_code_id', codeId);
-        localStorage.setItem('mfa_user_email', email);
-      }
-
-      console.log('[AdminAuth] MFA code sent successfully');
-      return { success: true, codeId };
+      console.log('[AdminAuth] Login OTP sent successfully');
+      return { success: true, isTestAccount: false };
     } catch (error) {
-      console.error('[AdminAuth] Unexpected error sending MFA code:', error);
+      console.error('[AdminAuth] Unexpected error sending login OTP:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -430,18 +387,6 @@ export class AdminAuthService {
         return true;
       }
 
-      // In MFA-local mode there is no Supabase auth JWT; calling the Edge Function would 401 noisily.
-      const { data: { session } } = await this.supabase.client.auth.getSession();
-      const hasSupabaseJwt = !!session?.access_token;
-      if (!hasSupabaseJwt) {
-        if (!this.hasLoggedMissingJwtForAdminCheck) {
-          console.debug('[AdminAuth] Skipping check-admin-status Edge call (no Supabase JWT); relying on tenant context');
-          this.hasLoggedMissingJwtForAdminCheck = true;
-        }
-        return false;
-      }
-      this.hasLoggedMissingJwtForAdminCheck = false;
-
       const { data, error, response } = await this.supabase.client.functions.invoke(
         'check-admin-status',
         {
@@ -468,80 +413,82 @@ export class AdminAuthService {
   }
 
   /**
-   * Verify MFA code (uses existing verify-code function)
+   * Verify login OTP (Supabase Auth or app test account fixed code).
    */
   async verifyMfaCode(code: string): Promise<{ success: boolean; error?: string; isAdmin?: boolean }> {
     try {
-      console.log('[AdminAuth] Verifying MFA code');
-      
-      const codeId = localStorage.getItem('mfa_code_id');
-      const email = localStorage.getItem('mfa_user_email');
-      
-      if (!codeId || !email) {
-        return { success: false, error: 'No MFA session found. Please request a code again.' };
+      const email = this.authIdentity.getPendingLoginEmail();
+      if (!email) {
+        return { success: false, error: 'No login session found. Please request a code again.' };
       }
 
-      // Use existing verify-code function
-      const { data, error, response } = await this.supabase.client.functions.invoke('verify-code', {
-        body: {
-          codeId,
-          code
+      const token = code.trim();
+      if (!/^\d{6}$/.test(token)) {
+        return { success: false, error: 'Please enter the complete 6-digit code.' };
+      }
+
+      let verifyError: Error | null = null;
+
+      if (this.authIdentity.isPendingTestAccountLogin()) {
+        const { data, error, response } = await this.supabase.client.functions.invoke('test-account-auth', {
+          body: { email, code: token }
+        });
+        if (error) {
+          const message = await this.supabase.describeFunctionInvokeFailure(
+            error,
+            response,
+            'test-account-auth'
+          );
+          return { success: false, error: message };
         }
-      });
-
-      if (error) {
-        console.error('[AdminAuth] Verify code error:', error);
-        const errorMessage = await this.supabase.describeFunctionInvokeFailure(
-          error,
-          response,
-          'verify-code'
-        );
-        return { success: false, error: errorMessage };
-      }
-
-      if (data.error) {
-        console.error('[AdminAuth] Code verification failed:', data.error);
-        // Use the detailed error from the Edge Function or provide a friendly fallback
-        let errorMessage = 'Verification failed. Please try again.';
-        if (data.error === 'Invalid verification code') {
-          errorMessage = 'The code you entered is incorrect. Please check and try again.';
+        if (data?.error) {
+          return { success: false, error: 'The code you entered is incorrect. Please check and try again.' };
         }
-        return { success: false, error: errorMessage };
-      }
-
-      // Check if user is an admin
-      const isAdmin = await this.isEmailAdmin(email);
-
-      // Code verified successfully - mark admin status and authenticated
-      if (isAdmin) {
-        this.isAdminSubject.next(true);
-        this.hasAdminEmailSubject.next(true);
-        this.adminSessionStart = Date.now(); // Start admin session timer
-        this.adminSessionExpiredSubject.next(false);
+        const { error: otpError } = await this.supabase.client.auth.verifyOtp({
+          token_hash: data.hashed_token,
+          type: 'email'
+        });
+        verifyError = otpError;
       } else {
-        this.isAdminSubject.next(false);
-        this.hasAdminEmailSubject.next(false);
+        const { error: otpError } = await this.supabase.client.auth.verifyOtp({
+          email,
+          token,
+          type: 'email'
+        });
+        verifyError = otpError;
       }
 
-      // Mark user as authenticated (required for siteAuthGuard)
+      if (verifyError) {
+        console.error('[AdminAuth] verifyOtp error:', verifyError);
+        return {
+          success: false,
+          error: 'The code you entered is incorrect. Please check and try again.'
+        };
+      }
+
+      const { data: { session } } = await this.supabase.client.auth.getSession();
+      if (!session?.user) {
+        return { success: false, error: 'Verification failed. Please try again.' };
+      }
+
+      this.userSubject.next(session.user);
+      const isAdmin = await this.isEmailAdmin(email);
+      this.isAdminSubject.next(isAdmin);
+      this.hasAdminEmailSubject.next(isAdmin);
+      if (isAdmin) {
+        this.adminSessionStart = Date.now();
+        this.adminSessionExpiredSubject.next(false);
+      }
       this.isAuthenticatedSubject.next(true);
-
-      // Store MFA authenticated email for session restoration after browser restart
-      localStorage.setItem('mfa_authenticated_email', email);
-      localStorage.setItem('mfa_session_start', Date.now().toString());
-
-      // Invalidate personal prayers cache on login to ensure fresh data
-      // This prevents stale personal prayer data from being displayed if cache wasn't properly cleared on previous logout
+      this.sessionStart = Date.now();
+      this.persistSessionStart(this.sessionStart);
       this.cacheService.invalidateCategory('personalTenant_');
+      this.authIdentity.clearPendingLogin();
 
-      // Clean up
-      localStorage.removeItem('mfa_code_id');
-      localStorage.removeItem('mfa_user_email');
-
-      console.log('[AdminAuth] MFA verification successful, session created (isAdmin:', isAdmin, ')');
+      console.log('[AdminAuth] Login verification successful (isAdmin:', isAdmin, ')');
       return { success: true, isAdmin };
     } catch (error) {
-      console.error('[AdminAuth] Unexpected error verifying MFA:', error);
+      console.error('[AdminAuth] Unexpected error verifying login OTP:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -557,7 +504,7 @@ export class AdminAuthService {
   async logout(): Promise<void> {
     try {
       // Get user email before clearing auth state
-      const userEmail = this.userSubject.value?.email || localStorage.getItem('mfa_authenticated_email');
+      const userEmail = this.userSubject.value?.email ?? (await this.authIdentity.getEmail());
 
       // Remove this device's push token so we don't send notifications after logout
       try {
@@ -580,10 +527,12 @@ export class AdminAuthService {
       localStorage.removeItem('approvalApprovalType');
       localStorage.removeItem('approvalApprovalId');
       
-      // Clear MFA authenticated session data
+      this.authIdentity.clearPendingLogin();
       localStorage.removeItem('mfa_authenticated_email');
       localStorage.removeItem('mfa_session_start');
-      
+      localStorage.removeItem('mfa_code_id');
+      localStorage.removeItem('mfa_user_email');
+
       // Clear user-specific caches to prevent next user from seeing previous user's data
       this.cacheService.invalidateCategory('personalTenant_');
       this.cacheService.invalidateCategory('prayers');

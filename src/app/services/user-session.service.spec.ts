@@ -1,15 +1,40 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { UserSessionService } from './user-session.service';
-import { SupabaseService } from './supabase.service';
 import { AdminAuthService } from './admin-auth.service';
 import { BehaviorSubject } from 'rxjs';
+
+function mockTenantMembershipsQuery(
+  data: Record<string, unknown> | null,
+  error: unknown = null
+) {
+  const chain: {
+    eq: ReturnType<typeof vi.fn>;
+    maybeSingle: ReturnType<typeof vi.fn>;
+  } = {
+    eq: vi.fn(),
+    maybeSingle: vi.fn().mockResolvedValue({ data, error })
+  };
+  chain.eq.mockReturnValue(chain);
+  return {
+    select: vi.fn().mockReturnValue(chain)
+  };
+}
 
 describe('UserSessionService', () => {
   let service: UserSessionService;
   let mockSupabaseService: any;
   let mockAdminAuthService: any;
+  let mockAuthIdentity: any;
+  let mockTenantContext: any;
 
   beforeEach(() => {
+    mockAuthIdentity = {
+      getEmail: vi.fn().mockResolvedValue('test@example.com')
+    };
+    mockTenantContext = {
+      getActiveTenant: vi.fn(() => null)
+    };
+
     // Create mock for Supabase Service
     mockSupabaseService = {
       client: {
@@ -18,21 +43,14 @@ describe('UserSessionService', () => {
             data: { session: { user: { email: 'test@example.com' } } }
           })
         },
-        from: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValue({
-                data: {
-                  email: 'test@example.com',
-                  name: 'John Doe',
-                  is_active: true,
-                  receive_push: true,
-                },
-                error: null
-              })
-            })
+        from: vi.fn().mockReturnValue(
+          mockTenantMembershipsQuery({
+            user_email: 'test@example.com',
+            name: 'John Doe',
+            is_active: true,
+            receive_push: true
           })
-        })
+        )
       }
     };
 
@@ -44,7 +62,12 @@ describe('UserSessionService', () => {
     // Clear localStorage before each test
     localStorage.clear();
 
-    service = new UserSessionService(mockSupabaseService, mockAdminAuthService);
+    service = new UserSessionService(
+      mockSupabaseService,
+      mockAdminAuthService,
+      mockAuthIdentity,
+      mockTenantContext
+    );
   });
 
   afterEach(() => {
@@ -88,7 +111,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'test@example.com',
+                user_email: 'test@example.com',
                 name: 'User',
                 is_active: true,
                 receive_push: false,
@@ -171,7 +194,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'test@example.com',
+                user_email: 'test@example.com',
                 name: 'John Doe',
                 is_active: true,
               },
@@ -195,7 +218,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'test@example.com',
+                user_email: 'test@example.com',
                 name: 'John Doe',
                 is_active: true,
               },
@@ -218,7 +241,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'test@example.com',
+                user_email: 'test@example.com',
                 name: 'John Doe',
                 is_active: true,
               },
@@ -242,7 +265,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'test@example.com',
+                user_email: 'test@example.com',
                 name: 'John Doe',
                 is_active: true,
               },
@@ -265,7 +288,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'test@example.com',
+                user_email: 'test@example.com',
                 name: 'John Doe',
                 is_active: true,
               },
@@ -403,7 +426,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'cached@example.com',
+                user_email: 'cached@example.com',
                 name: 'Cached User',
                 is_active: true,
               },
@@ -414,7 +437,7 @@ describe('UserSessionService', () => {
       });
 
       // Create new service instance
-      const newService = new UserSessionService(mockSupabaseService, mockAdminAuthService);
+      const newService = new UserSessionService(mockSupabaseService, mockAdminAuthService, mockAuthIdentity, mockTenantContext);
       
       // The cached session should be loaded immediately
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -507,7 +530,7 @@ describe('UserSessionService', () => {
   describe('initializeSession - initialization with various scenarios', () => {
     it('should initialize with email from session auth', async () => {
       // Create new service with authenticated user
-      const newService = new UserSessionService(mockSupabaseService, mockAdminAuthService);
+      const newService = new UserSessionService(mockSupabaseService, mockAdminAuthService, mockAuthIdentity, mockTenantContext);
       
       // Give initialization time to complete
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -526,7 +549,7 @@ describe('UserSessionService', () => {
       localStorage.setItem('approvalAdminEmail', 'fallback@example.com');
       
       // Create new service
-      const newService = new UserSessionService(mockSupabaseService, mockAdminAuthService);
+      const newService = new UserSessionService(mockSupabaseService, mockAdminAuthService, mockAuthIdentity, mockTenantContext);
       
       // Give initialization time to complete
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -540,14 +563,14 @@ describe('UserSessionService', () => {
       mockSupabaseService.client.auth.getSession = vi.fn().mockResolvedValue({
         data: { session: null }
       });
+      mockAuthIdentity.getEmail = vi.fn().mockResolvedValue(null);
       
       // Ensure approvalAdminEmail is not set
       localStorage.removeItem('approvalAdminEmail');
       localStorage.removeItem('userSession');
-      localStorage.removeItem('mfa_authenticated_email');
       
       // Create new service
-      const newService = new UserSessionService(mockSupabaseService, mockAdminAuthService);
+      const newService = new UserSessionService(mockSupabaseService, mockAdminAuthService, mockAuthIdentity, mockTenantContext);
       
       // Give initialization time to complete
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -578,7 +601,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'cached@example.com',
+                user_email: 'cached@example.com',
                 name: 'Updated User',
                 is_active: true,
               },
@@ -589,7 +612,7 @@ describe('UserSessionService', () => {
       });
       
       // Create new service
-      const newService = new UserSessionService(mockSupabaseService, mockAdminAuthService);
+      const newService = new UserSessionService(mockSupabaseService, mockAdminAuthService, mockAuthIdentity, mockTenantContext);
       
       // Give initialization time to complete - should use cache first then update from DB
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -766,7 +789,7 @@ describe('UserSessionService', () => {
               eq: vi.fn().mockReturnValue({
                 maybeSingle: vi.fn().mockResolvedValue({
                   data: {
-                    email: 'test@example.com',
+                    user_email: 'test@example.com',
                     name: 'Cached User',
                     is_active: true,
                   },
@@ -778,7 +801,7 @@ describe('UserSessionService', () => {
         }
       };
       
-      const newService = new UserSessionService(newMockSupabase, newMockAuth);
+      const newService = new UserSessionService(newMockSupabase, newMockAuth, mockAuthIdentity, mockTenantContext);
       
       // Emit true to trigger initialization
       newMockAuth.isAuthenticated$.next(true);
@@ -812,7 +835,7 @@ describe('UserSessionService', () => {
   describe('authorization status changes', () => {
     it('should initialize with authenticated true', async () => {
       // Should start with authenticated state from setup
-      const newService = new UserSessionService(mockSupabaseService, mockAdminAuthService);
+      const newService = new UserSessionService(mockSupabaseService, mockAdminAuthService, mockAuthIdentity, mockTenantContext);
       
       await new Promise(resolve => setTimeout(resolve, 100));
       
@@ -858,7 +881,7 @@ describe('UserSessionService', () => {
 
     it('should trigger hasInitialized when authenticated is false', async () => {
       // Create new service and ensure it initializes
-      const newService = new UserSessionService(mockSupabaseService, mockAdminAuthService);
+      const newService = new UserSessionService(mockSupabaseService, mockAdminAuthService, mockAuthIdentity, mockTenantContext);
       await new Promise(resolve => setTimeout(resolve, 50));
       
       // Send false
@@ -1050,7 +1073,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'partial@example.com',
+                user_email: 'partial@example.com',
                 // name is missing
                 // is_active is missing
               },
@@ -1076,7 +1099,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'inactive@example.com',
+                user_email: 'inactive@example.com',
                 name: 'Inactive User',
                 is_active: null
               },
@@ -1100,7 +1123,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'inactive@example.com',
+                user_email: 'inactive@example.com',
                 name: 'Inactive User',
                 is_active: false
               },
@@ -1277,7 +1300,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'different@example.com',
+                user_email: 'different@example.com',
                 name: 'Test User',
                 is_active: true
               },
@@ -1319,7 +1342,7 @@ describe('UserSessionService', () => {
         data: { session: { user: { email: 'wait-test@example.com' } } }
       });
       
-      const waitService = new UserSessionService(mockSupabaseService, mockAuth);
+      const waitService = new UserSessionService(mockSupabaseService, mockAuth, mockAuthIdentity, mockTenantContext);
       
       // Start waiting (will wait for initialization)
       const waitPromise = waitService.waitForSession();
@@ -1361,7 +1384,7 @@ describe('UserSessionService', () => {
       const waitPromise = service.waitForSession();
       
       // Resolve the slow load
-      resolveFn({ data: { email: 'different@example.com', name: 'User', is_active: true }, error: null });
+      resolveFn({ data: { user_email: 'different@example.com', name: 'User', is_active: true }, error: null });
       
       await loadPromise;
       const result = await waitPromise;
@@ -1390,7 +1413,7 @@ describe('UserSessionService', () => {
       // Clear any cached session from localStorage
       localStorage.removeItem('userSession');
       
-      const timeoutService = new UserSessionService(mockSupabaseService, mockAuth);
+      const timeoutService = new UserSessionService(mockSupabaseService, mockAuth, mockAuthIdentity, mockTenantContext);
       
       // Call waitForSession with a timeout test
       // This will wait up to 10 seconds
@@ -1470,7 +1493,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'nullish@example.com',
+                user_email: 'nullish@example.com',
                 name: 'Nullish Test',
                 is_active: undefined
               },
@@ -1494,7 +1517,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'zero@example.com',
+                user_email: 'zero@example.com',
                 name: 'Zero Test',
                 is_active: 0
               },
@@ -1518,7 +1541,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'empty-name@example.com',
+                user_email: 'empty-name@example.com',
                 name: '',
                 is_active: true
               },
@@ -1541,7 +1564,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'response@example.com',
+                user_email: 'response@example.com',
                 name: 'Test',
                 is_active: true
               },
@@ -1622,7 +1645,7 @@ describe('UserSessionService', () => {
         data: { session: { user: { email: 'auth-test@example.com' } } }
       });
 
-      const authService = new UserSessionService(mockSupabaseService, mockAuth);
+      const authService = new UserSessionService(mockSupabaseService, mockAuth, mockAuthIdentity, mockTenantContext);
 
       // Should have loaded initially
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -1661,7 +1684,7 @@ describe('UserSessionService', () => {
         data: { session: { user: { email: 'subscribe-test@example.com' } } }
       });
 
-      const newService = new UserSessionService(mockSupabaseService, mockAuth);
+      const newService = new UserSessionService(mockSupabaseService, mockAuth, mockAuthIdentity, mockTenantContext);
 
       // Call waitForSession before initialization completes
       const resultPromise = newService.waitForSession();
@@ -1799,7 +1822,7 @@ describe('UserSessionService', () => {
       const authSubject = new BehaviorSubject(false);
       const mockAuth = { isAuthenticated$: authSubject };
 
-      const waitService = new UserSessionService(mockSupabaseService, mockAuth);
+      const waitService = new UserSessionService(mockSupabaseService, mockAuth, mockAuthIdentity, mockTenantContext);
 
       // Call waitForSession - should wait for initialization
       const waitPromise = waitService.waitForSession();
@@ -1858,7 +1881,7 @@ describe('UserSessionService', () => {
         data: { session: { user: { email: 'transition-test@example.com' } } }
       });
 
-      const newService = new UserSessionService(mockSupabaseService, mockAuth);
+      const newService = new UserSessionService(mockSupabaseService, mockAuth, mockAuthIdentity, mockTenantContext);
 
       // Start waiting
       const waitPromise = newService.waitForSession();
@@ -1899,7 +1922,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'test@example.com',
+                user_email: 'test@example.com',
                 name: 'John Doe',
                 is_active: true,
                 badge_functionality_enabled: true
@@ -1922,7 +1945,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'test@example.com',
+                user_email: 'test@example.com',
                 name: 'John Doe',
                 is_active: true
               },
@@ -1944,7 +1967,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'test@example.com',
+                user_email: 'test@example.com',
                 name: 'John Doe',
                 is_active: true,
                 badge_functionality_enabled: true
@@ -1970,7 +1993,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'test@example.com',
+                user_email: 'test@example.com',
                 name: 'John Doe',
                 is_active: true,
                 badge_functionality_enabled: true
@@ -1996,7 +2019,7 @@ describe('UserSessionService', () => {
           eq: vi.fn().mockReturnValue({
             maybeSingle: vi.fn().mockResolvedValue({
               data: {
-                email: 'test@example.com',
+                user_email: 'test@example.com',
                 name: 'John Doe',
                 is_active: true,
                 badge_functionality_enabled: false

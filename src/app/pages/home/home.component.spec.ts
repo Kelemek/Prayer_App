@@ -119,6 +119,9 @@ const makeMocks = () => {
       plan_status: 'active'
     })),
     getAvailableTenants: vi.fn(() => []),
+    getMemberTenants: vi.fn(() => []),
+    getTenantSwitcherOptions: vi.fn(() => []),
+    switchTenant: vi.fn().mockResolvedValue(true),
     getMemberships: vi.fn(() => []),
     getIsSuperAdmin: vi.fn(() => false),
     activeTenant$: new BehaviorSubject({
@@ -775,6 +778,64 @@ describe('HomeComponent', () => {
     );
     comp.navigateToAdmin();
     expect(mocks.router.navigate).toHaveBeenCalledWith(['/admin']);
+  });
+
+  it('shows tenant switcher for multi-tenant email subscribers on home', () => {
+    mocks.tenantContextService.getTenantSwitcherOptions.mockReturnValue([
+      { id: 'tenant-a', name: 'Alpha Church', slug: 'alpha', plan_tier: 'churches', plan_status: 'active' },
+      { id: 'tenant-b', name: 'Beta Church', slug: 'beta', plan_tier: 'churches', plan_status: 'active' }
+    ]);
+    mocks.tenantContextService.getActiveTenant.mockReturnValue({
+      id: 'tenant-a',
+      name: 'Alpha Church',
+      slug: 'alpha',
+      plan_tier: 'churches',
+      plan_status: 'active'
+    });
+    const comp = createHomeComponent(
+      mocks.prayerService,
+      mocks.promptService,
+      mocks.adminAuthService,
+      mocks.userSessionService,
+      mocks.badgeService,
+      mocks.toastService,
+      mocks.analyticsService,
+      mocks.cdr,
+      mocks.router,
+      mocks.supabaseService
+    );
+    comp.tenantContextLoading = false;
+
+    expect(comp.showTenantSwitcher).toBe(true);
+    expect(comp.tenantSwitchOptions).toHaveLength(2);
+  });
+
+  it('hides tenant switcher on home when user belongs to one tenant', () => {
+    mocks.tenantContextService.getTenantSwitcherOptions.mockReturnValue([
+      { id: 'tenant-a', name: 'Alpha Church', slug: 'alpha', plan_tier: 'churches', plan_status: 'active' }
+    ]);
+    mocks.tenantContextService.getActiveTenant.mockReturnValue({
+      id: 'tenant-a',
+      name: 'Alpha Church',
+      slug: 'alpha',
+      plan_tier: 'churches',
+      plan_status: 'active'
+    });
+    const comp = createHomeComponent(
+      mocks.prayerService,
+      mocks.promptService,
+      mocks.adminAuthService,
+      mocks.userSessionService,
+      mocks.badgeService,
+      mocks.toastService,
+      mocks.analyticsService,
+      mocks.cdr,
+      mocks.router,
+      mocks.supabaseService
+    );
+    comp.tenantContextLoading = false;
+
+    expect(comp.showTenantSwitcher).toBe(false);
   });
 
   it('navigateToAdmin shows error when tenant member lacks admin access', () => {

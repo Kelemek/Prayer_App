@@ -130,9 +130,29 @@ describe('EmailSettingsComponent', () => {
     it('should lazy-load settings on first expand', async () => {
       const loadSettingsSpy = vi.spyOn(component, 'loadSettings').mockResolvedValue(undefined);
       component.onExpandedChange(true);
-      await component.loadSettings();
+      await vi.waitUntil(() => loadSettingsSpy.mock.calls.length > 0);
       expect(component.sectionExpanded).toBe(true);
       expect(loadSettingsSpy).toHaveBeenCalled();
+    });
+
+    it('should reload settings when expanding after tenant switch', async () => {
+      const loadSettingsSpy = vi.spyOn(component, 'loadSettings').mockResolvedValue(undefined);
+      component.onExpandedChange(true);
+      await vi.waitUntil(() => loadSettingsSpy.mock.calls.length === 1);
+
+      component.onExpandedChange(false);
+      mockTenantContext.getActiveTenant.mockReturnValue({
+        ...MOCK_TENANT,
+        id: 'tenant-2',
+      });
+      (mockTenantContext.activeTenant$ as BehaviorSubject<typeof MOCK_TENANT>).next({
+        ...MOCK_TENANT,
+        id: 'tenant-2',
+      });
+
+      component.onExpandedChange(true);
+      await vi.waitUntil(() => loadSettingsSpy.mock.calls.length === 2);
+      expect(loadSettingsSpy).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -353,22 +373,9 @@ describe('EmailSettingsComponent', () => {
       });
     });
 
-    it('should save via RPC when MFA session has no Supabase JWT', async () => {
+    it('should reject save when Supabase session has no authenticated user', async () => {
       mockSupabaseService.client.auth.getSession = vi.fn(() =>
         Promise.resolve({ data: { session: null } })
-      );
-      vi.stubGlobal(
-        'localStorage',
-        {
-          getItem: vi.fn((key: string) =>
-            key === 'mfa_authenticated_email' ? 'admin@test.com' : null
-          ),
-          setItem: vi.fn(),
-          removeItem: vi.fn(),
-          clear: vi.fn(),
-          length: 0,
-          key: vi.fn()
-        }
       );
 
       const rpcMock = vi.fn(() => Promise.resolve({ error: null }));
@@ -378,33 +385,13 @@ describe('EmailSettingsComponent', () => {
       vi.spyOn(component, 'loadSettings').mockResolvedValue(undefined);
       await component.saveReminderSettings();
 
-      expect(rpcMock).toHaveBeenCalledWith('update_tenant_reminder_settings', {
-        p_tenant_id: MOCK_TENANT.id,
-        p_enable_reminders: true,
-        p_reminder_interval_days: 7,
-        p_enable_auto_archive: false,
-        p_days_before_archive: 7,
-        p_email: 'admin@test.com'
-      });
-      expect(component.successReminders).toBe(true);
+      expect(rpcMock).not.toHaveBeenCalled();
+      expect(mockToastService.error).toHaveBeenCalledWith('Not authenticated');
     });
 
-    it('should load via RPC when MFA session has no Supabase JWT', async () => {
+    it('should reject load when Supabase session has no authenticated user', async () => {
       mockSupabaseService.client.auth.getSession = vi.fn(() =>
         Promise.resolve({ data: { session: null } })
-      );
-      vi.stubGlobal(
-        'localStorage',
-        {
-          getItem: vi.fn((key: string) =>
-            key === 'mfa_authenticated_email' ? 'admin@test.com' : null
-          ),
-          setItem: vi.fn(),
-          removeItem: vi.fn(),
-          clear: vi.fn(),
-          length: 0,
-          key: vi.fn()
-        }
       );
 
       mockSupabaseService.client.rpc = vi.fn(() =>
@@ -423,12 +410,8 @@ describe('EmailSettingsComponent', () => {
 
       await component.loadSettings();
 
-      expect(mockSupabaseService.client.rpc).toHaveBeenCalledWith('get_tenant_reminder_settings', {
-        p_tenant_id: MOCK_TENANT.id,
-        p_email: 'admin@test.com'
-      });
-      expect(component.enableReminders).toBe(true);
-      expect(component.reminderIntervalDays).toBe(21);
+      expect(mockSupabaseService.client.rpc).not.toHaveBeenCalled();
+      expect(component.error).toContain('Not authenticated');
     });
   });
 
@@ -459,6 +442,25 @@ describe('EmailSettingsComponent', () => {
       component.onEnableRemindersChange(true);
 
       expect(component.enableReminders).toBe(true);
+    });
+
+    it('should default reminder interval when enabling with invalid value', () => {
+      component.reminderIntervalDays = null as unknown as number;
+
+      component.onEnableRemindersChange(true);
+
+      expect(component.reminderIntervalDays).toBe(7);
+    });
+  });
+
+  describe('onEnableAutoArchiveChange', () => {
+    it('should default archive days when enabling with blank value', () => {
+      component.daysBeforeArchive = null as unknown as number;
+
+      component.onEnableAutoArchiveChange(true);
+
+      expect(component.enableAutoArchive).toBe(true);
+      expect(component.daysBeforeArchive).toBe(7);
     });
   });
 

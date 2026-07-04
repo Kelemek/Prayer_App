@@ -8,6 +8,7 @@ import { Injector } from '@angular/core';
 
 const defaultTenantContextMock = () => ({
   getActiveTenant: vi.fn(() => null),
+  getIsSuperAdmin: vi.fn(() => false),
   activeTenant$: new BehaviorSubject(null)
 });
 
@@ -49,6 +50,7 @@ describe('BadgeService', () => {
 
     mockTenantContextService = {
       getActiveTenant: vi.fn(() => null),
+      getIsSuperAdmin: vi.fn(() => false),
       activeTenant$: new BehaviorSubject(null)
     };
 

@@ -193,23 +193,7 @@ export class PrayerService {
       }
       this.errorSubject.next(null);
 
-      const prayersTable: any = this.supabase.client.from('prayers');
-      if (typeof prayersTable?.select !== 'function') {
-        this.allPrayersSubject.next([]);
-        this.applyFilters(this.currentFilters);
-        this.errorSubject.next(null);
-        return;
-      }
-
-      let prayersQuery = prayersTable
-        .select('*')
-        .eq('approval_status', 'approved')
-        .order('created_at', { ascending: false });
-      if (tenantId) {
-        prayersQuery = this.maybeEq(prayersQuery, 'tenant_id', tenantId);
-      }
-      const { data: prayersData, error } = await prayersQuery;
-
+      const { prayersData, error } = await this.fetchApprovedSharedPrayers();
       if (error) throw error;
 
       console.log(`[PrayerService] Loaded ${prayersData?.length || 0} approved prayers from database`);
@@ -218,29 +202,15 @@ export class PrayerService {
       const prayerIds = (prayersData || []).map((p: any) => p.id).filter(Boolean);
       const updatesByPrayerId = new Map<string, any[]>();
       if (prayerIds.length > 0) {
-        let updatesQuery: any = this.supabase.client
-          .from('prayer_updates')
-          .select('*');
-
-        if (typeof updatesQuery?.in === 'function') {
-          updatesQuery = updatesQuery
-            .in('prayer_id', prayerIds)
-            .eq('approval_status', 'approved')
-            .order('created_at', { ascending: false });
-          if (tenantId) {
-            updatesQuery = this.maybeEq(updatesQuery, 'tenant_id', tenantId);
-          }
-
-          const { data: updatesData, error: updatesError } = await updatesQuery;
-          if (updatesError) {
-            console.error('[PrayerService] Failed to load prayer updates (continuing with prayers only):', updatesError);
-          } else {
-            (updatesData || []).forEach((update: any) => {
-              const existing = updatesByPrayerId.get(update.prayer_id) || [];
-              existing.push(update);
-              updatesByPrayerId.set(update.prayer_id, existing);
-            });
-          }
+        const { updatesData, error: updatesError } = await this.fetchApprovedSharedPrayerUpdates(prayerIds);
+        if (updatesError) {
+          console.error('[PrayerService] Failed to load prayer updates (continuing with prayers only):', updatesError);
+        } else {
+          (updatesData || []).forEach((update: any) => {
+            const existing = updatesByPrayerId.get(update.prayer_id) || [];
+            existing.push(update);
+            updatesByPrayerId.set(update.prayer_id, existing);
+          });
         }
       }
 
@@ -2147,12 +2117,6 @@ export class PrayerService {
       console.error('Error getting session:', error);
     }
 
-    // Fallback to localStorage for MFA authenticated users
-    const mfaEmail = localStorage.getItem('mfa_authenticated_email');
-    if (mfaEmail) {
-      return mfaEmail;
-    }
-
     return null;
   }
 
@@ -2623,6 +2587,95 @@ export class PrayerService {
 
   private getActiveTenantId(): string | null {
     return this.tenantContext.getActiveTenant()?.id || null;
+  }
+
+  /** MFA super admins impersonating a tenant need RPC (RLS has no JWT email). */
+  private shouldUseSuperAdminTenantPrayerRpc(): boolean {
+    return (
+      (this.tenantContext.getIsSuperAdmin?.() ?? false) &&
+      (this.tenantContext.getIsImpersonatingTenant?.() ?? false)
+    );
+  }
+
+  private async fetchApprovedSharedPrayers(): Promise<{ prayersData: any[]; error: unknown }> {
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) {
+      return { prayersData: [], error: null };
+    }
+
+    if (this.shouldUseSuperAdminTenantPrayerRpc()) {
+      const userEmail = await this.getUserEmail();
+      if (!userEmail) {
+        return { prayersData: [], error: new Error('User email required to load prayers') };
+      }
+
+      const { data, error } = await this.supabase.client.rpc('list_approved_prayers_for_super_admin', {
+        p_actor_email: userEmail,
+        p_tenant_id: tenantId
+      });
+      return { prayersData: data || [], error };
+    }
+
+    const prayersTable: any = this.supabase.client.from('prayers');
+    if (typeof prayersTable?.select !== 'function') {
+      return { prayersData: [], error: null };
+    }
+
+    let prayersQuery = prayersTable
+      .select('*')
+      .eq('approval_status', 'approved')
+      .order('created_at', { ascending: false });
+    if (tenantId) {
+      prayersQuery = this.maybeEq(prayersQuery, 'tenant_id', tenantId);
+    }
+    const { data, error } = await prayersQuery;
+    return { prayersData: data || [], error };
+  }
+
+  private async fetchApprovedSharedPrayerUpdates(
+    prayerIds: string[]
+  ): Promise<{ updatesData: any[]; error: unknown }> {
+    if (prayerIds.length === 0) {
+      return { updatesData: [], error: null };
+    }
+
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) {
+      return { updatesData: [], error: null };
+    }
+
+    if (this.shouldUseSuperAdminTenantPrayerRpc()) {
+      const userEmail = await this.getUserEmail();
+      if (!userEmail) {
+        return { updatesData: [], error: new Error('User email required to load prayer updates') };
+      }
+
+      const { data, error } = await this.supabase.client.rpc('list_approved_prayer_updates_for_super_admin', {
+        p_actor_email: userEmail,
+        p_tenant_id: tenantId,
+        p_prayer_ids: prayerIds
+      });
+      return { updatesData: data || [], error };
+    }
+
+    let updatesQuery: any = this.supabase.client
+      .from('prayer_updates')
+      .select('*');
+
+    if (typeof updatesQuery?.in !== 'function') {
+      return { updatesData: [], error: null };
+    }
+
+    updatesQuery = updatesQuery
+      .in('prayer_id', prayerIds)
+      .eq('approval_status', 'approved')
+      .order('created_at', { ascending: false });
+    if (tenantId) {
+      updatesQuery = this.maybeEq(updatesQuery, 'tenant_id', tenantId);
+    }
+
+    const { data, error } = await updatesQuery;
+    return { updatesData: data || [], error };
   }
 
   private personalPrayersCacheKey(tenantId: string | null | undefined): string | null {

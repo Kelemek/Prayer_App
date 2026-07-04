@@ -1523,10 +1523,18 @@ describe('PrayerArchiveTimelineComponent - Angular Component Tests', () => {
   let component: PrayerArchiveTimelineComponent;
   let prayerService: any;
   let supabaseService: any;
+  let mockTenantContext: any;
   let allPrayersSubject: BehaviorSubject<any[]>;
+
+  const MOCK_TENANT = { id: 'tenant-1', name: 'Test Org', slug: 'test-org' };
 
   beforeEach(async () => {
     allPrayersSubject = new BehaviorSubject<any[]>([]);
+
+    mockTenantContext = {
+      getActiveTenant: vi.fn(() => MOCK_TENANT),
+      activeTenant$: new BehaviorSubject(MOCK_TENANT),
+    };
 
     prayerService = {
       loadPrayers: vi.fn().mockResolvedValue(undefined),
@@ -1535,38 +1543,52 @@ describe('PrayerArchiveTimelineComponent - Angular Component Tests', () => {
 
     supabaseService = {
       client: {
+        auth: {
+          getSession: vi.fn(() =>
+            Promise.resolve({
+              data: {
+                session: {
+                  user: { email: 'admin@test.com' },
+                },
+              },
+            })
+          ),
+        },
+        rpc: vi.fn(() =>
+          Promise.resolve({
+            data: [
+              {
+                reminder_interval_days: 30,
+                days_before_archive: 30,
+              },
+            ],
+            error: null,
+          })
+        ),
         from: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               order: vi.fn().mockReturnValue({
-                limit: vi.fn().mockResolvedValue({ data: [], error: null })
-              })
-            })
+                limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
+            }),
           }),
           update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ data: null, error: null })
-          })
+            eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
         }),
-        getUserSettings: vi.fn().mockResolvedValue({
-          data: {
-            reminder_interval_days: 30,
-            days_before_archive: 30
-          },
-          error: null
-        })
-      }
+      },
     };
 
-    // Import the actual component
     const { PrayerArchiveTimelineComponent } = await import('./prayer-archive-timeline.component');
 
-    // Create component manually with mocked dependencies
     const cdr = { markForCheck: vi.fn() };
-    
+
     component = new PrayerArchiveTimelineComponent(
       prayerService as any,
       supabaseService as any,
-      cdr as any
+      cdr as any,
+      mockTenantContext as any
     );
   });
 
@@ -1586,11 +1608,11 @@ describe('PrayerArchiveTimelineComponent - Angular Component Tests', () => {
     });
 
     it('should have default reminder interval', () => {
-      expect(component.reminderIntervalDays).toBe(30);
+      expect(component.reminderIntervalDays).toBe(7);
     });
 
     it('should have default archive threshold', () => {
-      expect(component.daysBeforeArchive).toBe(30);
+      expect(component.daysBeforeArchive).toBe(7);
     });
 
     it('should initialize with empty timeline events', () => {
@@ -1681,13 +1703,15 @@ describe('PrayerArchiveTimelineComponent - Angular Component Tests', () => {
       expect(component.isLoading).toBe(false);
     });
 
-    it('should not re-fetch on second expand', async () => {
+    it('should not re-fetch on second expand for the same tenant', async () => {
       const loadSettingsSpy = vi
         .spyOn(component as any, 'loadSettings')
-        .mockResolvedValue(undefined);
+        .mockImplementation(async () => {
+          (component as any).settingsLoadedForTenantId = MOCK_TENANT.id;
+        });
 
       component.onExpandedChange(true);
-      await Promise.resolve();
+      await vi.waitUntil(() => component.isLoading === false);
       loadSettingsSpy.mockClear();
 
       component.onExpandedChange(false);
@@ -1856,38 +1880,39 @@ describe('PrayerArchiveTimelineComponent - Angular Component Tests', () => {
       expect(loadSettingsSpy).toHaveBeenCalled();
     });
 
-    it('should set reminder interval from settings', async () => {
-      supabaseService.client.from = vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                reminder_interval_days: 45,
-                days_before_archive: 20
-              },
-              error: null
-            })
-          })
+    it('should set reminder interval from tenant settings', async () => {
+      supabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({
+          data: [
+            {
+              reminder_interval_days: 45,
+              days_before_archive: 20,
+            },
+          ],
+          error: null,
         })
-      });
+      );
 
       await (component as any).loadSettings();
-      
-      // Should be called with admin_settings
-      expect(supabaseService.client.from).toHaveBeenCalledWith('admin_settings');
+
+      expect(supabaseService.client.rpc).toHaveBeenCalledWith(
+        'get_tenant_reminder_settings',
+        {
+          p_tenant_id: MOCK_TENANT.id,
+          p_email: 'admin@test.com',
+        }
+      );
+      expect(component.reminderIntervalDays).toBe(45);
+      expect(component.daysBeforeArchive).toBe(20);
     });
 
     it('should maintain default values on settings load error', async () => {
-      supabaseService.client.from = vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: null,
-              error: new Error('Network error')
-            })
-          })
+      supabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({
+          data: null,
+          error: new Error('Network error'),
         })
-      });
+      );
 
       const originalReminder = component.reminderIntervalDays;
       const originalArchive = component.daysBeforeArchive;
@@ -2053,6 +2078,10 @@ describe('PrayerArchiveTimelineComponent - Angular Component Tests', () => {
   });
 
   describe('Process Prayers', () => {
+    beforeEach(() => {
+      component.reminderIntervalDays = 30;
+      component.daysBeforeArchive = 30;
+    });
     it('should handle empty prayer list', async () => {
       const prayers: any[] = [];
       
@@ -2180,6 +2209,10 @@ describe('PrayerArchiveTimelineComponent - Angular Component Tests', () => {
   });
 
   describe('Execution Timing Projection', () => {
+    beforeEach(() => {
+      component.reminderIntervalDays = 30;
+      component.daysBeforeArchive = 30;
+    });
     it('should project same-day run when due before 10:00 UTC', () => {
       const base = new Date('2026-03-25T02:05:00Z');
       const run = (component as any).getNextDailyRunAfterUtc(base, 10, 0);

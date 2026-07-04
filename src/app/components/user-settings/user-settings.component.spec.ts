@@ -20,6 +20,7 @@ describe('UserSettingsComponent', () => {
   let mockPrayerService: any;
   let mockEmailNotificationService: any;
   let mockAdminAuthService: any;
+  let mockBadgeService: any;
   let mockUserSessionService: any;
   let mockCapacitorService: any;
   let mockChangeDetectorRef: any;
@@ -78,6 +79,10 @@ describe('UserSettingsComponent', () => {
 
     mockAdminAuthService = {
       logout: vi.fn(() => Promise.resolve())
+    };
+
+    mockBadgeService = {
+      refreshBadgeCounts: vi.fn()
     };
 
     mockUserSessionService = {

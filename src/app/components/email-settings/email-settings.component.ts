@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, distinctUntilChanged, takeUntil } from 'rxjs';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
 import { TenantContextService } from '../../services/tenant-context.service';
@@ -63,7 +63,7 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
               name="enableReminders"
               [disabled]="savingReminders"
               aria-label="Enable prayer update reminders"
-              class="mt-0.5 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 focus:ring-2"
+              class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
             />
             <span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Enable prayer update reminders</span>
           </label>
@@ -85,7 +85,7 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
                   (ngModelChange)="validateReminderDays(); onFormFieldChange()"
                   aria-label="Days before sending reminder"
                   aria-describedby="reminderDaysHelp"
-                  class="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  class="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <span class="text-sm text-gray-700 dark:text-gray-300">days</span>
               </div>
@@ -105,7 +105,7 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
                   name="enableAutoArchive"
                   [disabled]="savingReminders"
                   aria-label="Auto-archive prayers after reminder"
-                  class="mt-0.5 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 focus:ring-2"
+                  class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                 />
                 <span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">Auto-archive prayers after reminder if still no update</span>
               </label>
@@ -121,8 +121,10 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
                       min="1"
                       max="90"
                       [(ngModel)]="daysBeforeArchive"
+                      name="daysBeforeArchive"
                       (ngModelChange)="validateArchiveDays(); onFormFieldChange()"
-                      class="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      aria-label="Days after reminder email before auto-archiving"
+                      class="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <span class="text-sm text-gray-700 dark:text-gray-300">days</span>
                   </div>
@@ -192,12 +194,16 @@ export class EmailSettingsComponent implements OnInit, OnDestroy {
 
   sectionExpanded = false;
   private sectionInitialLoadDone = false;
+  private settingsLoadedForTenantId: string | null = null;
   isLoading = false;
 
   enableReminders = false;
   reminderIntervalDays = 7;
   enableAutoArchive = false;
   daysBeforeArchive = 7;
+
+  private static readonly DEFAULT_REMINDER_DAYS = 7;
+  private static readonly DEFAULT_ARCHIVE_DAYS = 7;
 
   savingReminders = false;
   error: string | null = null;
@@ -213,10 +219,14 @@ export class EmailSettingsComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.tenantContext.activeTenant$
-      .pipe(takeUntil(this.destroy$))
+      .pipe(
+        distinctUntilChanged((a, b) => a?.id === b?.id),
+        takeUntil(this.destroy$)
+      )
       .subscribe(() => {
         if (!this.activeTenantId) {
           this.resetReminderState();
+          this.settingsLoadedForTenantId = null;
         } else if (this.sectionExpanded) {
           void this.loadSettings();
         }
@@ -231,9 +241,15 @@ export class EmailSettingsComponent implements OnInit, OnDestroy {
 
   onExpandedChange(expanded: boolean): void {
     this.sectionExpanded = expanded;
-    if (this.sectionExpanded && !this.sectionInitialLoadDone) {
-      this.sectionInitialLoadDone = true;
-      void this.loadSettings();
+    const tenantId = this.activeTenantId;
+    if (this.sectionExpanded && tenantId) {
+      const shouldLoad =
+        !this.sectionInitialLoadDone ||
+        this.settingsLoadedForTenantId !== tenantId;
+      if (shouldLoad) {
+        this.sectionInitialLoadDone = true;
+        void this.loadSettings();
+      }
     }
     this.cdr.markForCheck();
   }
@@ -247,20 +263,41 @@ export class EmailSettingsComponent implements OnInit, OnDestroy {
     this.enableReminders = enabled;
     if (!enabled) {
       this.enableAutoArchive = false;
+    } else {
+      this.reminderIntervalDays = this.normalizeDays(
+        this.reminderIntervalDays,
+        EmailSettingsComponent.DEFAULT_REMINDER_DAYS
+      );
     }
     this.onFormFieldChange();
   }
 
   onEnableAutoArchiveChange(enabled: boolean): void {
     this.enableAutoArchive = enabled;
+    if (enabled) {
+      this.daysBeforeArchive = this.normalizeDays(
+        this.daysBeforeArchive,
+        EmailSettingsComponent.DEFAULT_ARCHIVE_DAYS
+      );
+    }
     this.onFormFieldChange();
   }
 
-  private async getCallerEmail(): Promise<string | null> {
-    const mfaEmail = localStorage.getItem('mfa_authenticated_email')?.toLowerCase().trim();
-    if (mfaEmail) {
-      return mfaEmail;
+  private normalizeDays(value: unknown, fallback: number): number {
+    if (value === null || value === undefined || value === '') {
+      return fallback;
     }
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+      return fallback;
+    }
+    if (parsed < 1) {
+      return 1;
+    }
+    return Math.min(90, Math.round(parsed));
+  }
+
+  private async getCallerEmail(): Promise<string | null> {
     const { data: { session } } = await this.supabase.client.auth.getSession();
     return session?.user?.email?.toLowerCase().trim() || null;
   }
@@ -312,15 +349,22 @@ export class EmailSettingsComponent implements OnInit, OnDestroy {
           this.enableReminders = data.enable_reminders;
         }
         if (data.reminder_interval_days !== null && data.reminder_interval_days !== undefined) {
-          this.reminderIntervalDays = data.reminder_interval_days;
+          this.reminderIntervalDays = this.normalizeDays(
+            data.reminder_interval_days,
+            EmailSettingsComponent.DEFAULT_REMINDER_DAYS
+          );
         }
         if (data.enable_auto_archive !== null && data.enable_auto_archive !== undefined) {
           this.enableAutoArchive = data.enable_auto_archive;
         }
         if (data.days_before_archive !== null && data.days_before_archive !== undefined) {
-          this.daysBeforeArchive = data.days_before_archive;
+          this.daysBeforeArchive = this.normalizeDays(
+            data.days_before_archive,
+            EmailSettingsComponent.DEFAULT_ARCHIVE_DAYS
+          );
         }
       }
+      this.settingsLoadedForTenantId = tenantId;
     } catch (err: unknown) {
       console.error('Error loading email settings:', err);
       const message = err && typeof err === 'object' && 'message' in err
@@ -389,18 +433,16 @@ export class EmailSettingsComponent implements OnInit, OnDestroy {
   }
 
   validateReminderDays() {
-    if (this.reminderIntervalDays < 1) {
-      this.reminderIntervalDays = 1;
-    } else if (this.reminderIntervalDays > 90) {
-      this.reminderIntervalDays = 90;
-    }
+    this.reminderIntervalDays = this.normalizeDays(
+      this.reminderIntervalDays,
+      EmailSettingsComponent.DEFAULT_REMINDER_DAYS
+    );
   }
 
   validateArchiveDays() {
-    if (this.daysBeforeArchive < 1) {
-      this.daysBeforeArchive = 1;
-    } else if (this.daysBeforeArchive > 90) {
-      this.daysBeforeArchive = 90;
-    }
+    this.daysBeforeArchive = this.normalizeDays(
+      this.daysBeforeArchive,
+      EmailSettingsComponent.DEFAULT_ARCHIVE_DAYS
+    );
   }
 }

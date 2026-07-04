@@ -82,8 +82,7 @@ serve(async (req) => {
       'deletion_request',
       'update_deletion_request',
       'status_change_request',
-      'preference_change',
-      'admin_login'
+      'preference_change'
     ];
     if (!validActionTypes.includes(actionType)) {
       return new Response(JSON.stringify({
@@ -100,14 +99,31 @@ serve(async (req) => {
 
     // Get code length from settings (default: 6)
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    
+
+    const resolveTenantId = async (): Promise<string | null> => {
+      const fromAction =
+        actionData && typeof actionData === 'object' && typeof actionData.tenant_id === 'string'
+          ? actionData.tenant_id.trim()
+          : '';
+      if (fromAction) {
+        return fromAction;
+      }
+      const { data: defaultTenant } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', 'default-tenant')
+        .maybeSingle();
+      return defaultTenant?.id ?? null;
+    };
+
+    const tenantId = await resolveTenantId();
     const { data: settings } = await supabase
       .from('admin_settings')
       .select('verification_code_length, test_account_email, test_account_code_4, test_account_code_6, test_account_code_8')
       .eq('id', 1)
       .maybeSingle();
 
-    const codeLength = settings?.verification_code_length || 6;
+    const codeLength = 6;
     const emailNormalized = email.toLowerCase().trim();
     const testAccountEmail = (settings?.test_account_email || '').trim().toLowerCase();
     const isTestAccount = testAccountEmail !== '' && emailNormalized === testAccountEmail;
@@ -166,11 +182,14 @@ serve(async (req) => {
     // Send verification email only for non-test accounts
     if (!isTestAccount) {
       // Fetch verification template from database
-      const { data: template, error: templateError } = await supabase
-        .from('email_templates')
-        .select('*')
-        .eq('template_key', 'verification_code')
-        .single();
+      const { data: template, error: templateError } = tenantId
+        ? await supabase
+            .from('email_templates')
+            .select('*')
+            .eq('template_key', 'verification_code')
+            .eq('tenant_id', tenantId)
+            .maybeSingle()
+        : { data: null, error: { message: 'No tenant id for template lookup' } };
 
       if (templateError || !template) {
         console.error('Template not found:', templateError?.message);

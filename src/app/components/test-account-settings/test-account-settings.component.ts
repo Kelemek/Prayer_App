@@ -40,7 +40,7 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
         <!-- Info Box -->
         <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-4">
           <p class="text-sm text-blue-800 dark:text-blue-200">
-            This identifies the account used to test the <strong>Apple and Android apps</strong>. For this account, no verification email is sent; the user signs in with the codes below based on the configured MFA length. <strong>The account must also be set up</strong> (e.g. as an admin in Admin User Management or in the app) as needed for your testing.
+            This identifies the account used to test the <strong>Apple and Android apps</strong>. For this account, no verification email is sent; the user signs in with the fixed 6-digit code below. <strong>The account must also be set up</strong> (e.g. as a tenant member or admin) as needed for your testing.
           </p>
         </div>
 
@@ -72,56 +72,23 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
             </div>
 
             <div>
-              <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">
-                MFA codes (used when tester email signs in)
-              </h4>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Set the fixed code for each MFA length. The code shown to the user depends on the current <strong>Verification code length</strong> in Email Verification Settings above.
+              <label for="testAccountCode6" class="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+                6-digit login code
+              </label>
+              <input
+                type="text"
+                id="testAccountCode6"
+                [(ngModel)]="testAccountCode6"
+                name="testAccountCode6"
+                maxlength="6"
+                pattern="[0-9]*"
+                inputmode="numeric"
+                placeholder="111777"
+                class="w-full max-w-xs px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Used when the tester email signs in (no email is sent).
               </p>
-              <div class="grid gap-4 sm:grid-cols-3">
-                <div>
-                  <label for="testAccountCode4" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">4-digit code</label>
-                  <input
-                    type="text"
-                    id="testAccountCode4"
-                    [(ngModel)]="testAccountCode4"
-                    name="testAccountCode4"
-                    maxlength="4"
-                    pattern="[0-9]*"
-                    inputmode="numeric"
-                    placeholder="1777"
-                    class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label for="testAccountCode6" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">6-digit code</label>
-                  <input
-                    type="text"
-                    id="testAccountCode6"
-                    [(ngModel)]="testAccountCode6"
-                    name="testAccountCode6"
-                    maxlength="6"
-                    pattern="[0-9]*"
-                    inputmode="numeric"
-                    placeholder="111777"
-                    class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label for="testAccountCode8" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">8-digit code</label>
-                  <input
-                    type="text"
-                    id="testAccountCode8"
-                    [(ngModel)]="testAccountCode8"
-                    name="testAccountCode8"
-                    maxlength="8"
-                    pattern="[0-9]*"
-                    inputmode="numeric"
-                    placeholder="11111777"
-                    class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -159,9 +126,7 @@ export class TestAccountSettingsComponent {
   private sectionInitialLoadDone = false;
 
   testAccountEmail = '';
-  testAccountCode4 = '';
   testAccountCode6 = '';
-  testAccountCode8 = '';
   loading = false;
   saving = false;
   error: string | null = null;
@@ -189,7 +154,7 @@ export class TestAccountSettingsComponent {
 
       const { data, error } = await this.supabase.client
         .from('admin_settings')
-        .select('test_account_email, test_account_code_4, test_account_code_6, test_account_code_8')
+        .select('test_account_email, test_account_code_6')
         .eq('id', 1)
         .maybeSingle();
 
@@ -197,9 +162,7 @@ export class TestAccountSettingsComponent {
 
       if (data) {
         this.testAccountEmail = data.test_account_email ?? '';
-        this.testAccountCode4 = data.test_account_code_4 ?? '';
         this.testAccountCode6 = data.test_account_code_6 ?? '';
-        this.testAccountCode8 = data.test_account_code_8 ?? '';
       }
 
       this.cdr.markForCheck();
@@ -223,9 +186,7 @@ export class TestAccountSettingsComponent {
         .from('admin_settings')
         .update({
           test_account_email: this.testAccountEmail.trim() || null,
-          test_account_code_4: this.testAccountCode4.trim() || null,
           test_account_code_6: this.testAccountCode6.trim() || null,
-          test_account_code_8: this.testAccountCode8.trim() || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', 1);

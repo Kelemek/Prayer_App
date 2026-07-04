@@ -91,46 +91,47 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
         >
           <div class="w-full max-w-6xl mx-auto px-4 py-4 sm:py-6">
             <!-- Mobile layout: indicator in top row with logo -->
-            <div class="sm:hidden flex items-start justify-between mb-3">
+            <div class="sm:hidden flex items-start justify-between gap-2 mb-3">
               <!-- Logo on left -->
               <div class="flex items-center gap-3">
                 <app-logo (logoStatusChange)="hasLogo = $event"></app-logo>
               </div>
 
-              <!-- Email Indicator - Top Right -->
-              @if ((userSessionService.userSession$ | async); as session) {
-              <button
-                (click)="showLogoutConfirmation = true"
-                class="text-[10px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors cursor-pointer"
-                title="Click to log out"
-              >
-                <span class="hidden xs:inline">{{ session.email }}</span>
-                <span class="xs:hidden">Logged In</span>
-              </button>
-              } @else {
-              <button
-                (click)="showLogoutConfirmation = true"
-                class="text-[10px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors cursor-pointer"
-                title="Click to log out"
-              >
-                <span class="hidden xs:inline">{{ getUserEmail() }}</span>
-                <span class="xs:hidden">Logged In</span>
-              </button>
-              }
-            </div>
-            @if (showTenantSwitcher) {
-            <div class="sm:hidden mb-3">
-              <select
-                [ngModel]="activeTenantId"
-                (ngModelChange)="onTenantSelect($event)"
-                class="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-xs text-gray-700 dark:text-gray-200"
-              >
-                @for (tenant of tenantSwitchOptions; track tenant.id) {
-                <option [ngValue]="tenant.id">{{ tenant.name }}</option>
+              <div class="flex items-center gap-2 min-w-0">
+                @if (showTenantSwitcher) {
+                <select
+                  [ngModel]="activeTenantId"
+                  (ngModelChange)="onTenantSelect($event)"
+                  class="flex-1 min-w-0 text-[10px] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-gray-700 dark:text-gray-200"
+                  title="Switch active tenant"
+                >
+                  @for (tenant of tenantSwitchOptions; track tenant.id) {
+                  <option [ngValue]="tenant.id">{{ tenant.name }}</option>
+                  }
+                </select>
                 }
-              </select>
+                <!-- Email Indicator - Top Right -->
+                @if ((userSessionService.userSession$ | async); as session) {
+                <button
+                  (click)="showLogoutConfirmation = true"
+                  class="text-[10px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors cursor-pointer shrink-0"
+                  title="Click to log out"
+                >
+                  <span class="hidden xs:inline">{{ session.email }}</span>
+                  <span class="xs:hidden">Logged In</span>
+                </button>
+                } @else {
+                <button
+                  (click)="showLogoutConfirmation = true"
+                  class="text-[10px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors cursor-pointer shrink-0"
+                  title="Click to log out"
+                >
+                  <span class="hidden xs:inline">{{ getUserEmail() }}</span>
+                  <span class="xs:hidden">Logged In</span>
+                </button>
+                }
+              </div>
             </div>
-            }
 
             <!-- Mobile buttons row - flex-nowrap so title/buttons stay on one line on smallest screens -->
             <div class="sm:hidden flex items-center gap-2 flex-nowrap">
@@ -997,7 +998,6 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   get showTenantSwitcher(): boolean {
     return (
-      this.isSuperAdmin &&
       !this.tenantContextLoading &&
       !!this.activeTenantId &&
       this.tenantSwitchOptions.length > 1
@@ -1105,6 +1105,12 @@ export class HomeComponent implements OnInit, OnDestroy {
           this.availableTenants = tenants;
           this.cdr.markForCheck();
         });
+    }
+
+    if (this.tenantContextService?.subscriberTenants$) {
+      this.tenantContextService.subscriberTenants$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(() => this.cdr.markForCheck());
     }
 
     this.badgeService.refreshBadgeCounts();
@@ -1887,11 +1893,7 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   get tenantSwitchOptions(): Tenant[] {
     const ctx = this.tenantContextService;
-    if (!ctx.getIsSuperAdmin()) {
-      return [];
-    }
-
-    const options = ctx.getAvailableTenants();
+    const options = ctx.getTenantSwitcherOptions();
     const unique = new Map(options.map((tenant) => [tenant.id, tenant]));
     const activeTenant = ctx.getActiveTenant();
     if (activeTenant?.id && !unique.has(activeTenant.id)) {

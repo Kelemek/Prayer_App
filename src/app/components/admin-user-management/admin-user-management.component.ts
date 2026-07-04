@@ -4,6 +4,7 @@ import {
   EventEmitter,
   ChangeDetectorRef,
   ChangeDetectionStrategy,
+  OnDestroy,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
@@ -120,7 +121,7 @@ interface AdminUser {
           </p>
         </div>
         <button
-          (click)="success = null"
+          (click)="dismissSuccessMessage()"
           class="text-green-600 dark:text-green-400 focus:outline-none focus:ring-2 focus:ring-green-500 rounded-md p-1"
           aria-label="Close success message"
         >
@@ -233,7 +234,7 @@ interface AdminUser {
               placeholder="Admin's full name"
               aria-label="Admin's full name"
               aria-required="true"
-              class="w-full px-3 py-2 border border-red-300 dark:border-red-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-red-700 focus:border-red-700 focus:ring-offset-0"
+              class="w-full px-3 py-2 border border-red-300 dark:border-red-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:ring-offset-0"
             />
           </div>
 
@@ -251,7 +252,7 @@ interface AdminUser {
               placeholder="admin@example.com"
               aria-label="Admin's email address"
               aria-required="true"
-              class="w-full px-3 py-2 border border-red-300 dark:border-red-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-red-700 focus:border-red-700 focus:ring-offset-0"
+              class="w-full px-3 py-2 border border-red-300 dark:border-red-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:ring-offset-0"
             />
           </div>
 
@@ -555,7 +556,7 @@ interface AdminUser {
         class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md"
       >
         <p class="text-xs text-blue-800 dark:text-blue-200">
-          <strong>Note:</strong> Admin users can sign in using magic links sent
+          <strong>Note:</strong> Tenant admins sign in with a 6-digit code sent
           to their email. When you add a new admin, they'll receive an
           invitation email with instructions. Click the green checkmarks to
           enable/disable admin email and push notifications.
@@ -580,8 +581,11 @@ interface AdminUser {
   changeDetection: ChangeDetectionStrategy.Eager,
   styles: [],
 })
-export class AdminUserManagementComponent {
+export class AdminUserManagementComponent implements OnDestroy {
   @Output() onSave = new EventEmitter<void>();
+
+  private static readonly SUCCESS_DISMISS_MS = 5000;
+  private successDismissTimer: ReturnType<typeof setTimeout> | null = null;
 
   sectionExpanded = false;
   private sectionInitialLoadDone = false;
@@ -612,6 +616,39 @@ export class AdminUserManagementComponent {
     private tenantContext: TenantContextService
   ) {}
 
+  ngOnDestroy(): void {
+    this.clearSuccessDismissTimer();
+  }
+
+  showSuccessMessage(message: string): void {
+    this.clearSuccessDismissTimer();
+    this.success = message;
+    this.successDismissTimer = setTimeout(() => {
+      this.success = null;
+      this.successDismissTimer = null;
+      this.cdr.markForCheck();
+    }, AdminUserManagementComponent.SUCCESS_DISMISS_MS);
+    this.cdr.markForCheck();
+  }
+
+  dismissSuccessMessage(): void {
+    this.clearSuccessDismissTimer();
+    this.success = null;
+    this.cdr.markForCheck();
+  }
+
+  private clearSuccess(): void {
+    this.clearSuccessDismissTimer();
+    this.success = null;
+  }
+
+  private clearSuccessDismissTimer(): void {
+    if (this.successDismissTimer !== null) {
+      clearTimeout(this.successDismissTimer);
+      this.successDismissTimer = null;
+    }
+  }
+
   onExpandedChange(expanded: boolean): void {
     this.sectionExpanded = expanded;
     if (this.sectionExpanded && !this.sectionInitialLoadDone) {
@@ -621,21 +658,83 @@ export class AdminUserManagementComponent {
     this.cdr.markForCheck();
   }
 
+  private getActiveTenantId(): string | null {
+    return this.tenantContext.getActiveTenant()?.id ?? null;
+  }
+
+  private mapMembershipToAdmin(row: {
+    user_email: string;
+    name: string;
+    created_at: string;
+    receive_admin_emails: boolean;
+    receive_admin_push: boolean;
+  }): AdminUser {
+    return {
+      email: row.user_email,
+      name: row.name,
+      created_at: row.created_at,
+      receive_admin_emails: row.receive_admin_emails,
+      receive_admin_push: row.receive_admin_push,
+    };
+  }
+
+  private async isSuperAdminEmail(email: string): Promise<boolean> {
+    const { data, error } = await this.supabase.client.rpc("is_super_admin", {
+      email_to_check: email,
+    });
+    if (error) {
+      console.warn("is_super_admin check failed:", error);
+      return false;
+    }
+    return data === true;
+  }
+
+  private async filterTenantAdminsExcludingSuper(
+    rows: Array<{
+      user_email: string;
+      name: string;
+      created_at: string;
+      receive_admin_emails: boolean;
+      receive_admin_push: boolean;
+    }>
+  ): Promise<AdminUser[]> {
+    const checks = await Promise.all(
+      rows.map(async (row) => ({
+        row,
+        isSuper: await this.isSuperAdminEmail(row.user_email),
+      }))
+    );
+    return checks
+      .filter(({ isSuper }) => !isSuper)
+      .map(({ row }) => this.mapMembershipToAdmin(row));
+  }
+
   async loadAdmins() {
+    const tenantId = this.getActiveTenantId();
     this.loading = true;
     this.error = null;
     this.cdr.markForCheck();
 
+    if (!tenantId) {
+      this.admins = [];
+      this.loading = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
     try {
       const { data, error } = await this.supabase.client
-        .from("email_subscribers")
-        .select("email,name,created_at,receive_admin_emails,receive_admin_push")
-        .eq("is_admin", true)
+        .from("tenant_memberships")
+        .select(
+          "user_email,name,created_at,receive_admin_emails,receive_admin_push"
+        )
+        .eq("tenant_id", tenantId)
+        .eq("role", "tenant_admin")
         .order("created_at", { ascending: true });
 
       if (error) throw error;
 
-      this.admins = data || [];
+      this.admins = await this.filterTenantAdminsExcludingSuper(data ?? []);
       this.cdr.markForCheck();
     } catch (err: unknown) {
       const errorMsg =
@@ -664,40 +763,54 @@ export class AdminUserManagementComponent {
       return;
     }
 
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) {
+      this.error = "No active tenant selected";
+      return;
+    }
+
     this.adding = true;
     this.error = null;
-    this.success = null;
+    this.clearSuccess();
 
     try {
       const email = this.newAdminEmail.toLowerCase().trim();
       const name = this.newAdminName.trim();
 
-      // Check if admin already exists
-      const { data: existing } = await this.supabase.client
-        .from("email_subscribers")
-        .select("email")
-        .eq("email", email)
-        .eq("is_admin", true)
-        .maybeSingle();
-
-      if (existing) {
-        this.error = "This email is already an admin";
+      if (await this.isSuperAdminEmail(email)) {
+        this.error =
+          "Super admins are managed at the platform level and are not listed here";
         return;
       }
 
-      // Insert or update the admin
+      // Check if admin already exists for this tenant
+      const { data: existing } = await this.supabase.client
+        .from("tenant_memberships")
+        .select("user_email")
+        .eq("tenant_id", tenantId)
+        .eq("user_email", email)
+        .eq("role", "tenant_admin")
+        .maybeSingle();
+
+      if (existing) {
+        this.error = "This email is already an admin for this tenant";
+        return;
+      }
+
+      // Insert or promote to tenant admin for this tenant only
       const { error: upsertError } = await this.supabase.client
-        .from("email_subscribers")
+        .from("tenant_memberships")
         .upsert(
           {
-            email,
+            tenant_id: tenantId,
+            user_email: email,
             name,
-            is_admin: true,
+            role: "tenant_admin",
             is_active: true,
             receive_admin_push: true,
           },
           {
-            onConflict: "email",
+            onConflict: "tenant_id,user_email",
           }
         );
 
@@ -708,7 +821,9 @@ export class AdminUserManagementComponent {
         console.warn("Error sending invitation email:", emailErr);
       });
 
-      this.success = `Admin added successfully! Invitation email sent to ${email}`;
+      this.showSuccessMessage(
+        `Admin added successfully! Invitation email sent to ${email}`
+      );
       this.toast.success(`Admin ${name} added successfully`);
       this.newAdminEmail = "";
       this.newAdminName = "";
@@ -862,17 +977,24 @@ Prayer App Admin Portal
     }
 
     this.error = null;
-    this.success = null;
+    this.clearSuccess();
+
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) {
+      this.error = "No active tenant selected";
+      return;
+    }
 
     try {
       const { error: deleteError } = await this.supabase.client
-        .from("email_subscribers")
-        .update({ is_admin: false })
-        .eq("email", email);
+        .from("tenant_memberships")
+        .update({ role: "member" })
+        .eq("tenant_id", tenantId)
+        .eq("user_email", email);
 
       if (deleteError) throw deleteError;
 
-      this.success = `Admin access removed for ${email}`;
+      this.showSuccessMessage(`Admin access removed for ${email}`);
       this.toast.success(`Admin access removed for ${email}`);
       await this.loadAdmins();
       this.onSave.emit();
@@ -953,13 +1075,20 @@ Prayer App Admin Portal
 
   async toggleReceiveEmails(email: string, currentStatus: boolean) {
     this.error = null;
-    this.success = null;
+    this.clearSuccess();
+
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) {
+      this.error = "No active tenant selected";
+      return;
+    }
 
     try {
       const { error: updateError } = await this.supabase.client
-        .from("email_subscribers")
+        .from("tenant_memberships")
         .update({ receive_admin_emails: !currentStatus })
-        .eq("email", email);
+        .eq("tenant_id", tenantId)
+        .eq("user_email", email);
 
       if (updateError) throw updateError;
 
@@ -982,13 +1111,20 @@ Prayer App Admin Portal
 
   async toggleReceivePush(email: string, currentStatus: boolean) {
     this.error = null;
-    this.success = null;
+    this.clearSuccess();
+
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) {
+      this.error = "No active tenant selected";
+      return;
+    }
 
     try {
       const { error: updateError } = await this.supabase.client
-        .from("email_subscribers")
+        .from("tenant_memberships")
         .update({ receive_admin_push: !currentStatus })
-        .eq("email", email);
+        .eq("tenant_id", tenantId)
+        .eq("user_email", email);
 
       if (updateError) throw updateError;
 

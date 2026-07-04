@@ -2,6 +2,8 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { SupabaseService } from './supabase.service';
 import { AdminAuthService } from './admin-auth.service';
+import { AuthIdentityService } from './auth-identity.service';
+import { TenantContextService } from './tenant-context.service';
 import { first } from 'rxjs/operators';
 import type { UserPrayerHourReminderSlot } from '../types/user-prayer-hour-reminder';
 
@@ -42,7 +44,9 @@ export class UserSessionService {
 
   constructor(
     private supabase: SupabaseService,
-    private adminAuth: AdminAuthService
+    private adminAuth: AdminAuthService,
+    private authIdentity: AuthIdentityService,
+    private tenantContext: TenantContextService
   ) {
     // Restore cached session immediately if available
     const cachedUserSession = localStorage.getItem('userSession');
@@ -70,8 +74,7 @@ export class UserSessionService {
         // Get current user email from multiple sources
         const { data: { session } } = await this.supabase.client.auth.getSession();
         const approvalEmail = localStorage.getItem('approvalAdminEmail');
-        const mfaEmail = localStorage.getItem('mfa_authenticated_email');
-        const email = session?.user?.email || approvalEmail || mfaEmail;
+        const email = session?.user?.email || approvalEmail || (await this.authIdentity.getEmail());
 
         if (email) {
           // Try to load from localStorage first for instant availability
@@ -108,17 +111,27 @@ export class UserSessionService {
     this.isLoadingSubject.next(true);
 
     try {
-      // Use directQuery with timeout to prevent hanging
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+      let query = this.supabase.client
+        .from('tenant_memberships')
+        .select('user_email, name, is_active, receive_push, badge_functionality_enabled, default_prayer_view')
+        .eq('user_email', email.toLowerCase().trim());
+      if (tenantId) {
+        query = query.eq('tenant_id', tenantId);
+      }
       const { data, error } = await Promise.race([
-        this.supabase.client
-          .from('email_subscribers')
-          .select('email, name, is_active, receive_push, badge_functionality_enabled, default_prayer_view')
-          .eq('email', email.toLowerCase().trim())
-          .maybeSingle(),
-        new Promise((_, reject) => 
+        query.maybeSingle(),
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error('User session query timeout')), 5000)
-        ) as Promise<any>
-      ]);
+        ) as Promise<{ data: unknown; error: unknown }>
+      ]) as { data: {
+        user_email?: string;
+        name?: string;
+        is_active?: boolean;
+        receive_push?: boolean;
+        badge_functionality_enabled?: boolean;
+        default_prayer_view?: string;
+      } | null; error: unknown };
 
       if (error) {
         console.error('Error loading user session from database:', error);
@@ -127,14 +140,14 @@ export class UserSessionService {
 
       if (data) {
         const sessionData: UserSessionData = {
-          email: data.email || email,
+          email: data.user_email || email,
           fullName: data.name || '',
           isActive: data.is_active ?? true,
           receiveNotifications: true,
           receiveAdminEmails: false,
           receivePush: data.receive_push ?? false,
           badgeFunctionalityEnabled: data.badge_functionality_enabled ?? false,
-          defaultPrayerView: data.default_prayer_view || 'current'
+          defaultPrayerView: this.parseDefaultPrayerView(data.default_prayer_view)
         };
         this.userSessionSubject.next(sessionData);
         this.saveToCache(sessionData);
@@ -373,6 +386,17 @@ export class UserSessionService {
       localStorage.removeItem('userSession');
     } catch (err) {
       console.warn('[UserSession] Failed to clear session cache:', err);
+    }
+  }
+
+  private parseDefaultPrayerView(value: string | undefined | null): 'current' | 'personal' {
+    switch (value) {
+      case 'personal':
+        return 'personal';
+      case 'current':
+        return 'current';
+      default:
+        return 'current';
     }
   }
 }

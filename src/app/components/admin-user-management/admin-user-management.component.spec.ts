@@ -32,11 +32,50 @@ describe('AdminUserManagementComponent', () => {
       },
       update() {
         const r = this.responses.shift();
-        return { eq: () => Promise.resolve(r) };
-      }
+        const chain: any = {
+          eq: () => chain,
+          then: (onFulfilled: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) =>
+            Promise.resolve(r).then(onFulfilled, onRejected),
+        };
+        return chain;
+      },
+      rpc() {
+        const r = this.responses.shift();
+        return Promise.resolve(r ?? { data: false, error: null });
+      },
     };
     return client;
   };
+
+  const membershipRow = (overrides: Partial<{
+    user_email: string;
+    name: string;
+    created_at: string;
+    receive_admin_emails: boolean;
+    receive_admin_push: boolean;
+  }> = {}) => ({
+    user_email: 'a@b.com',
+    name: 'A',
+    created_at: '2020-01-01',
+    receive_admin_emails: true,
+    receive_admin_push: false,
+    ...overrides,
+  });
+
+  const adminUser = (overrides: Partial<{
+    email: string;
+    name: string;
+    created_at: string;
+    receive_admin_emails: boolean;
+    receive_admin_push: boolean;
+  }> = {}) => ({
+    email: 'a@b.com',
+    name: 'A',
+    created_at: '2020-01-01',
+    receive_admin_emails: true,
+    receive_admin_push: false,
+    ...overrides,
+  });
 
   let mockClient: any;
   let mockSupabase: any;
@@ -84,14 +123,14 @@ describe('AdminUserManagementComponent', () => {
 
   describe('onExpandedChange', () => {
     it('should lazy-load admins on first expand', async () => {
-      const admins = [{ email: 'a@b.com', name: 'A', created_at: '2020-01-01', receive_admin_emails: true, receive_admin_push: false }];
-      mockClient.setResponses([{ data: admins, error: null }]);
+      const admins = [membershipRow()];
+      mockClient.setResponses([{ data: admins, error: null }, { data: false, error: null }]);
 
       component.onExpandedChange(true);
-      await component.loadAdmins();
+      await vi.waitUntil(() => !component.loading);
 
       expect(component.sectionExpanded).toBe(true);
-      expect(component.admins).toEqual(admins);
+      expect(component.admins).toEqual([adminUser()]);
     });
 
     it('should not load admins before section is expanded', () => {
@@ -112,15 +151,37 @@ describe('AdminUserManagementComponent', () => {
   });
 
   it('loads admins successfully', async () => {
-    const admins = [{ email: 'a@b.com', name: 'A', created_at: '2020-01-01', receive_admin_emails: true, receive_admin_push: false }];
-    mockClient.setResponses([{ data: admins, error: null }]);
+    mockClient.setResponses([
+      { data: [membershipRow()], error: null },
+      { data: false, error: null },
+    ]);
 
     await component.loadAdmins();
 
     expect(component.loading).toBe(false);
-    expect(component.admins).toEqual(admins);
+    expect(component.admins).toEqual([adminUser()]);
     expect(component.error).toBeNull();
     expect(mockCdr.markForCheck).toHaveBeenCalled();
+  });
+
+  it('excludes super admins from tenant admin list', async () => {
+    mockClient.setResponses([
+      {
+        data: [
+          membershipRow({ user_email: 'super@x.com', name: 'Super' }),
+          membershipRow({ user_email: 'tenant@x.com', name: 'Tenant' }),
+        ],
+        error: null,
+      },
+      { data: true, error: null },
+      { data: false, error: null },
+    ]);
+
+    await component.loadAdmins();
+
+    expect(component.admins).toEqual([
+      adminUser({ email: 'tenant@x.com', name: 'Tenant' }),
+    ]);
   });
 
   it('handles loadAdmins error', async () => {
@@ -155,12 +216,26 @@ describe('AdminUserManagementComponent', () => {
     component.newAdminEmail = 'test@x.com';
     component.newAdminName = 'Test';
 
-    // maybeSingle response indicates existing admin
-    mockClient.setResponses([{ data: { email: 'test@x.com' } }]);
+    mockClient.setResponses([
+      { data: false, error: null },
+      { data: { user_email: 'test@x.com' } },
+    ]);
 
     await component.addAdmin();
 
-    expect(component.error).toBe('This email is already an admin');
+    expect(component.error).toBe('This email is already an admin for this tenant');
+    expect(component.adding).toBe(false);
+  });
+
+  it('prevents adding super admin emails', async () => {
+    component.newAdminEmail = 'super@x.com';
+    component.newAdminName = 'Super';
+
+    mockClient.setResponses([{ data: true, error: null }]);
+
+    await component.addAdmin();
+
+    expect(component.error).toContain('Super admins are managed at the platform level');
     expect(component.adding).toBe(false);
   });
 
@@ -168,8 +243,9 @@ describe('AdminUserManagementComponent', () => {
     component.newAdminEmail = 'new@x.com';
     component.newAdminName = 'New';
 
-    // maybeSingle -> null, upsert -> error
+    // is_super_admin -> false, maybeSingle -> null, upsert -> error
     mockClient.setResponses([
+      { data: false, error: null },
       { data: null },
       { error: { message: 'upsert failed' } }
     ]);
@@ -184,11 +260,12 @@ describe('AdminUserManagementComponent', () => {
     component.newAdminEmail = 'ok@x.com';
     component.newAdminName = 'Ok';
 
-    // maybeSingle -> null, upsert -> no error, loadAdmins -> return list
     mockClient.setResponses([
+      { data: false, error: null },
       { data: null },
       { error: null },
-      { data: [{ email: 'ok@x.com', name: 'Ok', created_at: '2020-01-01', receive_admin_emails: false, receive_admin_push: false }], error: null }
+      { data: [membershipRow({ user_email: 'ok@x.com', name: 'Ok' })], error: null },
+      { data: false, error: null },
     ]);
 
     // spy on sendInvitationEmail and onSave.emit
@@ -210,11 +287,12 @@ describe('AdminUserManagementComponent', () => {
     component.newAdminEmail = 'f@x.com';
     component.newAdminName = 'FailEmail';
 
-    // maybeSingle -> null, upsert -> no error, loadAdmins -> return list
     mockClient.setResponses([
+      { data: false, error: null },
       { data: null },
       { error: null },
-      { data: [{ email: 'f@x.com', name: 'FailEmail', created_at: '2020-01-01', receive_admin_emails: false, receive_admin_push: false }], error: null }
+      { data: [membershipRow({ user_email: 'f@x.com', name: 'FailEmail', receive_admin_emails: false, receive_admin_push: false })], error: null },
+      { data: false, error: null },
     ]);
 
     // let sendInvitationEmail reject so the component's internal .catch runs
@@ -281,8 +359,8 @@ describe('AdminUserManagementComponent', () => {
     ];
 
     mockClient.setResponses([
-      { error: null }, // update
-      { data: [], error: null } // loadAdmins
+      { error: null },
+      { data: [], error: null },
     ]);
 
     const emitSpy = vi.spyOn(component.onSave, 'emit');
@@ -388,7 +466,13 @@ describe('AdminUserManagementComponent', () => {
 
     // Simulate client that rejects with a primitive (string) to cover non-object error branch
     mockSupabase.client = {
-      from: () => ({ update: () => ({ eq: () => Promise.reject('primitive error') }) })
+      from: () => ({
+        update: () => ({
+          eq: () => ({
+            eq: () => Promise.reject('primitive error'),
+          }),
+        }),
+      }),
     } as any;
 
     await component.deleteAdmin('a@x.com');
@@ -399,7 +483,9 @@ describe('AdminUserManagementComponent', () => {
   it('loadAdmins handles non-object error (primitive)', async () => {
     // Simulate client that rejects with a primitive during order()
     mockSupabase.client = {
-      from: () => ({ select: () => ({ eq: () => ({ order: () => Promise.reject('load-prim') }) }) })
+      from: () => ({
+        select: () => ({ eq: () => ({ eq: () => ({ order: () => Promise.reject('load-prim') }) }) }),
+      }),
     } as any;
 
     await component.loadAdmins();
@@ -415,7 +501,7 @@ describe('AdminUserManagementComponent', () => {
     ];
 
     // success: update -> no error, then loadAdmins
-    mockClient.setResponses([{ error: null }, { data: component.admins, error: null }]);
+    mockClient.setResponses([{ error: null }, { data: component.admins.map((a) => membershipRow({ user_email: a.email, name: a.name, receive_admin_emails: a.receive_admin_emails, receive_admin_push: a.receive_admin_push, created_at: a.created_at })), error: null }]);
     await component.toggleReceiveEmails('a@x.com', false);
     expect(mockToast.success).toHaveBeenCalled();
 
@@ -431,7 +517,13 @@ describe('AdminUserManagementComponent', () => {
     ];
 
     mockSupabase.client = {
-      from: () => ({ update: () => ({ eq: () => Promise.reject('primitive') }) })
+      from: () => ({
+        update: () => ({
+          eq: () => ({
+            eq: () => Promise.reject('primitive'),
+          }),
+        }),
+      }),
     } as any;
 
     await component.toggleReceiveEmails('a@x.com', false);
@@ -446,7 +538,13 @@ describe('AdminUserManagementComponent', () => {
 
     // update -> no error
     mockSupabase.client = {
-      from: () => ({ update: () => ({ eq: () => Promise.resolve({ error: null }) }) })
+      from: () => ({
+        update: () => ({
+          eq: () => ({
+            eq: () => Promise.resolve({ error: null }),
+          }),
+        }),
+      }),
     } as any;
 
     await component.toggleReceiveEmails('x@x.com', true);
@@ -461,14 +559,15 @@ describe('AdminUserManagementComponent', () => {
     // maybeSingle resolves null, upsert rejects with an object error
     mockSupabase.client = {
       from: (table: string) => {
-        if (table === 'email_subscribers') {
+        if (table === 'tenant_memberships') {
           return {
-            select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null }) }) }),
+            select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null }) }) }) }) }),
             upsert: () => Promise.reject({ message: 'upsert-thrown' })
           } as any;
         }
         return null as any;
-      }
+      },
+      rpc: () => Promise.resolve({ data: false, error: null }),
     } as any;
 
     await component.addAdmin();
@@ -483,7 +582,8 @@ describe('AdminUserManagementComponent', () => {
 
     // maybeSingle rejects with object that lacks 'message' property
     mockSupabase.client = {
-      from: () => ({ select: () => ({ eq: () => ({ maybeSingle: () => Promise.reject({ code: 'NO_MSG' }) }) }) })
+      from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.reject({ code: 'NO_MSG' }) }) }) }) }) }),
+      rpc: () => Promise.resolve({ data: false, error: null }),
     } as any;
 
     await component.addAdmin();
@@ -498,7 +598,8 @@ describe('AdminUserManagementComponent', () => {
 
     // maybeSingle rejects with undefined to exercise falsy error branch
     mockSupabase.client = {
-      from: () => ({ select: () => ({ eq: () => ({ maybeSingle: () => Promise.reject(undefined) }) }) })
+      from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.reject(undefined) }) }) }) }) }),
+      rpc: () => Promise.resolve({ data: false, error: null }),
     } as any;
 
     await component.addAdmin();
@@ -513,7 +614,8 @@ describe('AdminUserManagementComponent', () => {
 
     // Simulate a synchronous throw when calling maybeSingle/select
     mockSupabase.client = {
-      from: () => ({ select: () => { throw new Error('sync-fail'); } })
+      from: () => ({ select: () => { throw new Error('sync-fail'); } }),
+      rpc: () => Promise.resolve({ data: false, error: null }),
     } as any;
 
     await component.addAdmin();
@@ -528,7 +630,8 @@ describe('AdminUserManagementComponent', () => {
 
     // maybeSingle rejects with null
     mockSupabase.client = {
-      from: () => ({ select: () => ({ eq: () => ({ maybeSingle: () => Promise.reject(null) }) }) })
+      from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.reject(null) }) }) }) }) }),
+      rpc: () => Promise.resolve({ data: false, error: null }),
     } as any;
 
     await component.addAdmin();
@@ -544,17 +647,44 @@ describe('AdminUserManagementComponent', () => {
     // Simulate maybeSingle -> null, upsert rejects with primitive
     mockSupabase.client = {
       from: (table: string) => {
-        if (table === 'email_subscribers') {
-          return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null }) }) }), upsert: () => Promise.reject('upsert-prim') };
+        if (table === 'tenant_memberships') {
+          return {
+            select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null }) }) }) }) }),
+            upsert: () => Promise.reject('upsert-prim'),
+          };
         }
         return null as any;
-      }
+      },
+      rpc: () => Promise.resolve({ data: false, error: null }),
     } as any;
 
     await component.addAdmin();
 
     expect(component.error).toBe('Failed to add admin user');
     expect(component.adding).toBe(false);
+  });
+
+  it('auto-dismisses success message after 5 seconds', () => {
+    vi.useFakeTimers();
+    component.showSuccessMessage('Admin added successfully!');
+    expect(component.success).toBe('Admin added successfully!');
+
+    vi.advanceTimersByTime(5000);
+    expect(component.success).toBeNull();
+
+    vi.useRealTimers();
+  });
+
+  it('dismissSuccessMessage clears message and pending timer', () => {
+    vi.useFakeTimers();
+    component.showSuccessMessage('Saved');
+    component.dismissSuccessMessage();
+    expect(component.success).toBeNull();
+
+    vi.advanceTimersByTime(5000);
+    expect(component.success).toBeNull();
+
+    vi.useRealTimers();
   });
 
   it('cancelAddForm clears fields', () => {
@@ -600,7 +730,18 @@ describe('AdminUserManagementComponent', () => {
 
     // Simulate maybeSingle rejecting with an object (different error path)
     mockSupabase.client = {
-      from: () => ({ select: () => ({ eq: () => ({ maybeSingle: () => Promise.reject({ message: 'maybe failed' }) }) }) })
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              eq: () => ({
+                maybeSingle: () => Promise.reject({ message: 'maybe failed' }),
+              }),
+            }),
+          }),
+        }),
+      }),
+      rpc: () => Promise.resolve({ data: false, error: null }),
     } as any;
 
     await component.addAdmin();

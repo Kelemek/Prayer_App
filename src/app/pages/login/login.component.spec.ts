@@ -45,19 +45,6 @@ const makeMocks = () => {
     theme$: of('light')
   };
 
-  const brandingService: any = {
-    initialize: vi.fn(async () => {}),
-    branding$: new BehaviorSubject({
-      useLogo: true,
-      appTitle: 'Test Church',
-      appSubtitle: 'Test Subtitle',
-      lightModeLogoBlobUrl: 'LIGHT_URL',
-      darkModeLogoBlobUrl: 'DARK_URL',
-      lastModified: new Date()
-    }),
-    getImageUrl: vi.fn((branding) => branding.useLogo ? 'LIGHT_URL' : '')
-  };
-
   const router: any = { navigate: vi.fn() };
 
   const route: any = {
@@ -85,7 +72,7 @@ const makeMocks = () => {
     })
   };
 
-  return { adminAuthService, supabaseService, emailNotificationService, userSessionService, themeService, brandingService, tenantContextService, router, route, cdr, requireSiteLogin$, isAdmin$ };
+  return { adminAuthService, supabaseService, emailNotificationService, userSessionService, themeService, tenantContextService, router, route, cdr, requireSiteLogin$, isAdmin$ };
 };
 
 const mockMatchMedia = (matches = false) => ({
@@ -103,7 +90,6 @@ const makeComponent = (mocks: any) => {
     mocks.emailNotificationService,
     mocks.userSessionService,
     mocks.themeService,
-    mocks.brandingService,
     mocks.tenantContextService,
     mocks.router,
     mocks.route,
@@ -118,14 +104,13 @@ const makeComponent = (mocks: any) => {
 
 // Helper to create LoginComponent with custom service mocks (for tests with modified mocks)
 let componentsToCleanup: LoginComponent[] = [];
-const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, userSession: any, theme: any, branding: any, tenantContext: any, router: any, route: any, cdr: any) => {
+const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, userSession: any, theme: any, tenantContext: any, router: any, route: any, cdr: any) => {
   const comp = new LoginComponent(
     adminAuth,
     supabase,
     emailNotif,
     userSession,
     theme,
-    branding,
     tenantContext,
     router,
     route,
@@ -172,9 +157,8 @@ describe('LoginComponent', () => {
 
     await comp.ngOnInit();
 
-    // code length fetched from supabase mock
     expect(comp.codeLength).toBe(6);
-    expect(mocks.supabaseService.client.from).toHaveBeenCalled();
+    expect(comp.mfaCode).toHaveLength(6);
   });
 
   it('isValidEmail returns false for empty or invalid emails and true for valid', () => {
@@ -201,8 +185,8 @@ describe('LoginComponent', () => {
     comp.email = 'u@e.com';
     // adminAuthService.sendMfaCode mocked to success
     await comp.handleSubmit(new Event('submit'));
-    expect(sessionStorage.getItem('mfa_email_sent')).toBe('true');
-    expect(sessionStorage.getItem('mfa_email')).toBe('u@e.com');
+    expect(sessionStorage.getItem('login_email_sent')).toBe('true');
+    expect(sessionStorage.getItem('login_email')).toBe('u@e.com');
     expect(comp.success).toBe(true);
     expect(comp.waitingForMfaCode).toBe(true);
   });
@@ -305,7 +289,6 @@ describe('LoginComponent', () => {
       mocks.emailNotificationService,
       mocks.userSessionService,
       mocks.themeService,
-      mocks.brandingService,
       mocks.tenantContextService,
       mocks.router,
       mocks.route,
@@ -332,7 +315,6 @@ describe('LoginComponent', () => {
       mocks.emailNotificationService,
       mocks.userSessionService,
       mocks.themeService,
-      mocks.brandingService,
       mocks.tenantContextService,
       mocks.router,
       mocks.route,
@@ -354,7 +336,6 @@ describe('LoginComponent', () => {
       mocks.emailNotificationService,
       mocks.userSessionService,
       mocks.themeService,
-      mocks.brandingService,
       mocks.tenantContextService,
       mocks.router,
       mocks.route,
@@ -377,7 +358,6 @@ describe('LoginComponent', () => {
       mocks.emailNotificationService,
       mocks.userSessionService,
       mocks.themeService,
-      mocks.brandingService,
       mocks.tenantContextService,
       mocks.router,
       mocks.route,
@@ -401,7 +381,6 @@ describe('LoginComponent', () => {
       mocks.emailNotificationService,
       mocks.userSessionService,
       mocks.themeService,
-      mocks.brandingService,
       mocks.tenantContextService,
       mocks.router,
       mocks.route,
@@ -468,24 +447,19 @@ describe('LoginComponent', () => {
     await expect(comp['checkEmailSubscriber']('x@y.com')).rejects.toThrow('blocked');
   });
 
-  it('ngOnInit calls brandingService.initialize', async () => {
-    const comp = makeComponent(mocks);
-    await comp.ngOnInit();
-    expect(mocks.brandingService.initialize).toHaveBeenCalled();
-  });
 
   it('resetForm clears session and resets state', () => {
     const comp = makeComponent(mocks);
-    sessionStorage.setItem('mfa_email_sent', 'true');
-    sessionStorage.setItem('mfa_email', 'a@b.com');
+    sessionStorage.setItem('login_email_sent', 'true');
+    sessionStorage.setItem('login_email', 'a@b.com');
     comp.success = true;
     comp.waitingForMfaCode = true;
     comp.email = 'a@b.com';
     comp.mfaCode = ['1','2'];
     comp.error = 'err';
     comp.resetForm();
-    expect(sessionStorage.getItem('mfa_email_sent')).toBeNull();
-    expect(sessionStorage.getItem('mfa_email')).toBeNull();
+    expect(sessionStorage.getItem('login_email_sent')).toBeNull();
+    expect(sessionStorage.getItem('login_email')).toBeNull();
     expect(comp.success).toBe(false);
     expect(comp.waitingForMfaCode).toBe(false);
     expect(comp.email).toBe('');
@@ -551,7 +525,6 @@ describe('LoginComponent', () => {
       sysMocks.emailNotificationService,
       sysMocks.userSessionService,
       sysMocks.themeService,
-      sysMocks.brandingService,
       sysMocks.tenantContextService,
       sysMocks.router,
       sysMocks.route,
@@ -561,33 +534,9 @@ describe('LoginComponent', () => {
     expect((comp as any).isDarkMode).toBe(true);
   });
 
-  it('fetchCodeLength sets default on error or missing data', async () => {
-    const badMocks = makeMocks();
-    badMocks.supabaseService.client.from = vi.fn(() => ({ select: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: null, error: null }) ) })) })) }));
-    const comp = makeComponentWithMocks(
-      badMocks.adminAuthService,
-      badMocks.supabaseService,
-      badMocks.emailNotificationService,
-      badMocks.userSessionService,
-      badMocks.themeService,
-      badMocks.brandingService,
-      badMocks.tenantContextService,
-      badMocks.router,
-      badMocks.route,
-      badMocks.cdr
-    );
-    await (comp as any).fetchCodeLength();
-    expect(comp.codeLength).toBe(4);
-    // now throw
-    badMocks.supabaseService.client.from = () => ({
-      select: () => ({
-        eq: () => ({
-          maybeSingle: async () => { throw new Error('db'); }
-        })
-      })
-    }) as any;
-    await (comp as any).fetchCodeLength();
-    expect(comp.codeLength).toBe(4);
+  it('uses fixed 6-digit login code length', () => {
+    const comp = makeComponent(mocks);
+    expect(comp.codeLength).toBe(6);
   });
 
   it('saveNewSubscriber handles email notification failure but still shows pending approval', async () => {
@@ -603,7 +552,6 @@ describe('LoginComponent', () => {
       compMocks.emailNotificationService,
       compMocks.userSessionService,
       compMocks.themeService,
-      compMocks.brandingService,
       compMocks.tenantContextService,
       compMocks.router,
       compMocks.route,
@@ -630,7 +578,6 @@ describe('LoginComponent', () => {
       compMocks.emailNotificationService,
       compMocks.userSessionService,
       compMocks.themeService,
-      compMocks.brandingService,
       compMocks.tenantContextService,
       compMocks.router,
       compMocks.route,
@@ -668,7 +615,6 @@ describe('LoginComponent', () => {
       queryMocks.emailNotificationService,
       queryMocks.userSessionService,
       queryMocks.themeService,
-      queryMocks.brandingService,
       queryMocks.tenantContextService,
       queryMocks.router,
       queryMocks.route,
@@ -692,7 +638,6 @@ describe('LoginComponent', () => {
       queryMocks.emailNotificationService,
       queryMocks.userSessionService,
       queryMocks.themeService,
-      queryMocks.brandingService,
       queryMocks.tenantContextService,
       queryMocks.router,
       queryMocks.route,
@@ -716,7 +661,6 @@ describe('LoginComponent', () => {
       queryMocks.emailNotificationService,
       queryMocks.userSessionService,
       queryMocks.themeService,
-      queryMocks.brandingService,
       queryMocks.tenantContextService,
       queryMocks.router,
       queryMocks.route,
@@ -738,7 +682,6 @@ describe('LoginComponent', () => {
       queryMocks.emailNotificationService,
       queryMocks.userSessionService,
       queryMocks.themeService,
-      queryMocks.brandingService,
       queryMocks.tenantContextService,
       queryMocks.router,
       queryMocks.route,
@@ -752,9 +695,9 @@ describe('LoginComponent', () => {
     expect(comp.requireSiteLogin).toBe(true);
   });
 
-  it('ngOnInit saves mfa_email_sent and mfa_email to sessionStorage when set', async () => {
-    sessionStorage.setItem('mfa_email_sent', 'true');
-    sessionStorage.setItem('mfa_email', 'session@example.com');
+  it('ngOnInit restores login_email_sent and login_email from sessionStorage when set', async () => {
+    sessionStorage.setItem('login_email_sent', 'true');
+    sessionStorage.setItem('login_email', 'session@example.com');
     const queryMocks = makeMocks();
     queryMocks.route.queryParams = { subscribe: (cb: any) => cb({}) };
     const comp = makeComponentWithMocks(
@@ -763,7 +706,6 @@ describe('LoginComponent', () => {
       queryMocks.emailNotificationService,
       queryMocks.userSessionService,
       queryMocks.themeService,
-      queryMocks.brandingService,
       queryMocks.tenantContextService,
       queryMocks.router,
       queryMocks.route,
@@ -788,7 +730,6 @@ describe('LoginComponent', () => {
       authMocks.emailNotificationService,
       authMocks.userSessionService,
       authMocks.themeService,
-      authMocks.brandingService,
       authMocks.tenantContextService,
       authMocks.router,
       authMocks.route,
@@ -819,31 +760,21 @@ describe('LoginComponent', () => {
       themeMocks.emailNotificationService,
       themeMocks.userSessionService,
       themeMocks.themeService,
-      themeMocks.brandingService,
       themeMocks.tenantContextService,
       themeMocks.router,
       themeMocks.route,
       themeMocks.cdr
     );
     comp.codeInputs = { toArray: () => [] } as any;
-    comp.useLogo = true;
-    // Clear any cached logos from previous tests
-    localStorage.removeItem('branding_dark_logo');
-    localStorage.removeItem('branding_light_logo');
-    localStorage.setItem('branding_light_logo', 'LIGHT_URL');
-    localStorage.setItem('branding_dark_logo', 'DARK_URL');
-    
+
     await comp.ngOnInit();
-    
-    // Simulate document class change to dark
+
     document.documentElement.classList.add('dark');
-    // Test the update logic works
     (comp as any).isDarkMode = true;
-    expect(comp.useLogo).toBe(true);
-    
-    // Test light mode
+    expect((comp as any).isDarkMode).toBe(true);
+
     (comp as any).isDarkMode = false;
-    expect(comp.useLogo).toBe(true);
+    expect((comp as any).isDarkMode).toBe(false);
   });
 
   it('watchThemeChanges responds to ThemeService theme$ observable changes', async () => {
@@ -857,25 +788,20 @@ describe('LoginComponent', () => {
       themeMocks.emailNotificationService,
       themeMocks.userSessionService,
       themeMocks.themeService,
-      themeMocks.brandingService,
       themeMocks.tenantContextService,
       themeMocks.router,
       themeMocks.route,
       themeMocks.cdr
     );
     comp.codeInputs = { toArray: () => [] } as any;
-    comp.useLogo = true;
-    localStorage.setItem('branding_light_logo', 'L');
-    localStorage.setItem('branding_dark_logo', 'D');
-    
+
     await comp.ngOnInit();
-    
-    // Simulate theme change
+
     (comp as any).isDarkMode = true;
-    expect(comp.useLogo).toBe(true);
-    
+    expect((comp as any).isDarkMode).toBe(true);
+
     (comp as any).isDarkMode = false;
-    expect(comp.useLogo).toBe(true);
+    expect((comp as any).isDarkMode).toBe(false);
   });
 
   it('watchThemeChanges responds to ThemeService theme$ observable changes (observable variant)', async () => {
@@ -889,18 +815,15 @@ describe('LoginComponent', () => {
       themeMocks.emailNotificationService,
       themeMocks.userSessionService,
       themeMocks.themeService,
-      themeMocks.brandingService,
       themeMocks.tenantContextService,
       themeMocks.router,
       themeMocks.route,
       themeMocks.cdr
     );
     comp.codeInputs = { toArray: () => [] } as any;
-    comp.useLogo = true;
-    
+
     await comp.ngOnInit();
-    
-    // Emit dark theme from service
+
     (themeMocks.themeService.theme$ as BehaviorSubject<string>).next('dark');
     expect((comp as any).isDarkMode).toBe(true);
   });
@@ -1059,8 +982,8 @@ describe('LoginComponent', () => {
   it('verifyMfaCode clears sessionStorage after successful verification', async () => {
     mocks.adminAuthService.verifyMfaCode = vi.fn(async () => ({ success: true, isAdmin: false }));
     mocks.supabaseService.directQuery = vi.fn(async () => ({ data: [{ id: 'sub' }], error: null }));
-    sessionStorage.setItem('mfa_email_sent', 'true');
-    sessionStorage.setItem('mfa_email', 'test@x.com');
+    sessionStorage.setItem('login_email_sent', 'true');
+    sessionStorage.setItem('login_email', 'test@x.com');
     
     const comp = makeComponent(mocks);
     comp.email = 'test@x.com';
@@ -1071,8 +994,8 @@ describe('LoginComponent', () => {
     
     await (comp as any).verifyMfaCode();
     
-    expect(sessionStorage.getItem('mfa_email_sent')).toBeNull();
-    expect(sessionStorage.getItem('mfa_email')).toBeNull();
+    expect(sessionStorage.getItem('login_email_sent')).toBeNull();
+    expect(sessionStorage.getItem('login_email')).toBeNull();
   });
 
   it('handleSubmit clears timeout when sendMfaCode succeeds before timeout', async () => {
@@ -1113,17 +1036,13 @@ describe('LoginComponent', () => {
       themeMocks.emailNotificationService,
       themeMocks.userSessionService,
       themeMocks.themeService,
-      themeMocks.brandingService,
       themeMocks.tenantContextService,
       themeMocks.router,
       themeMocks.route,
       themeMocks.cdr
     );
     comp.codeInputs = { toArray: () => [] } as any;
-    comp.useLogo = true;
-    localStorage.setItem('branding_light_logo', 'SYS_LIGHT');
-    localStorage.setItem('branding_dark_logo', 'SYS_DARK');
-    
+
     await comp.ngOnInit();
     
     // Verify mediaQuery listener was added
@@ -1151,7 +1070,6 @@ describe('LoginComponent', () => {
       compMocks.emailNotificationService,
       compMocks.userSessionService,
       compMocks.themeService,
-      compMocks.brandingService,
       compMocks.tenantContextService,
       compMocks.router,
       compMocks.route,

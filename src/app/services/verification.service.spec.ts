@@ -7,8 +7,13 @@ import { describeFunctionInvokeFailure } from '../utils/supabase-function-invoke
 describe('VerificationService', () => {
   let service: VerificationService;
   let supabaseService: SupabaseService;
+  let mockTenantContext: { getActiveTenant: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
+    mockTenantContext = {
+      getActiveTenant: vi.fn(() => ({ id: 'tenant-1' })),
+    };
+
     // Mock SupabaseService
     supabaseService = {
       client: {
@@ -18,7 +23,7 @@ describe('VerificationService', () => {
     } as any;
 
     // Create service with mocked dependency
-    service = new VerificationService(supabaseService);
+    service = new VerificationService(supabaseService, mockTenantContext as any);
   });
 
   afterEach(() => {
@@ -47,7 +52,7 @@ describe('VerificationService', () => {
         }
       } as any;
 
-      const testService = new VerificationService(mockSupabase);
+      const testService = new VerificationService(mockSupabase, mockTenantContext as any);
 
       // Fast-forward time
       vi.advanceTimersByTime(100);
@@ -363,7 +368,7 @@ describe('VerificationService', () => {
         body: {
           email: 'test@example.com',
           actionType: 'prayer_submission',
-          actionData: { title: 'Test' }
+          actionData: { title: 'Test', tenant_id: 'tenant-1' }
         }
       });
       expect(result).toEqual({ codeId: 'code123', expiresAt: '2024-12-31T23:59:59Z' });

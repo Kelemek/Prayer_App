@@ -12,6 +12,8 @@ describe('AdminComponent', () => {
   let userSessionService: any;
   let tenantContextService: any;
   let router: any;
+  let githubFeedbackService: any;
+  let toastService: any;
   let ngZone: any;
   let cdr: any;
 
@@ -60,6 +62,9 @@ describe('AdminComponent', () => {
         plan_status: 'active'
       })),
       getIsSuperAdmin: vi.fn(() => false),
+      getTenantSwitcherOptions: vi.fn(() => []),
+      getMemberTenants: vi.fn(() => []),
+      switchTenant: vi.fn().mockResolvedValue(true),
       isSuperAdmin$: new BehaviorSubject<boolean>(false),
       activeTenant$: new BehaviorSubject<unknown>({
         id: MOCK_TENANT_ID,
@@ -81,6 +86,10 @@ describe('AdminComponent', () => {
     };
 
     router = { navigate: vi.fn() };
+    githubFeedbackService = {
+      getGitHubConfig: vi.fn().mockResolvedValue({ enabled: false })
+    };
+    toastService = { error: vi.fn(), success: vi.fn() };
     ngZone = { run: (fn: () => void) => fn() };
     cdr = { markForCheck: vi.fn() };
 
@@ -91,9 +100,83 @@ describe('AdminComponent', () => {
       adminAuthService,
       userSessionService,
       tenantContextService,
+      githubFeedbackService,
+      toastService,
       ngZone,
       cdr
     );
+  });
+
+  it('shows tenant switcher for super admin with multiple tenants', () => {
+    tenantContextService.getTenantSwitcherOptions.mockReturnValue([
+      { id: 'tenant-a', name: 'Alpha Church', slug: 'alpha', plan_tier: 'churches', plan_status: 'active' },
+      { id: 'tenant-b', name: 'Beta Church', slug: 'beta', plan_tier: 'churches', plan_status: 'active' }
+    ]);
+    tenantContextService.getActiveTenant.mockReturnValue({
+      id: 'tenant-a',
+      name: 'Alpha Church',
+      plan_tier: 'churches',
+      plan_status: 'active'
+    });
+    component.tenantContextLoading = false;
+
+    expect(component.showTenantSwitcher).toBe(true);
+    expect(component.tenantSwitchOptions).toHaveLength(2);
+  });
+
+  it('shows tenant switcher for multi-tenant members', () => {
+    tenantContextService.getTenantSwitcherOptions.mockReturnValue([
+      { id: 'tenant-a', name: 'Alpha Church', slug: 'alpha', plan_tier: 'churches', plan_status: 'active' },
+      { id: 'tenant-b', name: 'Beta Church', slug: 'beta', plan_tier: 'churches', plan_status: 'active' }
+    ]);
+    tenantContextService.getActiveTenant.mockReturnValue({
+      id: 'tenant-a',
+      name: 'Alpha Church',
+      plan_tier: 'churches',
+      plan_status: 'active'
+    });
+    component.tenantContextLoading = false;
+
+    expect(component.showTenantSwitcher).toBe(true);
+    expect(component.tenantSwitchOptions).toHaveLength(2);
+  });
+
+  it('hides tenant switcher when user has only one tenant', () => {
+    tenantContextService.getTenantSwitcherOptions.mockReturnValue([
+      { id: 'tenant-a', name: 'Alpha Church', slug: 'alpha', plan_tier: 'churches', plan_status: 'active' }
+    ]);
+    tenantContextService.getActiveTenant.mockReturnValue({
+      id: 'tenant-a',
+      name: 'Alpha Church',
+      plan_tier: 'churches',
+      plan_status: 'active'
+    });
+    component.tenantContextLoading = false;
+
+    expect(component.showTenantSwitcher).toBe(false);
+  });
+
+  it('onTenantSelect switches tenant for super admin', async () => {
+    tenantContextService.getActiveTenant.mockReturnValue({
+      id: 'tenant-a',
+      name: 'Alpha Church',
+      plan_tier: 'churches',
+      plan_status: 'active'
+    });
+
+    await component.onTenantSelect('tenant-b');
+
+    expect(tenantContextService.switchTenant).toHaveBeenCalledWith('tenant-b');
+    expect(toastService.error).not.toHaveBeenCalled();
+    expect(cdr.markForCheck).toHaveBeenCalled();
+  });
+
+  it('onTenantSelect shows error when switch fails', async () => {
+    tenantContextService.switchTenant.mockResolvedValue(false);
+
+    await component.onTenantSelect('tenant-b');
+
+    expect(toastService.error).toHaveBeenCalledWith('Unable to switch tenant');
   });
 
   it('subscribes and fetches admin data on init', async () => {

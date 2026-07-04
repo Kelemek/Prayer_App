@@ -1,16 +1,10 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { SupabaseService } from './supabase.service';
+import { AuthIdentityService } from './auth-identity.service';
 import type { Tenant, TenantMembership } from '../types/tenant';
 
 const ACTIVE_TENANT_STORAGE_KEY = 'active_tenant_id';
-type TenantContextRpcRow = {
-  tenant_id: string;
-  user_email: string;
-  role: TenantMembership['role'];
-  tenant: Tenant | null;
-  is_super_admin: boolean;
-};
 
 @Injectable({
   providedIn: 'root'
@@ -28,8 +22,12 @@ export class TenantContextService {
   public isSuperAdmin$ = this.isSuperAdminSubject.asObservable();
   public loading$ = this.loadingSubject.asObservable();
 
+  /** @deprecated Use memberships$ — kept for template compatibility during transition */
+  public subscriberTenants$ = this.availableTenants$;
+
   constructor(
-    private supabase: SupabaseService
+    private supabase: SupabaseService,
+    private authIdentity: AuthIdentityService
   ) {
     this.initializeAuthStateSync().catch((error) => {
       console.error('[TenantContext] Failed to initialize auth sync:', error);
@@ -49,6 +47,26 @@ export class TenantContextService {
     return this.availableTenantsSubject.value;
   }
 
+  getMemberTenants(): Tenant[] {
+    return this.normalizeTenants(this.extractTenantsFromMemberships(this.membershipsSubject.value));
+  }
+
+  /** @deprecated Subscribers merged into tenant_memberships */
+  getSubscriberTenants(): Tenant[] {
+    return this.getMemberTenants();
+  }
+
+  getAccessibleTenants(): Tenant[] {
+    return this.getMemberTenants();
+  }
+
+  getTenantSwitcherOptions(): Tenant[] {
+    const tenants = this.getIsSuperAdmin()
+      ? this.getAvailableTenants()
+      : this.getAccessibleTenants();
+    return this.normalizeTenants(tenants);
+  }
+
   getIsSuperAdmin(): boolean {
     return this.isSuperAdminSubject.value;
   }
@@ -63,7 +81,10 @@ export class TenantContextService {
   }
 
   async switchTenant(tenantId: string): Promise<boolean> {
-    const tenant = this.availableTenantsSubject.value.find((item) => item.id === tenantId) || null;
+    const allowedTenants = this.getIsSuperAdmin()
+      ? this.availableTenantsSubject.value
+      : this.getAccessibleTenants();
+    const tenant = allowedTenants.find((item) => item.id === tenantId) || null;
     if (!tenant) {
       return false;
     }
@@ -75,10 +96,7 @@ export class TenantContextService {
 
   async refresh(): Promise<void> {
     this.loadingSubject.next(true);
-    const { data: { session } } = await this.supabase.client.auth.getSession();
-    const hasSupabaseSessionUser = !!session?.user?.email;
-    const hasMfaEmail = !!localStorage.getItem('mfa_authenticated_email');
-    const userEmail = await this.getUserEmail();
+    const userEmail = await this.authIdentity.getEmail();
 
     if (!userEmail) {
       this.membershipsSubject.next([]);
@@ -90,43 +108,6 @@ export class TenantContextService {
     }
 
     const lowerEmail = userEmail.toLowerCase().trim();
-
-    if (!hasSupabaseSessionUser && hasMfaEmail) {
-      const { data: contextRows, error: contextError } = await this.supabase.client.rpc('get_tenant_context_by_email', {
-        p_email: lowerEmail
-      });
-
-      if (contextError) {
-        console.error('[TenantContext] MFA context lookup failed:', contextError);
-        this.membershipsSubject.next([]);
-        this.activeTenantSubject.next(null);
-        this.isSuperAdminSubject.next(false);
-        this.loadingSubject.next(false);
-        return;
-      }
-
-      const rows = (contextRows || []) as TenantContextRpcRow[];
-      const memberships = rows
-        .filter((row) => !!row.tenant_id && !!row.role && !!row.tenant)
-        .map((row) => ({
-          tenant_id: row.tenant_id,
-          user_email: row.user_email,
-          role: row.role,
-          tenants: row.tenant
-        } as TenantMembership));
-      const normalizedMemberships = this.normalizeMemberships(memberships);
-      const isSuperAdmin = rows.some((row) => row.is_super_admin);
-      const allTenants = isSuperAdmin
-        ? await this.getAllTenantsForSuperAdmin(lowerEmail, false)
-        : this.extractTenantsFromMemberships(normalizedMemberships);
-
-      this.membershipsSubject.next(normalizedMemberships);
-      this.availableTenantsSubject.next(this.normalizeTenants(allTenants));
-      this.isSuperAdminSubject.next(isSuperAdmin);
-      this.restoreOrAutoSelectActiveTenant();
-      this.loadingSubject.next(false);
-      return;
-    }
 
     const [{ data: memberships, error: membershipsError }, { data: superRole, error: roleError }] = await Promise.all([
       this.supabase.client
@@ -144,7 +125,6 @@ export class TenantContextService {
     let normalizedMemberships: TenantMembership[] = [];
     if (membershipsError) {
       console.error('[TenantContext] Failed to load memberships:', membershipsError);
-
       this.membershipsSubject.next([]);
     } else {
       normalizedMemberships = this.normalizeMemberships((memberships || []) as TenantMembership[]);
@@ -160,9 +140,10 @@ export class TenantContextService {
       this.isSuperAdminSubject.next(isSuperAdmin);
     }
 
+    const memberTenants = this.extractTenantsFromMemberships(normalizedMemberships);
     const allTenants = isSuperAdmin
       ? await this.getAllTenantsForSuperAdmin(lowerEmail, true)
-      : this.extractTenantsFromMemberships(normalizedMemberships);
+      : memberTenants;
     this.availableTenantsSubject.next(this.normalizeTenants(allTenants));
     this.restoreOrAutoSelectActiveTenant();
 
@@ -252,25 +233,12 @@ export class TenantContextService {
     return this.normalizeTenants((tenantRows || []) as Tenant[]);
   }
 
-  private async getUserEmail(): Promise<string | null> {
-    try {
-      const { data: { session } } = await this.supabase.client.auth.getSession();
-      if (session?.user?.email) {
-        return session.user.email;
-      }
-    } catch (error) {
-      console.warn('[TenantContext] Failed to read auth session:', error);
-    }
-
-    return localStorage.getItem('mfa_authenticated_email');
-  }
-
   private async initializeAuthStateSync(): Promise<void> {
     const { data: { session } } = await this.supabase.client.auth.getSession();
-    this.handleAuthState(!!session?.user || !!localStorage.getItem('mfa_authenticated_email'));
+    this.handleAuthState(!!session?.user);
 
     this.supabase.client.auth.onAuthStateChange((_event, authSession) => {
-      this.handleAuthState(!!authSession?.user || !!localStorage.getItem('mfa_authenticated_email'));
+      this.handleAuthState(!!authSession?.user);
     });
   }
 

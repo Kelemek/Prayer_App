@@ -52,7 +52,7 @@ import type {
               [(ngModel)]="newTenantName"
               type="text"
               placeholder="My church"
-              class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+              class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div>
@@ -64,7 +64,7 @@ import type {
               [(ngModel)]="newTenantSlug"
               type="text"
               placeholder="my-church"
-              class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+              class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div class="md:col-span-2">
@@ -74,7 +74,7 @@ import type {
             >
             <select
               [(ngModel)]="newTenantPlanTier"
-              class="w-full md:max-w-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+              class="w-full md:max-w-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="free">free</option>
               <option value="groups">groups</option>
@@ -107,7 +107,7 @@ import type {
           [(ngModel)]="tenantSearch"
           type="text"
           placeholder="Search by name or slug"
-          class="w-full mb-3 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+          class="w-full mb-3 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         }
         <ul
@@ -181,7 +181,7 @@ import type {
           <div class="flex gap-2">
             <select
               [(ngModel)]="planTier"
-              class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+              class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="free">free</option>
               <option value="groups">groups</option>
@@ -189,7 +189,7 @@ import type {
             </select>
             <select
               [(ngModel)]="planStatus"
-              class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+              class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="active">active</option>
               <option value="trialing">trialing</option>
@@ -217,7 +217,7 @@ import type {
             [(ngModel)]="inviteEmail"
             type="email"
             placeholder="member@example.com"
-            class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+            class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             (click)="createInvite()"
@@ -286,7 +286,7 @@ import type {
           [(ngModel)]="superAdminSearch"
           type="text"
           placeholder="Filter by email"
-          class="w-full mb-3 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+          class="w-full mb-3 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         }
         <div
@@ -347,7 +347,7 @@ import type {
               [(ngModel)]="superAdminEmail"
               type="email"
               placeholder="admin@example.com"
-              class="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+              class="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
               type="button"
@@ -370,7 +370,7 @@ import type {
               [(ngModel)]="superAdminRevokeEmail"
               type="email"
               placeholder="user@example.com"
-              class="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+              class="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
               type="button"

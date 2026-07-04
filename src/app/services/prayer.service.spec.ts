@@ -9,6 +9,8 @@ const PRAYER_SPEC_PERSONAL_CACHE_KEY = `personalTenant_${PRAYER_SPEC_TEST_TENANT
 function createPrayerSpecTenantContext() {
   return {
     getActiveTenant: vi.fn(() => PRAYER_SPEC_TEST_TENANT),
+    getIsSuperAdmin: vi.fn(() => false),
+    getIsImpersonatingTenant: vi.fn(() => false),
     activeTenant$: new BehaviorSubject(PRAYER_SPEC_TEST_TENANT)
   };
 }
@@ -369,6 +371,112 @@ describe('PrayerService', () => {
     expect(all.length).toBe(2);
     expect(all[0].id).toBe('p2');
     expect(applySpy).toHaveBeenCalled();
+  });
+
+  it('loadPrayers uses super-admin tenant RPC when impersonating a tenant', async () => {
+    tenantContext.getIsSuperAdmin.mockReturnValue(true);
+    tenantContext.getIsImpersonatingTenant.mockReturnValue(true);
+    vi.spyOn(service as any, 'getUserEmail').mockResolvedValue('admin@example.com');
+
+    const now = new Date().toISOString();
+    const prayersData = [
+      {
+        id: 'p-tenant',
+        title: 'Tenant Prayer',
+        description: 'D',
+        status: 'current',
+        requester: 'A',
+        prayer_for: 'X',
+        email: null,
+        is_anonymous: false,
+        type: 'prayer',
+        date_requested: now,
+        date_answered: null,
+        created_at: now,
+        updated_at: now
+      }
+    ];
+
+    supabase.client.rpc.mockImplementation((fn: string) => {
+      if (fn === 'list_approved_prayers_for_super_admin') {
+        return Promise.resolve({ data: prayersData, error: null });
+      }
+      if (fn === 'list_approved_prayer_updates_for_super_admin') {
+        return Promise.resolve({ data: [], error: null });
+      }
+      return Promise.resolve({ data: null, error: null });
+    });
+
+    await service.loadPrayers(false);
+
+    expect(supabase.client.rpc).toHaveBeenCalledWith('list_approved_prayers_for_super_admin', {
+      p_actor_email: 'admin@example.com',
+      p_tenant_id: PRAYER_SPEC_TEST_TENANT.id
+    });
+    expect(cache.set).toHaveBeenCalledWith(
+      PRAYER_SPEC_SHARED_CACHE_KEY,
+      expect.any(Array),
+      expect.any(Number)
+    );
+    expect((service as any).allPrayersSubject.value).toHaveLength(1);
+    expect((service as any).allPrayersSubject.value[0].id).toBe('p-tenant');
+  });
+
+  it('loadPrayers uses tenant-scoped table query when super admin is not impersonating', async () => {
+    tenantContext.getIsSuperAdmin.mockReturnValue(true);
+    tenantContext.getIsImpersonatingTenant.mockReturnValue(false);
+
+    const now = new Date().toISOString();
+    const prayersData = [
+      {
+        id: 'p-member',
+        title: 'Member Tenant Prayer',
+        description: 'D',
+        status: 'current',
+        requester: 'A',
+        prayer_for: 'X',
+        email: null,
+        is_anonymous: false,
+        type: 'prayer',
+        date_requested: now,
+        date_answered: null,
+        created_at: now,
+        updated_at: now
+      }
+    ];
+
+    supabase.client.from.mockImplementation((table: string) => {
+      if (table === 'prayers') {
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => ({
+                eq: () => Promise.resolve({ data: prayersData, error: null })
+              })
+            })
+          })
+        };
+      }
+      return {
+        select: () => ({
+          in: () => ({
+            eq: () => ({
+              order: () => ({
+                eq: () => Promise.resolve({ data: [], error: null })
+              })
+            })
+          })
+        })
+      };
+    });
+
+    await service.loadPrayers(false);
+
+    expect(supabase.client.rpc).not.toHaveBeenCalledWith(
+      'list_approved_prayers_for_super_admin',
+      expect.anything()
+    );
+    expect((service as any).allPrayersSubject.value[0].id).toBe('p-member');
   });
 
   it('requestUpdateDeletion continues when fetching update/prayer details fails (notifyErr path)', async () => {
@@ -4210,7 +4318,12 @@ describe('PrayerService - Integration Tests', () => {
   });
 
   describe('Personal Prayers Coverage', () => {
+    let loadPrayersSpy: ReturnType<typeof vi.spyOn>;
+    let loadPersonalPrayersSpy: ReturnType<typeof vi.spyOn>;
+
     beforeEach(() => {
+      loadPrayersSpy = vi.spyOn(PrayerService.prototype as any, 'loadPrayers').mockResolvedValue(undefined);
+      loadPersonalPrayersSpy = vi.spyOn(PrayerService.prototype as any, 'loadPersonalPrayers').mockResolvedValue(undefined);
       service = new PrayerService(
         mockSupabaseService,
         mockToastService,
@@ -4221,6 +4334,11 @@ describe('PrayerService - Integration Tests', () => {
       userSessionService,
       mockTenantContext
     );
+    });
+
+    afterEach(() => {
+      loadPrayersSpy.mockRestore();
+      loadPersonalPrayersSpy.mockRestore();
     });
 
     it('addPersonalPrayerUpdate inserts and updates observables on success', async () => {
@@ -5593,34 +5711,7 @@ describe('PrayerService - Integration Tests', () => {
         expect(result).toBe(mockEmail);
       });
 
-      it('should fallback to localStorage for MFA users', async () => {
-        mockSupabaseService.client.auth = {
-          getSession: vi.fn().mockResolvedValue({
-            data: { session: null }
-          })
-        };
-
-        const mfaEmail = 'mfa@example.com';
-        localStorage.setItem('mfa_authenticated_email', mfaEmail);
-
-        service = new PrayerService(
-          mockSupabaseService,
-          mockToastService,
-          mockEmailNotificationService,
-          mockVerificationService,
-          mockCacheService,
-          mockBadgeService,
-      userSessionService,
-      mockTenantContext
-    );
-
-        const result = await (service as any).getUserEmail();
-        expect(result).toBe(mfaEmail);
-        
-        localStorage.removeItem('mfa_authenticated_email');
-      });
-
-      it('should return null when no email available', async () => {
+      it('should return null when session has no user email', async () => {
         mockSupabaseService.client.auth = {
           getSession: vi.fn().mockResolvedValue({
             data: { session: null }
@@ -6075,10 +6166,14 @@ describe('PrayerService - Integration Tests', () => {
         (service as any).allPersonalPrayersSubject.next(prayers);
         mockCacheService.get.mockReturnValue(prayers);
 
+        const updateChain: any = {
+          eq: vi.fn(() => updateChain)
+        };
+        updateChain.then = (onFulfilled: any, onRejected?: any) =>
+          Promise.resolve({ data: null, error: null }).then(onFulfilled, onRejected);
+
         mockSupabaseService.client.from.mockReturnValue({
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ data: null, error: null })
-          })
+          update: vi.fn(() => updateChain)
         });
 
         const result = await service.swapCategoryRanges('A', 'B');

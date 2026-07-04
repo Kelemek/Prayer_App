@@ -7,7 +7,7 @@ import {
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { DomSanitizer, SafeHtml } from "@angular/platform-browser";
-import { Subject, takeUntil } from "rxjs";
+import { Subject, distinctUntilChanged, takeUntil } from "rxjs";
 import { SupabaseService } from "../../services/supabase.service";
 import { ToastService } from "../../services/toast.service";
 import { TenantContextService } from "../../services/tenant-context.service";
@@ -70,31 +70,9 @@ interface EmailTemplate {
             Select an organization above to edit email templates for that tenant.
           </p>
         } @else {
-          <div class="flex justify-end mb-4">
-            <button
-              (click)="loadTemplates()"
-              class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors cursor-pointer"
-              title="Refresh templates"
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="text-gray-600 dark:text-gray-400"
-              >
-                <polyline points="23 4 23 10 17 10"></polyline>
-                <polyline points="1 20 1 14 7 14"></polyline>
-                <path
-                  d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
-                ></path>
-              </svg>
-            </button>
-          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Customize the outgoing emails sent from your organization.
+          </p>
 
       <!-- Error Message (when templates load but there's an issue) -->
       @if (error && templates.length > 0) {
@@ -283,7 +261,7 @@ interface EmailTemplate {
                   <input
                     type="text"
                     [(ngModel)]="editedTemplate.name"
-                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
@@ -316,7 +294,7 @@ interface EmailTemplate {
                   <input
                     type="text"
                     [(ngModel)]="editedTemplate.subject"
-                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Subject with {{ '{{' }}variables{{'}}'}}"
                   />
                 </div>
@@ -332,7 +310,7 @@ interface EmailTemplate {
                   </p>
                   <textarea
                     [(ngModel)]="editedTemplate.html_body"
-                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-xs"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                     rows="8"
                     placeholder="HTML content with {{ '{{' }}variables{{'}}'}}"
                   ></textarea>
@@ -349,7 +327,7 @@ interface EmailTemplate {
                   </p>
                   <textarea
                     [(ngModel)]="editedTemplate.text_body"
-                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-xs"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                     rows="6"
                     placeholder="Plain text content with {{
                       '{{'
@@ -369,7 +347,7 @@ interface EmailTemplate {
                   <input
                     type="text"
                     [(ngModel)]="editedTemplate.description"
-                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Template description"
                   />
                 </div>
@@ -505,6 +483,7 @@ export class EmailTemplatesManagerComponent implements OnInit, OnDestroy {
 
   sectionExpanded = false;
   private sectionInitialLoadDone = false;
+  private templatesLoadedForTenantId: string | null = null;
   isLoading = false;
 
   get activeTenantId(): string | null {
@@ -530,10 +509,14 @@ export class EmailTemplatesManagerComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.tenantContext.activeTenant$
-      .pipe(takeUntil(this.destroy$))
+      .pipe(
+        distinctUntilChanged((a, b) => a?.id === b?.id),
+        takeUntil(this.destroy$)
+      )
       .subscribe(() => {
         if (!this.activeTenantId) {
           this.resetTemplateState();
+          this.templatesLoadedForTenantId = null;
         } else if (this.sectionExpanded) {
           void this.loadTemplates();
         }
@@ -548,11 +531,24 @@ export class EmailTemplatesManagerComponent implements OnInit, OnDestroy {
 
   onExpandedChange(expanded: boolean): void {
     this.sectionExpanded = expanded;
-    if (this.sectionExpanded && !this.sectionInitialLoadDone) {
-      this.sectionInitialLoadDone = true;
-      void this.loadTemplates();
+    const tenantId = this.activeTenantId;
+    if (this.sectionExpanded && tenantId) {
+      const shouldLoad =
+        !this.sectionInitialLoadDone ||
+        this.templatesLoadedForTenantId !== tenantId;
+      if (shouldLoad) {
+        this.sectionInitialLoadDone = true;
+        void this.loadTemplates();
+      }
     }
     this.cdr.markForCheck();
+  }
+
+  private async getCallerEmail(): Promise<string | null> {
+    const {
+      data: { session },
+    } = await this.supabase.client.auth.getSession();
+    return session?.user?.email?.toLowerCase().trim() || null;
   }
 
   private resetTemplateState(): void {
@@ -579,6 +575,20 @@ export class EmailTemplatesManagerComponent implements OnInit, OnDestroy {
     this.error = null;
     this.cdr.markForCheck();
     try {
+      const callerEmail = await this.getCallerEmail();
+      if (!callerEmail) {
+        throw new Error("Not authenticated");
+      }
+
+      const { error: ensureError } = await this.supabase.client.rpc(
+        "ensure_tenant_email_templates",
+        {
+          p_tenant_id: tenantId,
+          p_email: callerEmail,
+        }
+      );
+      if (ensureError) throw ensureError;
+
       const { data, error } = await this.supabase.client
         .from("email_templates")
         .select("*")
@@ -588,8 +598,10 @@ export class EmailTemplatesManagerComponent implements OnInit, OnDestroy {
       if (error) throw error;
 
       this.templates = data || [];
+      this.templatesLoadedForTenantId = tenantId;
       if (this.templates.length === 0) {
-        this.error = "No templates found. Please run the database migration.";
+        this.error =
+          "No templates found for this organization. Ensure database migrations are applied.";
       }
       // Don't auto-select a template - let user choose one
       this.selectedTemplate = null;

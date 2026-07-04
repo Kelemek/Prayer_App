@@ -336,10 +336,6 @@ export class AppBrandingComponent implements OnInit, OnDestroy {
   }
 
   private async getCallerEmail(): Promise<string | null> {
-    const mfaEmail = localStorage.getItem('mfa_authenticated_email')?.toLowerCase().trim();
-    if (mfaEmail) {
-      return mfaEmail;
-    }
     const { data: { session } } = await this.supabase.client.auth.getSession();
     return session?.user?.email?.toLowerCase().trim() || null;
   }

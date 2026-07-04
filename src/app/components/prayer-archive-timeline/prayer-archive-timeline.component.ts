@@ -1,8 +1,9 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, distinctUntilChanged, takeUntil } from 'rxjs';
 import { PrayerService, PrayerRequest } from '../../services/prayer.service';
 import { SupabaseService } from '../../services/supabase.service';
+import { TenantContextService } from '../../services/tenant-context.service';
 import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
 import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
 
@@ -54,6 +55,11 @@ interface TimelineDay {
       @if (isLoading) {
         <app-admin-section-loading message="Loading prayer timeline…" />
       } @else {
+        @if (!activeTenantId) {
+        <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
+          Select an organization above to view the prayer timeline for that tenant.
+        </p>
+        } @else {
         <div class="flex items-center justify-end mb-6">
           <button
             (click)="refreshData()"
@@ -320,6 +326,7 @@ interface TimelineDay {
           </div>
         </div>
       </div>
+        }
       }
     </app-admin-collapsible-section>
   `,
@@ -354,11 +361,12 @@ export class PrayerArchiveTimelineComponent implements OnInit, OnDestroy {
   sectionExpanded = false;
   private sectionInitialLoadDone = false;
   private prayersSubscriptionSetup = false;
+  private settingsLoadedForTenantId: string | null = null;
 
   isLoading = false;
   isRefreshing = false;
-  reminderIntervalDays = 30;
-  daysBeforeArchive = 30;
+  reminderIntervalDays = 7;
+  daysBeforeArchive = 7;
   private readonly reminderJobHourUtc = 10;
   private readonly reminderJobMinuteUtc = 0;
 
@@ -377,7 +385,8 @@ export class PrayerArchiveTimelineComponent implements OnInit, OnDestroy {
   constructor(
     private prayerService: PrayerService,
     private supabase: SupabaseService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private tenantContext: TenantContextService
   ) {
     // Detect user's timezone
     this.userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -415,8 +424,26 @@ export class PrayerArchiveTimelineComponent implements OnInit, OnDestroy {
     return currentYear < maxYear || (currentYear === maxYear && currentMonth < maxMonthValue);
   }
 
+  get activeTenantId(): string | null {
+    return this.tenantContext.getActiveTenant()?.id ?? null;
+  }
+
   ngOnInit(): void {
-    // Lazy-loaded on first expand via onExpandedChange
+    this.tenantContext.activeTenant$
+      .pipe(
+        distinctUntilChanged((a, b) => a?.id === b?.id),
+        takeUntil(this.destroy$)
+      )
+      .subscribe(() => {
+        if (!this.activeTenantId) {
+          this.timelineEvents = [];
+          this.allEvents = [];
+          this.settingsLoadedForTenantId = null;
+        } else if (this.sectionExpanded) {
+          void this.loadSectionData();
+        }
+        this.cdr.markForCheck();
+      });
   }
 
   ngOnDestroy(): void {
@@ -426,11 +453,24 @@ export class PrayerArchiveTimelineComponent implements OnInit, OnDestroy {
 
   onExpandedChange(expanded: boolean): void {
     this.sectionExpanded = expanded;
-    if (this.sectionExpanded && !this.sectionInitialLoadDone) {
-      this.sectionInitialLoadDone = true;
-      void this.loadSectionData();
+    const tenantId = this.activeTenantId;
+    if (this.sectionExpanded && tenantId) {
+      const shouldLoad =
+        !this.sectionInitialLoadDone ||
+        this.settingsLoadedForTenantId !== tenantId;
+      if (shouldLoad) {
+        this.sectionInitialLoadDone = true;
+        void this.loadSectionData();
+      }
     }
     this.cdr.markForCheck();
+  }
+
+  private async getCallerEmail(): Promise<string | null> {
+    const {
+      data: { session },
+    } = await this.supabase.client.auth.getSession();
+    return session?.user?.email?.toLowerCase().trim() || null;
   }
 
   private setupPrayersSubscription(): void {
@@ -463,24 +503,50 @@ export class PrayerArchiveTimelineComponent implements OnInit, OnDestroy {
   }
 
   private async loadSettings(): Promise<void> {
-    try {
-      const { data, error } = await this.supabase.client
-        .from('admin_settings')
-        .select('reminder_interval_days, days_before_archive')
-        .eq('id', 1)
-        .maybeSingle();
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      return;
+    }
 
+    try {
+      const callerEmail = await this.getCallerEmail();
+      if (!callerEmail) {
+        throw new Error('Not authenticated');
+      }
+
+      type ReminderSettingsRow = {
+        enable_reminders?: boolean | null;
+        reminder_interval_days?: number | null;
+        enable_auto_archive?: boolean | null;
+        days_before_archive?: number | null;
+      };
+
+      const { data: rows, error } = await this.supabase.client.rpc(
+        'get_tenant_reminder_settings',
+        {
+          p_tenant_id: tenantId,
+          p_email: callerEmail,
+        }
+      );
       if (error) throw error;
 
+      const data = (rows as ReminderSettingsRow[] | null)?.[0] ?? null;
       if (data) {
-        if (data.reminder_interval_days !== null && data.reminder_interval_days !== undefined) {
+        if (
+          data.reminder_interval_days !== null &&
+          data.reminder_interval_days !== undefined
+        ) {
           this.reminderIntervalDays = data.reminder_interval_days;
         }
-        if (data.days_before_archive !== null && data.days_before_archive !== undefined) {
+        if (
+          data.days_before_archive !== null &&
+          data.days_before_archive !== undefined
+        ) {
           this.daysBeforeArchive = data.days_before_archive;
         }
       }
-      
+      this.settingsLoadedForTenantId = tenantId;
+
       // Refresh timeline with updated settings
       this.filterCurrentMonth();
     } catch (err) {

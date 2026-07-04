@@ -193,7 +193,7 @@ interface EditUpdateForm {
                 name="firstName"
                 required
                 placeholder="First name"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -209,7 +209,7 @@ interface EditUpdateForm {
                 name="lastName"
                 required
                 placeholder="Last name"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -226,7 +226,7 @@ interface EditUpdateForm {
               name="email"
               required
               placeholder="email@example.com"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -242,7 +242,7 @@ interface EditUpdateForm {
               name="prayer_for"
               required
               placeholder="e.g., healing, guidance, strength"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Title will be generated as "Prayer for [praying for]"
@@ -260,7 +260,7 @@ interface EditUpdateForm {
               name="description"
               required
               rows="3"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             ></textarea>
           </div>
 
@@ -270,7 +270,7 @@ interface EditUpdateForm {
               [(ngModel)]="createForm.is_anonymous"
               name="is_anonymous"
               id="create_is_anonymous"
-              class="w-4 h-4 text-green-600 border-gray-900 dark:border-white rounded focus:ring-green-500 bg-white dark:bg-gray-800"
+              class="w-4 h-4 text-blue-600 border-gray-900 dark:border-white rounded focus:ring-blue-500 bg-white dark:bg-gray-800"
             />
             <label
               for="create_is_anonymous"
@@ -291,7 +291,7 @@ interface EditUpdateForm {
                 [(ngModel)]="createForm.status"
                 name="status"
                 required
-                class="w-full appearance-none px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500 pr-10 cursor-pointer"
+                class="w-full appearance-none px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 cursor-pointer"
               >
                 <option value="current">Current</option>
                 <option value="answered">Answered</option>
@@ -364,7 +364,7 @@ interface EditUpdateForm {
             [(ngModel)]="searchTerm"
             (keypress)="onKeyPress($event)"
             placeholder="Search by title, requester, email, description, prayer updates, or denial reasons..."
-            class="w-full px-4 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500"
+            class="w-full px-4 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           @if (searchTerm) {
           <button
@@ -513,7 +513,7 @@ interface EditUpdateForm {
                 displayPrayers.length > 0
               "
               (change)="toggleSelectAll()"
-              class="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+              class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
             />
             <span>Select All ({{ displayPrayers.length }})</span>
           </label>
@@ -663,7 +663,7 @@ interface EditUpdateForm {
               [checked]="selectedPrayers.has(prayer.id)"
               (change)="toggleSelectPrayer(prayer.id)"
               (click)="$event.stopPropagation()"
-              class="w-4 h-4 text-red-600 border-gray-800 dark:border-gray-600 rounded focus:ring-red-500 cursor-pointer"
+              class="w-4 h-4 text-blue-600 border-gray-800 dark:border-gray-600 rounded focus:ring-blue-500 cursor-pointer"
             />
 
             <div class="flex-1 flex flex-col gap-0.5 text-left min-w-0">

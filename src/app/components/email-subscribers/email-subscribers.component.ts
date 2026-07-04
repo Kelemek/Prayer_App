@@ -498,7 +498,7 @@ interface CSVRow {
               id="pageSize"
               [(ngModel)]="pageSize"
               (change)="changePageSize()"
-              class="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+              class="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option [value]="10">10</option>
               <option [value]="50">50</option>

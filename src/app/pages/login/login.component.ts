@@ -15,7 +15,6 @@ import { SupabaseService } from "../../services/supabase.service";
 import { ThemeService } from "../../services/theme.service";
 import { UserSessionService } from "../../services/user-session.service";
 import { EmailNotificationService } from "../../services/email-notification.service";
-import { BrandingService } from "../../services/branding.service";
 import { TenantContextService } from "../../services/tenant-context.service";
 import { Subject, takeUntil } from "rxjs";
 
@@ -29,28 +28,13 @@ import { Subject, takeUntil } from "rxjs";
     >
       <div class="max-w-md w-full mx-auto space-y-8 p-4 sm:p-8">
         <div class="text-center">
-          <!-- Logo or Heart Icon -->
-          @if (useLogo && logoUrl) {
-          <div class="flex justify-center mb-4">
+          <div class="flex justify-center mb-6">
             <img
-              [src]="logoUrl"
-              alt="Prayer Community Logo"
-              class="h-16 w-auto max-w-xs object-contain"
+              src="/CrossPointPrayer.jpg"
+              alt="Prayer App Icon"
+              class="h-28 w-28 sm:h-32 sm:w-32 rounded-3xl object-contain shadow-lg"
             />
           </div>
-          } @if (!useLogo || !logoUrl) {
-          <svg
-            class="mx-auto h-16 w-16 text-[#2F5F54] dark:text-[#2F5F54]"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            viewBox="0 0 24 24"
-          >
-            <path
-              d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-            />
-          </svg>
-          }
           <h2
             class="mt-6 text-4xl font-bold text-[#2F5F54] dark:text-[#2F5F54]"
           >
@@ -104,16 +88,26 @@ import { Subject, takeUntil } from "rxjs";
                 <h3
                   class="text-[#2F5F54] dark:text-emerald-100 font-bold text-lg"
                 >
+                  @if (isTestAccountLogin) {
+                  App Tester Sign In
+                  } @else {
                   Check Your Email ✉️
+                  }
                 </h3>
                 <p class="text-[#3a7566] dark:text-emerald-200 text-sm mt-1">
+                  @if (isTestAccountLogin) {
+                  Enter your app tester code below (no email sent):
+                  } @else {
                   We've sent a verification code to:
+                  }
                 </p>
+                @if (!isTestAccountLogin) {
                 <p
                   class="text-[#2F5F54] dark:text-emerald-100 font-semibold text-base mt-2"
                 >
                   {{ email }}
                 </p>
+                }
               </div>
             </div>
 
@@ -639,15 +633,14 @@ export class LoginComponent implements OnInit, OnDestroy {
   email = "";
   mfaCode: string[] = [];
   mfaCodeInput = ""; // Single input field value
-  codeLength = 4; // Will be fetched from settings
+  codeLength = 6;
+  isTestAccountLogin = false;
   error = "";
   success = false;
   loading = false;
   resendLoading = false;
   waitingForMfaCode = false;
   requireSiteLogin = false; // Track if site-wide protection is enabled
-  useLogo = false;
-  logoUrl = "";
   // Subscriber form state
   showSubscriberForm = false;
   showPendingApproval = false; // Show pending approval message
@@ -668,7 +661,6 @@ export class LoginComponent implements OnInit, OnDestroy {
     private emailNotificationService: EmailNotificationService,
     private userSessionService: UserSessionService,
     private themeService: ThemeService,
-    private brandingService: BrandingService,
     private tenantContext: TenantContextService,
     private router: Router,
     private route: ActivatedRoute,
@@ -703,9 +695,6 @@ export class LoginComponent implements OnInit, OnDestroy {
     // Watch for theme changes
     this.watchThemeChanges();
 
-    // Load branding from service
-    this.initializeBranding();
-
     // Get returnUrl and sessionExpired flag from query params
     this.route.queryParams.subscribe((params) => {
       this.returnUrl = params["returnUrl"] || "/";
@@ -734,21 +723,17 @@ export class LoginComponent implements OnInit, OnDestroy {
         this.cdr?.markForCheck?.();
       });
 
-    // Fetch code length from admin settings (supports 4, 6, or 8 digits)
-    await this.fetchCodeLength();
-
-    // Initialize code array with the fetched code length
-    // This allows the input field to accept the correct number of characters
     this.mfaCode = new Array(this.codeLength).fill("");
 
-    // Check if we just sent an MFA code (persisted across re-renders)
-    const mfaSent = sessionStorage.getItem("mfa_email_sent");
-    const savedEmail = sessionStorage.getItem("mfa_email");
+    // Check if we just sent a login code (persisted across re-renders)
+    const loginSent = sessionStorage.getItem('login_email_sent');
+    const savedEmail = sessionStorage.getItem('login_email');
 
-    if (mfaSent === "true" && savedEmail) {
-      this.success = true;
-      this.waitingForMfaCode = true;
-      this.email = savedEmail;
+    if (loginSent === 'true' && savedEmail) {
+        this.success = true;
+        this.waitingForMfaCode = true;
+        this.email = savedEmail;
+        this.isTestAccountLogin = sessionStorage.getItem('login_test_account') === 'true';
       this.cdr?.markForCheck?.();
 
       // Focus first input after a short delay
@@ -816,12 +801,13 @@ export class LoginComponent implements OnInit, OnDestroy {
       console.log("[AdminLogin] MFA code send result:", result);
 
       if (result.success) {
-        console.log("[AdminLogin] MFA code sent successfully");
+        console.log("[AdminLogin] Login code send result:", result);
         this.success = true;
         this.waitingForMfaCode = true;
-        // Save to sessionStorage
-        sessionStorage.setItem("mfa_email_sent", "true");
-        sessionStorage.setItem("mfa_email", this.email);
+        this.isTestAccountLogin = result.isTestAccount === true;
+        sessionStorage.setItem("login_email_sent", "true");
+        sessionStorage.setItem("login_email", this.email);
+        sessionStorage.setItem("login_test_account", this.isTestAccountLogin ? "true" : "false");
         this.cdr?.markForCheck?.();
       } else {
         console.error("[AdminLogin] MFA code failed:", result.error);
@@ -879,8 +865,9 @@ export class LoginComponent implements OnInit, OnDestroy {
         const userEmail = this.email;
 
         // Clear sessionStorage
-        sessionStorage.removeItem("mfa_email_sent");
-        sessionStorage.removeItem("mfa_email");
+        sessionStorage.removeItem("login_email_sent");
+        sessionStorage.removeItem("login_email");
+        sessionStorage.removeItem("login_test_account");
 
         // UserSessionService will cache user info to userSession localStorage
 
@@ -1019,27 +1006,6 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.router.navigate([destination]);
   }
 
-  private async fetchCodeLength() {
-    try {
-      // Fetch the verification code length setting from admin_settings
-      // Allows admins to configure code length (4, 6, or 8 digits)
-      const { data, error } = await this.supabaseService.client
-        .from("admin_settings")
-        .select("verification_code_length")
-        .eq("id", 1)
-        .maybeSingle();
-
-      if (!error && data) {
-        this.codeLength = data.verification_code_length || 4;
-      } else {
-        this.codeLength = 4;
-      }
-    } catch (err) {
-      console.error("[AdminLogin] Error fetching code length:", err);
-      this.codeLength = 4;
-    }
-  }
-
   sanitizeCodeInput(): void {
     // Clean up the input value - remove non-digits and limit length
     let value = this.mfaCodeInput.replace(/\D/g, "").slice(0, this.codeLength);
@@ -1161,8 +1127,9 @@ export class LoginComponent implements OnInit, OnDestroy {
 
   resetForm() {
     // Clear sessionStorage
-    sessionStorage.removeItem("mfa_email_sent");
-    sessionStorage.removeItem("mfa_email");
+    sessionStorage.removeItem("login_email_sent");
+    sessionStorage.removeItem("login_email");
+    sessionStorage.removeItem("login_test_account");
     this.success = false;
     this.waitingForMfaCode = false;
     this.email = "";
@@ -1172,18 +1139,6 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.lastName = "";
     this.affiliationReason = "";
     this.cdr?.markForCheck?.();
-  }
-
-  private async initializeBranding() {
-    await this.brandingService.initialize();
-
-    this.brandingService.branding$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((branding) => {
-        this.useLogo = branding.useLogo;
-        this.logoUrl = this.brandingService.getImageUrl(branding);
-        this.cdr?.markForCheck?.();
-      });
   }
 
   private detectDarkMode() {

@@ -199,6 +199,6 @@ export class TenantManagementService {
 
   private async getCurrentUserEmail(): Promise<string | null> {
     const { data: { session } } = await this.supabase.client.auth.getSession();
-    return session?.user?.email || localStorage.getItem('mfa_authenticated_email');
+    return session?.user?.email || null;
   }
 }
