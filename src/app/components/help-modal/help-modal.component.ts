@@ -8,7 +8,7 @@ import {
   ElementRef,
   ChangeDetectionStrategy,
 } from "@angular/core";
-import { CommonModule } from "@angular/common";
+import { CommonModule, NgClass } from "@angular/common";
 import { DomSanitizer, SafeHtml } from "@angular/platform-browser";
 import { FormsModule } from "@angular/forms";
 import { HelpContentService } from "../../services/help-content.service";
@@ -19,72 +19,67 @@ import { map } from "rxjs/operators";
 @Component({
   selector: "app-help-modal",
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, NgClass, FormsModule],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (isOpen) {
-    <!-- Modal Backdrop -->
     <div
-      class="fixed inset-0 bg-gray-900/50 z-40"
+      class="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-2 sm:p-4"
+      style="padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom));"
       (click)="onClose()"
-      aria-hidden="true"
-    ></div>
-
-    <!-- Modal Container -->
-    <div
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
       role="dialog"
       aria-modal="true"
       aria-labelledby="help-modal-title"
     >
       <div
-        class="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col pointer-events-auto"
+        class="help-modal-panel bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg lg:max-w-2xl max-h-[90dvh] sm:max-h-[85dvh] overflow-y-auto"
+        #contentArea
+        (click)="$event.stopPropagation()"
       >
-        <!-- Header (Sticky) -->
         <div
-          class="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-4 sm:p-6 rounded-t-lg z-10"
+          class="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700"
         >
-          <div class="flex items-start justify-between mb-4">
-            <div>
-              <h2
-                id="help-modal-title"
-                class="text-2xl font-bold not-dark:text-gray-900 dark:text-white"
-              >
-                Help & Guidance
-              </h2>
-              <p class="text-sm text-gray-600 dark:text-gray-200 mt-1">
-                Learn how to use the Prayer App
-              </p>
-            </div>
-            <button
-              (click)="onClose()"
-              class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg p-2 transition-colors cursor-pointer"
-              title="Close help"
-              aria-label="Close help modal"
+          <div>
+            <h2
+              id="help-modal-title"
+              class="text-xl font-semibold text-gray-800 dark:text-gray-100"
             >
-              <svg
-                class="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M6 18L18 6M6 6l12 12"
-                ></path>
-              </svg>
-            </button>
+              Help & Guidance
+            </h2>
+            <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Learn how to use the Prayer App
+            </p>
           </div>
+          <button
+            (click)="onClose()"
+            title="Close help"
+            aria-label="Close help modal"
+            class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-pointer"
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
 
-          <!-- Search Input -->
+        <div class="p-4 sm:p-6 space-y-4">
           <div class="relative">
             <svg
-              class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-400"
+              class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-600 dark:text-gray-400"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.35-4.35" />
@@ -94,14 +89,11 @@ import { map } from "rxjs/operators";
               [(ngModel)]="searchQuery"
               (input)="onSearchChange()"
               placeholder="Search help topics..."
-              class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-colors"
+              aria-label="Search help topics"
+              class="w-full pl-10 pr-4 py-2 sm:py-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 hover:border-blue-300 dark:hover:border-blue-600 focus:border-blue-500 focus:outline-none transition-all"
             />
           </div>
-        </div>
 
-        <!-- Content Area (Scrollable) -->
-        <div class="overflow-y-auto flex-1 p-4 sm:p-6" #contentArea>
-          <!-- Loading State -->
           @if (isLoading$ | async) {
           <div class="flex items-center justify-center py-12">
             <div
@@ -110,92 +102,92 @@ import { map } from "rxjs/operators";
           </div>
           }
 
-          <!-- Error State -->
           @if (error$ | async; as error) { @if (error && error !== 'Using
           default help content.') {
           <div
-            class="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4 mb-6"
+            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4"
           >
-            <p class="text-sm text-yellow-800 dark:text-yellow-200">
+            <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
               {{ error }}
             </p>
           </div>
           } }
 
-          <!-- Help Sections (Accordion) -->
           @if (helpSections$ | async; as sections) { @if ((filteredSections$ |
           async); as filteredSections) { @if (filteredSections.length > 0) {
-          <div class="space-y-3">
+          <div class="flex flex-col gap-1.5 sm:gap-2">
             @for (section of filteredSections; track section.id) {
             <div
-              class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
+              class="rounded-lg border-2 transition-all overflow-hidden"
+              [ngClass]="{
+                'border-blue-500 bg-blue-50 dark:bg-blue-900/20':
+                  isSectionExpanded(section.id),
+                'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                  !isSectionExpanded(section.id)
+              }"
             >
-              <!-- Section Header (Clickable) -->
               <button
                 (click)="toggleSection(section.id)"
-                class="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-start justify-between focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 transition-colors text-left cursor-pointer"
+                class="w-full p-2 sm:p-3 flex items-start justify-between gap-2 text-left cursor-pointer transition-all"
                 [attr.aria-expanded]="isSectionExpanded(section.id)"
                 [attr.aria-controls]="'section-content-' + section.id"
               >
-                <div class="flex items-start gap-3 flex-1">
+                <div class="flex items-start gap-2 sm:gap-3 flex-1 min-w-0">
                   <div
-                    class="text-lg mt-1 flex-shrink-0 w-6 h-6"
+                    class="text-gray-600 dark:text-gray-400 mt-0.5 flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6"
                     [innerHTML]="getSafeIcon(section.icon)"
                   ></div>
-                  <div>
+                  <div class="min-w-0">
                     <h3
-                      class="font-semibold not-dark:text-gray-900 dark:text-white"
+                      class="text-sm sm:text-base font-medium text-gray-800 dark:text-gray-100"
                     >
                       {{ section.title }}
                     </h3>
-                    <p class="text-sm text-gray-600 dark:text-gray-200">
+                    <p
+                      class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-0.5"
+                    >
                       {{ section.description }}
                     </p>
                   </div>
                 </div>
-                <!-- Chevron Icon -->
                 <svg
-                  class="w-5 h-5 text-gray-600 dark:text-gray-400 flex-shrink-0 ml-2 mt-1 transition-transform duration-200"
+                  class="w-5 h-5 text-gray-600 dark:text-gray-400 flex-shrink-0 transition-transform"
                   [class.rotate-180]="isSectionExpanded(section.id)"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  aria-hidden="true"
                 >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                  ></path>
+                  <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
               </button>
 
-              <!-- Section Content (Expanded) -->
               @if (isSectionExpanded(section.id)) {
               <div
                 [id]="'section-content-' + section.id"
-                class="px-4 sm:px-6 py-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700"
+                class="px-3 sm:px-4 pb-3 sm:pb-4 border-t border-gray-200 dark:border-gray-700"
               >
-                <div class="space-y-4">
+                <div class="flex flex-col gap-3 pt-3">
                   @for (content of section.content; track $index) {
                   <div>
                     <h4
-                      class="font-medium not-dark:text-gray-900 dark:text-white"
+                      class="text-sm font-medium text-gray-800 dark:text-gray-100"
                     >
                       {{ content.subtitle }}
                     </h4>
-                    <p class="text-sm text-gray-700 dark:text-gray-200 mt-1">
+                    <p
+                      class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1"
+                    >
                       {{ content.text }}
                     </p>
 
-                    <!-- Examples -->
                     @if (content.examples && content.examples.length > 0) {
                     <div
-                      class="mt-2 pl-3 border-l-2 border-blue-400 dark:border-blue-500"
+                      class="mt-2 pl-3 border-l-2 border-blue-500 dark:border-blue-400"
                     >
                       @for (example of content.examples; track $index) {
                       <p
-                        class="text-xs text-gray-600 dark:text-gray-500 italic"
+                        class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 italic"
                       >
                         {{ example }}
                       </p>
@@ -218,36 +210,52 @@ import { map } from "rxjs/operators";
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
               >
                 <circle cx="11" cy="11" r="8" />
                 <path d="m21 21-4.35-4.35" />
               </svg>
-              <p class="text-gray-600 dark:text-gray-400">
+              <p class="text-sm text-gray-600 dark:text-gray-400">
                 No help topics match your search.
               </p>
-              <p class="text-sm text-gray-500 dark:text-gray-500 mt-1">
+              <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-500 mt-1">
                 Try searching with different keywords.
               </p>
             </div>
           </div>
           } } }
-        </div>
 
-        <!-- Footer (Sticky) -->
-        <div
-          class="sticky bottom-0 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 sm:p-6 rounded-b-lg"
-        >
           <button
+            type="button"
             (click)="onClose()"
-            class="w-full px-4 py-2 bg-blue-600 dark:bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors font-medium cursor-pointer"
+            class="w-full flex flex-col items-center justify-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer"
           >
-            Close Help
+            <span
+              class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+              >Close Help</span
+            >
           </button>
         </div>
       </div>
     </div>
     }
   `,
+  styles: [
+    `
+      :host {
+        display: contents;
+      }
+
+      .help-modal-panel {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+
+      .help-modal-panel::-webkit-scrollbar {
+        display: none;
+      }
+    `,
+  ],
 })
 export class HelpModalComponent implements OnInit {
   @Input() isOpen = false;
