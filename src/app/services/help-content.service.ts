@@ -291,7 +291,7 @@ export class HelpContentService {
           },
           {
             subtitle: 'Using Prompts in Presentation Mode',
-            text: 'You can display prayer prompts in presentation mode by selecting them. This is great for group prayer times or personal focused prayer. You can also print prompts using the "Print Prompts" button to use them offline or share with others.',
+            text: 'You can display prayer prompts in presentation mode by selecting them. This is great for group prayer times or personal focused prayer. You can also print prompts using the "Prompts" button to use them offline or share with others.',
           },
         ],
         order: 2,
@@ -615,7 +615,7 @@ export class HelpContentService {
         content: [
           {
             subtitle: 'Print Buttons',
-            text: 'The "Print Prayers" button allows you to print or export your current prayers as a PDF. The "Print Prompts" button prints the prayer prompts so you can use them offline or share them with others. The "Print Personal Prayers" button allows you to print your personal prayers.',
+            text: 'The "Prayers" button allows you to print or export your current prayers as a PDF. The "Prompts" button prints the prayer prompts so you can use them offline or share them with others. The "Personal" button allows you to print your personal prayers.',
           },
           {
             subtitle: 'Theme Options',

@@ -44,7 +44,7 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
       (click)="onClose.emit()"
     >
       <div
-        class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg lg:max-w-2xl max-h-[90dvh] sm:max-h-[85dvh] overflow-y-auto"
+        class="settings-modal-panel bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg lg:max-w-2xl max-h-[90dvh] sm:max-h-[85dvh] overflow-y-auto"
         (click)="$event.stopPropagation()"
       >
         <!-- Header -->
@@ -95,21 +95,40 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
 
         <!-- Content -->
         <div class="p-4 sm:p-6 space-y-4">
-          <!-- Print Buttons -->
-          <div class="flex flex-col lg:flex-row flex-nowrap gap-2">
+          <!-- Print -->
+          <div
+            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4"
+          >
+            <div class="flex items-start gap-2 sm:gap-3">
+              <div class="flex-1">
+                <div
+                  class="font-medium text-gray-800 dark:text-gray-100 mb-3 text-sm sm:text-base"
+                >
+                  Print
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-1.5 sm:gap-2">
             <!-- Print Prayer List -->
             <div class="relative flex-1 min-w-0">
-              <div class="flex w-full min-w-0">
+              <div
+                [ngClass]="{
+                  'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+                    showPrintDropdown || printRange !== 'week',
+                  'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                    !showPrintDropdown && printRange === 'week'
+                }"
+                class="flex w-full min-w-0 rounded-lg border-2 transition-all overflow-hidden"
+              >
                 <button
                   (click)="handlePrint()"
                   title="Print prayers for the selected time period"
                   [disabled]="isPrinting"
-                  class="flex-1 flex items-center justify-center gap-2 px-4 py-2 sm:py-3 bg-green-600 text-white rounded-l-lg hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  class="flex-1 flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   @if (!isPrinting) {
                   <svg
                     width="18"
                     height="18"
+                    class="text-gray-600 dark:text-gray-400 sm:w-5 sm:h-5"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -127,13 +146,13 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                   <svg
                     width="18"
                     height="18"
+                    class="text-gray-600 dark:text-gray-400 sm:w-5 sm:h-5 animate-spin"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
                     stroke-width="2"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    class="animate-spin"
                     style="transform-origin: center"
                   >
                     <circle
@@ -153,15 +172,18 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                     ></path>
                   </svg>
                   }
-                  <span class="font-medium">{{
-                    isPrinting ? "Generating..." : "Print Prayers"
-                  }}</span>
+                  <span
+                    class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                    >{{
+                      isPrinting ? "Generating..." : "Prayers"
+                    }}</span
+                  >
                 </button>
                 <button
                   (click)="showPrintDropdown = !showPrintDropdown"
                   [disabled]="isPrinting"
                   title="Select time period for prayers to print"
-                  class="flex items-center justify-center px-2 bg-green-600 text-white rounded-r-lg border-l border-green-500 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  class="flex items-center justify-center px-2 border-l border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-blue-100/60 dark:hover:bg-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
                 >
                   <svg
                     width="18"
@@ -200,7 +222,7 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                   >
                     <span>{{ option.label }}</span>
                     @if (printRange === option.value) {
-                    <span class="text-green-600 dark:text-green-400">✓</span>
+                    <span class="text-blue-600 dark:text-blue-400">✓</span>
                     }
                   </button>
                   }
@@ -211,17 +233,26 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
 
             <!-- Print Prompts -->
             <div class="relative flex-1 min-w-0">
-              <div class="flex w-full min-w-0">
+              <div
+                [ngClass]="{
+                  'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+                    showPromptTypesDropdown || selectedPromptTypes.length > 0,
+                  'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                    !showPromptTypesDropdown && selectedPromptTypes.length === 0
+                }"
+                class="flex w-full min-w-0 rounded-lg border-2 transition-all overflow-hidden"
+              >
                 <button
                   (click)="handlePrintPrompts()"
                   [disabled]="isPrintingPrompts"
                   title="Print prayer prompts for the selected time period"
-                  class="flex-1 flex items-center justify-center gap-2 px-4 py-2 sm:py-3 bg-green-600 text-white rounded-l-lg hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  class="flex-1 flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   @if (!isPrintingPrompts) {
                   <svg
                     width="18"
                     height="18"
+                    class="text-gray-600 dark:text-gray-400 sm:w-5 sm:h-5"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -239,13 +270,13 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                   <svg
                     width="18"
                     height="18"
+                    class="text-gray-600 dark:text-gray-400 sm:w-5 sm:h-5 animate-spin"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
                     stroke-width="2"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    class="animate-spin"
                     style="transform-origin: center"
                   >
                     <circle
@@ -265,15 +296,18 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                     ></path>
                   </svg>
                   }
-                  <span class="font-medium">{{
-                    isPrintingPrompts ? "Generating..." : "Print Prompts"
-                  }}</span>
+                  <span
+                    class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                    >{{
+                      isPrintingPrompts ? "Generating..." : "Prompts"
+                    }}</span
+                  >
                 </button>
                 <button
                   (click)="showPromptTypesDropdown = !showPromptTypesDropdown"
                   [disabled]="isPrintingPrompts"
                   title="Select which types of prompts to print"
-                  class="flex items-center justify-center px-2 bg-green-600 text-white rounded-r-lg border-l border-green-500 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  class="flex items-center justify-center px-2 border-l border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-blue-100/60 dark:hover:bg-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
                 >
                   <svg
                     width="18"
@@ -311,7 +345,7 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                   >
                     <span>All Types</span>
                     @if (selectedPromptTypes.length === 0) {
-                    <span class="text-green-600 dark:text-green-400">✓</span>
+                    <span class="text-blue-600 dark:text-blue-400">✓</span>
                     }
                   </button>
                   @for (type of promptTypes; track type) {
@@ -322,7 +356,7 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                   >
                     <span>{{ type }}</span>
                     @if (selectedPromptTypes.includes(type)) {
-                    <span class="text-green-600 dark:text-green-400">✓</span>
+                    <span class="text-blue-600 dark:text-blue-400">✓</span>
                     }
                   </button>
                   }
@@ -333,17 +367,28 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
 
             <!-- Print Personal Prayers -->
             <div class="relative flex-1 min-w-0">
-              <div class="flex w-full min-w-0">
+              <div
+                [ngClass]="{
+                  'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+                    showPrintPersonalDropdown ||
+                    selectedPersonalCategories.length > 0,
+                  'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                    !showPrintPersonalDropdown &&
+                    selectedPersonalCategories.length === 0
+                }"
+                class="flex w-full min-w-0 rounded-lg border-2 transition-all overflow-hidden"
+              >
                 <button
                   (click)="handlePrintPersonalPrayers()"
                   title="Print personal prayers for the selected categories"
                   [disabled]="isPrintingPersonal"
-                  class="flex-1 flex items-center justify-center gap-2 px-4 py-2 sm:py-3 bg-green-600 text-white rounded-l-lg hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  class="flex-1 flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   @if (!isPrintingPersonal) {
                   <svg
                     width="18"
                     height="18"
+                    class="text-gray-600 dark:text-gray-400 sm:w-5 sm:h-5"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -361,13 +406,13 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                   <svg
                     width="18"
                     height="18"
+                    class="text-gray-600 dark:text-gray-400 sm:w-5 sm:h-5 animate-spin"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
                     stroke-width="2"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    class="animate-spin"
                     style="transform-origin: center"
                   >
                     <circle
@@ -387,9 +432,12 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                     ></path>
                   </svg>
                   }
-                  <span class="font-medium">{{
-                    isPrintingPersonal ? "Generating..." : "Print Personal"
-                  }}</span>
+                  <span
+                    class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                    >{{
+                      isPrintingPersonal ? "Generating..." : "Personal"
+                    }}</span
+                  >
                 </button>
                 <button
                   (click)="
@@ -397,7 +445,7 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                   "
                   [disabled]="isPrintingPersonal"
                   title="Select which personal prayer categories to print"
-                  class="flex items-center justify-center px-2 bg-green-600 text-white rounded-r-lg border-l border-green-500 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  class="flex items-center justify-center px-2 border-l border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-blue-100/60 dark:hover:bg-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
                 >
                   <svg
                     width="18"
@@ -436,7 +484,7 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                   >
                     <span>All Categories</span>
                     @if (selectedPersonalCategories.length === 0) {
-                    <span class="text-green-600 dark:text-green-400">✓</span>
+                    <span class="text-blue-600 dark:text-blue-400">✓</span>
                     }
                   </button>
                   @for (category of personalCategories; track category) {
@@ -447,13 +495,21 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                   >
                     <span>{{ category }}</span>
                     @if (selectedPersonalCategories.includes(category)) {
-                    <span class="text-green-600 dark:text-green-400">✓</span>
+                    <span class="text-blue-600 dark:text-blue-400">✓</span>
                     }
                   </button>
                   }
                 </div>
               </div>
               }
+            </div>
+                </div>
+                <p
+                  class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-2"
+                >
+                  Export prayers, prompts, or personal prayers as a PDF
+                </p>
+              </div>
             </div>
           </div>
 
@@ -659,41 +715,13 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
           <div
             class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-2"
           >
-            <div class="flex items-start gap-3">
-              @if (preferencesLoaded) {
-              <input
-                type="checkbox"
-                id="notifications"
-                [(ngModel)]="receiveNotifications"
-                (ngModelChange)="onNotificationToggle()"
-                [disabled]="savingNotification"
-                name="notifications"
-                aria-label="Receive prayer notifications"
-                title="Enable or disable receiving prayer notifications via email"
-                class="mt-1 h-4 w-4 text-blue-600 border-gray-300 bg-white dark:bg-gray-800 rounded focus:ring-blue-500 cursor-pointer focus:ring-2 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-              } @else {
-              <!-- Loading skeleton -->
-              <div
-                class="mt-1 h-4 w-4 bg-gray-300 dark:bg-gray-600 rounded animate-pulse flex-shrink-0"
-              ></div>
-              }
+            <div class="flex items-start gap-2 sm:gap-3">
               <div class="flex-1">
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 mb-3">
                   <div
-                    class="font-medium text-gray-900 dark:text-gray-100 text-sm sm:text-base"
+                    class="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base"
                   >
-                    @if (preferencesLoaded) {
-                    {{
-                      receiveNotifications
-                        ? "Subscribed to Email Notifications"
-                        : "Not Subscribed to Email Notifications"
-                    }}
-                    } @else {
-                    <span
-                      class="inline-block h-5 w-48 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"
-                    ></span>
-                    }
+                    Email Notifications
                   </div>
                   @if (savingNotification) {
                   <svg
@@ -718,6 +746,55 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                   </svg>
                   }
                 </div>
+                @if (preferencesLoaded) {
+                <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
+                  <button
+                    type="button"
+                    (click)="setReceiveNotifications(true)"
+                    [disabled]="savingNotification"
+                    [ngClass]="{
+                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+                        receiveNotifications === true,
+                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                        receiveNotifications !== true
+                    }"
+                    title="Enable email notifications"
+                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span
+                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                      >Enabled</span
+                    >
+                  </button>
+                  <button
+                    type="button"
+                    (click)="setReceiveNotifications(false)"
+                    [disabled]="savingNotification"
+                    [ngClass]="{
+                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+                        receiveNotifications === false,
+                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                        receiveNotifications !== false
+                    }"
+                    title="Disable email notifications"
+                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span
+                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                      >Disabled</span
+                    >
+                  </button>
+                </div>
+                } @else {
+                <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
+                  <div
+                    class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
+                  ></div>
+                  <div
+                    class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
+                  ></div>
+                </div>
+                }
               </div>
             </div>
             <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
@@ -772,40 +849,13 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
           <div
             class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-2"
           >
-            <div class="flex items-start gap-3">
-              @if (preferencesLoaded) {
-              <input
-                type="checkbox"
-                id="pushNotifications"
-                [(ngModel)]="receivePushNotifications"
-                (ngModelChange)="onPushNotificationToggle()"
-                [disabled]="savingPushNotification"
-                name="pushNotifications"
-                aria-label="Receive push notifications"
-                title="Enable or disable push notifications for new prayers and updates"
-                class="mt-1 h-4 w-4 text-blue-600 border-gray-300 bg-white dark:bg-gray-800 rounded focus:ring-blue-500 cursor-pointer focus:ring-2 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-              } @else {
-              <div
-                class="mt-1 h-4 w-4 bg-gray-300 dark:bg-gray-600 rounded animate-pulse flex-shrink-0"
-              ></div>
-              }
+            <div class="flex items-start gap-2 sm:gap-3">
               <div class="flex-1">
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 mb-3">
                   <div
-                    class="font-medium text-gray-900 dark:text-gray-100 text-sm sm:text-base"
+                    class="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base"
                   >
-                    @if (preferencesLoaded) {
-                    {{
-                      receivePushNotifications
-                        ? "Subscribed to Push Notifications"
-                        : "Not Subscribed to Push Notifications"
-                    }}
-                    } @else {
-                    <span
-                      class="inline-block h-5 w-48 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"
-                    ></span>
-                    }
+                    Push Notifications
                   </div>
                   @if (savingPushNotification) {
                   <svg
@@ -830,6 +880,55 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                   </svg>
                   }
                 </div>
+                @if (preferencesLoaded) {
+                <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
+                  <button
+                    type="button"
+                    (click)="setReceivePushNotifications(true)"
+                    [disabled]="savingPushNotification"
+                    [ngClass]="{
+                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+                        receivePushNotifications === true,
+                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                        receivePushNotifications !== true
+                    }"
+                    title="Subscribe to push notifications"
+                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span
+                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                      >On</span
+                    >
+                  </button>
+                  <button
+                    type="button"
+                    (click)="setReceivePushNotifications(false)"
+                    [disabled]="savingPushNotification"
+                    [ngClass]="{
+                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+                        receivePushNotifications === false,
+                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                        receivePushNotifications !== false
+                    }"
+                    title="Unsubscribe from push notifications"
+                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span
+                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                      >Off</span
+                    >
+                  </button>
+                </div>
+                } @else {
+                <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
+                  <div
+                    class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
+                  ></div>
+                  <div
+                    class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
+                  ></div>
+                </div>
+                }
               </div>
             </div>
             <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
@@ -883,41 +982,13 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
           <div
             class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-2"
           >
-            <div class="flex items-start gap-3">
-              @if (badgePreferencesLoaded) {
-              <input
-                type="checkbox"
-                id="badgeFunctionality"
-                [(ngModel)]="badgeFunctionalityEnabled"
-                (ngModelChange)="onBadgeFunctionalityToggle()"
-                [disabled]="savingBadge"
-                name="badgeFunctionality"
-                aria-label="Enable notification badges"
-                title="Enable or disable notification badges to show unread prayers and updates"
-                class="mt-1 h-4 w-4 text-blue-600 border-gray-300 bg-white dark:bg-gray-800 rounded focus:ring-blue-500 cursor-pointer focus:ring-2 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-              } @else {
-              <!-- Loading skeleton -->
-              <div
-                class="mt-1 h-4 w-4 bg-gray-300 dark:bg-gray-600 rounded animate-pulse flex-shrink-0"
-              ></div>
-              }
+            <div class="flex items-start gap-2 sm:gap-3">
               <div class="flex-1">
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 mb-3">
                   <div
-                    class="font-medium text-gray-900 dark:text-gray-100 text-sm sm:text-base"
+                    class="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base"
                   >
-                    @if (badgePreferencesLoaded) {
-                    {{
-                      badgeFunctionalityEnabled
-                        ? "Notification Badges Enabled"
-                        : "Notification Badges Disabled"
-                    }}
-                    } @else {
-                    <span
-                      class="inline-block h-5 w-48 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"
-                    ></span>
-                    }
+                    Notification Badges
                   </div>
                   @if (savingBadge) {
                   <svg
@@ -942,6 +1013,55 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                   </svg>
                   }
                 </div>
+                @if (badgePreferencesLoaded) {
+                <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
+                  <button
+                    type="button"
+                    (click)="setBadgeFunctionalityEnabled(true)"
+                    [disabled]="savingBadge"
+                    [ngClass]="{
+                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+                        badgeFunctionalityEnabled === true,
+                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                        badgeFunctionalityEnabled !== true
+                    }"
+                    title="Enable notification badges"
+                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span
+                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                      >Enabled</span
+                    >
+                  </button>
+                  <button
+                    type="button"
+                    (click)="setBadgeFunctionalityEnabled(false)"
+                    [disabled]="savingBadge"
+                    [ngClass]="{
+                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+                        badgeFunctionalityEnabled === false,
+                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                        badgeFunctionalityEnabled !== false
+                    }"
+                    title="Disable notification badges"
+                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span
+                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                      >Disabled</span
+                    >
+                  </button>
+                </div>
+                } @else {
+                <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
+                  <div
+                    class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
+                  ></div>
+                  <div
+                    class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
+                  ></div>
+                </div>
+                }
               </div>
             </div>
             <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
@@ -995,104 +1115,91 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
           <div
             class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-2"
           >
-            <div class="flex items-start gap-3">
+            <div class="flex items-start gap-2 sm:gap-3">
               <div class="flex-1">
-                <div
-                  class="font-medium text-gray-900 dark:text-gray-100 text-sm sm:text-base mb-3"
-                >
-                  @if (defaultViewPreferencesLoaded) { Default Prayer View }
-                  @else {
-                  <span
-                    class="inline-block h-5 w-48 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"
-                  ></span>
+                <div class="flex items-center gap-2 mb-3">
+                  <div
+                    class="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base"
+                  >
+                    @if (defaultViewPreferencesLoaded) { Default Prayer View }
+                    @else {
+                    <span
+                      class="inline-block h-5 w-48 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"
+                    ></span>
+                    }
+                  </div>
+                  @if (savingDefaultView) {
+                  <svg
+                    class="animate-spin h-4 w-4 text-blue-600"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"
+                    ></circle>
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
                   }
                 </div>
-                <div class="space-y-2">
-                  <!-- Current Prayers View Option -->
-                  <label
-                    class="flex items-center gap-3 cursor-pointer"
-                    [class.opacity-50]="savingDefaultView"
-                    [class.pointer-events-none]="savingDefaultView"
+                @if (defaultViewPreferencesLoaded) {
+                <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
+                  <button
+                    type="button"
+                    (click)="selectDefaultPrayerView('current')"
+                    [disabled]="savingDefaultView"
+                    [ngClass]="{
+                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+                        defaultPrayerView === 'current',
+                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                        defaultPrayerView !== 'current'
+                    }"
+                    title="Open current prayers by default"
+                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <input
-                      type="radio"
-                      name="defaultView"
-                      value="current"
-                      [(ngModel)]="defaultPrayerView"
-                      (change)="onDefaultViewChange('current')"
-                      [disabled]="savingDefaultView"
-                      class="h-4 w-4 text-blue-600 border-gray-300 bg-white dark:bg-gray-800 rounded focus:ring-blue-500 cursor-pointer focus:ring-2 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                    <span class="text-sm text-gray-700 dark:text-gray-300"
-                      >Current Prayers View</span
+                    <span
+                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 text-center"
+                      >Current Prayers</span
                     >
-                    @if (savingDefaultView && defaultPrayerView === 'current') {
-                    <svg
-                      class="animate-spin h-4 w-4 text-blue-600"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                      ></circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    }
-                  </label>
-
-                  <!-- Personal Prayers View Option -->
-                  <label
-                    class="flex items-center gap-3 cursor-pointer"
-                    [class.opacity-50]="savingDefaultView"
-                    [class.pointer-events-none]="savingDefaultView"
+                  </button>
+                  <button
+                    type="button"
+                    (click)="selectDefaultPrayerView('personal')"
+                    [disabled]="savingDefaultView"
+                    [ngClass]="{
+                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+                        defaultPrayerView === 'personal',
+                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                        defaultPrayerView !== 'personal'
+                    }"
+                    title="Open personal prayers by default"
+                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <input
-                      type="radio"
-                      name="defaultView"
-                      value="personal"
-                      [(ngModel)]="defaultPrayerView"
-                      (change)="onDefaultViewChange('personal')"
-                      [disabled]="savingDefaultView"
-                      class="h-4 w-4 text-blue-600 border-gray-300 bg-white dark:bg-gray-800 rounded focus:ring-blue-500 cursor-pointer focus:ring-2 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                    <span class="text-sm text-gray-700 dark:text-gray-300"
-                      >Personal Prayers View</span
+                    <span
+                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 text-center"
+                      >Personal Prayers</span
                     >
-                    @if (savingDefaultView && defaultPrayerView === 'personal')
-                    {
-                    <svg
-                      class="animate-spin h-4 w-4 text-blue-600"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                      ></circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    }
-                  </label>
+                  </button>
                 </div>
+                } @else {
+                <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
+                  <div
+                    class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
+                  ></div>
+                  <div
+                    class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
+                  ></div>
+                </div>
+                }
               </div>
             </div>
             <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
@@ -1220,19 +1327,20 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
               No reminder hours saved yet.
             </p>
             } @else {
-            <ul class="space-y-2" role="list">
+            <ul class="flex flex-col gap-1.5 sm:gap-2" role="list">
               @for (slot of prayerReminderSlots; track slot.id) {
               <li
-                class="flex items-center justify-between gap-2 py-1.5 px-2 rounded-md bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-600"
+                class="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all overflow-hidden"
               >
-                <span class="text-sm text-gray-800 dark:text-gray-200">{{
-                  formatPrayerReminderSlotLabel(slot)
-                }}</span>
+                <span
+                  class="flex-1 p-2 sm:p-3 text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                  >{{ formatPrayerReminderSlotLabel(slot) }}</span
+                >
                 <button
                   type="button"
                   (click)="removePrayerReminderSlot(slot.id)"
                   [disabled]="savingPrayerReminder"
-                  class="text-xs font-medium text-red-600 dark:text-red-400 hover:underline disabled:opacity-50 cursor-pointer"
+                  class="self-stretch flex items-center justify-center px-3 border-l border-gray-200 dark:border-gray-700 text-xs sm:text-sm font-medium text-red-600 dark:text-red-400 hover:bg-blue-100/60 dark:hover:bg-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
                   [attr.aria-label]="
                     'Remove reminder ' + formatPrayerReminderSlotLabel(slot)
                   "
@@ -1243,34 +1351,95 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
               }
             </ul>
             }
-            <div
-              class="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:items-end"
-            >
-              <div class="flex flex-col gap-1">
-                <label
-                  for="reminder-hour-select"
-                  class="text-xs font-medium text-gray-700 dark:text-gray-300"
-                  >Hour</label
-                >
-                <select
-                  id="reminder-hour-select"
-                  name="reminderHour"
-                  [(ngModel)]="selectedReminderHour"
-                  class="h-9 min-h-[2.25rem] box-border text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-0 min-w-[8rem] leading-normal"
-                  aria-label="Reminder hour"
-                >
-                  @for (opt of reminderHourOptions; track opt.value) {
-                  <option [ngValue]="opt.value">{{ opt.label }}</option>
+            <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
+              <div class="relative min-w-0">
+                <div
+                  [ngClass]="{
+                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+                        showReminderHourDropdown,
+                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                        !showReminderHourDropdown
+                    }"
+                    class="flex w-full min-w-0 rounded-lg border-2 transition-all overflow-hidden"
+                  >
+                    <button
+                      type="button"
+                      id="reminder-hour-select"
+                      (click)="
+                        showReminderHourDropdown = !showReminderHourDropdown
+                      "
+                      [disabled]="savingPrayerReminder"
+                      [attr.aria-expanded]="showReminderHourDropdown"
+                      aria-haspopup="listbox"
+                      aria-label="Reminder hour"
+                      title="Select reminder hour"
+                      class="w-full flex items-center justify-between gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span
+                        class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                        >{{ formatHour12(selectedReminderHour) }}</span
+                      >
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="text-gray-600 dark:text-gray-400 transition-transform shrink-0"
+                        [class.rotate-180]="showReminderHourDropdown"
+                        aria-hidden="true"
+                      >
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                    </button>
+                  </div>
+
+                  @if (showReminderHourDropdown) {
+                  <div>
+                    <div
+                      class="fixed inset-0 z-10"
+                      (click)="showReminderHourDropdown = false"
+                    ></div>
+                    <div
+                      role="listbox"
+                      aria-label="Reminder hour"
+                      class="absolute left-0 right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20 max-h-60 overflow-y-auto"
+                    >
+                      @for (opt of reminderHourOptions; track opt.value) {
+                      <button
+                        type="button"
+                        role="option"
+                        [attr.aria-selected]="selectedReminderHour === opt.value"
+                        (click)="setReminderHour(opt.value)"
+                        class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer"
+                        [title]="'Set reminder hour to ' + opt.label"
+                      >
+                        <span>{{ opt.label }}</span>
+                        @if (selectedReminderHour === opt.value) {
+                        <span class="text-blue-600 dark:text-blue-400">✓</span>
+                        }
+                      </button>
+                      }
+                    </div>
+                  </div>
                   }
-                </select>
               </div>
               <button
                 type="button"
                 (click)="addPrayerReminderSlot()"
                 [disabled]="savingPrayerReminder || !email.trim()"
-                class="h-9 min-h-[2.25rem] shrink-0 px-3 py-0 text-sm font-medium leading-normal rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer inline-flex items-center justify-center sm:self-end"
+                title="Add a prayer reminder for the selected hour"
+                class="w-full min-w-0 flex flex-col items-center justify-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {{ savingPrayerReminder ? "Saving…" : "Add reminder" }}
+                <span
+                  class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                  >{{
+                    savingPrayerReminder ? "Saving…" : "Add reminder"
+                  }}</span
+                >
               </button>
             </div>
             @if (prayerReminderError) {
@@ -1418,6 +1587,15 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
       :host {
         display: contents;
       }
+
+      .settings-modal-panel {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+
+      .settings-modal-panel::-webkit-scrollbar {
+        display: none;
+      }
     `,
   ],
 })
@@ -1455,6 +1633,7 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
   showPrintDropdown = false;
   showPromptTypesDropdown = false;
   showPrintPersonalDropdown = false;
+  showReminderHourDropdown = false;
   promptTypes: string[] = [];
   selectedPromptTypes: string[] = [];
   personalCategories: string[] = [];
@@ -1994,6 +2173,58 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
 
   onEmailChange(): void {
     this.emailChange$.next(this.email);
+  }
+
+  setReceiveNotifications(enabled: boolean): void {
+    if (
+      !this.preferencesLoaded ||
+      this.savingNotification ||
+      this.receiveNotifications === enabled
+    ) {
+      return;
+    }
+    this.receiveNotifications = enabled;
+    void this.onNotificationToggle();
+  }
+
+  setReceivePushNotifications(enabled: boolean): void {
+    if (
+      !this.preferencesLoaded ||
+      this.savingPushNotification ||
+      this.receivePushNotifications === enabled
+    ) {
+      return;
+    }
+    this.receivePushNotifications = enabled;
+    void this.onPushNotificationToggle();
+  }
+
+  setBadgeFunctionalityEnabled(enabled: boolean): void {
+    if (
+      !this.badgePreferencesLoaded ||
+      this.savingBadge ||
+      this.badgeFunctionalityEnabled === enabled
+    ) {
+      return;
+    }
+    this.badgeFunctionalityEnabled = enabled;
+    void this.onBadgeFunctionalityToggle();
+  }
+
+  selectDefaultPrayerView(view: "current" | "personal"): void {
+    if (
+      !this.defaultViewPreferencesLoaded ||
+      this.savingDefaultView ||
+      this.defaultPrayerView === view
+    ) {
+      return;
+    }
+    void this.onDefaultViewChange(view);
+  }
+
+  setReminderHour(hour: number): void {
+    this.selectedReminderHour = hour;
+    this.showReminderHourDropdown = false;
   }
 
   async onNotificationToggle(): Promise<void> {

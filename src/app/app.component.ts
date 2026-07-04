@@ -1,6 +1,5 @@
 import {
   Component,
-  OnDestroy,
   OnInit,
   Injector,
   NgZone,
@@ -13,8 +12,7 @@ import { CommonModule } from "@angular/common";
 import { Capacitor } from "@capacitor/core";
 import { ToastContainerComponent } from "./components/toast-container/toast-container.component";
 import { AdminDataService } from "./services/admin-data.service";
-import { Subject, filter, takeUntil } from "rxjs";
-import { TenantContextService } from "./services/tenant-context.service";
+import { Subject, filter } from "rxjs";
 
 @Component({
   selector: "app-root",
@@ -25,14 +23,6 @@ import { TenantContextService } from "./services/tenant-context.service";
       <div
         class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100"
       >
-        @if (showImpersonationBanner) {
-        <div
-          class="sticky top-0 z-[60] border-b border-amber-300 bg-amber-100/95 px-4 py-2 text-center text-xs font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-900/90 dark:text-amber-100"
-        >
-          Viewing app as tenant:
-          <span class="font-semibold">{{ impersonatedTenantName }}</span>
-        </div>
-        }
         <router-outlet></router-outlet>
         <app-toast-container></app-toast-container>
       </div>
@@ -41,19 +31,15 @@ import { TenantContextService } from "./services/tenant-context.service";
   changeDetection: ChangeDetectionStrategy.Eager,
   styles: [],
 })
-export class AppComponent implements OnInit, OnDestroy {
+export class AppComponent implements OnInit {
   title = "prayerapp";
   private lastVisibilityState = !document.hidden;
-  private destroy$ = new Subject<void>();
-  showImpersonationBanner = false;
-  impersonatedTenantName = "";
 
   constructor(
     private router: Router,
     private injector: Injector,
     private ngZone: NgZone,
-    private cdr: ChangeDetectorRef,
-    private tenantContext: TenantContextService
+    private cdr: ChangeDetectorRef
   ) {
     // Add native-app class immediately so bottom blur strip shows before first paint
     if (Capacitor.isNativePlatform()) {
@@ -209,12 +195,6 @@ export class AppComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.handleApprovalCode();
     this.setupPushRefreshListener();
-    this.setupImpersonationBanner();
-  }
-
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
   }
 
   /**
@@ -535,16 +515,4 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
-  private setupImpersonationBanner(): void {
-    this.tenantContext.activeTenant$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((tenant) => {
-        const isImpersonating = this.tenantContext.getIsImpersonatingTenant();
-        this.showImpersonationBanner = isImpersonating;
-        this.impersonatedTenantName = isImpersonating
-          ? tenant?.name || "Unknown tenant"
-          : "";
-        this.cdr.markForCheck();
-      });
-  }
 }
