@@ -10,6 +10,26 @@ import type { PrayerTypeRecord } from '../../types/prayer';
 const TEST_TENANT_ID = 'test-tenant-id';
 const mockTenant = { id: TEST_TENANT_ID, name: 'Test', slug: 'test' };
 
+function createSelectChain(resolveWith: { data: unknown; error: unknown }) {
+  const chain: {
+    eq: ReturnType<typeof vi.fn>;
+    order: ReturnType<typeof vi.fn>;
+    then: (
+      onFulfilled?: (value: unknown) => unknown,
+      onRejected?: (reason: unknown) => unknown
+    ) => Promise<unknown>;
+  } = {
+    eq: vi.fn(),
+    order: vi.fn(),
+    then: () => Promise.resolve(resolveWith),
+  };
+  const asPromise = () => Promise.resolve(resolveWith);
+  chain.eq.mockImplementation(() => chain);
+  chain.order.mockImplementation(asPromise);
+  chain.then = (onFulfilled, onRejected) => asPromise().then(onFulfilled, onRejected);
+  return chain;
+}
+
 describe('PrayerTypesManagerComponent', () => {
   let component: PrayerTypesManagerComponent;
   let mockSupabaseService: any;
@@ -17,6 +37,7 @@ describe('PrayerTypesManagerComponent', () => {
   let mockToastService: any;
   let mockPromptService: any;
   let mockChangeDetectorRef: any;
+  let selectResolve: { data: unknown; error: unknown };
 
   const createMockPrayerType = (overrides: Partial<PrayerTypeRecord> = {}): PrayerTypeRecord => ({
     id: 'type-1',
@@ -43,15 +64,30 @@ describe('PrayerTypesManagerComponent', () => {
   });
 
   beforeEach(() => {
+    selectResolve = { data: [], error: null };
+
     // Create mock Supabase client
     mockSupabaseClient = {
-      from: vi.fn((table: string) => createMockQueryChain(null, null))
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { user: { email: 'admin@test.com' } } }
+        })
+      },
+      rpc: vi.fn().mockResolvedValue({ error: null }),
+      from: vi.fn((table: string) => {
+        if (table === 'prayer_types') {
+          return {
+            ...createMockQueryChain(null, null),
+            select: vi.fn(() => createSelectChain(selectResolve)),
+          };
+        }
+        return createMockQueryChain(null, null);
+      })
     };
 
     // Create mock SupabaseService
     mockSupabaseService = {
       client: mockSupabaseClient,
-      directQuery: vi.fn(() => Promise.resolve({ data: [], error: null }))
     } as unknown as SupabaseService;
 
     // Create mock ToastService
@@ -131,7 +167,7 @@ describe('PrayerTypesManagerComponent', () => {
         createMockPrayerType({ id: '2', name: 'Guidance' })
       ];
 
-      mockSupabaseService.directQuery = vi.fn(() => Promise.resolve({ data: mockTypes, error: null }));
+      selectResolve = { data: mockTypes, error: null };
 
       await component.fetchTypes();
 
@@ -142,7 +178,7 @@ describe('PrayerTypesManagerComponent', () => {
 
     it('should handle fetch error', async () => {
       const error = new Error('Fetch failed');
-      mockSupabaseService.directQuery = vi.fn(() => Promise.resolve({ data: null, error }));
+      selectResolve = { data: null, error };
 
       await component.fetchTypes();
 
@@ -153,7 +189,7 @@ describe('PrayerTypesManagerComponent', () => {
 
     it('should handle single item response', async () => {
       const mockType = createMockPrayerType();
-      mockSupabaseService.directQuery = vi.fn(() => Promise.resolve({ data: mockType, error: null }));
+      selectResolve = { data: mockType, error: null };
 
       await component.fetchTypes();
 
@@ -161,7 +197,7 @@ describe('PrayerTypesManagerComponent', () => {
     });
 
     it('should handle null data response', async () => {
-      mockSupabaseService.directQuery = vi.fn(() => Promise.resolve({ data: null, error: null }));
+      selectResolve = { data: null, error: null };
 
       await component.fetchTypes();
 
@@ -170,7 +206,7 @@ describe('PrayerTypesManagerComponent', () => {
 
     it('should handle error without message property', async () => {
       const error = { code: 'UNKNOWN' };
-      mockSupabaseService.directQuery = vi.fn(() => Promise.resolve({ data: null, error }));
+      selectResolve = { data: null, error };
 
       await component.fetchTypes();
 
@@ -236,7 +272,7 @@ describe('PrayerTypesManagerComponent', () => {
         insert: vi.fn(() => Promise.resolve({ error: null }))
       }));
 
-      mockSupabaseService.directQuery = vi.fn(() => Promise.resolve({ data: [], error: null }));
+      selectResolve = { data: [], error: null };
 
       await component.handleSubmit(event);
 
@@ -259,7 +295,7 @@ describe('PrayerTypesManagerComponent', () => {
         }))
       }));
 
-      mockSupabaseService.directQuery = vi.fn(() => Promise.resolve({ data: [], error: null }));
+      selectResolve = { data: [], error: null };
 
       await component.handleSubmit(event);
 
@@ -311,7 +347,7 @@ describe('PrayerTypesManagerComponent', () => {
         insert: insertSpy
       }));
 
-      mockSupabaseService.directQuery = vi.fn(() => Promise.resolve({ data: [], error: null }));
+      selectResolve = { data: [], error: null };
 
       await component.handleSubmit(event);
 
@@ -332,7 +368,7 @@ describe('PrayerTypesManagerComponent', () => {
         insert: vi.fn(() => Promise.resolve({ error: null }))
       }));
 
-      mockSupabaseService.directQuery = vi.fn(() => Promise.resolve({ data: [], error: null }));
+      selectResolve = { data: [], error: null };
 
       await component.handleSubmit(event);
 
@@ -387,7 +423,7 @@ describe('PrayerTypesManagerComponent', () => {
         }))
       }));
 
-      mockSupabaseService.directQuery = vi.fn(() => Promise.resolve({ data: [], error: null }));
+      selectResolve = { data: [], error: null };
 
       await component.handleDelete('type-1', 'Test Type');
       await component.onConfirmDelete();
@@ -429,7 +465,7 @@ describe('PrayerTypesManagerComponent', () => {
         }))
       }));
 
-      mockSupabaseService.directQuery = vi.fn(() => Promise.resolve({ data: [], error: null }));
+      selectResolve = { data: [], error: null };
 
       await component.toggleActive(type);
 
@@ -446,7 +482,7 @@ describe('PrayerTypesManagerComponent', () => {
         }))
       }));
 
-      mockSupabaseService.directQuery = vi.fn(() => Promise.resolve({ data: [], error: null }));
+      selectResolve = { data: [], error: null };
 
       await component.toggleActive(type);
 
@@ -501,7 +537,7 @@ describe('PrayerTypesManagerComponent', () => {
         }))
       }));
 
-      mockSupabaseService.directQuery = vi.fn(() => Promise.resolve({ data: types, error: null }));
+      selectResolve = { data: types, error: null };
 
       await component.onDrop(event);
 
@@ -557,7 +593,7 @@ describe('PrayerTypesManagerComponent', () => {
         update: updateSpy
       }));
 
-      mockSupabaseService.directQuery = vi.fn(() => Promise.resolve({ data: types, error: null }));
+      selectResolve = { data: types, error: null };
 
       await component.onDrop(event);
 

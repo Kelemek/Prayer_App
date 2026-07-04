@@ -8,14 +8,39 @@ import { ToastService } from '../../services/toast.service';
 const TEST_TENANT_ID = 'test-tenant-id';
 const mockTenant = { id: TEST_TENANT_ID, name: 'Test', slug: 'test' };
 
+function createSelectChain(resolveWith: { data: unknown; error: unknown }) {
+  const chain: {
+    eq: ReturnType<typeof vi.fn>;
+    order: ReturnType<typeof vi.fn>;
+    limit: ReturnType<typeof vi.fn>;
+    then: (
+      onFulfilled?: (value: unknown) => unknown,
+      onRejected?: (reason: unknown) => unknown
+    ) => Promise<unknown>;
+  } = {
+    eq: vi.fn(),
+    order: vi.fn(),
+    limit: vi.fn(),
+    then: () => Promise.resolve(resolveWith),
+  };
+  const asPromise = () => Promise.resolve(resolveWith);
+  chain.eq.mockImplementation(() => chain);
+  chain.order.mockImplementation(() => chain);
+  chain.limit.mockImplementation(asPromise);
+  chain.then = (onFulfilled, onRejected) => asPromise().then(onFulfilled, onRejected);
+  return chain;
+}
+
 describe('PromptManagerComponent', () => {
   let component: PromptManagerComponent;
   let mockSupabaseService: any;
   let mockToastService: any;
   let mockTenantContext: { getActiveTenant: ReturnType<typeof vi.fn>; activeTenant$: BehaviorSubject<typeof mockTenant> };
+  let selectResolve: { data: unknown; error: unknown };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    selectResolve = { data: [], error: null };
 
     const doubleEqChain = (final: Promise<unknown>) => ({
       eq: vi.fn().mockReturnValue({
@@ -24,15 +49,15 @@ describe('PromptManagerComponent', () => {
     });
 
     mockSupabaseService = {
-      directQuery: vi.fn(),
       client: {
+        auth: {
+          getSession: vi.fn().mockResolvedValue({
+            data: { session: { user: { email: 'admin@test.com' } } }
+          })
+        },
+        rpc: vi.fn().mockResolvedValue({ error: null }),
         from: vi.fn(() => ({
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              order: vi.fn(() => Promise.resolve({ data: [], error: null }))
-            })),
-            order: vi.fn(() => Promise.resolve({ data: [], error: null }))
-          })),
+          select: vi.fn(() => createSelectChain(selectResolve)),
           insert: vi.fn(() => Promise.resolve({ data: null, error: null })),
           update: vi.fn(() => doubleEqChain(Promise.resolve({ data: null, error: null }))),
           delete: vi.fn(() => doubleEqChain(Promise.resolve({ data: null, error: null })))
@@ -71,6 +96,17 @@ describe('PromptManagerComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  it('auto-dismisses success message after 5 seconds', () => {
+    vi.useFakeTimers();
+    (component as any).showSuccessMessage('Prayer prompt added successfully!');
+    expect(component.success).toBe('Prayer prompt added successfully!');
+
+    vi.advanceTimersByTime(5000);
+    expect(component.success).toBeNull();
+
+    vi.useRealTimers();
+  });
+
   describe('ngOnInit', () => {
     it('should not fetch prayer types until section is expanded', async () => {
       const mockTypes = [
@@ -78,15 +114,15 @@ describe('PromptManagerComponent', () => {
         { name: 'Type2', display_order: 2, is_active: true }
       ];
 
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: mockTypes,
         error: null
-      });
+      };
 
       component.ngOnInit();
       await Promise.resolve();
 
-      expect(mockSupabaseService.directQuery).not.toHaveBeenCalled();
+      expect(mockSupabaseService.client.from).not.toHaveBeenCalled();
     });
   });
 
@@ -97,22 +133,17 @@ describe('PromptManagerComponent', () => {
         { name: 'Type2', display_order: 2, is_active: true }
       ];
 
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: mockTypes,
         error: null
-      });
+      };
 
       component.onExpandedChange(true);
-      await Promise.resolve();
-      await Promise.resolve();
+      await (component as any).loadSectionData();
 
-      expect(mockSupabaseService.directQuery).toHaveBeenCalledWith(
-        'prayer_types',
-        expect.objectContaining({
-          select: '*',
-          eq: { is_active: true, tenant_id: TEST_TENANT_ID },
-          order: { column: 'display_order', ascending: true }
-        })
+      expect(mockSupabaseService.client.rpc).toHaveBeenCalledWith(
+        'ensure_tenant_prayer_types',
+        expect.objectContaining({ p_tenant_id: TEST_TENANT_ID })
       );
       expect(component.prayerTypes).toEqual(mockTypes);
     });
@@ -125,10 +156,10 @@ describe('PromptManagerComponent', () => {
         { name: 'Praise', display_order: 2, is_active: true }
       ];
 
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: mockTypes,
         error: null
-      });
+      };
 
       await component.fetchPrayerTypes();
 
@@ -139,10 +170,10 @@ describe('PromptManagerComponent', () => {
     it('should handle single object response', async () => {
       const mockType = { name: 'Prayer', display_order: 1, is_active: true };
 
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: mockType,
         error: null
-      });
+      };
 
       await component.fetchPrayerTypes();
 
@@ -150,10 +181,10 @@ describe('PromptManagerComponent', () => {
     });
 
     it('should handle null data', async () => {
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: null,
         error: null
-      });
+      };
 
       await component.fetchPrayerTypes();
 
@@ -163,10 +194,10 @@ describe('PromptManagerComponent', () => {
     it('should handle errors gracefully', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: null,
         error: new Error('DB error')
-      });
+      };
 
       await component.fetchPrayerTypes();
 
@@ -181,14 +212,44 @@ describe('PromptManagerComponent', () => {
         { name: 'Type1', display_order: 1, is_active: true }
       ];
 
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: mockTypes,
         error: null
-      });
+      };
 
       await component.fetchPrayerTypes();
 
       expect(component.type).toBe('ExistingType');
+    });
+  });
+
+  describe('prompt search debounce', () => {
+    it('Enter runs search immediately', () => {
+      const spy = vi.spyOn(component, 'handleSearch').mockResolvedValue();
+      component.searchQuery = 'ab';
+      const ev = { key: 'Enter', preventDefault: vi.fn() } as unknown as KeyboardEvent;
+      component.onPromptSearchKeydown(ev);
+      expect(ev.preventDefault).toHaveBeenCalled();
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('ngOnDestroy cancels pending debounced search', () => {
+      vi.useFakeTimers();
+      const spy = vi.spyOn(component, 'handleSearch').mockResolvedValue();
+      component.onPromptSearchQueryChange('ab');
+      vi.advanceTimersByTime(100);
+      component.ngOnDestroy();
+      vi.advanceTimersByTime(400);
+      expect(spy).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('clearPromptSearch clears query and reloads', () => {
+      component.searchQuery = 'test';
+      const spy = vi.spyOn(component, 'handleSearch').mockResolvedValue();
+      component.clearPromptSearch();
+      expect(component.searchQuery).toBe('');
+      expect(spy).toHaveBeenCalled();
     });
   });
 
@@ -198,13 +259,13 @@ describe('PromptManagerComponent', () => {
         { id: '1', title: 'Test Prayer', type: 'Prayer', description: 'Test desc', created_at: '2024-01-01' }
       ];
 
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: mockPrompts,
         error: null
-      });
+      };
 
       component.searchQuery = 'test';
-      await component.handleSearch(new Event('submit'));
+      await component.handleSearch();
 
       expect(component.searching).toBe(false);
       expect(component.hasSearched).toBe(true);
@@ -217,13 +278,13 @@ describe('PromptManagerComponent', () => {
         { id: '2', title: 'Other', type: 'Praise', description: 'Second desc', created_at: '2024-01-02' }
       ];
 
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: mockPrompts,
         error: null
-      });
+      };
 
       component.searchQuery = 'test';
-      await component.handleSearch(new Event('submit'));
+      await component.handleSearch();
 
       expect(component.prompts).toHaveLength(1);
       expect(component.prompts[0].title).toBe('Test Prayer');
@@ -235,13 +296,13 @@ describe('PromptManagerComponent', () => {
         { id: '2', title: 'Praise 1', type: 'Praise', description: 'Desc 2', created_at: '2024-01-02' }
       ];
 
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: mockPrompts,
         error: null
-      });
+      };
 
       component.searchQuery = 'praise';
-      await component.handleSearch(new Event('submit'));
+      await component.handleSearch();
 
       expect(component.prompts).toHaveLength(1);
       expect(component.prompts[0].type).toBe('Praise');
@@ -253,13 +314,13 @@ describe('PromptManagerComponent', () => {
         { id: '2', title: 'Prayer 2', type: 'Prayer', description: 'Other content', created_at: '2024-01-02' }
       ];
 
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: mockPrompts,
         error: null
-      });
+      };
 
       component.searchQuery = 'special';
-      await component.handleSearch(new Event('submit'));
+      await component.handleSearch();
 
       expect(component.prompts).toHaveLength(1);
       expect(component.prompts[0].description).toContain('Special');
@@ -271,13 +332,13 @@ describe('PromptManagerComponent', () => {
         { id: '2', title: 'Prayer 2', type: 'Prayer', description: 'Desc 2', created_at: '2024-01-02' }
       ];
 
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: mockPrompts,
         error: null
-      });
+      };
 
       component.searchQuery = '';
-      await component.handleSearch(new Event('submit'));
+      await component.handleSearch();
 
       expect(component.prompts).toHaveLength(2);
     });
@@ -285,12 +346,12 @@ describe('PromptManagerComponent', () => {
     it('should handle errors during search', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: null,
         error: new Error('Search failed')
-      });
+      };
 
-      await component.handleSearch(new Event('submit'));
+      await component.handleSearch();
 
       expect(component.error).toContain('Failed to search prompts');
       expect(component.searching).toBe(false);
@@ -301,12 +362,12 @@ describe('PromptManagerComponent', () => {
       component.error = 'Old error';
       component.success = 'Old success';
 
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: [],
         error: null
-      });
+      };
 
-      await component.handleSearch(new Event('submit'));
+      await component.handleSearch();
 
       expect(component.error).toBeNull();
       expect(component.success).toBeNull();
@@ -598,14 +659,14 @@ describe('PromptManagerComponent', () => {
         { title: 'Prayer1', type: 'Prayer', description: 'Desc1', valid: true }
       ];
 
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: [],
         error: null
-      });
+      };
 
       await component.uploadCSVData();
 
-      expect(mockSupabaseService.directQuery).toHaveBeenCalled();
+      expect(mockSupabaseService.client.from).toHaveBeenCalled();
     });
 
     it('should emit onSave event', async () => {
@@ -724,15 +785,15 @@ describe('PromptManagerComponent', () => {
       component.description = 'Description';
       component.hasSearched = true;
 
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: [],
         error: null
-      });
+      };
 
       await component.handleSubmit(new Event('submit'));
 
       // Check that directQuery was called (for handleSearch)
-      expect(mockSupabaseService.directQuery).toHaveBeenCalled();
+      expect(mockSupabaseService.client.from).toHaveBeenCalled();
     });
   });
 
@@ -823,15 +884,15 @@ describe('PromptManagerComponent', () => {
     it('should refresh search results after deletion', async () => {
       component.hasSearched = true;
 
-      mockSupabaseService.directQuery.mockResolvedValue({
+      selectResolve = {
         data: [],
         error: null
-      });
+      };
 
       await component.handleDelete('prompt-123', 'Test Prayer');
       await component.onConfirmDelete();
 
-      expect(mockSupabaseService.directQuery).toHaveBeenCalled();
+      expect(mockSupabaseService.client.from).toHaveBeenCalled();
     });
   });
 

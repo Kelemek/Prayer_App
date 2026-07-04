@@ -148,10 +148,16 @@ export class PromptService {
    */
   async updatePrompt(id: string, updates: Partial<PrayerPrompt>): Promise<boolean> {
     try {
-      const { error } = await this.supabase.client
+      const tenantId = this.tenantContext?.getActiveTenant()?.id;
+      let query = this.supabase.client
         .from('prayer_prompts')
         .update(updates)
         .eq('id', id);
+      if (tenantId) {
+        query = query.eq('tenant_id', tenantId);
+      }
+
+      const { error } = await query;
 
       if (error) throw error;
 
@@ -170,10 +176,16 @@ export class PromptService {
    */
   async deletePrompt(id: string): Promise<boolean> {
     try {
-      const { error } = await this.supabase.client
+      const tenantId = this.tenantContext?.getActiveTenant()?.id;
+      let query = this.supabase.client
         .from('prayer_prompts')
         .delete()
         .eq('id', id);
+      if (tenantId) {
+        query = query.eq('tenant_id', tenantId);
+      }
+
+      const { error } = await query;
 
       if (error) throw error;
 

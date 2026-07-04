@@ -125,6 +125,7 @@ export interface PrayerTypeRecord {
   name: string;
   display_order: number;
   is_active: boolean;
+  tenant_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -134,6 +135,7 @@ export interface PrayerPrompt {
   title: string;
   type: PrayerType;
   description: string;
+  tenant_id?: string;
   created_at: string;
   updated_at: string;
 }

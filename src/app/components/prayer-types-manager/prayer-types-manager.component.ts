@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, Output, EventEmitter, ChangeDetectionStra
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, distinctUntilChanged, takeUntil } from 'rxjs';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
 import { PromptService } from '../../services/prompt.service';
@@ -64,7 +64,8 @@ import type { PrayerTypeRecord } from '../../types/prayer';
       </div>
 
       <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
-        Manage the available types for prayer prompts. You can reorder, activate/deactivate, or delete types.
+        Manage prayer prompt types for the active organization. Types are scoped
+        to the organization selected above.
       </p>
 
       <!-- Error Message -->
@@ -306,6 +307,7 @@ export class PrayerTypesManagerComponent implements OnInit, OnDestroy {
 
   sectionExpanded = false;
   private sectionInitialLoadDone = false;
+  private dataLoadedForTenantId: string | null = null;
   isLoading = false;
 
   get activeTenantId(): string | null {
@@ -342,10 +344,14 @@ export class PrayerTypesManagerComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.tenantContext.activeTenant$
-      .pipe(takeUntil(this.destroy$))
+      .pipe(
+        distinctUntilChanged((a, b) => a?.id === b?.id),
+        takeUntil(this.destroy$)
+      )
       .subscribe(() => {
         if (!this.activeTenantId) {
           this.resetSectionState();
+          this.dataLoadedForTenantId = null;
         } else if (this.sectionExpanded) {
           void this.loadSectionData();
         }
@@ -360,11 +366,39 @@ export class PrayerTypesManagerComponent implements OnInit, OnDestroy {
 
   onExpandedChange(expanded: boolean): void {
     this.sectionExpanded = expanded;
-    if (this.sectionExpanded && !this.sectionInitialLoadDone) {
-      this.sectionInitialLoadDone = true;
-      void this.loadSectionData();
+    const tenantId = this.activeTenantId;
+    if (this.sectionExpanded && tenantId) {
+      const shouldLoad =
+        !this.sectionInitialLoadDone || this.dataLoadedForTenantId !== tenantId;
+      if (shouldLoad) {
+        this.sectionInitialLoadDone = true;
+        void this.loadSectionData();
+      }
     }
     this.cdr.markForCheck();
+  }
+
+  private async getCallerEmail(): Promise<string | null> {
+    const {
+      data: { session },
+    } = await this.supabase.client.auth.getSession();
+    return session?.user?.email?.toLowerCase().trim() || null;
+  }
+
+  private async ensureTenantPrayerTypes(tenantId: string): Promise<void> {
+    const callerEmail = await this.getCallerEmail();
+    if (!callerEmail) {
+      throw new Error('Not authenticated');
+    }
+
+    const { error } = await this.supabase.client.rpc('ensure_tenant_prayer_types', {
+      p_tenant_id: tenantId,
+      p_email: callerEmail,
+    });
+
+    if (error) {
+      throw error;
+    }
   }
 
   private resetSectionState(): void {
@@ -382,7 +416,9 @@ export class PrayerTypesManagerComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
 
     try {
+      await this.ensureTenantPrayerTypes(tenantId);
       await this.fetchTypes();
+      this.dataLoadedForTenantId = tenantId;
     } finally {
       this.isLoading = false;
       this.cdr.markForCheck();
@@ -401,15 +437,11 @@ export class PrayerTypesManagerComponent implements OnInit, OnDestroy {
       this.loading = true;
       this.error = null;
 
-      const { data, error } = await this.supabase.directQuery<PrayerTypeRecord>(
-        'prayer_types',
-        {
-          select: '*',
-          eq: { tenant_id: tenantId },
-          order: { column: 'display_order', ascending: true },
-          timeout: 15000
-        }
-      );
+      const { data, error } = await this.supabase.client
+        .from('prayer_types')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('display_order', { ascending: true });
 
       if (error) throw error;
       this.types = Array.isArray(data) ? data : (data ? [data] : []);

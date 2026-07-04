@@ -9,7 +9,7 @@ import {
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
-import { Subject, takeUntil } from "rxjs";
+import { Subject, distinctUntilChanged, takeUntil } from "rxjs";
 import { SupabaseService } from "../../services/supabase.service";
 import { ToastService } from "../../services/toast.service";
 import { TenantContextService } from "../../services/tenant-context.service";
@@ -118,8 +118,9 @@ interface CSVRow {
       </div>
 
       <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
-        Search for prayer prompts by title, type, or description, or upload a
-        CSV file to add multiple prompts.
+        Type at least {{ promptSearchMinChars }} characters to filter by title,
+        type, or description (debounced). Prompts load automatically when you
+        open this section. You can also upload a CSV to add multiple prompts.
       </p>
 
       <!-- Error Message -->
@@ -141,13 +142,59 @@ interface CSVRow {
       }
 
       <!-- Search Bar -->
-      <form (submit)="handleSearch($event)" class="mb-4">
-        <div class="flex gap-2">
-          <div class="flex-1 relative">
+      <div class="mb-4">
+        <label
+          for="promptManagerSearch"
+          class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+        >
+          Search prompts
+        </label>
+        <div class="relative">
+          <svg
+            class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
+          <input
+            id="promptManagerSearch"
+            type="text"
+            [(ngModel)]="searchQuery"
+            name="searchQuery"
+            (ngModelChange)="onPromptSearchQueryChange($event)"
+            (keydown)="onPromptSearchKeydown($event)"
+            autocomplete="off"
+            placeholder="Filter by title, type, or description (min. {{
+              promptSearchMinChars
+            }} characters)…"
+            class="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          @if (searching) {
+          <div
+            class="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2"
+          >
+            <div
+              class="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"
+            ></div>
+          </div>
+          } @if (searchQuery) {
+          <button
+            type="button"
+            (click)="clearPromptSearch()"
+            class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+            title="Clear filter"
+          >
             <svg
-              class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-              width="20"
-              height="20"
+              width="18"
+              height="18"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -155,26 +202,18 @@ interface CSVRow {
               stroke-linecap="round"
               stroke-linejoin="round"
             >
-              <circle cx="11" cy="11" r="8"></circle>
-              <path d="m21 21-4.35-4.35"></path>
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
-            <input
-              type="text"
-              [(ngModel)]="searchQuery"
-              name="searchQuery"
-              placeholder="Search prompts by title, type, or description..."
-              class="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <button
-            type="submit"
-            [disabled]="searching"
-            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 transition-colors cursor-pointer"
-          >
-            {{ searching ? "Searching..." : "Search" }}
           </button>
+          }
         </div>
-      </form>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          Debounced ({{ promptSearchDebounceMs }}ms). Leave empty to show all
+          loaded prompts after a short pause. Press Enter to refresh
+          immediately.
+        </p>
+      </div>
 
       <!-- CSV Upload Section -->
       @if (showCSVUpload) {
@@ -456,6 +495,7 @@ interface CSVRow {
       </form>
       }
 
+      <div>
       <!-- Search Results -->
       @if (searching) {
       <div class="text-center py-8">
@@ -480,8 +520,8 @@ interface CSVRow {
           <circle cx="11" cy="11" r="8"></circle>
           <path d="m21 21-4.35-4.35"></path>
         </svg>
-        <p>Enter a search term to find prompts</p>
-        <p class="text-sm mt-1">Search results will appear here</p>
+        <p>Loading prompts…</p>
+        <p class="text-sm mt-1">If this persists, reload the page.</p>
       </div>
       } @if (!searching && hasSearched && prompts.length === 0) {
       <div class="text-center py-8 text-gray-500 dark:text-gray-400">
@@ -726,6 +766,7 @@ interface CSVRow {
         </div>
       </div>
       }
+      </div>
 
       <!-- Confirmation Dialog -->
       @if (showConfirmationDialog) {
@@ -750,9 +791,12 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
   @Output() onSave = new EventEmitter<void>();
 
   private readonly destroy$ = new Subject<void>();
+  private static readonly SUCCESS_DISMISS_MS = 5000;
+  private successDismissTimer: ReturnType<typeof setTimeout> | null = null;
 
   sectionExpanded = false;
   private sectionInitialLoadDone = false;
+  private dataLoadedForTenantId: string | null = null;
   isLoading = false;
 
   get activeTenantId(): string | null {
@@ -764,6 +808,9 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
   searchQuery = "";
   searching = false;
   hasSearched = false;
+  readonly promptSearchMinChars = 2;
+  readonly promptSearchDebounceMs = 350;
+  private promptSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   showAddForm = false;
   showCSVUpload = false;
   error: string | null = null;
@@ -793,10 +840,14 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.tenantContext.activeTenant$
-      .pipe(takeUntil(this.destroy$))
+      .pipe(
+        distinctUntilChanged((a, b) => a?.id === b?.id),
+        takeUntil(this.destroy$)
+      )
       .subscribe(() => {
         if (!this.activeTenantId) {
           this.resetSectionState();
+          this.dataLoadedForTenantId = null;
         } else if (this.sectionExpanded) {
           void this.loadSectionData();
         }
@@ -805,20 +856,134 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.clearSuccessDismissTimer();
+    if (this.promptSearchDebounceTimer) {
+      clearTimeout(this.promptSearchDebounceTimer);
+      this.promptSearchDebounceTimer = null;
+    }
     this.destroy$.next();
     this.destroy$.complete();
   }
 
+  onPromptSearchQueryChange(value: string): void {
+    if (this.promptSearchDebounceTimer) {
+      clearTimeout(this.promptSearchDebounceTimer);
+      this.promptSearchDebounceTimer = null;
+    }
+
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      this.promptSearchDebounceTimer = setTimeout(() => {
+        this.promptSearchDebounceTimer = null;
+        void this.handleSearch();
+      }, this.promptSearchDebounceMs);
+      return;
+    }
+    if (trimmed.length < this.promptSearchMinChars) {
+      this.cdr.markForCheck();
+      return;
+    }
+
+    this.promptSearchDebounceTimer = setTimeout(() => {
+      this.promptSearchDebounceTimer = null;
+      void this.handleSearch();
+    }, this.promptSearchDebounceMs);
+  }
+
+  onPromptSearchKeydown(event: KeyboardEvent): void {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      this.flushPromptSearchNow();
+    }
+  }
+
+  flushPromptSearchNow(): void {
+    if (this.promptSearchDebounceTimer) {
+      clearTimeout(this.promptSearchDebounceTimer);
+      this.promptSearchDebounceTimer = null;
+    }
+    const trimmed = this.searchQuery.trim();
+    if (trimmed.length > 0 && trimmed.length < this.promptSearchMinChars) {
+      this.cdr.markForCheck();
+      return;
+    }
+    void this.handleSearch();
+  }
+
+  clearPromptSearch(): void {
+    if (this.promptSearchDebounceTimer) {
+      clearTimeout(this.promptSearchDebounceTimer);
+      this.promptSearchDebounceTimer = null;
+    }
+    this.searchQuery = "";
+    void this.handleSearch();
+  }
+
+  private showSuccessMessage(message: string): void {
+    this.clearSuccessDismissTimer();
+    this.success = message;
+    this.successDismissTimer = setTimeout(() => {
+      this.success = null;
+      this.successDismissTimer = null;
+      this.cdr.markForCheck();
+    }, PromptManagerComponent.SUCCESS_DISMISS_MS);
+    this.cdr.markForCheck();
+  }
+
+  private clearSuccess(): void {
+    this.clearSuccessDismissTimer();
+    this.success = null;
+  }
+
+  private clearSuccessDismissTimer(): void {
+    if (this.successDismissTimer !== null) {
+      clearTimeout(this.successDismissTimer);
+      this.successDismissTimer = null;
+    }
+  }
+
   onExpandedChange(expanded: boolean): void {
     this.sectionExpanded = expanded;
-    if (this.sectionExpanded && !this.sectionInitialLoadDone) {
-      this.sectionInitialLoadDone = true;
-      void this.loadSectionData();
+    const tenantId = this.activeTenantId;
+    if (this.sectionExpanded && tenantId) {
+      const shouldLoad =
+        !this.sectionInitialLoadDone || this.dataLoadedForTenantId !== tenantId;
+      if (shouldLoad) {
+        this.sectionInitialLoadDone = true;
+        void this.loadSectionData();
+      }
     }
     this.cdr.markForCheck();
   }
 
+  private async getCallerEmail(): Promise<string | null> {
+    const {
+      data: { session },
+    } = await this.supabase.client.auth.getSession();
+    return session?.user?.email?.toLowerCase().trim() || null;
+  }
+
+  private async ensureTenantPrayerTypes(tenantId: string): Promise<void> {
+    const callerEmail = await this.getCallerEmail();
+    if (!callerEmail) {
+      throw new Error("Not authenticated");
+    }
+
+    const { error } = await this.supabase.client.rpc("ensure_tenant_prayer_types", {
+      p_tenant_id: tenantId,
+      p_email: callerEmail,
+    });
+
+    if (error) {
+      throw error;
+    }
+  }
+
   private resetSectionState(): void {
+    if (this.promptSearchDebounceTimer) {
+      clearTimeout(this.promptSearchDebounceTimer);
+      this.promptSearchDebounceTimer = null;
+    }
     this.prayerTypes = [];
     this.prompts = [];
     this.hasSearched = false;
@@ -838,7 +1003,10 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
 
     try {
+      await this.ensureTenantPrayerTypes(tenantId);
       await this.fetchPrayerTypes();
+      this.dataLoadedForTenantId = tenantId;
+      await this.handleSearch();
     } finally {
       this.isLoading = false;
       this.cdr.markForCheck();
@@ -852,15 +1020,12 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
       return;
     }
     try {
-      const { data, error } = await this.supabase.directQuery<PrayerTypeRecord>(
-        "prayer_types",
-        {
-          select: "*",
-          eq: { is_active: true, tenant_id: tenantId },
-          order: { column: "display_order", ascending: true },
-          timeout: 15000,
-        }
-      );
+      const { data, error } = await this.supabase.client
+        .from("prayer_types")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .eq("is_active", true)
+        .order("display_order", { ascending: true });
 
       if (error) throw error;
       this.prayerTypes = Array.isArray(data) ? data : data ? [data] : [];
@@ -873,9 +1038,7 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
     }
   }
 
-  async handleSearch(event: Event) {
-    event.preventDefault();
-
+  async handleSearch(): Promise<void> {
     const tenantId = this.activeTenantId;
     if (!tenantId) {
       this.error = "No active organization selected.";
@@ -886,22 +1049,18 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
       this.searching = true;
       this.cdr.markForCheck();
       this.error = null;
-      this.success = null;
+      this.clearSuccess();
       this.hasSearched = true;
 
       const query = this.searchQuery.trim().toLowerCase();
 
       // Get all prompts and filter client-side since directQuery doesn't support ilike
-      const { data, error } = await this.supabase.directQuery<PrayerPrompt>(
-        "prayer_prompts",
-        {
-          select: "*",
-          eq: { tenant_id: tenantId },
-          order: { column: "type", ascending: true },
-          limit: 500,
-          timeout: 15000,
-        }
-      );
+      const { data, error } = await this.supabase.client
+        .from("prayer_prompts")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .order("type", { ascending: true })
+        .limit(500);
 
       if (error) throw error;
 
@@ -935,7 +1094,7 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
     this.showCSVUpload = !this.showCSVUpload;
     this.showAddForm = false;
     this.error = null;
-    this.success = null;
+    this.clearSuccess();
     this.csvData = [];
   }
 
@@ -947,7 +1106,7 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
     this.description = "";
     this.type = this.prayerTypes.length > 0 ? this.prayerTypes[0].name : "";
     this.error = null;
-    this.success = null;
+    this.clearSuccess();
   }
 
   handleCSVUpload(event: Event) {
@@ -1046,13 +1205,13 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
 
       if (error) throw error;
 
-      this.success = `Successfully uploaded ${validRows.length} prompt(s)!`;
+      this.showSuccessMessage(`Successfully uploaded ${validRows.length} prompt(s)!`);
       this.csvData = [];
       this.showCSVUpload = false;
 
       // Refresh search results if user has already searched
       if (this.hasSearched) {
-        await this.handleSearch(new Event("submit"));
+        await this.handleSearch();
       }
 
       this.onSave.emit();
@@ -1085,7 +1244,7 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
     try {
       this.submitting = true;
       this.error = null;
-      this.success = null;
+      this.clearSuccess();
 
       if (this.editingId) {
         // Update existing prompt
@@ -1100,7 +1259,7 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
           .eq("tenant_id", tenantId);
 
         if (error) throw error;
-        this.success = "Prayer prompt updated successfully!";
+        this.showSuccessMessage("Prayer prompt updated successfully!");
       } else {
         // Add new prompt
         const { error } = await this.supabase.client
@@ -1113,7 +1272,7 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
           });
 
         if (error) throw error;
-        this.success = "Prayer prompt added successfully!";
+        this.showSuccessMessage("Prayer prompt added successfully!");
       }
 
       // Reset form
@@ -1125,7 +1284,7 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
 
       // Refresh search results if user has already searched
       if (this.hasSearched) {
-        await this.handleSearch(new Event("submit"));
+        await this.handleSearch();
       }
 
       this.onSave.emit();
@@ -1149,7 +1308,7 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
     this.showAddForm = false;
     this.showCSVUpload = false;
     this.error = null;
-    this.success = null;
+    this.clearSuccess();
   }
 
   async handleDelete(id: string, title: string) {
@@ -1168,7 +1327,7 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
 
     try {
       this.error = null;
-      this.success = null;
+      this.clearSuccess();
 
       const tenantId = this.activeTenantId;
       if (!tenantId) {
@@ -1185,11 +1344,11 @@ export class PromptManagerComponent implements OnInit, OnDestroy {
       if (error) throw error;
 
       this.prompts = this.prompts.filter((p) => p.id !== id);
-      this.success = "Prayer prompt deleted successfully!";
+      this.showSuccessMessage("Prayer prompt deleted successfully!");
 
       // Refresh search results if user has already searched
       if (this.hasSearched) {
-        await this.handleSearch(new Event("submit"));
+        await this.handleSearch();
       }
 
       this.onSave.emit();
