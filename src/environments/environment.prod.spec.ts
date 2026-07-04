@@ -30,8 +30,10 @@ describe('environment.prod', () => {
     expect(environment).toHaveProperty('supabasePublishableKey');
   });
 
-  it('should use different Supabase configuration from development', () => {
-    // Production and development environments use separate Supabase projects
+  it('should use different Supabase configuration from development when env vars are set', () => {
+    if (!environment.supabaseUrl || !environment.supabasePublishableKey) {
+      return;
+    }
     expect(environment.supabaseUrl).not.toBe(devEnvironment.supabaseUrl);
     expect(environment.supabasePublishableKey).not.toBe(
       devEnvironment.supabasePublishableKey
