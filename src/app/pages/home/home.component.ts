@@ -20,6 +20,7 @@ import {
 } from "../../components/prayer-filters/prayer-filters.component";
 import { SkeletonLoaderComponent } from "../../components/skeleton-loader/skeleton-loader.component";
 import { AppLogoComponent } from "../../components/app-logo/app-logo.component";
+import { TenantSwitcherDropdownComponent } from "../../components/tenant-switcher-dropdown/tenant-switcher-dropdown.component";
 import { PrayerCardComponent } from "../../components/prayer-card/prayer-card.component";
 import {
   PromptCardComponent,
@@ -64,6 +65,7 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
     PrayerFiltersComponent,
     SkeletonLoaderComponent,
     AppLogoComponent,
+    TenantSwitcherDropdownComponent,
     PrayerCardComponent,
     PromptCardComponent,
     UserSettingsComponent,
@@ -99,16 +101,11 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
 
               <div class="flex items-center gap-2 min-w-0">
                 @if (showTenantSwitcherInHeader) {
-                <select
-                  [ngModel]="activeTenantId"
-                  (ngModelChange)="onTenantSelect($event)"
-                  class="flex-1 min-w-0 text-[10px] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-gray-700 dark:text-gray-200"
-                  title="Switch active tenant"
-                >
-                  @for (tenant of tenantSwitchOptions; track tenant.id) {
-                  <option [ngValue]="tenant.id">{{ tenant.name }}</option>
-                  }
-                </select>
+                <app-tenant-switcher-dropdown
+                  [compact]="true"
+                  triggerId="home-tenant-switcher-mobile"
+                  (tenantSelected)="onTenantSelect($event)"
+                />
                 }
                 <!-- Email Indicator - Top Right -->
                 @if ((userSessionService.userSession$ | async); as session) {
@@ -223,16 +220,10 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
                 <!-- Top row: Admin button and Email Indicator -->
                 <div class="flex items-center gap-2">
                   @if (showTenantSwitcherInHeader) {
-                  <select
-                    [ngModel]="activeTenantId"
-                    (ngModelChange)="onTenantSelect($event)"
-                    class="text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-gray-700 dark:text-gray-200"
-                    title="Switch active tenant"
-                  >
-                    @for (tenant of tenantSwitchOptions; track tenant.id) {
-                    <option [ngValue]="tenant.id">{{ tenant.name }}</option>
-                    }
-                  </select>
+                  <app-tenant-switcher-dropdown
+                    triggerId="home-tenant-switcher-desktop"
+                    (tenantSelected)="onTenantSelect($event)"
+                  />
                   } @if (canAccessAdminFeatures) {
                   <button
                     (click)="navigateToAdmin()"
@@ -1035,12 +1026,17 @@ export class HomeComponent implements OnInit, OnDestroy {
     private tenantPermissionService: TenantPermissionService,
     private tenantContextService: TenantContextService
   ) {
-    // Load logo state from tenant-scoped cache immediately to prevent flash
-    const windowCache = (window as any).__cachedLogos;
-    const useLogoKey = getBrandingCacheKey(BRANDING_CACHE_KEYS.useLogo);
+    const windowCache = (window as { __cachedLogos?: { tenantId?: string | null; useLogo?: boolean } }).__cachedLogos;
+    const tenantId = localStorage.getItem("active_tenant_id");
+    const windowCacheApplies =
+      !!windowCache &&
+      (!tenantId || !windowCache.tenantId || windowCache.tenantId === tenantId);
+    const useLogoKey = getBrandingCacheKey(BRANDING_CACHE_KEYS.useLogo, tenantId);
+    const useLogoStored = localStorage.getItem(useLogoKey);
     const useLogo =
-      windowCache?.useLogo ||
-      localStorage.getItem(useLogoKey) === "true";
+      useLogoStored !== null
+        ? useLogoStored === "true"
+        : windowCacheApplies && windowCache?.useLogo === true;
     this.hasLogo = useLogo;
   }
 

@@ -54,6 +54,7 @@
         if (lightLogo || darkLogo || useLogo) {
           // Store in window object for Angular to access instantly
           window.__cachedLogos = {
+            tenantId: tenantId,
             light: lightLogo,
             dark: darkLogo,
             useLogo: useLogo === 'true'

@@ -790,13 +790,6 @@ describe('PrayerArchiveTimelineComponent - Component Integration Tests', () => {
         this.canGoNext = this.displayMonth < new Date(today.getFullYear() + 1, today.getMonth(), 1);
       },
       
-      refreshData: function() {
-        this.isLoading = true;
-        setTimeout(() => {
-          this.isLoading = false;
-        }, 100);
-      },
-      
       getMonthName: function(date: Date): string {
         return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
       },
@@ -917,36 +910,6 @@ describe('PrayerArchiveTimelineComponent - Component Integration Tests', () => {
       // After moving 6 months forward, month should be different (unless edge case)
       expect(typeof endMonth).toBe('number');
       expect(endMonth >= 0 && endMonth < 12).toBe(true);
-    });
-  });
-
-  describe('Data Refresh', () => {
-    it('should start loading on refresh', async () => {
-      component.isLoading = false;
-      component.refreshData();
-      expect(component.isLoading).toBe(true);
-    });
-
-    it('should stop loading after refresh completes', async () => {
-      component.refreshData();
-      await new Promise(resolve => setTimeout(resolve, 150));
-      expect(component.isLoading).toBe(false);
-    });
-
-    it('should handle rapid refresh calls', () => {
-      component.refreshData();
-      component.refreshData();
-      component.refreshData();
-      expect(component.isLoading).toBe(true);
-    });
-
-    it('should preserve timeline events during refresh', () => {
-      component.timelineEvents = [
-        { date: new Date(), prayer: { id: '1', title: 'Test' }, eventType: 'reminder-sent' as any, daysUntil: 0 }
-      ];
-      const originalLength = component.timelineEvents.length;
-      component.refreshData();
-      expect(component.timelineEvents.length).toBe(originalLength);
     });
   });
 
@@ -1148,12 +1111,6 @@ describe('PrayerArchiveTimelineComponent - Component Integration Tests', () => {
       } else {
         expect(newMonth).toBe(initialMonth + 1);
       }
-    });
-
-    it('should handle refresh button click', () => {
-      const wasLoading = component.isLoading;
-      component.refreshData();
-      expect(component.isLoading).toBe(true);
     });
 
     it('should handle rapid navigation clicks', () => {
@@ -1621,7 +1578,6 @@ describe('PrayerArchiveTimelineComponent - Angular Component Tests', () => {
 
     it('should initialize with loading state false', () => {
       expect(component.isLoading).toBe(false);
-      expect(component.isRefreshing).toBe(false);
     });
 
     it('should detect user timezone', () => {
@@ -1699,6 +1655,7 @@ describe('PrayerArchiveTimelineComponent - Angular Component Tests', () => {
 
       expect(component.sectionExpanded).toBe(true);
       expect(loadSettingsSpy).toHaveBeenCalled();
+      expect(prayerService.loadPrayers).toHaveBeenCalledWith(true);
       expect(subscribeSpy).toHaveBeenCalled();
       expect(component.isLoading).toBe(false);
     });
@@ -1831,43 +1788,6 @@ describe('PrayerArchiveTimelineComponent - Angular Component Tests', () => {
       
       // Should attempt to restore scroll position
       expect(component.currentMonth.getMonth()).toBe(1); // February
-    });
-  });
-
-  describe('Refresh Data', () => {
-    it('should set isRefreshing to true', () => {
-      component.isRefreshing = false;
-
-      component.refreshData();
-
-      expect(component.isRefreshing).toBe(true);
-    });
-
-    it('should mark for check', () => {
-      const cdr = (component as any).cdr;
-      const spy = vi.spyOn(cdr, 'markForCheck');
-
-      component.refreshData();
-
-      expect(spy).toHaveBeenCalled();
-    });
-
-    it('should load prayers with force refresh', async () => {
-      component.refreshData();
-
-      // Wait for promise to resolve
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      expect(prayerService.loadPrayers).toHaveBeenCalledWith(true);
-    });
-
-    it('should stop refreshing after refresh completes', async () => {
-      component.refreshData();
-
-      // Wait for promise to resolve
-      await new Promise(resolve => setTimeout(resolve, 50));
-
-      expect(component.isRefreshing).toBe(false);
     });
   });
 

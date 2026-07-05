@@ -7,8 +7,10 @@ import {
 } from '../utils/branding-cache-keys';
 
 const TENANT_ID = 'tenant-branding-1';
+const TENANT_ID_B = 'tenant-branding-2';
 
 const mockTenant = { id: TENANT_ID, name: 'Test Church', slug: 'test-church' };
+const mockTenantB = { id: TENANT_ID_B, name: 'Other Church', slug: 'other-church' };
 
 function tenantKey(base: string): string {
   return getBrandingCacheKey(base, TENANT_ID);
@@ -86,6 +88,92 @@ describe('BrandingService', () => {
 
       expect(rpcMock).not.toHaveBeenCalled();
       expect(service.getBranding().appTitle).toBe('Legacy Title');
+    });
+
+    it('should not use window cache from a different tenant', async () => {
+      const otherTenantLogo = 'data:image/webp;base64,other-tenant';
+      (window as { __cachedLogos?: unknown }).__cachedLogos = {
+        tenantId: 'other-tenant',
+        light: otherTenantLogo,
+        useLogo: true,
+      };
+
+      await service.initialize();
+
+      expect(service.getBranding().lightLogo).toBeNull();
+      expect(service.getBranding().useLogo).toBe(false);
+    });
+
+    it('should use tenant cache without refetch when branding is unchanged', async () => {
+      const cachedTimestamp = new Date('2024-06-01').toISOString();
+      const cachedLogo = 'data:image/webp;base64,cached-logo';
+      localStorage.setItem(tenantKey(BRANDING_CACHE_KEYS.useLogo), 'true');
+      localStorage.setItem(tenantKey(BRANDING_CACHE_KEYS.lightLogo), cachedLogo);
+      localStorage.setItem(tenantKey(BRANDING_CACHE_KEYS.lastModified), cachedTimestamp);
+
+      rpcMock.mockResolvedValue({
+        data: [{ branding_last_modified: cachedTimestamp }],
+        error: null,
+      });
+
+      await service.initialize();
+
+      expect(service.getBranding().lightLogo).toBe(cachedLogo);
+      expect(rpcMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should refetch from Supabase when the active tenant switches', async () => {
+      const cachedTimestamp = new Date('2024-06-01').toISOString();
+      const tenantALogo = 'data:image/webp;base64,tenant-a';
+      const tenantBLogo = 'data:image/webp;base64,tenant-b';
+
+      localStorage.setItem(tenantKey(BRANDING_CACHE_KEYS.useLogo), 'true');
+      localStorage.setItem(tenantKey(BRANDING_CACHE_KEYS.lightLogo), tenantALogo);
+      localStorage.setItem(tenantKey(BRANDING_CACHE_KEYS.lastModified), cachedTimestamp);
+
+      const tenantBKey = getBrandingCacheKey(BRANDING_CACHE_KEYS.lightLogo, TENANT_ID_B);
+      localStorage.setItem(tenantBKey, tenantBLogo);
+      localStorage.setItem(
+        getBrandingCacheKey(BRANDING_CACHE_KEYS.useLogo, TENANT_ID_B),
+        'true'
+      );
+      localStorage.setItem(
+        getBrandingCacheKey(BRANDING_CACHE_KEYS.lastModified, TENANT_ID_B),
+        cachedTimestamp
+      );
+
+      rpcMock
+        .mockResolvedValueOnce({
+          data: [{ branding_last_modified: cachedTimestamp }],
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: [
+            {
+              use_logo: true,
+              light_mode_logo_blob: tenantBLogo,
+              dark_mode_logo_blob: null,
+              app_title: 'Other Church',
+              app_subtitle: 'Other tagline',
+              branding_last_modified: cachedTimestamp,
+            },
+          ],
+          error: null,
+        });
+
+      await service.initialize();
+      expect(rpcMock).toHaveBeenCalledTimes(1);
+
+      mockTenantContext.getActiveTenant.mockReturnValue(mockTenantB);
+      mockTenantContext.activeTenant$.next(mockTenantB);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(rpcMock).toHaveBeenCalledTimes(2);
+      expect(rpcMock).toHaveBeenLastCalledWith('get_public_tenant_branding', {
+        p_tenant_id: TENANT_ID_B,
+      });
+      expect(service.getBranding().lightLogo).toBe(tenantBLogo);
+      expect(service.getBranding().appTitle).toBe('Other Church');
     });
   });
 

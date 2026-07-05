@@ -25,6 +25,8 @@ export class BrandingService implements OnDestroy {
   private initialized = false;
   private initializationPromise: Promise<void> | null = null;
   private loadBrandingInFlight: Promise<void> | null = null;
+  /** Last tenant whose branding was loaded; used to force DB refresh on switch. */
+  private loadedBrandingTenantId: string | null = null;
   private readonly destroy$ = new Subject<void>();
 
   public branding$ = this.brandingSubject.asObservable().pipe(shareReplay(1));
@@ -139,29 +141,46 @@ export class BrandingService implements OnDestroy {
   }
 
   private async loadBrandingBody(): Promise<void> {
+    const tenantId = this.tenantContext.getActiveTenant()?.id ?? null;
+    const tenantSwitched =
+      this.loadedBrandingTenantId !== null &&
+      tenantId !== this.loadedBrandingTenantId;
+
     try {
       const cached = this.loadFromCache();
       console.log('[BrandingService] Loaded from cache:', {
-        tenantId: this.tenantContext.getActiveTenant()?.id ?? null,
+        tenantId,
+        tenantSwitched,
         useLogo: cached.useLogo,
         hasLightLogo: !!cached.lightLogo,
         hasDarkLogo: !!cached.darkLogo
       });
       this.brandingSubject.next(cached);
+      this.syncWindowLogoCache(cached);
 
-      const tenantId = this.tenantContext.getActiveTenant()?.id;
       if (!tenantId) {
+        this.loadedBrandingTenantId = null;
         console.log('[BrandingService] No active tenant; using cached/default branding');
         return;
       }
 
-      const shouldFetch = await this.shouldFetchFromSupabase(cached.lastModified);
+      const shouldFetch =
+        tenantSwitched ||
+        (await this.shouldFetchFromSupabase(cached.lastModified));
 
       if (shouldFetch) {
-        console.log('[BrandingService] Branding changed, fetching tenant settings from Supabase');
-        await this.fetchFromSupabase();
+        console.log(
+          tenantSwitched
+            ? '[BrandingService] Tenant switched, fetching branding from Supabase'
+            : '[BrandingService] Branding changed, fetching tenant settings from Supabase'
+        );
+        await this.fetchFromSupabase(tenantId);
       } else {
         console.log('[BrandingService] Using cached branding (no tenant updates)');
+      }
+
+      if (this.tenantContext.getActiveTenant()?.id === tenantId) {
+        this.loadedBrandingTenantId = tenantId;
       }
     } catch (error) {
       console.warn('[BrandingService] Failed to load branding:', error);
@@ -172,7 +191,18 @@ export class BrandingService implements OnDestroy {
    * Load branding from window cache and localStorage (tenant-scoped when active).
    */
   private loadFromCache(): BrandingData {
-    const windowCache = (window as any).__cachedLogos;
+    const tenantId = this.tenantContext.getActiveTenant()?.id ?? null;
+    const windowCache = (window as {
+      __cachedLogos?: {
+        light?: string | null;
+        dark?: string | null;
+        useLogo?: boolean;
+        tenantId?: string | null;
+      };
+    }).__cachedLogos;
+    const windowCacheApplies =
+      !!windowCache &&
+      (!tenantId || !windowCache.tenantId || windowCache.tenantId === tenantId);
 
     const lightKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.lightLogo);
     const darkKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.darkLogo);
@@ -181,9 +211,17 @@ export class BrandingService implements OnDestroy {
     const subtitleKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.appSubtitle);
     const modifiedKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.lastModified);
 
-    const lightLogo = localStorage.getItem(lightKey) ?? windowCache?.light ?? null;
-    const darkLogo = localStorage.getItem(darkKey) ?? windowCache?.dark ?? null;
-    const useLogo = localStorage.getItem(useKey);
+    const lightStored = localStorage.getItem(lightKey);
+    const darkStored = localStorage.getItem(darkKey);
+    const useStored = localStorage.getItem(useKey);
+    const lightLogo =
+      lightStored ?? (windowCacheApplies ? windowCache?.light ?? null : null);
+    const darkLogo =
+      darkStored ?? (windowCacheApplies ? windowCache?.dark ?? null : null);
+    const useLogo =
+      useStored !== null
+        ? useStored === 'true'
+        : windowCacheApplies && windowCache?.useLogo === true;
     const appTitle = localStorage.getItem(titleKey) ?? 'Church Prayer Manager';
     const appSubtitle =
       localStorage.getItem(subtitleKey) ??
@@ -191,12 +229,29 @@ export class BrandingService implements OnDestroy {
     const lastModifiedStr = localStorage.getItem(modifiedKey);
 
     return {
-      useLogo: useLogo === 'true' || windowCache?.useLogo === true,
+      useLogo,
       lightLogo,
       darkLogo,
       appTitle,
       appSubtitle,
       lastModified: lastModifiedStr ? new Date(lastModifiedStr) : null
+    };
+  }
+
+  private syncWindowLogoCache(branding: BrandingData): void {
+    const tenantId = this.tenantContext.getActiveTenant()?.id ?? null;
+    (window as {
+      __cachedLogos?: {
+        light?: string | null;
+        dark?: string | null;
+        useLogo?: boolean;
+        tenantId?: string | null;
+      };
+    }).__cachedLogos = {
+      tenantId,
+      light: branding.lightLogo,
+      dark: branding.darkLogo,
+      useLogo: branding.useLogo,
     };
   }
 
@@ -226,6 +281,7 @@ export class BrandingService implements OnDestroy {
     if (branding.lastModified) {
       localStorage.setItem(modifiedKey, branding.lastModified.toISOString());
     }
+    this.syncWindowLogoCache(branding);
   }
 
   private async shouldFetchFromSupabase(cachedLastModified: Date | null): Promise<boolean> {
@@ -265,10 +321,10 @@ export class BrandingService implements OnDestroy {
     }
   }
 
-  private async fetchFromSupabase(): Promise<void> {
+  private async fetchFromSupabase(forTenantId: string): Promise<void> {
     try {
       const tenantId = this.tenantContext.getActiveTenant()?.id;
-      if (!tenantId) {
+      if (!tenantId || tenantId !== forTenantId) {
         return;
       }
 
@@ -300,7 +356,9 @@ export class BrandingService implements OnDestroy {
       };
 
       this.persistBrandingToCache(branding);
-      this.brandingSubject.next(branding);
+      if (this.tenantContext.getActiveTenant()?.id === forTenantId) {
+        this.brandingSubject.next(branding);
+      }
     } catch (error) {
       console.warn('[BrandingService] Failed to fetch branding from Supabase:', error);
     }

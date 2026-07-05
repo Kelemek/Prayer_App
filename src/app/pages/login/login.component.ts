@@ -17,7 +17,6 @@ import { UserSessionService } from "../../services/user-session.service";
 import { EmailNotificationService } from "../../services/email-notification.service";
 import { TenantContextService } from "../../services/tenant-context.service";
 import { Subject, takeUntil } from "rxjs";
-import { APP_ICON_PATH } from "../../constants/app-defaults";
 
 @Component({
   selector: "app-login",
@@ -31,7 +30,7 @@ import { APP_ICON_PATH } from "../../constants/app-defaults";
         <div class="text-center">
           <div class="flex justify-center mb-6">
             <img
-              [src]="appIconPath"
+              src="/icons/icon-192.webp"
               alt="Prayer App Icon"
               class="h-28 w-28 sm:h-32 sm:w-32 rounded-3xl object-contain shadow-lg"
             />
@@ -627,8 +626,6 @@ import { APP_ICON_PATH } from "../../constants/app-defaults";
   ],
 })
 export class LoginComponent implements OnInit, OnDestroy {
-  readonly appIconPath = APP_ICON_PATH;
-
   @ViewChildren("codeInput") codeInputs!: QueryList<
     ElementRef<HTMLInputElement>
   >;

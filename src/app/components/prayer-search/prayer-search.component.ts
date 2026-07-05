@@ -1148,19 +1148,18 @@ interface TenantMemberPickRow {
 
               <!-- View Mode -->
               @if (editingPrayer !== prayer.id) {
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2 items-stretch">
                 <!-- Basic Information -->
-                <div class="space-y-3">
-                  <div
-                    class="bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700"
+                <div
+                  class="h-full bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700"
+                >
+                  <h6
+                    class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase mb-2"
                   >
-                    <h6
-                      class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase mb-2"
-                    >
-                      Basic Information
-                    </h6>
+                    Basic Information
+                  </h6>
 
-                    <div class="space-y-2 text-sm">
+                  <div class="space-y-2 text-sm">
                       <div>
                         <span
                           class="font-medium text-gray-700 dark:text-gray-300"
@@ -1203,21 +1202,19 @@ interface TenantMemberPickRow {
                       </div>
                       }
                     </div>
-                  </div>
                 </div>
 
                 <!-- Status Information -->
-                <div class="space-y-3">
-                  <div
-                    class="bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700"
+                <div
+                  class="h-full bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700"
+                >
+                  <h6
+                    class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase mb-2"
                   >
-                    <h6
-                      class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase mb-2"
-                    >
-                      Status Information
-                    </h6>
+                    Status Information
+                  </h6>
 
-                    <div class="space-y-2 text-sm">
+                  <div class="space-y-2 text-sm">
                       <div>
                         <span
                           class="font-medium text-gray-700 dark:text-gray-300"
@@ -1263,7 +1260,6 @@ interface TenantMemberPickRow {
                         </div>
                       </div>
                     </div>
-                  </div>
                 </div>
               </div>
 

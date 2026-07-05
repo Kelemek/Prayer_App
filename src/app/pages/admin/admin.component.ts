@@ -32,6 +32,7 @@ import { GitHubFeedbackService } from '../../services/github-feedback.service';
 import { PrayerEncouragementSettingsComponent } from '../../components/prayer-encouragement-settings/prayer-encouragement-settings.component';
 import { ConfirmationDialogComponent } from '../../components/confirmation-dialog/confirmation-dialog.component';
 import { TenantManagementComponent } from '../../components/tenant-management/tenant-management.component';
+import { TenantSwitcherDropdownComponent } from '../../components/tenant-switcher-dropdown/tenant-switcher-dropdown.component';
 import { SiteAnalyticsActivityChartComponent } from '../../components/site-analytics-activity-chart/site-analytics-activity-chart.component';
 import { TenantContextService } from '../../services/tenant-context.service';
 import { ToastService } from '../../services/toast.service';
@@ -69,6 +70,7 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
     PrayerEncouragementSettingsComponent,
     ConfirmationDialogComponent,
     TenantManagementComponent,
+    TenantSwitcherDropdownComponent,
     SiteAnalyticsActivityChartComponent
   ],
   styles: `
@@ -116,16 +118,11 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
             <div class="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
               <div class="flex items-center gap-2 w-full sm:w-auto flex-wrap justify-end">
                 @if (showTenantSwitcherInHeader) {
-                <select
-                  [ngModel]="activeTenantId"
-                  (ngModelChange)="onTenantSelect($event)"
-                  class="flex-1 sm:flex-none min-w-0 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-gray-700 dark:text-gray-200"
-                  title="Switch active tenant"
-                >
-                  @for (tenant of tenantSwitchOptions; track tenant.id) {
-                  <option [ngValue]="tenant.id">{{ tenant.name }}</option>
-                  }
-                </select>
+                <app-tenant-switcher-dropdown
+                  [compact]="true"
+                  triggerId="admin-tenant-switcher"
+                  (tenantSelected)="onTenantSelect($event)"
+                />
                 }
                 <!-- Email Indicator -->
                 @if ((userSessionService.userSession$ | async); as session) {

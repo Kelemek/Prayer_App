@@ -60,21 +60,6 @@ interface TimelineDay {
           Select an organization above to view the prayer timeline for that tenant.
         </p>
         } @else {
-        <div class="flex items-center justify-end mb-6">
-          <button
-            (click)="refreshData()"
-            class="flex items-center gap-2 px-3 py-2 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
-            [disabled]="isRefreshing"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" [class.animate-spin]="isRefreshing">
-              <path d="M23 4v6h-6"></path>
-              <path d="M1 20v-6h6"></path>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36M20.49 15a9 9 0 0 1-14.85 3.36"></path>
-            </svg>
-            {{ isRefreshing ? 'Refreshing...' : 'Refresh' }}
-          </button>
-        </div>
-
       <!-- Settings Info -->
       <div class="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
         <div class="text-sm text-gray-700 dark:text-gray-300 space-y-1">
@@ -240,7 +225,22 @@ interface TimelineDay {
             <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
             <path d="M3 21v-5h5"></path>
           </svg>
-          <p>No prayer events scheduled for the selected timeframe</p>
+          <p>No prayer events scheduled for {{ monthDisplay }}</p>
+          @if (hasEventsInOtherMonths) {
+          <p class="text-sm mt-1">
+            Events exist in other months — use Previous or Next below.
+          </p>
+          } @else if (allPrayersCount === 0) {
+          <p class="text-sm mt-1">
+            No approved prayers loaded for this organization. Expand this
+            section again after approving prayers in Prayer Editor.
+          </p>
+          } @else {
+          <p class="text-sm mt-1">
+            Reminder and archive dates may fall in future months (interval:
+            {{ reminderIntervalDays }} days).
+          </p>
+          }
         </div>
       }
 
@@ -364,7 +364,6 @@ export class PrayerArchiveTimelineComponent implements OnInit, OnDestroy {
   private settingsLoadedForTenantId: string | null = null;
 
   isLoading = false;
-  isRefreshing = false;
   reminderIntervalDays = 7;
   daysBeforeArchive = 7;
   private readonly reminderJobHourUtc = 10;
@@ -422,6 +421,14 @@ export class PrayerArchiveTimelineComponent implements OnInit, OnDestroy {
     const maxMonthValue = this.maxMonth.getMonth();
     
     return currentYear < maxYear || (currentYear === maxYear && currentMonth < maxMonthValue);
+  }
+
+  get hasEventsInOtherMonths(): boolean {
+    return this.allEvents.length > 0 && this.timelineEvents.length === 0;
+  }
+
+  get allPrayersCount(): number {
+    return this.allPrayers.length;
   }
 
   get activeTenantId(): string | null {
@@ -494,8 +501,11 @@ export class PrayerArchiveTimelineComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
 
     try {
-      await this.loadSettings();
       this.setupPrayersSubscription();
+      await Promise.all([
+        this.loadSettings(),
+        this.prayerService.loadPrayers(true),
+      ]);
     } finally {
       this.isLoading = false;
       this.cdr.markForCheck();
@@ -553,20 +563,6 @@ export class PrayerArchiveTimelineComponent implements OnInit, OnDestroy {
       console.error('Error loading timeline settings:', err);
       // Use defaults if load fails
     }
-  }
-
-  refreshData(): void {
-    this.isRefreshing = true;
-    this.cdr.markForCheck();
-    
-    // Reload both settings and prayers
-    Promise.all([
-      this.loadSettings(),
-      this.prayerService.loadPrayers(true)
-    ]).finally(() => {
-      this.isRefreshing = false;
-      this.cdr.markForCheck();
-    });
   }
 
   previousMonth(): void {

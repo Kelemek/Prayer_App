@@ -265,9 +265,11 @@ describe('HomeComponent', () => {
     delete (window as any).__cachedLogos;
   });
 
-  it('constructor uses window cache to set hasLogo', () => {
+  it('constructor uses tenant-scoped window cache to set hasLogo', () => {
+    const tenantId = 'tenant-home-1';
+    localStorage.setItem('active_tenant_id', tenantId);
     // @ts-ignore
-    (window as any).__cachedLogos = { useLogo: true };
+    (window as any).__cachedLogos = { tenantId, useLogo: true };
     const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
@@ -281,6 +283,25 @@ describe('HomeComponent', () => {
       mocks.supabaseService
     );
     expect(comp.hasLogo).toBe(true);
+  });
+
+  it('constructor ignores window cache from a different tenant', () => {
+    localStorage.setItem('active_tenant_id', 'tenant-home-2');
+    // @ts-ignore
+    (window as any).__cachedLogos = { tenantId: 'tenant-home-1', useLogo: true };
+    const comp = createHomeComponent(
+      mocks.prayerService,
+      mocks.promptService,
+      mocks.adminAuthService,
+      mocks.userSessionService,
+      mocks.badgeService,
+      mocks.toastService,
+      mocks.analyticsService,
+      mocks.cdr,
+      mocks.router,
+      mocks.supabaseService
+    );
+    expect(comp.hasLogo).toBe(false);
   });
 
   it('getUserEmail returns cached email from UserSessionService if available', () => {

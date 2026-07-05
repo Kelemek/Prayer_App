@@ -13,7 +13,7 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --run --coverage && node scripts/coverage-report.js",
     "lint": "ng lint",
-    "cap:icons": "cp public/apple-touch-icon.png resources/logo.png && npx @capacitor/assets generate --iconBackgroundColor '#1a365d' --iconBackgroundColorDark '#1a365d' --splashBackgroundColor '#1a365d' --splashBackgroundColorDark '#1a365d'",
+    "cap:icons": "cp public/apple-touch-icon.png resources/logo.png && npx @capacitor/assets generate --iconBackgroundColor '#1a365d' --iconBackgroundColorDark '#1a365d' --splashBackgroundColor '#1a365d' --splashBackgroundColorDark '#1a365d' && cp icons/icon-*.webp public/icons/",
     "cap:icons:generate": "npx @capacitor/assets generate --iconBackgroundColor '#1a365d' --iconBackgroundColorDark '#1a365d' --splashBackgroundColor '#1a365d' --splashBackgroundColorDark '#1a365d'",
     "cap:sync": "npx cap sync",
     "cap:open": "npx cap open ios",
