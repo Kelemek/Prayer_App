@@ -537,3 +537,8 @@ html, body {
     -webkit-print-color-adjust: exact;
   }
 }
+
+/* Tailwind's var(--animate-spin) utility can be inert in nested Angular views. */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}

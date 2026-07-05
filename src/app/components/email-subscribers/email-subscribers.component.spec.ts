@@ -126,6 +126,42 @@ describe('EmailSubscribersComponent', () => {
     expect(searchSpy).toHaveBeenCalled();
   });
 
+  it('should debounce list search query changes', async () => {
+    vi.useFakeTimers();
+    const searchSpy = vi.spyOn(component, 'handleSearch').mockResolvedValue(undefined);
+
+    component.onListSearchQueryChange('jo');
+    expect(searchSpy).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(component.listSearchDebounceMs);
+    await Promise.resolve();
+
+    expect(searchSpy).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it('should flush list search immediately on Enter', () => {
+    const searchSpy = vi.spyOn(component, 'handleSearch').mockResolvedValue(undefined);
+    component.searchQuery = 'john';
+
+    component.onListSearchKeydown({
+      key: 'Enter',
+      preventDefault: vi.fn()
+    } as unknown as KeyboardEvent);
+
+    expect(searchSpy).toHaveBeenCalled();
+  });
+
+  it('should clear list search and reload', () => {
+    const searchSpy = vi.spyOn(component, 'handleSearch').mockResolvedValue(undefined);
+    component.searchQuery = 'john';
+
+    component.clearListSearch();
+
+    expect(component.searchQuery).toBe('');
+    expect(searchSpy).toHaveBeenCalled();
+  });
+
   it('toggleSort should toggle direction when same column', () => {
     component.sortBy = 'name';
     component.sortDirection = 'asc';

@@ -82,6 +82,12 @@ interface EditUpdateForm {
   author_email: string;
 }
 
+/** Row from tenant_memberships for admin create-prayer lookup (minimal columns). */
+interface TenantMemberPickRow {
+  email: string;
+  name: string;
+}
+
 @Component({
   selector: "app-prayer-search",
   standalone: true,
@@ -184,6 +190,76 @@ interface EditUpdateForm {
         </div>
 
         <form (submit)="createPrayer($event)" class="space-y-3">
+          <div class="relative">
+            <label
+              for="createMemberSearch"
+              class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+            >
+              Find member
+            </label>
+            <input
+              id="createMemberSearch"
+              type="search"
+              [(ngModel)]="userSearchQuery"
+              name="userSearchQuery"
+              (ngModelChange)="onUserSearchQueryChange($event)"
+              (focus)="onUserSearchFocus()"
+              (blur)="onUserSearchBlur()"
+              autocomplete="off"
+              placeholder="Search members in this organization by name or email (min. {{
+                userSearchMinChars
+              }} characters)…"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+            @if (userSearchLoading) {
+            <div class="pointer-events-none absolute right-3 top-9">
+              <div
+                class="animate-spin rounded-full h-4 w-4 border-2 border-green-600 border-t-transparent dark:border-green-400 dark:border-t-transparent"
+              ></div>
+            </div>
+            }
+            @if (showUserSearchDropdown && userSearchResults.length > 0) {
+            <ul
+              class="absolute z-30 mt-1 w-full max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg"
+              role="listbox"
+              aria-label="Matching organization members"
+            >
+              @for (row of userSearchResults; track row.email) {
+              <li>
+                <button
+                  type="button"
+                  class="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700/80 border-b border-gray-100 dark:border-gray-700 last:border-b-0 cursor-pointer"
+                  (mousedown)="selectTenantMemberUser(row, $event)"
+                >
+                  <div class="font-medium text-gray-900 dark:text-gray-100">
+                    {{ row.name || row.email }}
+                  </div>
+                  @if (row.name) {
+                  <div class="text-sm text-gray-600 dark:text-gray-400">
+                    {{ row.email }}
+                  </div>
+                  }
+                </button>
+              </li>
+              }
+            </ul>
+            }
+            @if (
+              userSearchQuery.trim().length >= userSearchMinChars &&
+              !userSearchLoading &&
+              userSearchHasSearched &&
+              userSearchResults.length === 0
+            ) {
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              No matching members in this organization
+            </p>
+            }
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Debounced search; only members of the active organization are
+              shown (limited to {{ userSearchResultLimit }} matches).
+            </p>
+          </div>
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label
@@ -364,17 +440,39 @@ interface EditUpdateForm {
       }
 
       <!-- Search Input -->
-      <div class="flex gap-2 mb-4">
+      <div class="mb-4">
+        <label
+          for="mainPrayerSearch"
+          class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+        >
+          Search Prayers
+        </label>
         <div class="flex-1 relative">
           <input
+            id="mainPrayerSearch"
             type="text"
+            name="mainPrayerSearch"
             [(ngModel)]="searchTerm"
-            (keypress)="onKeyPress($event)"
-            placeholder="Search by title, requester, email, description, prayer updates, or denial reasons..."
-            class="w-full px-4 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            (ngModelChange)="onMainSearchTermChange($event)"
+            (keydown)="onMainSearchKeydown($event)"
+            autocomplete="off"
+            placeholder="Search by title, requester, email, description, prayer updates, or denial reasons (min. {{
+              mainSearchMinChars
+            }} characters)…"
+            class="w-full px-4 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500"
           />
+          @if (searching) {
+          <div
+            class="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2"
+          >
+            <div
+              class="animate-spin rounded-full h-4 w-4 border-2 border-red-600 border-t-transparent dark:border-red-400 dark:border-t-transparent"
+            ></div>
+          </div>
+          }
           @if (searchTerm) {
           <button
+            type="button"
             (click)="clearSearch()"
             class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
           >
@@ -394,32 +492,11 @@ interface EditUpdateForm {
           </button>
           }
         </div>
-        <button
-          (click)="handleSearch()"
-          [disabled]="searching"
-          class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
-        >
-          @if (searching) {
-          <div
-            class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"
-          ></div>
-          } @if (!searching) {
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="11" cy="11" r="8"></circle>
-            <path d="m21 21-4.35-4.35"></path>
-          </svg>
-          }
-          {{ searching ? "Searching..." : "Search" }}
-        </button>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          Debounced search ({{ mainSearchDebounceMs }}ms). Update matches use a
+          targeted query instead of loading the full list. Results capped at
+          {{ mainSearchResultLimit }} prayers.
+        </p>
       </div>
 
       <!-- Filter Dropdowns -->
@@ -427,70 +504,162 @@ interface EditUpdateForm {
         <!-- Prayer Status Filter -->
         <div>
           <label
+            for="prayer-status-filter-trigger"
             class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
           >
             Prayer Status
           </label>
           <div class="relative">
-            <select
-              [(ngModel)]="statusFilter"
-              (change)="onStatusFilterChange()"
-              class="w-full appearance-none px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 cursor-pointer"
+            <div
+              [class.border-blue-500]="showStatusFilterDropdown"
+              [class.ring-1]="showStatusFilterDropdown"
+              [class.ring-blue-500/40]="showStatusFilterDropdown"
+              class="overflow-hidden rounded-md border border-blue-300 bg-white transition-all dark:border-blue-600 dark:bg-gray-800"
             >
-              <option value="">Select status...</option>
-              <option value="all">All Statuses</option>
-              <option value="current">Current</option>
-              <option value="answered">Answered</option>
-              <option value="archived">Archived</option>
-            </select>
-            <svg
-              class="pointer-events-none absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-600 dark:text-blue-400"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+              <button
+                type="button"
+                id="prayer-status-filter-trigger"
+                (click)="toggleStatusFilterDropdown()"
+                [attr.aria-expanded]="showStatusFilterDropdown"
+                aria-haspopup="listbox"
+                aria-label="Prayer status filter"
+                class="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                <span
+                  [class.text-gray-500]="!statusFilter"
+                  [class.dark:text-gray-400]="!statusFilter"
+                >
+                  {{ getStatusFilterLabel() }}
+                </span>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="shrink-0 text-blue-600 transition-transform dark:text-blue-400"
+                  [class.rotate-180]="showStatusFilterDropdown"
+                  aria-hidden="true"
+                >
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+            </div>
+
+            @if (showStatusFilterDropdown) {
+            <div
+              class="fixed inset-0 z-10"
+              (click)="closeStatusFilterDropdown()"
+            ></div>
+            <div
+              role="listbox"
+              aria-label="Prayer status filter"
+              class="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-lg border border-blue-300 bg-white py-1 shadow-lg dark:border-blue-600 dark:bg-gray-800"
             >
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
+              @for (option of statusFilterOptions; track option.value) {
+              <button
+                type="button"
+                role="option"
+                [attr.aria-selected]="statusFilter === option.value"
+                (click)="selectStatusFilter(option.value)"
+                class="flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-blue-50 dark:text-gray-200 dark:hover:bg-blue-900/30"
+                [class.bg-blue-50]="statusFilter === option.value"
+                [class.dark:bg-blue-900/40]="statusFilter === option.value"
+              >
+                <span>{{ option.label }}</span>
+                @if (statusFilter === option.value) {
+                <span class="ml-2 shrink-0 text-blue-600 dark:text-blue-400"
+                  >✓</span
+                >
+                }
+              </button>
+              }
+            </div>
+            }
           </div>
         </div>
 
         <!-- Approval Status Filter -->
         <div>
           <label
+            for="approval-status-filter-trigger"
             class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
           >
             Approval Status
           </label>
           <div class="relative">
-            <select
-              [(ngModel)]="approvalFilter"
-              (change)="onApprovalFilterChange()"
-              class="w-full appearance-none px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 cursor-pointer"
+            <div
+              [class.border-blue-500]="showApprovalFilterDropdown"
+              [class.ring-1]="showApprovalFilterDropdown"
+              [class.ring-blue-500/40]="showApprovalFilterDropdown"
+              class="overflow-hidden rounded-md border border-blue-300 bg-white transition-all dark:border-blue-600 dark:bg-gray-800"
             >
-              <option value="">Select approval...</option>
-              <option value="all">All Approvals</option>
-              <option value="approved">Approved</option>
-              <option value="pending">Pending</option>
-              <option value="denied">Denied</option>
-            </select>
-            <svg
-              class="pointer-events-none absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-600 dark:text-blue-400"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+              <button
+                type="button"
+                id="approval-status-filter-trigger"
+                (click)="toggleApprovalFilterDropdown()"
+                [attr.aria-expanded]="showApprovalFilterDropdown"
+                aria-haspopup="listbox"
+                aria-label="Approval status filter"
+                class="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                <span
+                  [class.text-gray-500]="!approvalFilter"
+                  [class.dark:text-gray-400]="!approvalFilter"
+                >
+                  {{ getApprovalFilterLabel() }}
+                </span>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="shrink-0 text-blue-600 transition-transform dark:text-blue-400"
+                  [class.rotate-180]="showApprovalFilterDropdown"
+                  aria-hidden="true"
+                >
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+            </div>
+
+            @if (showApprovalFilterDropdown) {
+            <div
+              class="fixed inset-0 z-10"
+              (click)="closeApprovalFilterDropdown()"
+            ></div>
+            <div
+              role="listbox"
+              aria-label="Approval status filter"
+              class="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-lg border border-blue-300 bg-white py-1 shadow-lg dark:border-blue-600 dark:bg-gray-800"
             >
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
+              @for (option of approvalFilterOptions; track option.value) {
+              <button
+                type="button"
+                role="option"
+                [attr.aria-selected]="approvalFilter === option.value"
+                (click)="selectApprovalFilter(option.value)"
+                class="flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-blue-50 dark:text-gray-200 dark:hover:bg-blue-900/30"
+                [class.bg-blue-50]="approvalFilter === option.value"
+                [class.dark:bg-blue-900/40]="approvalFilter === option.value"
+              >
+                <span>{{ option.label }}</span>
+                @if (approvalFilter === option.value) {
+                <span class="ml-2 shrink-0 text-blue-600 dark:text-blue-400"
+                  >✓</span
+                >
+                }
+              </button>
+              }
+            </div>
+            }
           </div>
         </div>
       </div>
@@ -1768,8 +1937,34 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
   searchTerm = "";
   statusFilter = "";
   approvalFilter = "";
+  showStatusFilterDropdown = false;
+  showApprovalFilterDropdown = false;
+
+  readonly statusFilterOptions = [
+    { value: "", label: "Select status..." },
+    { value: "all", label: "All Statuses" },
+    { value: "current", label: "Current" },
+    { value: "answered", label: "Answered" },
+    { value: "archived", label: "Archived" },
+  ] as const;
+
+  readonly approvalFilterOptions = [
+    { value: "", label: "Select approval..." },
+    { value: "all", label: "All Approvals" },
+    { value: "approved", label: "Approved" },
+    { value: "pending", label: "Pending" },
+    { value: "denied", label: "Denied" },
+  ] as const;
+
   searchResults: Prayer[] = [];
   searching = false;
+
+  /** Main prayer list text search — debounced while typing. */
+  readonly mainSearchMinChars = 2;
+  readonly mainSearchDebounceMs = 350;
+  readonly mainSearchResultLimit = 100;
+  private mainSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
   deleting = false;
   error: string | null = null;
   selectedPrayers = new Set<string>();
@@ -1784,6 +1979,19 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
     status: "",
   };
   creatingPrayer = false;
+
+  /** Tenant member lookup for create form — debounced, minimal columns, capped rows. */
+  userSearchQuery = "";
+  userSearchResults: TenantMemberPickRow[] = [];
+  userSearchLoading = false;
+  userSearchHasSearched = false;
+  showUserSearchDropdown = false;
+  readonly userSearchMinChars = 2;
+  readonly userSearchResultLimit = 20;
+  private userSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private userSearchBlurTimer: ReturnType<typeof setTimeout> | null = null;
+  private userSearchRequestSeq = 0;
+
   createForm: CreateForm = {
     description: "",
     firstName: "",
@@ -1884,6 +2092,19 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.mainSearchDebounceTimer) {
+      clearTimeout(this.mainSearchDebounceTimer);
+      this.mainSearchDebounceTimer = null;
+    }
+    if (this.userSearchDebounceTimer) {
+      clearTimeout(this.userSearchDebounceTimer);
+      this.userSearchDebounceTimer = null;
+    }
+    if (this.userSearchBlurTimer) {
+      clearTimeout(this.userSearchBlurTimer);
+      this.userSearchBlurTimer = null;
+    }
+    this.userSearchRequestSeq++;
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -1935,6 +2156,24 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
       .select(select)
       .eq("tenant_id", tenantId);
 
+    q = this.applyPrayerListFilters(q);
+
+    const term = this.searchTerm.trim();
+    if (term && options.applyTextOrFilter) {
+      const e = this.escapeIlikeTerm(term);
+      q = q.or(
+        `requester.ilike.%${e}%,email.ilike.%${e}%,title.ilike.%${e}%,description.ilike.%${e}%,denial_reason.ilike.%${e}%`
+      );
+    }
+
+    return q.order("created_at", { ascending: false }).limit(this.mainSearchResultLimit);
+  }
+
+  private applyPrayerListFilters<
+    T extends {
+      eq: (column: string, value: string) => T;
+    },
+  >(q: T): T {
     if (this.statusFilter && this.statusFilter !== "all") {
       q = q.eq("status", this.statusFilter);
     }
@@ -1948,15 +2187,61 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
       q = q.eq("approval_status", this.approvalFilter);
     }
 
-    const term = this.searchTerm.trim();
-    if (term && options.applyTextOrFilter) {
-      const e = this.escapeIlikeTerm(term);
-      q = q.or(
-        `requester.ilike.%${e}%,email.ilike.%${e}%,title.ilike.%${e}%,description.ilike.%${e}%,denial_reason.ilike.%${e}%`
-      );
+    return q;
+  }
+
+  private async fetchPrayersMatchingUpdateContent(
+    tenantId: string,
+    term: string
+  ): Promise<Prayer[]> {
+    const escaped = this.escapeIlikeTerm(term);
+    const pattern = `%${escaped}%`;
+
+    let idQuery = this.supabaseService
+      .getClient()
+      .from("prayers")
+      .select("id, prayer_updates!inner(id)")
+      .eq("tenant_id", tenantId)
+      .ilike("prayer_updates.content", pattern);
+
+    idQuery = this.applyPrayerListFilters(idQuery);
+
+    const { data: idRows, error: idError } = await idQuery.limit(
+      this.mainSearchResultLimit
+    );
+    if (idError) {
+      throw new Error(`Query failed: ${idError.message}`);
     }
 
-    return q.order("created_at", { ascending: false }).limit(100);
+    const ids = [
+      ...new Set(
+        ((idRows || []) as { id: string }[])
+          .map((row) => row.id)
+          .filter(Boolean)
+      ),
+    ];
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const select =
+      "id,title,requester,email,status,created_at,denial_reason,description,approval_status,prayer_for,prayer_updates(id,content,author,author_email,created_at,denial_reason,approval_status)";
+
+    let fullQuery = this.supabaseService
+      .getClient()
+      .from("prayers")
+      .select(select)
+      .eq("tenant_id", tenantId)
+      .in("id", ids);
+
+    fullQuery = this.applyPrayerListFilters(fullQuery);
+
+    const { data: fullData, error: fullError } = await fullQuery;
+    if (fullError) {
+      throw new Error(`Query failed: ${fullError.message}`);
+    }
+
+    return (fullData || []) as Prayer[];
   }
 
   async handleSearch(): Promise<void> {
@@ -1986,35 +2271,14 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
 
       let results: Prayer[] = (primaryData || []) as Prayer[];
 
-      // Filter by search term in prayer updates content if search term exists
-      // The DB query already filters by prayer fields, but we need to also include
-      // prayers where the search term appears in any prayer update content
-      if (this.searchTerm.trim()) {
-        const searchLower = this.searchTerm.toLowerCase();
-
-        const secondary = await this.buildPrayersSelectQuery(tenantId, {
-          applyTextOrFilter: false,
-        });
-        const { data: allData, error: secondaryError } = await secondary;
-        if (secondaryError) {
-          throw new Error(`Query failed: ${secondaryError.message}`);
-        }
-
-        const updateMatches = ((allData || []) as Prayer[]).filter(
-          (prayer) =>
-            prayer.prayer_updates &&
-            prayer.prayer_updates.length > 0 &&
-            prayer.prayer_updates.some(
-              (update) =>
-                update.content &&
-                update.content.toLowerCase().includes(searchLower)
-            )
+      const trimmedSearch = this.searchTerm.trim();
+      if (trimmedSearch) {
+        const updateMatches = await this.fetchPrayersMatchingUpdateContent(
+          tenantId,
+          trimmedSearch
         );
 
-        // Combine results from prayer field matches and update content matches
         const resultIds = new Set(results.map((p: Prayer) => p.id));
-
-        // Add update matches that weren't already in the results
         for (const match of updateMatches) {
           if (!resultIds.has(match.id)) {
             results.push(match);
@@ -2134,10 +2398,50 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  onKeyPress(event: KeyboardEvent): void {
-    if (event.key === "Enter") {
-      this.handleSearch();
+  onMainSearchTermChange(value: string): void {
+    if (this.mainSearchDebounceTimer) {
+      clearTimeout(this.mainSearchDebounceTimer);
+      this.mainSearchDebounceTimer = null;
     }
+
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      this.mainSearchDebounceTimer = setTimeout(() => {
+        this.mainSearchDebounceTimer = null;
+        void this.handleSearch();
+      }, this.mainSearchDebounceMs);
+      return;
+    }
+    if (trimmed.length < this.mainSearchMinChars) {
+      this.cdr.markForCheck();
+      return;
+    }
+
+    this.mainSearchDebounceTimer = setTimeout(() => {
+      this.mainSearchDebounceTimer = null;
+      void this.handleSearch();
+    }, this.mainSearchDebounceMs);
+  }
+
+  onMainSearchKeydown(event: KeyboardEvent): void {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      this.flushMainSearchNow();
+    }
+  }
+
+  /** Run search immediately (e.g. Enter) and skip pending debounce. */
+  flushMainSearchNow(): void {
+    if (this.mainSearchDebounceTimer) {
+      clearTimeout(this.mainSearchDebounceTimer);
+      this.mainSearchDebounceTimer = null;
+    }
+    const trimmed = this.searchTerm.trim();
+    if (trimmed.length > 0 && trimmed.length < this.mainSearchMinChars) {
+      this.cdr.markForCheck();
+      return;
+    }
+    void this.handleSearch();
   }
 
   onStatusFilterChange(): void {
@@ -2150,6 +2454,55 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
     if (this.approvalFilter === "all" || this.approvalFilter) {
       this.handleSearch();
     }
+  }
+
+  getStatusFilterLabel(): string {
+    return (
+      this.statusFilterOptions.find((option) => option.value === this.statusFilter)
+        ?.label ?? "Select status..."
+    );
+  }
+
+  getApprovalFilterLabel(): string {
+    return (
+      this.approvalFilterOptions.find(
+        (option) => option.value === this.approvalFilter
+      )?.label ?? "Select approval..."
+    );
+  }
+
+  toggleStatusFilterDropdown(): void {
+    this.showStatusFilterDropdown = !this.showStatusFilterDropdown;
+    if (this.showStatusFilterDropdown) {
+      this.showApprovalFilterDropdown = false;
+    }
+  }
+
+  toggleApprovalFilterDropdown(): void {
+    this.showApprovalFilterDropdown = !this.showApprovalFilterDropdown;
+    if (this.showApprovalFilterDropdown) {
+      this.showStatusFilterDropdown = false;
+    }
+  }
+
+  closeStatusFilterDropdown(): void {
+    this.showStatusFilterDropdown = false;
+  }
+
+  closeApprovalFilterDropdown(): void {
+    this.showApprovalFilterDropdown = false;
+  }
+
+  selectStatusFilter(value: string): void {
+    this.statusFilter = value;
+    this.showStatusFilterDropdown = false;
+    this.onStatusFilterChange();
+  }
+
+  selectApprovalFilter(value: string): void {
+    this.approvalFilter = value;
+    this.showApprovalFilterDropdown = false;
+    this.onApprovalFilterChange();
   }
 
   toggleSelectPrayer(prayerId: string): void {
@@ -2413,6 +2766,7 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
       status: "current",
       is_anonymous: false,
     };
+    this.resetUserSearchState();
     this.error = null;
   }
 
@@ -2427,6 +2781,142 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
       status: "current",
       is_anonymous: false,
     };
+    this.resetUserSearchState();
+  }
+
+  private resetUserSearchState(): void {
+    this.userSearchQuery = "";
+    this.userSearchResults = [];
+    this.userSearchHasSearched = false;
+    this.userSearchLoading = false;
+    this.showUserSearchDropdown = false;
+    if (this.userSearchDebounceTimer) {
+      clearTimeout(this.userSearchDebounceTimer);
+      this.userSearchDebounceTimer = null;
+    }
+    if (this.userSearchBlurTimer) {
+      clearTimeout(this.userSearchBlurTimer);
+      this.userSearchBlurTimer = null;
+    }
+    this.userSearchRequestSeq++;
+  }
+
+  onUserSearchQueryChange(value: string): void {
+    this.userSearchQuery = value;
+    if (this.userSearchDebounceTimer) {
+      clearTimeout(this.userSearchDebounceTimer);
+      this.userSearchDebounceTimer = null;
+    }
+
+    const trimmed = value.trim();
+    if (trimmed.length < this.userSearchMinChars) {
+      this.userSearchResults = [];
+      this.userSearchHasSearched = false;
+      this.userSearchLoading = false;
+      this.showUserSearchDropdown = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    this.userSearchDebounceTimer = setTimeout(() => {
+      this.userSearchDebounceTimer = null;
+      void this.runTenantMemberSearch(trimmed);
+    }, 350);
+  }
+
+  onUserSearchFocus(): void {
+    if (this.userSearchResults.length > 0) {
+      this.showUserSearchDropdown = true;
+    }
+  }
+
+  onUserSearchBlur(): void {
+    if (this.userSearchBlurTimer) {
+      clearTimeout(this.userSearchBlurTimer);
+      this.userSearchBlurTimer = null;
+    }
+    this.userSearchBlurTimer = setTimeout(() => {
+      this.userSearchBlurTimer = null;
+      this.showUserSearchDropdown = false;
+      this.cdr.markForCheck();
+    }, 180);
+  }
+
+  private async fetchTenantMemberRows(
+    trimmed: string
+  ): Promise<TenantMemberPickRow[]> {
+    const tenantId = this.getTenantId();
+    if (!tenantId) {
+      return [];
+    }
+
+    const escaped = this.escapeIlikeTerm(trimmed);
+    const { data, error } = await this.supabaseService
+      .getClient()
+      .from("tenant_memberships")
+      .select("user_email,name")
+      .eq("tenant_id", tenantId)
+      .or(`user_email.ilike.%${escaped}%,name.ilike.%${escaped}%`)
+      .order("name", { ascending: true })
+      .limit(this.userSearchResultLimit);
+
+    if (error) {
+      throw error;
+    }
+
+    return (data ?? [])
+      .map((row) => ({
+        email: String((row as { user_email?: string }).user_email ?? "").trim(),
+        name: String((row as { name?: string }).name ?? "").trim(),
+      }))
+      .filter((row) => row.email.length > 0);
+  }
+
+  private async runTenantMemberSearch(trimmed: string): Promise<void> {
+    const seq = ++this.userSearchRequestSeq;
+    this.userSearchLoading = true;
+    this.userSearchHasSearched = false;
+    this.cdr.markForCheck();
+
+    try {
+      const rows = await this.fetchTenantMemberRows(trimmed);
+      if (seq !== this.userSearchRequestSeq) {
+        return;
+      }
+      this.userSearchResults = rows;
+      this.userSearchHasSearched = true;
+      this.showUserSearchDropdown = rows.length > 0;
+    } catch (err: unknown) {
+      if (seq !== this.userSearchRequestSeq) {
+        return;
+      }
+      console.error("Tenant member search error:", err);
+      this.userSearchResults = [];
+      this.userSearchHasSearched = true;
+      const msg =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message?: string }).message)
+          : "";
+      this.toast.error(msg || "Failed to search organization members");
+    } finally {
+      if (seq === this.userSearchRequestSeq) {
+        this.userSearchLoading = false;
+        this.cdr.markForCheck();
+      }
+    }
+  }
+
+  selectTenantMemberUser(row: TenantMemberPickRow, event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const name = row.name.trim();
+    const parts = name.split(/\s+/).filter(Boolean);
+    this.createForm.firstName = parts[0] ?? "";
+    this.createForm.lastName = parts.length > 1 ? parts.slice(1).join(" ") : "";
+    this.createForm.email = row.email.trim();
+    this.resetUserSearchState();
+    this.cdr.markForCheck();
   }
 
   isCreateFormValid(): boolean {
@@ -2920,6 +3410,10 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
   }
 
   clearSearch(): void {
+    if (this.mainSearchDebounceTimer) {
+      clearTimeout(this.mainSearchDebounceTimer);
+      this.mainSearchDebounceTimer = null;
+    }
     this.searchTerm = "";
     this.allPrayers = [];
     this.displayPrayers = [];
@@ -2927,6 +3421,7 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
     this.error = null;
     this.currentPage = 1;
     this.totalItems = 0;
+    void this.handleSearch();
   }
 
   getStatusColor(status: string): string {

@@ -8,12 +8,28 @@ import { ChangeDetectorRef } from '@angular/core';
 import { TenantContextService } from '../../services/tenant-context.service';
 
 function createPrayersReadChain(data: unknown[], error: { message: string } | null) {
+  let limitCallCount = 0;
+  const resolve = (payload: unknown[]) => ({
+    data: error ? null : payload,
+    error,
+  });
+
   const chain: any = {};
   chain.select = vi.fn(() => chain);
   chain.eq = vi.fn(() => chain);
   chain.or = vi.fn(() => chain);
+  chain.ilike = vi.fn(() => chain);
+  chain.in = vi.fn(() => chain);
   chain.order = vi.fn(() => chain);
-  chain.limit = vi.fn(() => Promise.resolve({ data: error ? null : data, error }));
+  chain.limit = vi.fn(() => {
+    limitCallCount++;
+    if (limitCallCount === 1) {
+      return Promise.resolve(resolve(data));
+    }
+    return Promise.resolve(resolve([]));
+  });
+  chain.then = (onFulfilled: (v: ReturnType<typeof resolve>) => unknown) =>
+    Promise.resolve(resolve(data)).then(onFulfilled);
   return chain;
 }
 
@@ -45,8 +61,11 @@ function createPrayersReadChainRejecting(err: Error) {
   chain.select = vi.fn(() => chain);
   chain.eq = vi.fn(() => chain);
   chain.or = vi.fn(() => chain);
+  chain.ilike = vi.fn(() => chain);
+  chain.in = vi.fn(() => chain);
   chain.order = vi.fn(() => chain);
   chain.limit = vi.fn(() => Promise.reject(err));
+  chain.then = () => Promise.reject(err);
   return chain;
 }
 
@@ -92,10 +111,12 @@ function createMockSupabaseClientWithInsertError(message: string, readRow: unkno
 function createMockSupabaseClient(
   prayerData: unknown[] = [],
   prayerError: { message: string } | null = null,
-  insertRow?: unknown
+  insertRow?: unknown,
+  membershipData: unknown[] = []
 ) {
   const row = insertRow ?? prayerData[0] ?? null;
   const prayersRead = createPrayersReadChain(prayerData, prayerError);
+  const membershipRead = createPrayersReadChain(membershipData, null);
   const prayersMut = createTenantMutationChain();
   const updatesMut = createPrayerUpdatesMutationChain();
 
@@ -120,6 +141,10 @@ function createMockSupabaseClient(
     delete: vi.fn(() => updatesMut)
   };
 
+  const membershipsTable = {
+    select: vi.fn(() => membershipRead)
+  };
+
   return {
     from: vi.fn((table: string) => {
       if (table === 'prayers') {
@@ -127,6 +152,9 @@ function createMockSupabaseClient(
       }
       if (table === 'prayer_updates') {
         return updatesTable;
+      }
+      if (table === 'tenant_memberships') {
+        return membershipsTable;
       }
       return prayersTable;
     })
@@ -480,6 +508,56 @@ describe('PrayerSearchComponent', () => {
     });
   });
 
+  describe('tenant member lookup', () => {
+    it('should fill create form when a tenant member is selected', () => {
+      const mockEvent = { preventDefault: vi.fn(), stopPropagation: vi.fn() } as unknown as Event;
+      component.selectTenantMemberUser(
+        { name: 'Jane Doe', email: 'jane@example.com' },
+        mockEvent
+      );
+
+      expect(component.createForm.firstName).toBe('Jane');
+      expect(component.createForm.lastName).toBe('Doe');
+      expect(component.createForm.email).toBe('jane@example.com');
+      expect(component.userSearchQuery).toBe('');
+    });
+
+    it('should search tenant memberships after debounce', async () => {
+      vi.useFakeTimers();
+      mockSupabaseService.getClient.mockReturnValue(
+        createMockSupabaseClient(
+          [],
+          null,
+          undefined,
+          [{ user_email: 'john@example.com', name: 'John Smith' }]
+        )
+      );
+
+      component.onUserSearchQueryChange('jo');
+      expect(component.userSearchLoading).toBe(false);
+
+      vi.advanceTimersByTime(350);
+      await vi.waitUntil(() => component.userSearchHasSearched);
+
+      expect(component.userSearchResults).toEqual([
+        { email: 'john@example.com', name: 'John Smith' }
+      ]);
+      vi.useRealTimers();
+    });
+
+    it('should not search until min chars are entered', () => {
+      vi.useFakeTimers();
+      const client = createMockSupabaseClient();
+      mockSupabaseService.getClient.mockReturnValue(client);
+
+      component.onUserSearchQueryChange('j');
+      vi.advanceTimersByTime(350);
+
+      expect(client.from).not.toHaveBeenCalledWith('tenant_memberships');
+      vi.useRealTimers();
+    });
+  });
+
   describe('prayer creation', () => {
     it('should start create prayer', () => {
       component.startCreatePrayer();
@@ -490,9 +568,11 @@ describe('PrayerSearchComponent', () => {
     it('should cancel create prayer', () => {
       component.creatingPrayer = true;
       component.createForm.firstName = 'Test';
+      component.userSearchQuery = 'john';
       component.cancelCreatePrayer();
       expect(component.creatingPrayer).toBe(false);
       expect(component.createForm.firstName).toBe('');
+      expect(component.userSearchQuery).toBe('');
     });
 
     it('should validate create form', () => {
@@ -1101,18 +1181,38 @@ describe('PrayerSearchComponent', () => {
       expect(spy).toHaveBeenCalled();
     });
 
-    it('should handle key press', () => {
-      const spy = vi.spyOn(component, 'handleSearch');
-      const mockEvent = { key: 'Enter' } as any;
-      component.onKeyPress(mockEvent);
+    it('should handle Enter key to flush search immediately', () => {
+      const spy = vi.spyOn(component, 'flushMainSearchNow');
+      const mockEvent = { key: 'Enter', preventDefault: vi.fn() } as unknown as KeyboardEvent;
+      component.onMainSearchKeydown(mockEvent);
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
       expect(spy).toHaveBeenCalled();
     });
 
     it('should not search on other keys', () => {
-      const spy = vi.spyOn(component, 'handleSearch');
-      const mockEvent = { key: 'a' } as any;
-      component.onKeyPress(mockEvent);
+      const spy = vi.spyOn(component, 'flushMainSearchNow');
+      const mockEvent = { key: 'a' } as KeyboardEvent;
+      component.onMainSearchKeydown(mockEvent);
       expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('should debounce main search term changes', () => {
+      vi.useFakeTimers();
+      const spy = vi.spyOn(component, 'handleSearch');
+      component.onMainSearchTermChange('ab');
+      expect(spy).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(component.mainSearchDebounceMs);
+      expect(spy).toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('should not search until min chars are entered', () => {
+      vi.useFakeTimers();
+      const spy = vi.spyOn(component, 'handleSearch');
+      component.onMainSearchTermChange('a');
+      vi.advanceTimersByTime(component.mainSearchDebounceMs);
+      expect(spy).not.toHaveBeenCalled();
+      vi.useRealTimers();
     });
   });
 

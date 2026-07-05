@@ -281,29 +281,62 @@ interface CSVRow {
 
       <!-- Search Form -->
       <div class="mb-4 max-w-full">
-        <label for="search" class="sr-only">Search subscribers</label>
-        <!-- Stack input and button on small screens to avoid overflow -->
-        <div class="flex flex-col sm:flex-row gap-2">
+        <label
+          for="subscriberListSearch"
+          class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+        >
+          Search subscribers
+        </label>
+        <div class="relative min-w-0 w-full">
           <input
-            id="search"
+            id="subscriberListSearch"
             type="text"
+            name="subscriberListSearch"
             [(ngModel)]="searchQuery"
-            (keyup.enter)="handleSearch()"
-            placeholder="Search by email or name..."
-            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0 w-full"
+            (ngModelChange)="onListSearchQueryChange($event)"
+            (keydown)="onListSearchKeydown($event)"
+            autocomplete="off"
+            placeholder="Search by email or name (min. {{
+              listSearchMinChars
+            }} characters)…"
+            class="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0"
           />
-          <button
-            (click)="handleSearch()"
-            [disabled]="searching"
-            class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:bg-blue-400 text-sm cursor-pointer w-full sm:w-auto"
+          @if (searching) {
+          <div
+            class="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"></circle>
-              <path d="m21 21-4.35-4.35"></path>
+            <div
+              class="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent dark:border-blue-400 dark:border-t-transparent"
+            ></div>
+          </div>
+          }
+          @if (searchQuery) {
+          <button
+            type="button"
+            (click)="clearListSearch()"
+            class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+            title="Clear search"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
-            {{ searching ? 'Searching...' : 'Search' }}
           </button>
+          }
         </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          Debounced ({{ listSearchDebounceMs }}ms). Leave empty to show all
+          subscribers after a short pause.
+        </p>
       </div>
 
       <!-- Results -->
@@ -320,8 +353,8 @@ interface CSVRow {
           <circle cx="11" cy="11" r="8"></circle>
           <path d="m21 21-4.35-4.35"></path>
         </svg>
-        <p>Click Search to view subscribers</p>
-        <p class="text-sm mt-1">Leave search field empty to see all subscribers</p>
+        <p>Subscribers have not been loaded yet</p>
+        <p class="text-sm mt-1">Expand this section or wait for the list to load</p>
       </div>
       }
 
@@ -653,6 +686,12 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
   searchQuery = '';
   searching = false;
   hasSearched = false;
+
+  /** List filter — debounced; min length before querying (empty reloads all). */
+  readonly listSearchMinChars = 2;
+  readonly listSearchDebounceMs = 350;
+  private listSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
   showAddForm = false;
   showCSVUpload = false;
   csvData: CSVRow[] = [];
@@ -787,12 +826,70 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
     this.destroy$.next();
     this.destroy$.complete();
     this.breakpointSub?.unsubscribe();
+    if (this.listSearchDebounceTimer) {
+      clearTimeout(this.listSearchDebounceTimer);
+      this.listSearchDebounceTimer = null;
+    }
     if (this.orientationChangeListener) {
       window.removeEventListener('orientationchange', this.orientationChangeListener);
     }
     if (this.resizeListener) {
       window.removeEventListener('resize', this.resizeListener);
     }
+  }
+
+  onListSearchQueryChange(value: string): void {
+    if (this.listSearchDebounceTimer) {
+      clearTimeout(this.listSearchDebounceTimer);
+      this.listSearchDebounceTimer = null;
+    }
+
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      this.listSearchDebounceTimer = setTimeout(() => {
+        this.listSearchDebounceTimer = null;
+        void this.handleSearch();
+      }, this.listSearchDebounceMs);
+      return;
+    }
+    if (trimmed.length < this.listSearchMinChars) {
+      this.cdr.markForCheck();
+      return;
+    }
+
+    this.listSearchDebounceTimer = setTimeout(() => {
+      this.listSearchDebounceTimer = null;
+      void this.handleSearch();
+    }, this.listSearchDebounceMs);
+  }
+
+  onListSearchKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.flushListSearchNow();
+    }
+  }
+
+  flushListSearchNow(): void {
+    if (this.listSearchDebounceTimer) {
+      clearTimeout(this.listSearchDebounceTimer);
+      this.listSearchDebounceTimer = null;
+    }
+    const trimmed = this.searchQuery.trim();
+    if (trimmed.length > 0 && trimmed.length < this.listSearchMinChars) {
+      this.cdr.markForCheck();
+      return;
+    }
+    void this.handleSearch();
+  }
+
+  clearListSearch(): void {
+    if (this.listSearchDebounceTimer) {
+      clearTimeout(this.listSearchDebounceTimer);
+      this.listSearchDebounceTimer = null;
+    }
+    this.searchQuery = '';
+    void this.handleSearch();
   }
 
   private onOrientationChange() {
