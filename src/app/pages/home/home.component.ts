@@ -98,7 +98,7 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
               </div>
 
               <div class="flex items-center gap-2 min-w-0">
-                @if (showTenantSwitcher) {
+                @if (showTenantSwitcherInHeader) {
                 <select
                   [ngModel]="activeTenantId"
                   (ngModelChange)="onTenantSelect($event)"
@@ -222,7 +222,7 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
               <div class="flex flex-col items-end gap-2">
                 <!-- Top row: Admin button and Email Indicator -->
                 <div class="flex items-center gap-2">
-                  @if (showTenantSwitcher) {
+                  @if (showTenantSwitcherInHeader) {
                   <select
                     [ngModel]="activeTenantId"
                     (ngModelChange)="onTenantSelect($event)"
@@ -1001,6 +1001,13 @@ export class HomeComponent implements OnInit, OnDestroy {
       !this.tenantContextLoading &&
       !!this.activeTenantId &&
       this.tenantSwitchOptions.length > 1
+    );
+  }
+
+  get showTenantSwitcherInHeader(): boolean {
+    return (
+      this.showTenantSwitcher &&
+      !this.tenantContextService.getIsImpersonatingTenant()
     );
   }
 

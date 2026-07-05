@@ -11,18 +11,20 @@ import { Router, RouterOutlet, NavigationEnd } from "@angular/router";
 import { CommonModule } from "@angular/common";
 import { Capacitor } from "@capacitor/core";
 import { ToastContainerComponent } from "./components/toast-container/toast-container.component";
+import { TenantSwitcherBarComponent } from "./components/tenant-switcher-bar/tenant-switcher-bar.component";
 import { AdminDataService } from "./services/admin-data.service";
 import { Subject, filter } from "rxjs";
 
 @Component({
   selector: "app-root",
   standalone: true,
-  imports: [CommonModule, RouterOutlet, ToastContainerComponent],
+  imports: [CommonModule, RouterOutlet, ToastContainerComponent, TenantSwitcherBarComponent],
   template: `
     <ng-container>
       <div
         class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100"
       >
+        <app-tenant-switcher-bar />
         <router-outlet></router-outlet>
         <app-toast-container></app-toast-container>
       </div>

@@ -115,7 +115,7 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
             <!-- Right side: Email indicator and navigation controls -->
             <div class="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
               <div class="flex items-center gap-2 w-full sm:w-auto flex-wrap justify-end">
-                @if (showTenantSwitcher) {
+                @if (showTenantSwitcherInHeader) {
                 <select
                   [ngModel]="activeTenantId"
                   (ngModelChange)="onTenantSelect($event)"
@@ -1096,6 +1096,13 @@ export class AdminComponent implements OnInit, OnDestroy {
       !this.tenantContextLoading &&
       !!this.activeTenantId &&
       this.tenantSwitchOptions.length > 1
+    );
+  }
+
+  get showTenantSwitcherInHeader(): boolean {
+    return (
+      this.showTenantSwitcher &&
+      !this.tenantContextService.getIsImpersonatingTenant()
     );
   }
 
