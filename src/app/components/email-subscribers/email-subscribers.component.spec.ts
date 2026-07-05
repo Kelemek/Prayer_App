@@ -141,7 +141,7 @@ describe('EmailSubscribersComponent', () => {
     expect(component.sortDirection).toBe('asc');
   });
 
-  it('handleAddSubscriber should insert subscriber without Planning Center fields', async () => {
+  it('handleAddSubscriber should insert subscriber membership row', async () => {
     const insertMock = vi.fn().mockResolvedValue({ error: null });
     const addChain: any = {
       select: vi.fn().mockReturnValue({

@@ -8,9 +8,8 @@ Complete guide to setting up, configuring, and deploying the Prayer App.
 2. [Environment Configuration](#environment-configuration)
 3. [Database Setup](#database-setup)
 4. [Email Configuration](#email-configuration)
-5. [Planning Center Integration](#planning-center-integration)
-6. [Deployment](#deployment)
-7. [Post-Deployment](#post-deployment)
+5. [Deployment](#deployment)
+6. [Post-Deployment](#post-deployment)
 
 ---
 
@@ -22,13 +21,12 @@ Complete guide to setting up, configuring, and deploying the Prayer App.
 - Git
 - Supabase account (free tier available)
 - [Resend](https://resend.com) account (for transactional and bulk email)
-- Planning Center account (optional, for contact lookup)
 
 ### Installation
 
 ```bash
 # Clone repository
-git clone https://github.com/cp-church/angular_prayerapp.git
+git clone https://github.com/your-org/Prayer_App.git
 cd angular_prayerapp
 
 # Install dependencies
@@ -92,8 +90,8 @@ The PWA manifest (`public/manifest.json`) and `src/index.html` reference these f
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 
-# Planning Center (optional)
-VITE_PLANNING_CENTER_API_TOKEN=your-token
+# Public app URL (production links in emails and builds)
+# VITE_APP_URL=https://prayerapp.romans8.net
 ```
 
 ### Supabase secret key (server-side)
@@ -304,61 +302,6 @@ Email queue is processed by GitHub Actions workflow:
 # Processes up to 20 emails per run
 # Uses Resend; pacing helps stay within plan rate limits
 ```
-
----
-
-## Planning Center Integration
-
-### Setup
-
-1. Get Planning Center API token
-   - Sign in to Planning Center
-   - Settings > API Tokens
-   - Create new token
-   - Copy token to `VITE_PLANNING_CENTER_API_TOKEN`
-
-2. The app will automatically:
-   - Look up contacts when user enters email
-   - Auto-populate name and phone from Planning Center
-   - Link prayers to Planning Center contacts
-
-### Members List Mapping
-
-The app supports mapping email subscribers to Planning Center lists. This allows users to view prayers filtered by specific list members.
-
-**How it works:**
-
-1. **Admin Configuration** (Admin > Planning Center List Mapping):
-   - Search for an email subscriber
-   - Select a Planning Center list (e.g., "Small Group A")
-   - Map subscriber to list
-   - Subscriber can now filter prayers by list members
-
-2. **User Experience**:
-   - If mapped, user sees member avatars in presentation mode
-   - Can filter to show only prayers from their list members
-   - Members are sorted alphabetically by last name
-   - Handles suffixes (Jr., Sr., III) correctly
-
-3. **Presentation Mode**:
-   - Select "Members" content type to show member prayer updates
-   - Select "All" to include members along with other prayers
-   - Member updates appear in chronological order
-
-**Edge Function Required:**
-```bash
-supabase functions deploy planning-center-lists
-```
-
-**Database Schema:**
-```sql
--- email_subscribers table includes:
-planning_center_list_id TEXT  -- Maps subscriber to PC list
-```
-
-### Disable (Optional)
-
-If you don't use Planning Center, set token to empty string. App will work without it.
 
 ---
 

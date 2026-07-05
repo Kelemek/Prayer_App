@@ -1,6 +1,6 @@
 # Prayer App Documentation
 
-Complete documentation for the Cross Pointe Church Prayer Management System.
+Complete documentation for the Prayer App multi-tenant prayer management platform.
 
 ## Quick Navigation
 
@@ -14,12 +14,11 @@ Complete documentation for the Cross Pointe Church Prayer Management System.
 
 ## 📋 What This App Does
 
-A comprehensive prayer request management system for Cross Pointe Church built with:
+A comprehensive prayer request management platform built with:
 - **Frontend**: Angular 19+ with standalone components
 - **Backend**: Supabase (PostgreSQL, Edge Functions)
 - **Auth**: Supabase Auth with email verification
 - **Email**: [Resend](https://resend.com) API (Edge Function + queue processor)
-- **Sync**: Planning Center integration
 - **Testing**: Vitest with 2840+ tests
 
 ## 🎯 Core Capabilities
@@ -36,15 +35,13 @@ A comprehensive prayer request management system for Cross Pointe Church built w
 - ✅ **Text size** (Settings): Users can choose Default, Larger, or Largest text; preference is saved and applied app-wide for easier reading.
 - ✅ **Prayer reminders** (Settings): Optional hourly nudges at the top of chosen clock hours (device time zone); email and/or push depending on **Email subscription** and push registration. Separate from community prayer-update reminders. In-app Help: **Prayer reminders** topic + **App Settings** subsection.
 - ✅ **Delete account** (Settings): Users can remove their account; verification dialog offers to keep prayers (so they stay lifted up) or delete account and all their prayers, then sign out
-- ✅ Planning Center contact lookup
-- ✅ Planning Center members list mapping (filter prayers by list members)
 - ✅ Badge indicators (unread prayers/prompts)
 - ✅ **Info page** (`/info`) – Public landing/overview with app icon, CTAs (Web App, App Store, Android), and interactive feature preview (filters, modals)
 
 ## 🚀 Getting Started
 
 ### For Users
-- View prayers at [Cross Pointe Prayer App](https://prayers.crosspointe.church)
+- View the app at [prayerapp.romans8.net](https://prayerapp.romans8.net)
 - Submit new requests
 - Configure your email preferences
 - Use on mobile (iOS/Android)
@@ -107,7 +104,7 @@ When enabled by an admin, community prayer cards show a **“Pray For”** butto
 
 | File | Purpose |
 |------|---------|
-| **SETUP.md** | Installation, Supabase, email, Planning Center, deployment |
+| **SETUP.md** | Installation, Supabase, email, deployment |
 | **DEVELOPMENT.md** | Architecture, testing, performance optimization |
 | **TROUBLESHOOTING.md** | Common errors and solutions |
 | **CHANGELOG.md** | Project milestones and completed features |
@@ -139,4 +136,4 @@ When enabled by an admin, community prayer cards show a **“Pray For”** butto
 
 ## 📄 License
 
-Copyright © 2024-2026 Cross Pointe Church. All rights reserved.
+Copyright © 2024-2026 Prayer App. All rights reserved.

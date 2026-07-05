@@ -1,7 +1,7 @@
 {
-  "name": "Cross Pointe Church - Prayer App",
+  "name": "Prayer App",
   "short_name": "Prayer App",
-  "description": "Prayer request platform for Cross Pointe Church community",
+  "description": "Community prayer request platform",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1a365d",

@@ -75,7 +75,7 @@ src/
 
 The **info page** (`/info`) is a public landing/overview. It is used to introduce the app and drive installs:
 
-- **Hero**: App icon, “Cross Pointe Prayer Community” title, short description
+- **Hero**: App icon, “Prayer Community Manager” title, short description
 - **CTAs**: Web App (with QR), App Store (with QR), Android (coming soon)
 - **Feature overview**: Interactive preview of the main app (mock header, filter tabs, sample cards). Users can tap filter tabs (Current, Answered, Total, Prompts, Personal) and open modals (Help, Settings, badges, prompt categories, personal actions) to see how the app works
 - **Theme**: Supports light/dark mode via theme toggle
@@ -623,15 +623,12 @@ prayers$ = this.prayersSubject.asObservable();
 
 - **Database**: Supabase client (REST API under the hood)
 - **Email**: Resend API via `send-email` Edge Function and GitHub Actions queue processor
-- **Planning Center**: REST API via Edge Functions (planning-center-lists, planning-center-lookup)
-  - List fetching and member lookup
-  - Cached on client-side for performance
-  - Members sorted by last name (handles suffixes)
 - **Admin Auth**: check-admin-status Edge Function (verifies admin status using service role)
 - **Rate Limiting**: Email processor paces sends to respect Resend plan limits
 
 ### Removed/Deprecated Features
 
+- **Planning Center integration** (removed Jul 2026): Contact lookup, list mapping, `planning-center-*` Edge Functions, `member_prayer_updates` table, and Planning Center columns on `tenant_memberships`. Migration: `20260419120000_drop_planning_center.sql`.
 - **Approval Codes System** (removed Jan 2026): One-time approval links via `approval_codes` table and `validate-approval-code` Edge Function
   - Replaced with direct `/admin` portal links requiring standard authentication
   - Account approval codes still use simple base64 encoding (no database)

@@ -6,6 +6,11 @@ import {
 import { CommonModule } from "@angular/common";
 import { RouterModule } from "@angular/router";
 import { ThemeToggleComponent } from "../../components/theme-toggle/theme-toggle.component";
+import {
+  APP_ICON_PATH,
+  DEFAULT_PUBLIC_APP_URL,
+} from "../../constants/app-defaults";
+import { environment } from "../../../environments/environment";
 
 @Component({
   selector: "app-info",
@@ -54,7 +59,7 @@ import { ThemeToggleComponent } from "../../components/theme-toggle/theme-toggle
                 class="h-20 w-20 shrink-0 rounded-2xl bg-gray-200 dark:bg-gray-800 flex items-center justify-center shadow-xl overflow-hidden"
               >
                 <img
-                  src="/CrossPointPrayer.jpg"
+                  [src]="appIconPath"
                   alt="Prayer App Icon"
                   class="h-full w-full rounded-2xl object-contain shadow-xl"
                 />
@@ -91,7 +96,7 @@ import { ThemeToggleComponent } from "../../components/theme-toggle/theme-toggle
                     class="mr-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg overflow-hidden bg-gray-300 dark:bg-gray-800"
                   >
                     <img
-                      src="/CrossPointPrayer.jpg"
+                      [src]="appIconPath"
                       alt=""
                       class="h-full w-full object-contain"
                     />
@@ -1284,11 +1289,18 @@ export class InfoComponent implements OnInit {
   webAppQrUrl = "";
   iosStoreQrUrl = "";
   androidStoreQrUrl = "";
+  readonly appIconPath = APP_ICON_PATH;
 
   ngOnInit(): void {
+    const configured = environment.appUrl?.trim();
+    const publicAppUrl = (
+      configured && !configured.includes('localhost')
+        ? configured
+        : DEFAULT_PUBLIC_APP_URL
+    ).replace(/\/$/, "");
     this.webAppQrUrl =
       "https://api.qrserver.com/v1/create-qr-code/?size=384x384&data=" +
-      encodeURIComponent("https://cpprayer.cp-church.org/");
+      encodeURIComponent(`${publicAppUrl}/`);
     this.iosStoreQrUrl =
       "https://api.qrserver.com/v1/create-qr-code/?size=384x384&data=" +
       encodeURIComponent(this.iosStoreUrl);

@@ -9,7 +9,7 @@ describe('GitHubFeedbackService', () => {
   const mockTenantContext = {
     getActiveTenant: vi.fn().mockReturnValue({
       id: 'tenant-abc',
-      name: 'Cross Pointe',
+      name: 'Test Church',
       slug: 'cross-pointe',
     }),
   };
@@ -269,7 +269,7 @@ describe('GitHubFeedbackService', () => {
       const callArgs = (global.fetch as any).mock.calls[0];
       const requestBody = JSON.parse(callArgs[1].body);
 
-      expect(requestBody.body).toContain('Cross Pointe');
+      expect(requestBody.body).toContain('Test Church');
       expect(requestBody.body).toContain('cross-pointe');
       expect(requestBody.body).toContain('tenant-abc');
     });

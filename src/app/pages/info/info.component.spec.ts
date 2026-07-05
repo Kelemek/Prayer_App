@@ -69,7 +69,9 @@ describe('InfoComponent', () => {
     it('should set webAppQrUrl and iosStoreQrUrl with encoded URLs', () => {
       component.ngOnInit();
       expect(component.webAppQrUrl).toContain('api.qrserver.com');
-      expect(component.webAppQrUrl).toContain(encodeURIComponent('https://cpprayer.cp-church.org/'));
+      expect(component.webAppQrUrl).toContain(
+        encodeURIComponent('https://prayerapp.romans8.net/')
+      );
       expect(component.iosStoreQrUrl).toContain('api.qrserver.com');
       expect(component.iosStoreQrUrl).toContain(encodeURIComponent('https://apps.apple.com/us/app/cross-pointe-prayer/id6759469929'));
     });

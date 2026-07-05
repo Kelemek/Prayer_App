@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { EmailNotificationService } from './email-notification.service';
 import { environment } from '../../environments/environment';
+import { DEFAULT_PUBLIC_APP_URL } from '../constants/app-defaults';
 
 const VITEST_TENANT_ID = 'vitest-default-tenant-id';
 
@@ -406,13 +407,13 @@ describe('EmailNotificationService', () => {
     }
   });
 
-  it('getEmailBaseUrl returns origin when no appUrl is configured', () => {
+  it('getEmailBaseUrl returns default public URL when no appUrl is configured', () => {
     const originalWindow = globalThis.window;
     const originalAppUrl = environment.appUrl;
     environment.appUrl = '';
     vi.stubGlobal('window', { location: { origin: '' } });
 
-    expect(service.getEmailBaseUrl()).toBe('');
+    expect(service.getEmailBaseUrl()).toBe(DEFAULT_PUBLIC_APP_URL);
 
     environment.appUrl = originalAppUrl;
     if (originalWindow) {

@@ -4,13 +4,17 @@ Major features and milestones for the Prayer App.
 
 ## [Current] - February 2026
 
+### Removed Planning Center integration
+- Dropped Planning Center columns from `tenant_memberships`, removed `member_prayer_updates` table, and deleted setup script / docs references.
+- Migration: `20260419120000_drop_planning_center.sql`.
+
 ### Removed Sentry and Microsoft Clarity
 - Dropped `@sentry/angular` and `@microsoft/clarity` dependencies, init code in `main.ts`, and `src/lib/sentry*.ts` / `src/lib/clarity*.ts`.
 - Removed `sentryDsn` and `clarityProjectId` from environments and related tests; privacy copy and docs now reflect Vercel Analytics / Speed Insights instead.
 
 ### Info Page (`/info`) ✅
 - ✅ **Public landing/overview page at `/info`**
-  - Hero with app icon, “Cross Pointe Prayer Community” title, and short description.
+  - Hero with app icon, “Prayer Community Manager” title, and short description.
   - CTAs: Web App (with QR), App Store (with QR), Android (coming soon).
   - Interactive feature preview: mock header (Help, Settings, Pray, Request), filter tabs (Current, Answered, Total, Prompts, Personal), and sample cards with modals (badges, prompt categories, personal actions).
   - Theme toggle and light/dark support; uses BrandingService for optional church logo.
@@ -183,33 +187,6 @@ Major features and milestones for the Prayer App.
   - Restricted `backup_tables` view access to service_role only
   - Removed unnecessary public access to database schema information
 
-### Planning Center Members List Mapping ✅
-- ✅ Added admin interface for mapping email subscribers to Planning Center lists
-  - Search and select email subscribers
-  - Browse and filter Planning Center lists
-  - Create/update/delete subscriber-to-list mappings
-  - View all current mappings in admin dashboard
-
-- ✅ Presentation mode supports members content
-  - "Members" content type shows prayer updates from list members
-  - "All" content type includes members along with prayers, prompts, and personal prayers
-  - Member avatars displayed in presentation cards
-  - Members sorted alphabetically by last name (client-side)
-
-- ✅ Smart last name sorting with suffix handling
-  - Removes suffixes (Jr, Sr, II, III, IV, V) before sorting
-  - Handles multiple last names correctly
-  - Case-insensitive alphabetical ordering
-
-- ✅ Planning Center Edge Functions
-  - `planning-center-lists` function fetches lists and members via PC API
-  - Client-side caching for improved performance
-  - CORS headers support modern Supabase client
-
-- ✅ Database schema updates
-  - Added `planning_center_list_id` column to `email_subscribers` table
-  - Stores mapping between subscribers and PC lists
-
 ### Personal Prayers Export Feature ✅
 - ✅ Added `downloadPrintablePersonalPrayerList()` method to PrintService
   - Retrieves user's personal prayers via PrayerService.getPersonalPrayers()
@@ -373,12 +350,6 @@ The personal prayers feature extends the existing PrintService architecture:
 
 ## December 2025
 
-### Planning Center Integration
-- ✅ Contact lookup by email
-- ✅ Auto-populate name from Planning Center
-- ✅ Phone number sync
-- ✅ Fallback when not available
-
 ### Email Improvements
 - ✅ HTML templates with Mjml
 - ✅ Variable substitution (name, date, etc)
@@ -517,7 +488,7 @@ The personal prayers feature extends the existing PrintService architecture:
 ## Version History
 
 - **v1.0.0** (Jan 2026) - PWA complete, Phase 1 launch
-- **v0.9.0** (Dec 2025) - Planning Center integration
+- **v0.9.0** (Dec 2025) - Presentation and subscriber features
 - **v0.8.0** (Nov 2025) - Performance & analytics
 - **v0.7.0** (Oct 2025) - Real-time updates & security
 - **v0.6.0** (Sep 2025) - Auth system
@@ -539,14 +510,14 @@ The personal prayers feature extends the existing PrintService architecture:
 
 ## Contributors
 
-- Development: Cross Pointe Church Tech Team
-- Design: Cross Pointe Design Team
+- Development: Romans 8 / Prayer App contributors
+- Design: Prayer App contributors
 - Testing: Full QA team
-- Feedback: Cross Pointe congregation members
+- Feedback: Early adopters and church partners
 
 ---
 
 ## License
 
 
-© 2024-2026 Cross Pointe Church. All rights reserved.
+© 2024-2026 Prayer App. All rights reserved.

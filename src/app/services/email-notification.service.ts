@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { environment } from '../../environments/environment';
+import { DEFAULT_PUBLIC_APP_URL } from '../constants/app-defaults';
 import { SupabaseService } from './supabase.service';
 import { PushNotificationService } from './push-notification.service';
 import { markdownToPlainText, markdownToSafeHtml } from '../../utils/markdown';
@@ -172,7 +173,7 @@ export class EmailNotificationService {
     if (typeof environment !== 'undefined' && environment.appUrl) {
       return environment.appUrl.replace(/\/$/, '');
     }
-    return origin;
+    return DEFAULT_PUBLIC_APP_URL;
   }
 
   private oneClickUnsubscribeUrl(token: string): string {
