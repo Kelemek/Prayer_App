@@ -4,6 +4,7 @@ import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
 import { EmailNotificationService } from '../../services/email-notification.service';
 import { ChangeDetectorRef } from '@angular/core';
+import { BehaviorSubject } from 'rxjs';
 import { vi, describe, it, beforeEach, expect } from 'vitest';
 
 describe('AdminUserManagementComponent', () => {
@@ -83,8 +84,14 @@ describe('AdminUserManagementComponent', () => {
   let mockEmailService: any;
   let mockCdr: any;
   let mockTenantContext: any;
+  let activeTenant$: BehaviorSubject<{ id: string; name: string; slug: string } | null>;
 
   beforeEach(() => {
+    activeTenant$ = new BehaviorSubject<{ id: string; name: string; slug: string } | null>({
+      id: 'test-tenant-id',
+      name: 'Test',
+      slug: 'test',
+    });
     mockClient = createMockClient();
     mockSupabase = { client: mockClient };
 
@@ -102,7 +109,8 @@ describe('AdminUserManagementComponent', () => {
     mockCdr = { markForCheck: vi.fn() };
 
     mockTenantContext = {
-      getActiveTenant: vi.fn(() => ({ id: 'test-tenant-id', name: 'Test', slug: 'test' }))
+      getActiveTenant: vi.fn(() => activeTenant$.value),
+      activeTenant$: activeTenant$.asObservable(),
     };
 
     // Instantiate component directly to avoid Angular DI complexity for standalone component
@@ -113,6 +121,7 @@ describe('AdminUserManagementComponent', () => {
       mockEmailService as any,
       mockTenantContext as any
     );
+    component.ngOnInit();
   });
 
   it('should have default collapsed state', () => {
@@ -140,13 +149,36 @@ describe('AdminUserManagementComponent', () => {
     it('should not re-fetch on second expand', async () => {
       mockClient.setResponses([{ data: [], error: null }]);
       component.onExpandedChange(true);
-      await component.loadAdmins();
+      await vi.waitUntil(() => !component.loading);
 
       const fromSpy = vi.spyOn(mockClient, 'from');
       component.onExpandedChange(false);
       component.onExpandedChange(true);
 
       expect(fromSpy).not.toHaveBeenCalled();
+    });
+
+    it('should reload admins when active tenant changes while expanded', async () => {
+      mockClient.setResponses([
+        { data: [membershipRow({ name: 'Tenant A' })], error: null },
+        { data: false, error: null },
+      ]);
+      component.onExpandedChange(true);
+      await vi.waitUntil(() => !component.loading);
+      expect(component.admins[0]?.name).toBe('Tenant A');
+
+      mockClient.setResponses([
+        { data: [membershipRow({ name: 'Tenant B' })], error: null },
+        { data: false, error: null },
+      ]);
+      activeTenant$.next({
+        id: 'other-tenant-id',
+        name: 'Other',
+        slug: 'other',
+      });
+
+      await vi.waitUntil(() => !component.loading && component.admins[0]?.name === 'Tenant B');
+      expect(component.admins[0]?.name).toBe('Tenant B');
     });
   });
 

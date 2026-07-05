@@ -5,9 +5,11 @@ import {
   ChangeDetectorRef,
   ChangeDetectionStrategy,
   OnDestroy,
+  OnInit,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
+import { Subject, distinctUntilChanged, takeUntil } from "rxjs";
 import { SupabaseService } from "../../services/supabase.service";
 import { ToastService } from "../../services/toast.service";
 import { EmailNotificationService } from "../../services/email-notification.service";
@@ -581,14 +583,16 @@ interface AdminUser {
   changeDetection: ChangeDetectionStrategy.Eager,
   styles: [],
 })
-export class AdminUserManagementComponent implements OnDestroy {
+export class AdminUserManagementComponent implements OnInit, OnDestroy {
   @Output() onSave = new EventEmitter<void>();
 
   private static readonly SUCCESS_DISMISS_MS = 5000;
   private successDismissTimer: ReturnType<typeof setTimeout> | null = null;
+  private destroy$ = new Subject<void>();
 
   sectionExpanded = false;
   private sectionInitialLoadDone = false;
+  private adminsLoadedForTenantId: string | null = null;
 
   admins: AdminUser[] = [];
   loading = false;
@@ -616,8 +620,26 @@ export class AdminUserManagementComponent implements OnDestroy {
     private tenantContext: TenantContextService
   ) {}
 
+  ngOnInit(): void {
+    this.tenantContext.activeTenant$
+      .pipe(
+        distinctUntilChanged((a, b) => a?.id === b?.id),
+        takeUntil(this.destroy$)
+      )
+      .subscribe(() => {
+        if (!this.getActiveTenantId()) {
+          this.resetForNoTenant();
+        } else if (this.sectionExpanded) {
+          void this.loadAdmins();
+        }
+        this.cdr.markForCheck();
+      });
+  }
+
   ngOnDestroy(): void {
     this.clearSuccessDismissTimer();
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   showSuccessMessage(message: string): void {
@@ -651,11 +673,24 @@ export class AdminUserManagementComponent implements OnDestroy {
 
   onExpandedChange(expanded: boolean): void {
     this.sectionExpanded = expanded;
-    if (this.sectionExpanded && !this.sectionInitialLoadDone) {
-      this.sectionInitialLoadDone = true;
-      void this.loadAdmins();
+    const tenantId = this.getActiveTenantId();
+    if (this.sectionExpanded && tenantId) {
+      const shouldLoad =
+        !this.sectionInitialLoadDone ||
+        this.adminsLoadedForTenantId !== tenantId;
+      if (shouldLoad) {
+        this.sectionInitialLoadDone = true;
+        void this.loadAdmins();
+      }
     }
     this.cdr.markForCheck();
+  }
+
+  private resetForNoTenant(): void {
+    this.admins = [];
+    this.adminsLoadedForTenantId = null;
+    this.error = null;
+    this.clearSuccess();
   }
 
   private getActiveTenantId(): string | null {
@@ -717,6 +752,7 @@ export class AdminUserManagementComponent implements OnDestroy {
 
     if (!tenantId) {
       this.admins = [];
+      this.adminsLoadedForTenantId = null;
       this.loading = false;
       this.cdr.markForCheck();
       return;
@@ -735,6 +771,7 @@ export class AdminUserManagementComponent implements OnDestroy {
       if (error) throw error;
 
       this.admins = await this.filterTenantAdminsExcludingSuper(data ?? []);
+      this.adminsLoadedForTenantId = tenantId;
       this.cdr.markForCheck();
     } catch (err: unknown) {
       const errorMsg =
