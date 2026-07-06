@@ -13,7 +13,6 @@ export interface BrandingData {
   lightLogo: string | null;
   darkLogo: string | null;
   appTitle: string;
-  appSubtitle: string;
   lastModified: Date | null;
 }
 
@@ -208,7 +207,6 @@ export class BrandingService implements OnDestroy {
     const darkKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.darkLogo);
     const useKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.useLogo);
     const titleKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.appTitle);
-    const subtitleKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.appSubtitle);
     const modifiedKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.lastModified);
 
     const lightStored = localStorage.getItem(lightKey);
@@ -223,9 +221,6 @@ export class BrandingService implements OnDestroy {
         ? useStored === 'true'
         : windowCacheApplies && windowCache?.useLogo === true;
     const appTitle = localStorage.getItem(titleKey) ?? 'Church Prayer Manager';
-    const appSubtitle =
-      localStorage.getItem(subtitleKey) ??
-      'Keeping our community connected in prayer';
     const lastModifiedStr = localStorage.getItem(modifiedKey);
 
     return {
@@ -233,7 +228,6 @@ export class BrandingService implements OnDestroy {
       lightLogo,
       darkLogo,
       appTitle,
-      appSubtitle,
       lastModified: lastModifiedStr ? new Date(lastModifiedStr) : null
     };
   }
@@ -260,7 +254,6 @@ export class BrandingService implements OnDestroy {
     const lightKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.lightLogo);
     const darkKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.darkLogo);
     const titleKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.appTitle);
-    const subtitleKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.appSubtitle);
     const modifiedKey = this.getBrandingCacheKey(BRANDING_CACHE_KEYS.lastModified);
 
     if (branding.useLogo !== null && branding.useLogo !== undefined) {
@@ -274,9 +267,6 @@ export class BrandingService implements OnDestroy {
     }
     if (branding.appTitle) {
       localStorage.setItem(titleKey, branding.appTitle);
-    }
-    if (branding.appSubtitle) {
-      localStorage.setItem(subtitleKey, branding.appSubtitle);
     }
     if (branding.lastModified) {
       localStorage.setItem(modifiedKey, branding.lastModified.toISOString());
@@ -347,9 +337,6 @@ export class BrandingService implements OnDestroy {
         lightLogo: (settings['light_mode_logo_blob'] as string | null) || null,
         darkLogo: (settings['dark_mode_logo_blob'] as string | null) || null,
         appTitle: (settings['app_title'] as string | null) || 'Church Prayer Manager',
-        appSubtitle:
-          (settings['app_subtitle'] as string | null) ||
-          'Keeping our community connected in prayer',
         lastModified: settings['branding_last_modified']
           ? new Date(settings['branding_last_modified'] as string)
           : null
@@ -370,7 +357,6 @@ export class BrandingService implements OnDestroy {
       lightLogo: null,
       darkLogo: null,
       appTitle: 'Church Prayer Manager',
-      appSubtitle: 'Keeping our community connected in prayer',
       lastModified: null
     };
   }

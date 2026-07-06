@@ -18,7 +18,6 @@ describe('AppLogoComponent', () => {
       lightLogo: null,
       darkLogo: null,
       appTitle: 'Church Prayer Manager',
-      appSubtitle: 'Keeping our community connected in prayer',
       lastModified: null
     });
 
@@ -86,10 +85,6 @@ describe('AppLogoComponent', () => {
     it('should have default appTitle', () => {
       expect(component.appTitle).toBe('Church Prayer Manager');
     });
-
-    it('should have default appSubtitle', () => {
-      expect(component.appSubtitle).toBe('Keeping our community connected in prayer');
-    });
   });
 
   describe('ngOnInit', () => {
@@ -115,13 +110,11 @@ describe('AppLogoComponent', () => {
         lightLogo: 'data:image/png;base64,light',
         darkLogo: 'data:image/png;base64,dark',
         appTitle: 'New Title',
-        appSubtitle: 'New Subtitle',
         lastModified: new Date()
       });
 
       expect(component.useLogo).toBe(true);
       expect(component.appTitle).toBe('New Title');
-      expect(component.appSubtitle).toBe('New Subtitle');
     });
   });
 
@@ -144,7 +137,6 @@ describe('AppLogoComponent', () => {
         lightLogo: 'light-url',
         darkLogo: 'dark-url',
         appTitle: 'Title',
-        appSubtitle: 'Subtitle',
         lastModified: null
       };
 
@@ -168,7 +160,6 @@ describe('AppLogoComponent', () => {
         lightLogo: 'light-url',
         darkLogo: null,
         appTitle: 'Title',
-        appSubtitle: 'Subtitle',
         lastModified: null
       };
 
@@ -195,7 +186,6 @@ describe('AppLogoComponent', () => {
         lightLogo: null,
         darkLogo: null,
         appTitle: 'Title',
-        appSubtitle: 'Subtitle',
         lastModified: null
       };
 
@@ -213,7 +203,6 @@ describe('AppLogoComponent', () => {
         lightLogo: null,
         darkLogo: null,
         appTitle: 'Title',
-        appSubtitle: 'Subtitle',
         lastModified: null
       };
 
@@ -235,7 +224,6 @@ describe('AppLogoComponent', () => {
         lightLogo: 'light-url',
         darkLogo: null,
         appTitle: 'Title',
-        appSubtitle: 'Subtitle',
         lastModified: null
       };
 

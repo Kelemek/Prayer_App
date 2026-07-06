@@ -65,10 +65,6 @@ describe('AppBrandingComponent', () => {
       expect(component.appTitle).toBe('Church Prayer Manager');
     });
 
-    it('should have default appSubtitle', () => {
-      expect(component.appSubtitle).toBe('Keeping our community connected in prayer');
-    });
-
     it('should have useLogo default to false', () => {
       expect(component.useLogo).toBe(false);
     });
@@ -132,7 +128,6 @@ describe('AppBrandingComponent', () => {
           data: [
             {
               app_title: 'Test Church',
-              app_subtitle: 'Test Subtitle',
               use_logo: true,
               light_mode_logo_blob: 'data:image/png;base64,light',
               dark_mode_logo_blob: 'data:image/png;base64,dark',
@@ -145,7 +140,6 @@ describe('AppBrandingComponent', () => {
       await component.loadSettings();
 
       expect(component.appTitle).toBe('Test Church');
-      expect(component.appSubtitle).toBe('Test Subtitle');
       expect(component.useLogo).toBe(true);
       expect(component.lightModeLogoUrl).toBe('data:image/png;base64,light');
       expect(component.darkModeLogoUrl).toBe('data:image/png;base64,dark');
@@ -159,7 +153,6 @@ describe('AppBrandingComponent', () => {
           data: [
             {
               app_title: null,
-              app_subtitle: null,
               use_logo: null,
               light_mode_logo_blob: null,
               dark_mode_logo_blob: null,
@@ -170,12 +163,10 @@ describe('AppBrandingComponent', () => {
       );
 
       const originalTitle = component.appTitle;
-      const originalSubtitle = component.appSubtitle;
 
       await component.loadSettings();
 
       expect(component.appTitle).toBe(originalTitle);
-      expect(component.appSubtitle).toBe(originalSubtitle);
       expect(component.isLoading).toBe(false);
     });
 
@@ -339,7 +330,6 @@ describe('AppBrandingComponent', () => {
       );
 
       component.appTitle = 'New Title';
-      component.appSubtitle = 'New Subtitle';
       component.useLogo = true;
       component.lightModeLogoUrl = 'light-url';
       component.darkModeLogoUrl = 'dark-url';

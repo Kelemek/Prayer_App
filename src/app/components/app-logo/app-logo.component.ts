@@ -27,11 +27,6 @@ export const BRANDING_SERVICE_TOKEN = new InjectionToken<BrandingService>('Brand
         <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
           {{ appTitle }}
         </h1>
-        @if (appSubtitle) {
-          <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            {{ appSubtitle }}
-          </p>
-        }
       </div>
     }
   `,
@@ -41,7 +36,6 @@ export class AppLogoComponent implements OnInit, OnDestroy {
   imageUrl: string = '';
   useLogo = false;
   appTitle: string = 'Church Prayer Manager';
-  appSubtitle: string = 'Keeping our community connected in prayer';
   @Output() logoStatusChange = new EventEmitter<boolean>();
   
   private destroy$ = new Subject<void>();
@@ -68,7 +62,6 @@ export class AppLogoComponent implements OnInit, OnDestroy {
       .subscribe(branding => {
         this.useLogo = branding.useLogo;
         this.appTitle = branding.appTitle;
-        this.appSubtitle = branding.appSubtitle;
         this.updateImageUrl(branding);
         this.cdr?.markForCheck();
       });

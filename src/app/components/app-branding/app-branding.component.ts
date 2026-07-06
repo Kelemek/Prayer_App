@@ -45,7 +45,7 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
           </p>
         } @else {
           <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Customize the title and tagline displayed at the top of your app.
+            Customize the title and logo displayed at the top of your app.
           </p>
 
           <div class="space-y-4">
@@ -71,25 +71,6 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
               />
               <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Main heading displayed in the app header
-              </p>
-            </div>
-
-            <!-- App Subtitle -->
-            <div>
-              <label for="appSubtitle" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                App Subtitle/Tagline
-              </label>
-              <input
-                type="text"
-                id="appSubtitle"
-                [(ngModel)]="appSubtitle"
-                name="appSubtitle"
-                aria-label="Application subtitle or tagline"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Keeping our community connected in prayer"
-              />
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Subheading or tagline displayed in the app header
               </p>
             </div>
 
@@ -272,7 +253,6 @@ export class AppBrandingComponent implements OnInit, OnDestroy {
   }
 
   appTitle = 'Church Prayer Manager';
-  appSubtitle = 'Keeping our community connected in prayer';
   useLogo = false;
   lightModeLogoUrl = '';
   darkModeLogoUrl = '';
@@ -317,7 +297,6 @@ export class AppBrandingComponent implements OnInit, OnDestroy {
 
   private resetFormState(): void {
     this.appTitle = 'Church Prayer Manager';
-    this.appSubtitle = 'Keeping our community connected in prayer';
     this.useLogo = false;
     this.lightModeLogoUrl = '';
     this.darkModeLogoUrl = '';
@@ -368,7 +347,6 @@ export class AppBrandingComponent implements OnInit, OnDestroy {
 
       type BrandingRow = {
         app_title?: string | null;
-        app_subtitle?: string | null;
         use_logo?: boolean | null;
         light_mode_logo_blob?: string | null;
         dark_mode_logo_blob?: string | null;
@@ -378,7 +356,6 @@ export class AppBrandingComponent implements OnInit, OnDestroy {
 
       if (data) {
         if (data.app_title) this.appTitle = data.app_title;
-        if (data.app_subtitle) this.appSubtitle = data.app_subtitle;
         if (data.use_logo !== null && data.use_logo !== undefined) {
           this.useLogo = data.use_logo;
         }
@@ -451,7 +428,6 @@ export class AppBrandingComponent implements OnInit, OnDestroy {
         {
           p_tenant_id: tenantId,
           p_app_title: this.appTitle,
-          p_app_subtitle: this.appSubtitle,
           p_use_logo: this.useLogo,
           p_light_mode_logo_blob: this.lightModeLogoUrl || null,
           p_dark_mode_logo_blob: this.darkModeLogoUrl || null,
@@ -469,7 +445,6 @@ export class AppBrandingComponent implements OnInit, OnDestroy {
         lightLogo: this.lightModeLogoUrl || null,
         darkLogo: this.darkModeLogoUrl || null,
         appTitle: this.appTitle,
-        appSubtitle: this.appSubtitle,
         lastModified: new Date(),
       });
       this.onSave.emit();

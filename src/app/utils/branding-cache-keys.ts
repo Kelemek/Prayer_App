@@ -5,7 +5,6 @@ export const BRANDING_CACHE_KEYS = {
   darkLogo: 'branding_dark_logo',
   useLogo: 'branding_use_logo',
   appTitle: 'branding_app_title',
-  appSubtitle: 'branding_app_subtitle',
   lastModified: 'branding_last_modified',
 } as const;
 

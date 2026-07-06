@@ -154,7 +154,6 @@ describe('BrandingService', () => {
               light_mode_logo_blob: tenantBLogo,
               dark_mode_logo_blob: null,
               app_title: 'Other Church',
-              app_subtitle: 'Other tagline',
               branding_last_modified: cachedTimestamp,
             },
           ],
@@ -184,7 +183,6 @@ describe('BrandingService', () => {
         lightLogo: 'light',
         darkLogo: 'dark',
         appTitle: 'Saved Church',
-        appSubtitle: 'Saved tagline',
         lastModified: new Date('2024-06-01'),
       };
 
@@ -204,7 +202,6 @@ describe('BrandingService', () => {
         lightLogo: 'light-url',
         darkLogo: 'dark-url',
         appTitle: 'Title',
-        appSubtitle: 'Subtitle',
         lastModified: null
       };
 
