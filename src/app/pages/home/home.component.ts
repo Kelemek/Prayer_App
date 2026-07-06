@@ -113,6 +113,15 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
               </div>
 
               <div class="flex flex-col items-end gap-2 min-w-0">
+                @if (showTenantSwitcherInHeader) {
+                <div class="w-full min-w-[8rem] max-w-[12rem]">
+                  <app-tenant-switcher-dropdown
+                    [compact]="true"
+                    triggerId="home-tenant-switcher-mobile"
+                    (tenantSelected)="onTenantSelect($event)"
+                  />
+                </div>
+                }
                 <!-- Email Indicator - Top Right -->
                 @if ((userSessionService.userSession$ | async); as session) {
                 <button
@@ -132,15 +141,6 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
                   <span class="hidden xs:inline">{{ getUserEmail() }}</span>
                   <span class="xs:hidden">Logged In</span>
                 </button>
-                }
-                @if (showTenantSwitcherInHeader) {
-                <div class="w-full min-w-[8rem] max-w-[12rem]">
-                  <app-tenant-switcher-dropdown
-                    [compact]="true"
-                    triggerId="home-tenant-switcher-mobile"
-                    (tenantSelected)="onTenantSelect($event)"
-                  />
-                </div>
                 }
               </div>
             </div>
