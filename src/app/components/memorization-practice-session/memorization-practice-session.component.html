@@ -1,0 +1,594 @@
+@if (isOpen) {
+  @if (typableIndices.length === 0) {
+    <div
+      class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Memorize practice"
+    >
+      <div
+        data-tour="memorize-practice-dialog"
+        class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-6 border border-gray-200 dark:border-gray-700"
+      >
+        <p class="text-gray-700 dark:text-gray-200">No passage text to practice for this item.</p>
+        <button
+          type="button"
+          (click)="handleClose()"
+          class="mt-4 px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-100 rounded-lg cursor-pointer"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  } @else {
+    <div
+      class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/50 p-4"
+      [style.paddingTop]="'env(safe-area-inset-top)'"
+      [style.paddingBottom]="'env(safe-area-inset-bottom)'"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Memorize practice"
+    >
+      <div
+        data-tour="memorize-practice-dialog"
+        class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden"
+      >
+        <div class="flex items-center justify-between gap-3 px-4 pt-4 pb-2 border-b border-gray-200 dark:border-gray-700 shrink-0">
+          <div class="flex min-w-0 shrink items-center gap-2">
+            @if (showListenOpeners) {
+              <button
+                type="button"
+                data-tour="memorize-listen-open"
+                data-testid="memorize-listen-open"
+                (click)="openListenPanel()"
+                [attr.aria-expanded]="listenPanelOpen"
+                [attr.aria-controls]="MEMORIZE_LISTEN_CONTROLS_DIALOG_ID"
+                aria-label="Open Listen controls for this verse"
+                class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+              >
+                Listen
+              </button>
+            }
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            @if (showStartOver) {
+              <button
+                type="button"
+                data-testid="memorize-start-over"
+                (click)="handleStartOver()"
+                class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer"
+              >
+                Start over
+              </button>
+            }
+            @if (
+              phase === 'practicing' &&
+              !awaitingRoundAdvance &&
+              (practiceMode === 'type' ||
+                practiceMode === 'firstLetters' ||
+                practiceMode === 'word' ||
+                practiceMode === 'reorder')
+            ) {
+              <button
+                #hintButton
+                type="button"
+                data-testid="memorize-hint-button"
+                tabindex="-1"
+                class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors border border-blue-200 dark:border-blue-700 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-900/60 hover:border-blue-300 dark:hover:border-blue-600 active:bg-blue-200 dark:active:bg-blue-900/70 select-none touch-manipulation cursor-pointer"
+                [attr.aria-pressed]="hintActive"
+                [attr.aria-label]="
+                  practiceMode === 'reorder'
+                    ? 'Hold to peek at the correct phrase for the first section still out of order'
+                    : 'Hold to peek at hidden words; adds the next word every second'
+                "
+                [title]="
+                  practiceMode === 'reorder'
+                    ? 'Hold to peek at the first wrong section'
+                    : 'Hold to peek; next blank every 1s while held'
+                "
+                (pointerdown)="onHintPointerDown($event)"
+                (pointerup)="onHintPointerUp($event)"
+                (pointerleave)="onHintPointerLeave($event)"
+                (pointercancel)="onHintPointerUp($event)"
+              >
+                Hint
+              </button>
+            }
+            <button
+              type="button"
+              data-tour="memorize-practice-close"
+              (click)="handleClose()"
+              class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer"
+              aria-label="Close"
+            >
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
+          @if (phase === 'practicing' && isKeyboardPracticeMode(practiceMode) && memorizeAndroidHost) {
+            <input
+              #practiceInput
+              [id]="practiceInputId"
+              type="text"
+              [attr.inputmode]="currentTargetToken?.kind === 'digit' ? 'numeric' : 'text'"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              enterkeyhint="done"
+              [disabled]="awaitingRoundAdvance"
+              aria-label="Type the first letter of each blank word, or each digit for number blanks."
+              data-testid="memorize-practice-input"
+              [tabIndex]="awaitingRoundAdvance ? -1 : 0"
+              class="pointer-events-none fixed top-[25vh] left-1/2 z-[110] h-10 w-32 max-w-[min(12rem,45vw)] -translate-x-1/2 border-0 bg-transparent p-0 opacity-[0.02] text-transparent caret-transparent"
+              (keydown)="onPracticeInputKeyDown($event)"
+              (input)="onPracticeInput($event)"
+            />
+          }
+
+          @if (phase !== 'done' && listenViaStreamingAudio) {
+            <audio
+              #passageAudio
+              preload="none"
+              class="hidden"
+              aria-hidden="true"
+              (play)="onPassageAudioPlay()"
+              (pause)="onPassageAudioPause()"
+              (ended)="onPassageAudioEnded()"
+              (error)="onPassageAudioError()"
+            ></audio>
+          }
+
+          @if (phase === 'intro') {
+            <div
+              #practiceScroll
+              class="relative px-4 py-4 flex-1 min-h-0 overflow-y-auto overscroll-y-contain touch-pan-y"
+            >
+              <div>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                  <strong>Start practice</strong> when you're ready; <strong>Round</strong> sets where you begin in the
+                  five-round run (1 is easiest).
+                </p>
+                @if (isBibleBooks) {
+                  <div data-testid="memorize-intro-bible-books">
+                    <app-bible-books-memorization-list
+                      [scope]="item.bibleBooksScope!"
+                    />
+                  </div>
+                } @else {
+                  <p
+                    class="text-base leading-relaxed text-gray-800 dark:text-gray-100 font-serif"
+                    data-testid="memorize-intro-text"
+                  >
+                    {{ formatMemorizationTokensPlain(tokens) }}
+                  </p>
+                }
+              </div>
+            </div>
+            <div
+              class="shrink-0 border-t border-gray-200 dark:border-gray-700 px-4 py-3 bg-gray-50 dark:bg-gray-900/60"
+              data-testid="memorize-intro-footer"
+            >
+              <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end">
+                <button
+                  type="button"
+                  data-tour="memorize-start-practice"
+                  (click)="openModePicker()"
+                  class="w-full sm:w-auto sm:shrink-0 px-4 py-3 text-center rounded-lg font-medium transition-colors cursor-pointer bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700 hover:border-blue-300 dark:hover:border-blue-600"
+                >
+                  Start practice
+                </button>
+                <div class="min-w-0 flex flex-col gap-1.5">
+                  <span class="text-xs font-medium text-gray-600 dark:text-gray-400 px-0.5">Round</span>
+                  <div
+                    class="flex gap-1.5"
+                    role="radiogroup"
+                    aria-label="Starting round (1 to 5)"
+                  >
+                    @for (opt of startRoundOptions; track opt.value) {
+                      <button
+                        type="button"
+                        role="radio"
+                        [attr.aria-checked]="startRoundChoice === opt.value"
+                        [attr.aria-label]="opt.label"
+                        (click)="startRoundChoice = opt.value"
+                        class="min-h-[50px] min-w-[2.75rem] flex-1 sm:flex-none px-2 py-2.5 text-sm rounded-lg font-medium transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-900"
+                        [class]="startRoundChoice === opt.value
+                          ? 'bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700 hover:border-blue-300 dark:hover:border-blue-600'
+                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200 hover:border-gray-400 dark:hover:border-gray-500'"
+                      >
+                        {{ opt.value }}
+                      </button>
+                    }
+                  </div>
+                </div>
+              </div>
+            </div>
+          } @else {
+            <div
+              #practiceScroll
+              class="relative isolate bg-white dark:bg-gray-800 px-4 pt-0 pb-4 flex-1 min-h-0 overscroll-y-contain touch-pan-y"
+              [class.overflow-y-hidden]="phase === 'done'"
+              [class.flex]="phase === 'done'"
+              [class.flex-col]="phase === 'done'"
+              [class.justify-center]="phase === 'done'"
+              [class.overflow-y-auto]="phase !== 'done'"
+              [style.paddingBottom]="keyboardInsetPx > 0 ? 'calc(' + keyboardInsetPx + 'px + 0.5rem)' : null"
+            >
+              @if (phase === 'practicing' && isKeyboardPracticeMode(practiceMode) && !memorizeAndroidHost) {
+                <input
+                  #practiceInput
+                  [id]="practiceInputId"
+                  type="text"
+                  [attr.inputmode]="currentTargetToken?.kind === 'digit' ? 'numeric' : 'text'"
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  enterkeyhint="done"
+                  [disabled]="awaitingRoundAdvance"
+                  aria-label="Type the first letter of each blank word, or each digit for number blanks."
+                  data-testid="memorize-practice-input"
+                  [tabIndex]="awaitingRoundAdvance ? -1 : 0"
+                  class="absolute left-0 top-0 z-0 h-px w-full max-w-full border-0 bg-transparent p-0 opacity-[0.02] text-transparent caret-transparent"
+                  (keydown)="onPracticeInputKeyDown($event)"
+                  (input)="onPracticeInput($event)"
+                />
+              }
+
+              @if (phase === 'practicing') {
+                <div>
+                  <div
+                    [class]="
+                      practiceMode === 'firstLetters' && !awaitingRoundAdvance
+                        ? 'sticky top-0 z-20 -mx-4 mb-2 border-b border-gray-200 bg-white px-4 pt-4 pb-2 shadow-[0_6px_12px_-8px_rgba(15,23,42,0.35)] dark:border-gray-700 dark:bg-gray-800 dark:shadow-[0_8px_16px_-10px_rgba(0,0,0,0.65)]'
+                        : 'pt-4 mb-2'
+                    "
+                  >
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                      @if (awaitingRoundAdvance) {
+                        Round {{ roundIndex }} complete — repeat or continue to round {{ roundIndex + 1 }}.
+                      } @else if (practiceMode === 'reorder') {
+                        Round {{ roundIndex }} of {{ MEMORIZATION_FULL_HIDE_ROUND }} — reorder about
+                        {{ reorderMovableCountForRound(roundIndex, reorderChunks.length) }} of
+                        {{ reorderChunks.length }} parts.
+                      } @else if (practiceMode === 'firstLetters') {
+                        Round {{ roundIndex }} of {{ MEMORIZATION_FULL_HIDE_ROUND }} — initials:
+                        {{ firstLetterCueHiddenSlots.size }} of {{ typableIndices.length }} hidden.
+                      } @else {
+                        Round {{ roundIndex }} of {{ MEMORIZATION_FULL_HIDE_ROUND }} — about
+                        {{ Math.round(hiddenFractionForRound(roundIndex) * 100) }}% hidden
+                      }
+                    </p>
+
+                    @if (practiceMode === 'firstLetters' && !awaitingRoundAdvance) {
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                        Cues below line up with blanks in order; dots hide cues until you type the right key.
+                        @if (currentTargetIndex !== null) {
+                          {{
+                            currentTargetToken?.kind === 'digit'
+                              ? 'Type digits only; colons and dashes are not typed.'
+                              : 'Type first letters. Hold Hint to peek (one more blank each second).'
+                          }}
+                          Tap the verse if the keyboard closes.
+                        }
+                      </p>
+                      <div
+                        #firstLetterCuesViewport
+                        class="min-h-0 max-h-[calc(3*1.625*1em)] overflow-y-auto overflow-x-hidden overscroll-y-contain touch-pan-y rounded-sm px-2 font-mono text-base sm:text-lg font-bold leading-relaxed tracking-wide text-gray-800 dark:text-gray-100"
+                        aria-label="Initials cues"
+                      >
+                        <p class="mb-0 break-all" data-testid="memorize-first-letter-cues">
+                          @for (tokenIndex of typableIndices; track tokenIndex; let slot = $index) {
+                            @let t = tokens[tokenIndex];
+                            @let hiddenSlot =
+                              firstLetterCueHiddenSlots.has(slot) && !firstLetterCueRevealedSlots.has(slot);
+                            @let glyph = cueGlyphForTypableToken(t);
+                            @let isActiveCue = currentTargetIndex !== null && tokenIndex === currentTargetIndex;
+                            <span [attr.data-memorize-cue-slot]="slot">
+                              @if (slot > 0) {
+                                <span> </span>
+                              }
+                              <span
+                                [class.rounded]="isActiveCue"
+                                [class.px-0.5]="isActiveCue"
+                                [class.ring-2]="isActiveCue"
+                                [class.ring-blue-400/90]="isActiveCue"
+                                [class.bg-blue-100]="isActiveCue"
+                                [class.text-blue-950]="isActiveCue"
+                                [class.dark:bg-blue-900/55]="isActiveCue"
+                                [class.dark:text-blue-50]="isActiveCue"
+                                [class.dark:ring-blue-500/80]="isActiveCue"
+                              >
+                                {{ hiddenSlot ? '·' : glyph }}
+                              </span>
+                            </span>
+                          }
+                        </p>
+                      </div>
+                    }
+                  </div>
+
+                  <div class="relative z-0 min-w-0">
+                    @if (!awaitingRoundAdvance && practiceMode !== 'firstLetters') {
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                        @if (practiceMode === 'reorder') {
+                          Drag the <strong>highlighted</strong> parts into reading order. Hold <strong>Hint</strong> to peek
+                          at the first wrong slot.
+                        } @else if (practiceMode === 'word') {
+                          @if (currentTargetIndex !== null) {
+                            {{
+                              currentTargetToken?.kind === 'digit'
+                                ? 'Tap the digit in the choice bar at the bottom.'
+                                : 'Tap the word in the bottom choice bar. Hold Hint to peek.'
+                            }}
+                          }
+                        } @else if (currentTargetIndex !== null) {
+                          {{
+                            currentTargetToken?.kind === 'digit'
+                              ? 'Type the next digit (left to right).'
+                              : 'Type the first letter of the next blank. Hold Hint to peek.'
+                          }}
+                          Tap the verse if the keyboard closed.
+                        }
+                      </p>
+                    }
+
+                    @if (practiceMode === 'reorder') {
+                      <app-memorization-reorder-panel
+                        [chunks]="reorderChunks"
+                        [slotChunkIds]="reorderSlotChunkIds"
+                        [roundMovableIndices]="reorderRoundMovableIndices"
+                        [listFlashError]="flashError"
+                        [holdHintPeekFirstWrong]="practiceMode === 'reorder' && hintActive"
+                        [scrollParentRef]="practiceScrollElement"
+                        [colonAfterSlotIndex]="reorderColonAfterSlotIndex"
+                        [extraFixedSlotSpacing]="isBibleBooks"
+                        (slotChunkIdsChange)="onReorderSlotChunkIdsChange($event)"
+                        (invalidDrop)="onReorderInvalidDrop()"
+                        (slotsBecameCorrect)="onReorderSlotsBecameCorrect($event)"
+                      />
+                    } @else if (practiceMode === 'word') {
+                      <div
+                        #practiceWordsWord
+                        role="group"
+                        aria-label="Verse practice area"
+                        class="touch-manipulation text-base leading-relaxed font-serif flex flex-wrap gap-x-2 gap-y-2.5 sm:gap-x-1 sm:gap-y-2 items-baseline rounded-md p-1 ring-2 ring-inset transition-shadow"
+                        [class.ring-red-400]="flashError"
+                        [class.dark:ring-red-500]="flashError"
+                        [class.ring-transparent]="!flashError"
+                        data-testid="memorize-practice-words"
+                      >
+                        @for (token of tokens; track $index; let i = $index) {
+                          @if (token.kind === 'punct') {
+                            <span class="inline text-gray-800 dark:text-gray-100 whitespace-pre">{{ token.text }}</span>
+                          } @else {
+                            <span
+                              [attr.data-memorize-current-blank]="isCurrentBlank(i) ? 'true' : null"
+                              class="inline-flex items-baseline border-b-2 box-border px-1 sm:px-0.5 min-h-[1.5em] min-w-[0.6em] justify-center"
+                              [class.border-gray-400]="isTokenHidden(i) && !isTokenRevealed(i)"
+                              [class.dark:border-gray-500]="isTokenHidden(i) && !isTokenRevealed(i)"
+                              [class.border-transparent]="!isTokenHidden(i) || isTokenRevealed(i)"
+                              [class.bg-blue-100/80]="isCurrentBlank(i)"
+                              [class.dark:bg-blue-900/40]="isCurrentBlank(i)"
+                              [attr.aria-current]="isCurrentBlank(i) ? 'true' : null"
+                            >
+                              <span
+                                [class.text-gray-800]="!isTokenHidden(i) || isTokenRevealed(i)"
+                                [class.dark:text-gray-100]="!isTokenHidden(i) || isTokenRevealed(i)"
+                                [class.text-blue-800]="showViaHint(i)"
+                                [class.dark:text-blue-200]="showViaHint(i)"
+                                [class.italic]="showViaHint(i)"
+                                [class.text-transparent]="isTokenHidden(i) && !isTokenRevealed(i) && !showViaHint(i)"
+                                [class.select-none]="isTokenHidden(i) && !isTokenRevealed(i) && !showViaHint(i)"
+                                [class.pointer-events-none]="isTokenHidden(i) && !isTokenRevealed(i) && !showViaHint(i)"
+                                [attr.aria-hidden]="isTokenHidden(i) && !isTokenRevealed(i) && !showViaHint(i)"
+                              >
+                                {{ token.text }}
+                              </span>
+                            </span>
+                          }
+                        }
+                      </div>
+                    } @else {
+                      <label
+                        #practiceWordsType
+                        [attr.for]="practiceInputId"
+                        aria-label="Verse practice area; tap to show the keyboard again"
+                        class="touch-manipulation cursor-text text-base leading-relaxed font-serif flex flex-wrap gap-x-2 gap-y-2.5 sm:gap-x-1 sm:gap-y-2 items-baseline rounded-md p-1 ring-2 ring-inset transition-shadow"
+                        [class.ring-red-400]="flashError"
+                        [class.dark:ring-red-500]="flashError"
+                        [class.ring-transparent]="!flashError"
+                        data-testid="memorize-practice-words"
+                        (touchstart)="onVerseTouchStart($event)"
+                        (touchmove)="onVerseTouchMove($event)"
+                        (touchcancel)="onVerseTouchCancel()"
+                        (touchend)="onVerseTouchEnd()"
+                      >
+                        @for (token of tokens; track $index; let i = $index) {
+                          @if (token.kind === 'punct') {
+                            <span class="inline text-gray-800 dark:text-gray-100 whitespace-pre">{{ token.text }}</span>
+                          } @else {
+                            <span
+                              [attr.data-memorize-current-blank]="isCurrentBlank(i) ? 'true' : null"
+                              class="inline-flex items-baseline border-b-2 box-border px-1 sm:px-0.5 min-h-[1.5em] min-w-[0.6em] justify-center"
+                              [class.border-gray-400]="isTokenHidden(i) && !isTokenRevealed(i)"
+                              [class.dark:border-gray-500]="isTokenHidden(i) && !isTokenRevealed(i)"
+                              [class.border-transparent]="!isTokenHidden(i) || isTokenRevealed(i)"
+                              [class.bg-blue-100/80]="isCurrentBlank(i)"
+                              [class.dark:bg-blue-900/40]="isCurrentBlank(i)"
+                              [attr.aria-current]="isCurrentBlank(i) ? 'true' : null"
+                            >
+                              <span
+                                [class.text-gray-800]="!isTokenHidden(i) || isTokenRevealed(i)"
+                                [class.dark:text-gray-100]="!isTokenHidden(i) || isTokenRevealed(i)"
+                                [class.text-blue-800]="showViaHint(i)"
+                                [class.dark:text-blue-200]="showViaHint(i)"
+                                [class.italic]="showViaHint(i)"
+                                [class.text-transparent]="isTokenHidden(i) && !isTokenRevealed(i) && !showViaHint(i)"
+                                [class.select-none]="isTokenHidden(i) && !isTokenRevealed(i) && !showViaHint(i)"
+                                [class.pointer-events-none]="isTokenHidden(i) && !isTokenRevealed(i) && !showViaHint(i)"
+                                [attr.aria-hidden]="isTokenHidden(i) && !isTokenRevealed(i) && !showViaHint(i)"
+                              >
+                                {{ token.text }}
+                              </span>
+                            </span>
+                          }
+                        }
+                      </label>
+                    }
+                  </div>
+                </div>
+              }
+
+              @if (phase === 'done') {
+                <div class="text-center py-6">
+                  <p
+                    class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3"
+                    data-testid="memorize-completion-message"
+                  >
+                    {{ completionMessage }}
+                  </p>
+                  <p class="text-sm text-gray-600 dark:text-gray-400">You can close when you are ready.</p>
+                  <button
+                    type="button"
+                    (click)="handleClose()"
+                    class="mt-6 px-4 py-3 rounded-lg font-medium transition-colors cursor-pointer bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700"
+                  >
+                    Done
+                  </button>
+                </div>
+              }
+            </div>
+
+            @if (phase === 'practicing' && practiceMode === 'word' && !awaitingRoundAdvance && wordChoiceLabels.length > 0) {
+              <div
+                class="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/60"
+                data-testid="memorize-word-choices"
+              >
+                <div class="max-h-[min(42vh,360px)] overflow-y-auto overscroll-y-contain px-4 py-3 touch-pan-y">
+                  <div class="flex w-full max-w-2xl mx-auto flex-wrap justify-center gap-4">
+                    @for (label of wordChoiceLabels; track label; let choiceIdx = $index) {
+                      <button
+                        type="button"
+                        (click)="processWordGuess(label)"
+                        class="shrink-0 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 font-medium text-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                        [class.min-w-11]="currentTargetToken?.kind === 'digit'"
+                        [class.px-4]="currentTargetToken?.kind === 'digit'"
+                        [class.py-2.5]="currentTargetToken?.kind === 'digit'"
+                        [class.tabular-nums]="currentTargetToken?.kind === 'digit'"
+                        [class.whitespace-nowrap]="currentTargetToken?.kind === 'digit'"
+                        [class.max-w-full]="currentTargetToken?.kind !== 'digit'"
+                        [class.w-max]="currentTargetToken?.kind !== 'digit'"
+                        [class.px-4]="currentTargetToken?.kind !== 'digit'"
+                        [class.py-3]="currentTargetToken?.kind !== 'digit'"
+                        [class.text-sm]="currentTargetToken?.kind !== 'digit'"
+                        [class.leading-snug]="currentTargetToken?.kind !== 'digit'"
+                        [class.whitespace-normal]="currentTargetToken?.kind !== 'digit'"
+                      >
+                        {{ label }}
+                      </button>
+                    }
+                  </div>
+                </div>
+              </div>
+            }
+
+            @if (phase === 'practicing' && awaitingRoundAdvance) {
+              <div
+                class="shrink-0 border-t border-gray-200 dark:border-gray-700 px-4 py-3 bg-gray-50 dark:bg-gray-900/60"
+                data-testid="memorize-round-advance-footer"
+              >
+                <p
+                  class="text-sm font-medium text-emerald-900 dark:text-emerald-100 text-center sm:text-left mb-3"
+                  data-testid="memorize-round-affirmation"
+                >
+                  {{ roundAffirmation }}
+                </p>
+                <div class="flex flex-col sm:flex-row gap-3 sm:justify-end">
+                  <button
+                    type="button"
+                    (click)="repeatRound()"
+                    class="w-full sm:w-auto px-4 py-3 rounded-lg font-medium border-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer"
+                  >
+                    Repeat this round
+                  </button>
+                  <button
+                    type="button"
+                    (click)="nextRound()"
+                    class="w-full sm:w-auto px-4 py-3 rounded-lg font-medium transition-colors cursor-pointer bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700"
+                  >
+                    Next round
+                  </button>
+                </div>
+              </div>
+            }
+          }
+        </div>
+      </div>
+    </div>
+
+    @if (modePickerOpen && phase === 'intro') {
+      <div
+        class="fixed inset-0 z-[110] flex items-center justify-center bg-gray-900/50 p-4"
+        role="presentation"
+        (click)="closeModePicker()"
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          [attr.aria-labelledby]="modePickerTitle"
+          data-tour="memorize-practice-mode-picker"
+          class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6 border border-gray-200 dark:border-gray-700"
+          (click)="$event.stopPropagation()"
+        >
+          <h2 [id]="modePickerTitle" class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
+            Choose practice mode
+          </h2>
+          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <strong>Type mode:</strong> keyboard — first letter of each blank. <strong>Initials mode:</strong> same typing
+            with cue row. <strong>Word mode:</strong> tap choices. <strong>Reorder mode:</strong> drag chunks into order.
+          </p>
+          <div class="flex flex-col gap-3">
+            <button type="button" data-testid="memorize-practice-mode-type" (click)="beginPracticeWithMode('type')" class="w-full px-4 py-3 rounded-lg font-medium cursor-pointer bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700">
+              Type mode
+            </button>
+            <button type="button" data-testid="memorize-practice-mode-initials" (click)="beginPracticeWithMode('firstLetters')" class="w-full px-4 py-3 rounded-lg font-medium cursor-pointer bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700">
+              Initials mode
+            </button>
+            <button type="button" data-testid="memorize-practice-mode-word" (click)="beginPracticeWithMode('word')" class="w-full px-4 py-3 rounded-lg font-medium cursor-pointer bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700">
+              Word mode
+            </button>
+            <button type="button" data-testid="memorize-practice-mode-reorder" (click)="beginPracticeWithMode('reorder')" class="w-full px-4 py-3 rounded-lg font-medium cursor-pointer bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700">
+              Reorder mode
+            </button>
+            <button type="button" data-testid="memorize-practice-mode-cancel" (click)="closeModePicker()" class="w-full px-4 py-3 rounded-lg font-medium border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (listenPanelOpen && showListenOpeners) {
+      <app-memorize-listen-controls-dialog
+        [open]="true"
+        [dialogId]="MEMORIZE_LISTEN_CONTROLS_DIALOG_ID"
+        [titleId]="MEMORIZE_LISTEN_CONTROLS_TITLE_ID"
+        [primaryLabel]="readAloudDialogPrimaryLabel"
+        [primaryAriaLabel]="readAloudDialogPrimaryAriaLabel"
+        [primaryAriaPressed]="listenAriaPressed"
+        [repeatListenOn]="repeatListenOn"
+        [listenPlaybackRate]="listenPlaybackRate"
+        (close)="closeListenPanel()"
+        (primaryClick)="handleListenPassageClick()"
+        (repeatToggle)="handleRepeatListenToggle()"
+        (speedSelect)="onSelectListenSpeed($event)"
+      />
+    }
+  }
+}

@@ -137,7 +137,20 @@ const makeMocks = () => {
     availableTenants$: of([])
   };
 
-  return { prayerService, promptService, adminAuthService, userSessionService, badgeService, cacheService, toastService, analyticsService, cdr, router, supabaseService, tenantPermissionService, tenantContextService, prayersSubject, promptsSubject, userSessionSubject, allPersonalPrayersSubject };
+  const memorizationService: any = {
+    memorizedItems$: new BehaviorSubject([]).asObservable(),
+    loading$: of(false),
+    loadItems: vi.fn().mockResolvedValue(undefined),
+    getPreferredTranslation: vi.fn(() => 'esv'),
+    setPreferredTranslation: vi.fn(),
+    items: [],
+    removeItem: vi.fn(),
+    updatePracticeStats: vi.fn(),
+    saveInProgress: vi.fn(),
+    clearInProgress: vi.fn()
+  };
+
+  return { prayerService, promptService, adminAuthService, userSessionService, badgeService, cacheService, toastService, analyticsService, cdr, router, supabaseService, tenantPermissionService, tenantContextService, memorizationService, prayersSubject, promptsSubject, userSessionSubject, allPersonalPrayersSubject };
 };
 
 let mocks: ReturnType<typeof makeMocks>;
@@ -179,7 +192,8 @@ const createHomeComponent = (
   router: any,
   supabaseService: any,
   tenantPermissionService?: any,
-  tenantContextService?: any
+  tenantContextService?: any,
+  memorizationService?: any
 ) => {
   const m = mocks;
   const comp = new HomeComponent(
@@ -194,7 +208,8 @@ const createHomeComponent = (
     router,
     supabaseService,
     tenantPermissionService ?? m.tenantPermissionService,
-    tenantContextService ?? m.tenantContextService
+    tenantContextService ?? m.tenantContextService,
+    memorizationService ?? m.memorizationService
   );
   const permissions = tenantPermissionService ?? m.tenantPermissionService;
   comp.canAccessShared = permissions.canAccessShared();
@@ -1813,6 +1828,27 @@ describe('HomeComponent', () => {
 
       expect(comp.activeFilter).toBe('personal');
       expect(mocks.prayerService.applyFilters).toHaveBeenCalledWith({ search: 'search' });
+    });
+
+    it('setFilter memorize clears shared prayers and loads memorization items', () => {
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.supabaseService
+      );
+
+      comp.setFilter('memorize');
+
+      expect(comp.activeFilter).toBe('memorize');
+      expect(mocks.prayerService.applyFilters).toHaveBeenCalledWith({ search: '' });
+      expect(mocks.memorizationService.loadItems).toHaveBeenCalled();
     });
   });
 

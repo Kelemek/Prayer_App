@@ -35,3 +35,18 @@ alwaysApply: false
 - Use **single quotes** and consistent formatting (deno.json `fmt`).
 - Log with `console.log` / `console.error` for debugging (e.g. `✅` / `❌` prefixes).
 - For function-to-function calls use `supabase.functions.invoke('other-function', { body: { ... } })`.
+
+## Scripture functions (`scripture`, `scripture-audio`)
+
+Edit each function’s `index.ts` directly.
+
+**Required secrets** (set via Dashboard or `supabase secrets set`):
+
+| Variable | Used by |
+|----------|---------|
+| `ESV_API_TOKEN` | ESV text + passage audio |
+| `API_BIBLE_KEY` | API.Bible text + chapter audio |
+| `API_BIBLE_BIBLE_ID_KJV`, `_NASB`, `_LSB`, `_NIV`, `_NLT`, `_CSB` | Text bible IDs from `GET /v1/bibles` |
+| `API_BIBLE_AUDIO_BIBLE_ID_*` (optional) | Override when auto-discovery picks wrong audio edition |
+
+**Optional:** `API_BIBLE_BASE_URL` (default `https://rest.api.bible`), `ESV_CACHE_TTL_DAYS` (default 30), `API_BIBLE_CACHE_TTL_DAYS` (default 14).

@@ -1,0 +1,87 @@
+import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import {
+  bibleBooksCountLabel,
+  isBibleBooksMemorizationItem,
+} from '../../lib/memorization/bibleBooksMemorization';
+import { getMasterLevel } from '../../lib/memorization/memorization-mastery';
+import type { MemorizedItem } from '../../types/memorization';
+
+@Component({
+  selector: 'app-memorized-verse-card',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <div
+      class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 mb-3 overflow-hidden"
+      role="listitem"
+    >
+      <div class="flex">
+        <button
+          type="button"
+          (click)="practice.emit(item)"
+          class="min-w-0 flex-1 text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
+        >
+          <span class="font-semibold text-gray-900 dark:text-gray-100 block truncate">
+            {{ item.reference }}
+          </span>
+          <span class="text-xs text-gray-600 dark:text-gray-400 mt-0.5 block">
+            @if (isBibleBooksMemorizationItem(item)) {
+              {{ bibleBooksCountLabel(item.bibleBooksScope!) }}
+            } @else {
+              {{ item.translation.toUpperCase() }}
+            }
+            @if (item.lastPracticedAt) {
+              · Last: {{ formatDate(item.lastPracticedAt) }}
+            }
+          </span>
+          <span class="text-xs text-gray-500 dark:text-gray-500 mt-0.5 block">
+            Sessions: {{ completedCount }} completed · {{ masterLabel }}
+          </span>
+        </button>
+        <button
+          type="button"
+          (click)="remove.emit(item)"
+          class="shrink-0 flex items-center justify-center px-3 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
+          [attr.aria-label]="'Remove ' + item.reference"
+          title="Remove"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  `,
+})
+export class MemorizedVerseCardComponent {
+  @Input({ required: true }) item!: MemorizedItem;
+  @Output() practice = new EventEmitter<MemorizedItem>();
+  @Output() remove = new EventEmitter<MemorizedItem>();
+
+  readonly isBibleBooksMemorizationItem = isBibleBooksMemorizationItem;
+  readonly bibleBooksCountLabel = bibleBooksCountLabel;
+
+  get completedCount(): number {
+    return this.item.practiceSessions.filter((s) => s.completed).length;
+  }
+
+  get masterLabel(): string {
+    const level = getMasterLevel(this.item);
+    if (level === 'learning') return 'Learning';
+    if (level === 'practicing') return 'Practicing';
+    return 'Mastered';
+  }
+
+  formatDate(ts: number): string {
+    try {
+      return new Date(ts).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    } catch {
+      return '—';
+    }
+  }
+}

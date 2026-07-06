@@ -48,6 +48,14 @@ import { AnalyticsService } from "../../services/analytics.service";
 import { PullToRefreshDirective } from "../../directives/pull-to-refresh.directive";
 import { TenantPermissionService } from "../../services/tenant-permission.service";
 import { TenantContextService } from "../../services/tenant-context.service";
+import { MemorizationService } from "../../services/memorization.service";
+import { MemorizationActionBarComponent } from "../../components/memorization-action-bar/memorization-action-bar.component";
+import { MemorizedVerseCardComponent } from "../../components/memorized-verse-card/memorized-verse-card.component";
+import { AddMemorizedVerseModalComponent } from "../../components/add-memorized-verse-modal/add-memorized-verse-modal.component";
+import { AddMemorizedBibleBooksModalComponent } from "../../components/add-memorized-bible-books-modal/add-memorized-bible-books-modal.component";
+import { MemorizationPracticeSessionComponent } from "../../components/memorization-practice-session/memorization-practice-session.component";
+import { groupItemsByMasterLevel } from "../../lib/memorization/memorization-mastery";
+import type { MemorizedItem, MemorizationInProgressSavePayload, BibleTranslation } from "../../types/memorization";
 import {
   BRANDING_CACHE_KEYS,
   getBrandingCacheKey,
@@ -74,6 +82,11 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
     PersonalPrayerUpdateEditModalComponent,
     ConfirmationDialogComponent,
     PullToRefreshDirective,
+    MemorizationActionBarComponent,
+    MemorizedVerseCardComponent,
+    AddMemorizedVerseModalComponent,
+    AddMemorizedBibleBooksModalComponent,
+    MemorizationPracticeSessionComponent,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
@@ -405,13 +418,50 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
             (save)="onPersonalUpdateSaved()"
           ></app-personal-prayer-update-edit-modal>
 
+          <app-add-memorized-verse-modal
+            [isOpen]="showAddMemorizedVerse"
+            (onClose)="showAddMemorizedVerse = false"
+            (translationChange)="preferredBibleTranslation = $event"
+          />
+          <app-add-memorized-bible-books-modal
+            [isOpen]="showAddMemorizedBibleBooks"
+            [translation]="preferredBibleTranslation"
+            (onClose)="showAddMemorizedBibleBooks = false"
+          />
+          @if (practiceMemorizedItem) {
+          <app-memorization-practice-session
+            [item]="practiceMemorizedItem"
+            [isOpen]="!!practiceMemorizedItem"
+            (closed)="closeMemorizationPractice()"
+            (completed)="onMemorizationPracticeComplete($event)"
+            (persistInProgress)="onMemorizationPersistInProgress($event)"
+            (clearInProgress)="onMemorizationClearInProgress()"
+          />
+          }
+          @if (showRemoveMemorizedConfirm && memorizedItemToRemove) {
+          <app-confirmation-dialog
+            title="Remove from list?"
+            [message]="'Remove ' + memorizedItemToRemove.reference + ' from your memorization list?'"
+            confirmText="Remove"
+            cancelText="Cancel"
+            [isDangerous]="true"
+            (confirm)="removeMemorizedItemConfirmed()"
+            (cancel)="showRemoveMemorizedConfirm = false"
+          />
+          }
+
           <!-- Prayer Filters -->
           <app-prayer-filters
             [filters]="filters"
             (filtersChange)="onFiltersChange($event)"
           ></app-prayer-filters>
           <!-- Stats Cards -->
-          <div class="grid gap-4 mb-6 grid-cols-3 sm:grid-cols-5">
+          <div
+            [class]="
+              'grid gap-4 mb-6 ' +
+              (canAccessShared ? 'grid-cols-3 sm:grid-cols-6' : 'grid-cols-2')
+            "
+          >
             @if (canAccessShared) {
             <button
               (click)="setFilter('current')"
@@ -546,11 +596,32 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
                 Personal
               </div>
             </button>
+
+            <button
+              (click)="setFilter('memorize')"
+              title="Memorize Bible verses"
+              [class]="
+                'rounded-lg shadow-md p-2 sm:p-4 text-center transition-all duration-200 cursor-pointer relative flex flex-col items-center justify-center ' +
+                (activeFilter === 'memorize'
+                  ? 'border !border-[#0047AB] dark:!border-[#0047AB] bg-blue-100 dark:bg-blue-950 ring ring-[#0047AB] dark:ring-[#0047AB] ring-offset-0'
+                  : 'bg-white dark:bg-gray-800 border-[2px] !border-gray-200 dark:!border-gray-700 hover:!border-[#0047AB] dark:hover:!border-[#0047AB] hover:shadow-lg')
+              "
+            >
+              <div
+                class="text-sm sm:text-xl sm:sm:text-2xl font-bold text-gray-700 dark:text-gray-300 tabular-nums"
+              >
+                {{ memorizedItemsCount }}
+              </div>
+              <div class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                Memorize
+              </div>
+            </button>
           </div>
 
           <!-- Loading State -->
           @if (!viewReady || (loading$ | async) || (activeFilter === 'personal'
-          && (prayerService.loadingPersonalPrayers$ | async))) {
+          && (prayerService.loadingPersonalPrayers$ | async)) || (activeFilter ===
+          'memorize' && (memorizationService.loading$ | async))) {
           <app-skeleton-loader [count]="5" type="card"></app-skeleton-loader>
           }
 
@@ -716,11 +787,12 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
           <!-- Prayers or Prompts List -->
           @if (viewReady && !(loading$ | async) && !(error$ | async) &&
           !(activeFilter === 'personal' &&
-          (prayerService.loadingPersonalPrayers$ | async))) {
+          (prayerService.loadingPersonalPrayers$ | async)) && !(activeFilter ===
+          'memorize' && (memorizationService.loading$ | async))) {
           <div class="space-y-4">
             <!-- Empty State for Prayers -->
             @if (activeFilter !== 'prompts' && activeFilter !== 'personal' &&
-            (prayers$ | async)?.length === 0) {
+            activeFilter !== 'memorize' && (prayers$ | async)?.length === 0) {
             <div
               class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center border border-gray-200 dark:border-gray-700"
             >
@@ -809,8 +881,9 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
             </div>
             }
 
-            <!-- Prayer Cards (only show when not on prompts or personal filter) -->
-            @if (activeFilter !== 'prompts' && activeFilter !== 'personal') {
+            <!-- Prayer Cards (only show when not on prompts, personal, or memorize filter) -->
+            @if (activeFilter !== 'prompts' && activeFilter !== 'personal' &&
+            activeFilter !== 'memorize') {
             @for (prayer of prayers$ | async; track prayer.id) {
             <app-prayer-card
               [prayer]="prayer"
@@ -883,6 +956,64 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
             </div>
             }
 
+            @if (activeFilter === 'memorize') {
+            <app-memorization-action-bar
+              (addVerses)="showAddMemorizedVerse = true"
+              (addBibleBooks)="showAddMemorizedBibleBooks = true"
+            />
+            @if (!(memorizationService.loading$ | async) && memorizedItems.length
+            === 0) {
+            <div
+              class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center border border-gray-200 dark:border-gray-700"
+            >
+              <h3 class="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2">
+                No memorized passages yet
+              </h3>
+              <p class="text-gray-500 dark:text-gray-400">
+                Add verses or Bible books to start practicing.
+              </p>
+            </div>
+            } @if (memorizedLearning.length > 0) {
+            <p
+              class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"
+            >
+              Learning
+            </p>
+            @for (item of memorizedLearning; track item.id) {
+            <app-memorized-verse-card
+              [item]="item"
+              (practice)="openMemorizationPractice($event)"
+              (remove)="confirmRemoveMemorizedItem($event)"
+            />
+            }
+            } @if (memorizedPracticing.length > 0) {
+            <p
+              class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2 mt-4"
+            >
+              Practicing
+            </p>
+            @for (item of memorizedPracticing; track item.id) {
+            <app-memorized-verse-card
+              [item]="item"
+              (practice)="openMemorizationPractice($event)"
+              (remove)="confirmRemoveMemorizedItem($event)"
+            />
+            }
+            } @if (memorizedMastered.length > 0) {
+            <p
+              class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2 mt-4"
+            >
+              Mastered
+            </p>
+            @for (item of memorizedMastered; track item.id) {
+            <app-memorized-verse-card
+              [item]="item"
+              (practice)="openMemorizationPractice($event)"
+              (remove)="confirmRemoveMemorizedItem($event)"
+            />
+            }
+            } }
+
             <!-- Empty State for Prompts -->
             @if (activeFilter === 'prompts' && (prompts$ | async)?.length === 0)
             {
@@ -949,6 +1080,17 @@ export class HomeComponent implements OnInit, OnDestroy {
   totalPrayersCount = 0;
   promptsCount = 0;
   personalPrayersCount = 0;
+  memorizedItems: MemorizedItem[] = [];
+  memorizedItemsCount = 0;
+  memorizedLearning: MemorizedItem[] = [];
+  memorizedPracticing: MemorizedItem[] = [];
+  memorizedMastered: MemorizedItem[] = [];
+  showAddMemorizedVerse = false;
+  showAddMemorizedBibleBooks = false;
+  practiceMemorizedItem: MemorizedItem | null = null;
+  showRemoveMemorizedConfirm = false;
+  memorizedItemToRemove: MemorizedItem | null = null;
+  preferredBibleTranslation: BibleTranslation = 'esv';
 
   showPrayerForm = false;
   showSettings = false;
@@ -961,8 +1103,13 @@ export class HomeComponent implements OnInit, OnDestroy {
   editingUpdatePrayerId = "";
   filters: PrayerFilters = { status: "current" };
   hasLogo = false;
-  activeFilter: "current" | "answered" | "total" | "prompts" | "personal" =
-    "current";
+  activeFilter:
+    | "current"
+    | "answered"
+    | "total"
+    | "prompts"
+    | "personal"
+    | "memorize" = "current";
   viewReady = false;
   selectedPromptTypes: string[] = [];
   selectedPersonalCategories: string[] = [];
@@ -1024,7 +1171,8 @@ export class HomeComponent implements OnInit, OnDestroy {
     private router: Router,
     private supabaseService: SupabaseService,
     private tenantPermissionService: TenantPermissionService,
-    private tenantContextService: TenantContextService
+    private tenantContextService: TenantContextService,
+    public memorizationService: MemorizationService
   ) {
     const windowCache = (window as { __cachedLogos?: { tenantId?: string | null; useLogo?: boolean } }).__cachedLogos;
     const tenantId = localStorage.getItem("active_tenant_id");
@@ -1070,7 +1218,7 @@ export class HomeComponent implements OnInit, OnDestroy {
         .pipe(takeUntil(this.destroy$))
         .subscribe(() => {
           this.canAccessShared = this.tenantPermissionService.canAccessShared();
-          if (!this.canAccessShared && this.activeFilter !== "personal") {
+          if (!this.canAccessShared && this.activeFilter !== "personal" && this.activeFilter !== "memorize") {
             this.setFilter("personal");
           }
           this.cdr.markForCheck();
@@ -1174,6 +1322,20 @@ export class HomeComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       });
 
+    this.preferredBibleTranslation = this.memorizationService.getPreferredTranslation();
+
+    this.memorizationService.memorizedItems$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((items) => {
+        this.memorizedItems = items;
+        this.memorizedItemsCount = items.length;
+        const grouped = groupItemsByMasterLevel(items);
+        this.memorizedLearning = grouped.learning;
+        this.memorizedPracticing = grouped.practicing;
+        this.memorizedMastered = grouped.mastered;
+        this.cdr.markForCheck();
+      });
+
     // Wait for the first real user session to apply the default view preference
     this.userSessionService.userSession$
       .pipe(
@@ -1227,6 +1389,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       const session = this.userSessionService.getCurrentSession();
       if (session && session.email) {
         tasks.push(this.prayerService.loadPersonalPrayers(false));
+        tasks.push(this.memorizationService.loadItems());
       }
 
       await Promise.all(tasks);
@@ -1278,9 +1441,19 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   setFilter(
-    filter: "current" | "answered" | "total" | "prompts" | "personal"
+    filter:
+      | "current"
+      | "answered"
+      | "total"
+      | "prompts"
+      | "personal"
+      | "memorize"
   ): void {
-    if (!this.canAccessShared && filter !== "personal") {
+    if (
+      !this.canAccessShared &&
+      filter !== "personal" &&
+      filter !== "memorize"
+    ) {
       this.activeFilter = "personal";
       this.prayerService.applyFilters({ search: this.filters.searchTerm });
       return;
@@ -1298,6 +1471,10 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.filters = { searchTerm: this.filters.searchTerm };
       this.prayerService.applyFilters({ search: this.filters.searchTerm });
       // Personal prayers are automatically loaded via service observable subscription
+    } else if (filter === "memorize") {
+      this.filters = { searchTerm: this.filters.searchTerm };
+      this.prayerService.applyFilters({ search: "" });
+      void this.memorizationService.loadItems();
     } else if (filter === "total") {
       this.filters = { searchTerm: this.filters.searchTerm };
       this.prayerService.applyFilters({
@@ -1857,6 +2034,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.prayerService.loadPrayers(),
       this.promptService.loadPrompts(),
       this.prayerService.loadPersonalPrayers(false),
+      this.memorizationService.loadItems(),
     ]);
     this.cdr.markForCheck();
   }
@@ -1918,6 +2096,61 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   markAllPromptsAsRead(): void {
     this.badgeService.markAllAsRead("prompts");
+  }
+
+  openMemorizationPractice(item: MemorizedItem): void {
+    this.practiceMemorizedItem = item;
+    this.cdr.markForCheck();
+  }
+
+  closeMemorizationPractice(): void {
+    this.practiceMemorizedItem = null;
+    this.cdr.markForCheck();
+  }
+
+  async onMemorizationPracticeComplete(result: {
+    wrongAttempts: number;
+    correctKeystrokes: number;
+    completed: boolean;
+  }): Promise<void> {
+    const id = this.practiceMemorizedItem?.id;
+    if (!id) return;
+    await this.memorizationService.updatePracticeStats(id, result);
+    const updated = this.memorizationService.items.find((v) => v.id === id);
+    if (updated) {
+      this.practiceMemorizedItem = updated;
+    }
+    this.cdr.markForCheck();
+  }
+
+  onMemorizationPersistInProgress(payload: MemorizationInProgressSavePayload): void {
+    const id = this.practiceMemorizedItem?.id;
+    if (!id) return;
+    void this.memorizationService.saveInProgress(id, payload);
+  }
+
+  onMemorizationClearInProgress(): void {
+    const id = this.practiceMemorizedItem?.id;
+    if (!id) return;
+    void this.memorizationService.clearInProgress(id);
+  }
+
+  confirmRemoveMemorizedItem(item: MemorizedItem): void {
+    this.memorizedItemToRemove = item;
+    this.showRemoveMemorizedConfirm = true;
+    this.cdr.markForCheck();
+  }
+
+  async removeMemorizedItemConfirmed(): Promise<void> {
+    const item = this.memorizedItemToRemove;
+    this.showRemoveMemorizedConfirm = false;
+    this.memorizedItemToRemove = null;
+    if (!item) return;
+    if (this.practiceMemorizedItem?.id === item.id) {
+      this.practiceMemorizedItem = null;
+    }
+    await this.memorizationService.removeItem(item.id);
+    this.cdr.markForCheck();
   }
 
   openEditModal(prayer: PrayerRequest): void {
