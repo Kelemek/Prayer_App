@@ -70,6 +70,7 @@ import {
 import { MemorizationReorderPanelComponent } from '../memorization-reorder-panel/memorization-reorder-panel.component';
 import { MemorizeListenControlsDialogComponent } from '../memorize-listen-controls-dialog/memorize-listen-controls-dialog.component';
 import { BibleBooksMemorizationListComponent } from '../bible-books-memorization-list/bible-books-memorization-list.component';
+import { ScriptureAttributionComponent } from '../scripture-attribution/scripture-attribution.component';
 
 export type { PracticeSessionResult };
 
@@ -112,6 +113,7 @@ function hiddenTypingTokenIndices(
     MemorizationReorderPanelComponent,
     MemorizeListenControlsDialogComponent,
     BibleBooksMemorizationListComponent,
+    ScriptureAttributionComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './memorization-practice-session.component.html',

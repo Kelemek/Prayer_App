@@ -62,8 +62,8 @@ import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/a
           </p>
         } @else {
           <p class="text-gray-600 dark:text-gray-400 text-sm mb-6">
-            Allow users to click Pray For on prayers; requesters and admins see
-            how many times a prayer was prayed for.
+            Allow users to click Pray For on prayers. Choose who can see how many
+            times a prayer was prayed for.
           </p>
 
           <form
@@ -94,7 +94,6 @@ import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/a
                   Show a "Pray For" button on prayer cards. Users can click once
                   per {{ cooldownHours }}
                   {{ cooldownHours === 1 ? "hour" : "hours" }} per prayer.
-                  Requesters and admins see a count badge.
                 </p>
               </div>
             </label>
@@ -125,6 +124,52 @@ import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/a
                     class="w-24 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
                   />
                 </div>
+              </div>
+
+              <div
+                class="p-4 bg-gray-50 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-600 rounded-lg space-y-3"
+                role="radiogroup"
+                aria-labelledby="countVisibilityHeading"
+              >
+                <p
+                  id="countVisibilityHeading"
+                  class="font-medium text-gray-900 dark:text-gray-100 text-sm block mb-1"
+                >
+                  Prayed-for count visibility
+                </p>
+                <label class="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="countVisibility"
+                    [checked]="!countVisibleToAll"
+                    (change)="countVisibleToAll = false"
+                    [disabled]="isSaving"
+                    class="mt-1 h-4 w-4 text-blue-600 border-gray-300 bg-white dark:bg-gray-800 focus:ring-blue-500 cursor-pointer flex-shrink-0 disabled:opacity-50"
+                  />
+                  <span class="text-sm text-gray-800 dark:text-gray-200">
+                    <span class="font-medium">Requester only</span>
+                    <span class="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                      Only the person who submitted the prayer and admins see the
+                      prayed-for count.
+                    </span>
+                  </span>
+                </label>
+                <label class="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="countVisibility"
+                    [checked]="countVisibleToAll"
+                    (change)="countVisibleToAll = true"
+                    [disabled]="isSaving"
+                    class="mt-1 h-4 w-4 text-blue-600 border-gray-300 bg-white dark:bg-gray-800 focus:ring-blue-500 cursor-pointer flex-shrink-0 disabled:opacity-50"
+                  />
+                  <span class="text-sm text-gray-800 dark:text-gray-200">
+                    <span class="font-medium">All users</span>
+                    <span class="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                      Everyone can see how many people have prayed for each request.
+                    </span>
+                  </span>
+                </label>
               </div>
             }
 
@@ -259,6 +304,7 @@ export class PrayerEncouragementSettingsComponent implements OnInit, OnDestroy {
 
   prayerEncouragementEnabled = false;
   cooldownHours = 4;
+  countVisibleToAll = false;
   isSaving = false;
   successMessage = "";
   errorMessage = "";
@@ -316,6 +362,7 @@ export class PrayerEncouragementSettingsComponent implements OnInit, OnDestroy {
   private resetFormState(): void {
     this.prayerEncouragementEnabled = false;
     this.cooldownHours = 4;
+    this.countVisibleToAll = false;
     this.successMessage = "";
     this.errorMessage = "";
   }
@@ -350,6 +397,7 @@ export class PrayerEncouragementSettingsComponent implements OnInit, OnDestroy {
       type EncouragementRow = {
         prayer_encouragement_enabled?: boolean | null;
         prayer_encouragement_cooldown_hours?: number | null;
+        prayer_encouragement_count_visible_to_all?: boolean | null;
       };
 
       const data = (rows as EncouragementRow[] | null)?.[0] ?? null;
@@ -357,6 +405,7 @@ export class PrayerEncouragementSettingsComponent implements OnInit, OnDestroy {
       const raw = data?.prayer_encouragement_cooldown_hours;
       this.cooldownHours =
         typeof raw === 'number' && raw >= 1 && raw <= 168 ? raw : 4;
+      this.countVisibleToAll = !!data?.prayer_encouragement_count_visible_to_all;
       this.errorMessage = '';
     } catch (err) {
       console.error('[PrayerEncouragementSettings] Error loading:', err);
@@ -399,6 +448,7 @@ export class PrayerEncouragementSettingsComponent implements OnInit, OnDestroy {
           p_tenant_id: tenantId,
           p_prayer_encouragement_enabled: this.prayerEncouragementEnabled,
           p_prayer_encouragement_cooldown_hours: cooldown,
+          p_prayer_encouragement_count_visible_to_all: this.countVisibleToAll,
           p_email: callerEmail,
         }
       );

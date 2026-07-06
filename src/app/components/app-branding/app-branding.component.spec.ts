@@ -10,6 +10,13 @@ describe('AppBrandingComponent', () => {
   let component: AppBrandingComponent;
   let mockSupabaseService: any;
   let mockChangeDetectorRef: any;
+  let mockImageOptimization: any;
+
+  const mockOptimizedResult = (base64: string) => ({
+    original: { size: 1000, format: 'image/png' },
+    compressed: { size: 500, format: 'png', base64, blob: new Blob() },
+    savings: { bytes: 500, percent: 50 },
+  });
 
   beforeEach(() => {
     mockChangeDetectorRef = {
@@ -20,6 +27,12 @@ describe('AppBrandingComponent', () => {
     const mockBrandingService = {
       applySavedBranding: vi.fn(),
       refreshBranding: vi.fn().mockResolvedValue(undefined)
+    };
+
+    mockImageOptimization = {
+      compressImage: vi.fn().mockResolvedValue(
+        mockOptimizedResult('data:image/png;base64,compressed')
+      ),
     };
 
     mockSupabaseService = {
@@ -51,9 +64,17 @@ describe('AppBrandingComponent', () => {
     component = new AppBrandingComponent(
       mockSupabaseService,
       mockBrandingService as any,
+      mockImageOptimization,
       mockChangeDetectorRef as ChangeDetectorRef,
       mockTenantContext as any
     );
+
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('should create', () => {
@@ -195,114 +216,129 @@ describe('AppBrandingComponent', () => {
   });
 
   describe('onLogoUpload', () => {
-    it('should set uploading to true initially', () => {
+    function mockImageLoad(width: number, height: number) {
+      const OriginalImage = globalThis.Image;
+      vi.spyOn(globalThis, 'Image').mockImplementation(function (this: HTMLImageElement) {
+        const img = new OriginalImage();
+        setTimeout(() => {
+          Object.defineProperty(img, 'width', { value: width });
+          Object.defineProperty(img, 'height', { value: height });
+          img.onload?.(new Event('load'));
+        }, 0);
+        return img;
+      } as unknown as typeof Image);
+    }
+
+    it('should set uploading to true and call compressImage for PNG', async () => {
+      mockImageLoad(200, 50);
       const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
-      const mockEvent = {
-        target: {
-          files: [mockFile]
-        }
-      } as any;
+      const mockInput = { files: [mockFile], value: 'test.png' };
+      const mockEvent = { target: mockInput } as any;
 
-      // Mock FileReader
-      const mockFileReader: any = {
-        onload: null,
-        onerror: null,
-        readAsDataURL: vi.fn()
-      };
-      (global as any).FileReader = function() {
-        return mockFileReader;
-      };
-
-      component.onLogoUpload(mockEvent, 'light');
-
+      const uploadPromise = component.onLogoUpload(mockEvent, 'light');
       expect(component.uploading).toBe(true);
       expect(component.error).toBe(null);
-      expect(mockFileReader.readAsDataURL).toHaveBeenCalledWith(mockFile);
+
+      await uploadPromise;
+
+      expect(mockImageOptimization.compressImage).toHaveBeenCalledWith(mockFile, {
+        maxWidth: 320,
+        maxHeight: 64,
+        format: 'png',
+        quality: 0.9,
+      });
+      expect(component.uploading).toBe(false);
+      expect(mockInput.value).toBe('');
     });
 
-    it('should update lightModeLogoUrl on successful light mode upload', () => {
-      const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
-      const mockEvent = {
-        target: {
-          files: [mockFile]
-        }
-      } as any;
-
+    it('should update lightModeLogoUrl on successful light mode upload', async () => {
+      mockImageLoad(200, 50);
       const base64String = 'data:image/png;base64,test';
-      const mockFileReader: any = {
-        onload: null,
-        onerror: null,
-        readAsDataURL: vi.fn()
-      };
-      (global as any).FileReader = function() {
-        return mockFileReader;
-      };
+      mockImageOptimization.compressImage.mockResolvedValue(mockOptimizedResult(base64String));
+      const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
+      const mockEvent = { target: { files: [mockFile], value: '' } } as any;
 
-      component.onLogoUpload(mockEvent, 'light');
-
-      // Manually trigger onload
-      mockFileReader.onload({ target: { result: base64String } });
+      await component.onLogoUpload(mockEvent, 'light');
 
       expect(component.lightModeLogoUrl).toBe(base64String);
       expect(component.uploading).toBe(false);
       expect(mockChangeDetectorRef.markForCheck).toHaveBeenCalled();
     });
 
-    it('should update darkModeLogoUrl on successful dark mode upload', () => {
-      const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
-      const mockEvent = {
-        target: {
-          files: [mockFile]
-        }
-      } as any;
+    it('should update darkModeLogoUrl on successful dark mode upload', async () => {
+      mockImageLoad(200, 50);
+      const base64String = 'data:image/webp;base64,test';
+      mockImageOptimization.compressImage.mockResolvedValue(mockOptimizedResult(base64String));
+      const mockFile = new File(['test'], 'test.webp', { type: 'image/webp' });
+      const mockEvent = { target: { files: [mockFile], value: '' } } as any;
 
-      const base64String = 'data:image/png;base64,test';
-      const mockFileReader: any = {
-        onload: null,
-        onerror: null,
-        readAsDataURL: vi.fn()
-      };
-      (global as any).FileReader = function() {
-        return mockFileReader;
-      };
-
-      component.onLogoUpload(mockEvent, 'dark');
-
-      // Manually trigger onload
-      mockFileReader.onload({ target: { result: base64String } });
+      await component.onLogoUpload(mockEvent, 'dark');
 
       expect(component.darkModeLogoUrl).toBe(base64String);
       expect(component.uploading).toBe(false);
     });
 
-    it('should handle file read error', () => {
+    it('should accept JPEG uploads', async () => {
+      mockImageLoad(200, 50);
+      const mockFile = new File(['test'], 'test.jpg', { type: 'image/jpeg' });
+      const mockEvent = { target: { files: [mockFile], value: '' } } as any;
+
+      await component.onLogoUpload(mockEvent, 'light');
+
+      expect(mockImageOptimization.compressImage).toHaveBeenCalledWith(
+        mockFile,
+        expect.objectContaining({ format: 'jpeg' })
+      );
+    });
+
+    it('should reject unsupported file types', async () => {
+      const mockFile = new File(['test'], 'test.gif', { type: 'image/gif' });
+      const mockInput = { files: [mockFile], value: 'test.gif' };
+      const mockEvent = { target: mockInput } as any;
+
+      await component.onLogoUpload(mockEvent, 'light');
+
+      expect(component.error).toBe('Logo must be a PNG, WebP, or JPEG image.');
+      expect(mockImageOptimization.compressImage).not.toHaveBeenCalled();
+      expect(mockInput.value).toBe('');
+    });
+
+    it('should reject files larger than 2 MB', async () => {
+      const largeContent = new Uint8Array(2 * 1024 * 1024 + 1);
+      const mockFile = new File([largeContent], 'big.png', { type: 'image/png' });
+      const mockInput = { files: [mockFile], value: 'big.png' };
+      const mockEvent = { target: mockInput } as any;
+
+      await component.onLogoUpload(mockEvent, 'light');
+
+      expect(component.error).toBe('Logo file must be 2 MB or smaller.');
+      expect(mockImageOptimization.compressImage).not.toHaveBeenCalled();
+    });
+
+    it('should set uploadInfo when image exceeds header dimensions', async () => {
+      mockImageLoad(800, 200);
       const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
-      const mockEvent = {
-        target: {
-          files: [mockFile]
-        }
-      } as any;
+      const mockEvent = { target: { files: [mockFile], value: '' } } as any;
 
-      const mockFileReader: any = {
-        onload: null,
-        onerror: null,
-        readAsDataURL: vi.fn()
-      };
-      (global as any).FileReader = function() {
-        return mockFileReader;
-      };
+      await component.onLogoUpload(mockEvent, 'light');
 
-      component.onLogoUpload(mockEvent, 'light');
+      expect(component.uploadInfo).toBe('Image was resized to fit the header.');
+    });
 
-      // Manually trigger onerror
-      mockFileReader.onerror();
+    it('should handle compressImage error', async () => {
+      mockImageLoad(200, 50);
+      mockImageOptimization.compressImage.mockRejectedValue(new Error('compress failed'));
+      const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
+      const mockEvent = { target: { files: [mockFile], value: '' } } as any;
 
-      expect(component.error).toBe('Failed to read image file');
+      await component.onLogoUpload(mockEvent, 'light');
+
+      expect(component.error).toBe('Failed to process image file');
       expect(component.uploading).toBe(false);
       expect(mockChangeDetectorRef.markForCheck).toHaveBeenCalled();
     });
 
-    it('should do nothing if no file is selected', () => {
+    it('should do nothing if no file is selected', async () => {
       const mockEvent = {
         target: {
           files: []
@@ -310,9 +346,10 @@ describe('AppBrandingComponent', () => {
       } as any;
 
       const initialUploading = component.uploading;
-      component.onLogoUpload(mockEvent, 'light');
+      await component.onLogoUpload(mockEvent, 'light');
 
       expect(component.uploading).toBe(initialUploading);
+      expect(mockImageOptimization.compressImage).not.toHaveBeenCalled();
     });
   });
 

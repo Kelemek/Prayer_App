@@ -3,7 +3,18 @@ import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { SupabaseService } from '../../services/supabase.service';
 import { BrandingService } from '../../services/branding.service';
+import { ImageOptimizationService } from '../../services/image-optimization.service';
 import { TenantContextService } from '../../services/tenant-context.service';
+import {
+  LOGO_ACCEPT_ATTR,
+  LOGO_MAX_HEIGHT,
+  LOGO_MAX_INPUT_BYTES,
+  LOGO_MAX_WIDTH,
+  LOGO_UPLOAD_HELPER_TEXT,
+  isAllowedLogoMimeType,
+  logoCompressionFormat,
+  logoNeedsResize,
+} from '../../utils/branding-logo-spec';
 import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
 import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
 
@@ -55,6 +66,11 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
               <p class="text-sm text-red-800 dark:text-red-200">{{ error }}</p>
             </div>
             }
+            @if (uploadInfo) {
+            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md p-4 mb-4">
+              <p class="text-sm text-blue-800 dark:text-blue-200">{{ uploadInfo }}</p>
+            </div>
+            }
             <!-- App Title -->
             <div>
               <label for="appTitle" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -95,16 +111,22 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
 
               @if (useLogo) {
               <div class="space-y-4 pl-7">
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ logoUploadHelperText }}
+                </p>
                 <!-- Light Mode Logo -->
                 <div>
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Light Mode Logo
                   </label>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                    Shown on light header backgrounds.
+                  </p>
                   <div class="flex items-start gap-3">
                     <input
                       type="file"
                       #lightLogoInput
-                      accept="image/*"
+                      [accept]="logoAcceptAttr"
                       (change)="onLogoUpload($event, 'light')"
                       class="hidden"
                     />
@@ -152,11 +174,14 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Dark Mode Logo
                   </label>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                    Shown on dark header backgrounds.
+                  </p>
                   <div class="flex items-start gap-3">
                     <input
                       type="file"
                       #darkLogoInput
-                      accept="image/*"
+                      [accept]="logoAcceptAttr"
                       (change)="onLogoUpload($event, 'dark')"
                       class="hidden"
                     />
@@ -259,11 +284,16 @@ export class AppBrandingComponent implements OnInit, OnDestroy {
   saving = false;
   uploading = false;
   error: string | null = null;
+  uploadInfo: string | null = null;
   success = false;
+
+  readonly logoAcceptAttr = LOGO_ACCEPT_ATTR;
+  readonly logoUploadHelperText = LOGO_UPLOAD_HELPER_TEXT;
 
   constructor(
     private supabase: SupabaseService,
     private brandingService: BrandingService,
+    private imageOptimization: ImageOptimizationService,
     private cdr: ChangeDetectorRef,
     private tenantContext: TenantContextService
   ) {}
@@ -301,6 +331,7 @@ export class AppBrandingComponent implements OnInit, OnDestroy {
     this.lightModeLogoUrl = '';
     this.darkModeLogoUrl = '';
     this.error = null;
+    this.uploadInfo = null;
     this.success = false;
   }
 
@@ -375,32 +406,76 @@ export class AppBrandingComponent implements OnInit, OnDestroy {
     }
   }
 
-  onLogoUpload(event: Event, mode: 'light' | 'dark') {
+  async onLogoUpload(event: Event, mode: 'light' | 'dark') {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
 
-    this.uploading = true;
-    this.cdr.markForCheck();
-    this.error = null;
+    if (!isAllowedLogoMimeType(file.type)) {
+      this.error = 'Logo must be a PNG, WebP, or JPEG image.';
+      this.uploadInfo = null;
+      input.value = '';
+      this.cdr.markForCheck();
+      return;
+    }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64String = e.target?.result as string;
+    if (file.size > LOGO_MAX_INPUT_BYTES) {
+      this.error = 'Logo file must be 2 MB or smaller.';
+      this.uploadInfo = null;
+      input.value = '';
+      this.cdr.markForCheck();
+      return;
+    }
+
+    this.uploading = true;
+    this.error = null;
+    this.uploadInfo = null;
+    this.cdr.markForCheck();
+
+    try {
+      const dimensions = await this.readImageDimensions(file);
+      const optimized = await this.imageOptimization.compressImage(file, {
+        maxWidth: LOGO_MAX_WIDTH,
+        maxHeight: LOGO_MAX_HEIGHT,
+        format: logoCompressionFormat(file.type),
+        quality: 0.9,
+      });
+
+      const base64String = optimized.compressed.base64;
       if (mode === 'light') {
         this.lightModeLogoUrl = base64String;
       } else {
         this.darkModeLogoUrl = base64String;
       }
+
+      if (logoNeedsResize(dimensions.width, dimensions.height)) {
+        this.uploadInfo = 'Image was resized to fit the header.';
+      }
+    } catch {
+      this.error = 'Failed to process image file';
+    } finally {
       this.uploading = false;
+      input.value = '';
       this.cdr.markForCheck();
-    };
-    reader.onerror = () => {
-      this.error = 'Failed to read image file';
-      this.uploading = false;
-      this.cdr.markForCheck();
-    };
-    reader.readAsDataURL(file);
+    }
+  }
+
+  private readImageDimensions(
+    file: File
+  ): Promise<{ width: number; height: number }> {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve({ width: img.width, height: img.height });
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Failed to load image'));
+      };
+      img.src = url;
+    });
   }
 
   async save() {

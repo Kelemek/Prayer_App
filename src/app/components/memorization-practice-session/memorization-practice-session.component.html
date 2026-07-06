@@ -166,6 +166,7 @@
                   >
                     {{ formatMemorizationTokensPlain(tokens) }}
                   </p>
+                  <app-scripture-attribution [translation]="item.translation" />
                 }
               </div>
             </div>
@@ -443,6 +444,9 @@
                     }
                   </div>
                 </div>
+                @if (!isBibleBooks) {
+                  <app-scripture-attribution [translation]="item.translation" />
+                }
               }
 
               @if (phase === 'done') {

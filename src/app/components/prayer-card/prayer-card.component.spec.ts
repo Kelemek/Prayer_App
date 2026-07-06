@@ -504,6 +504,7 @@ describe('PrayerCardComponent', () => {
       };
       mockPrayerEncouragementService = {
         getPrayerEncouragementEnabled$: vi.fn().mockReturnValue(of(true)),
+        getCountVisibleToAll$: vi.fn().mockReturnValue(of(false)),
         canPrayFor: vi.fn().mockReturnValue(true),
         recordPrayedFor: vi.fn()
       };
@@ -532,20 +533,35 @@ describe('PrayerCardComponent', () => {
     });
 
     it('showPrayedForBadge returns false when count is 0', () => {
-      expect(prayForComponent.showPrayedForBadge()).toBe(false);
+      expect(prayForComponent.showPrayedForBadge(false)).toBe(false);
+      expect(prayForComponent.showPrayedForBadge(true)).toBe(false);
     });
 
     it('showPrayedForBadge returns true when count > 0 and current user is requester', () => {
       prayForComponent.prayer.prayed_for_count = 3;
       mockUserSessionService.getCurrentSession.mockReturnValue({ email: 'test@example.com' });
-      expect(prayForComponent.showPrayedForBadge()).toBe(true);
+      expect(prayForComponent.showPrayedForBadge(false)).toBe(true);
     });
 
     it('showPrayedForBadge returns true when count > 0 and isAdmin', () => {
       prayForComponent.prayer.prayed_for_count = 2;
       prayForComponent.isAdmin = true;
       mockUserSessionService.getCurrentSession.mockReturnValue({ email: 'other@example.com' });
-      expect(prayForComponent.showPrayedForBadge()).toBe(true);
+      expect(prayForComponent.showPrayedForBadge(false)).toBe(true);
+    });
+
+    it('showPrayedForBadge returns true for any user when countVisibleToAll is true', () => {
+      prayForComponent.prayer.prayed_for_count = 2;
+      prayForComponent.isAdmin = false;
+      mockUserSessionService.getCurrentSession.mockReturnValue({ email: 'other@example.com' });
+      expect(prayForComponent.showPrayedForBadge(true)).toBe(true);
+    });
+
+    it('showPrayedForBadge returns false for non-requester when countVisibleToAll is false', () => {
+      prayForComponent.prayer.prayed_for_count = 2;
+      prayForComponent.isAdmin = false;
+      mockUserSessionService.getCurrentSession.mockReturnValue({ email: 'other@example.com' });
+      expect(prayForComponent.showPrayedForBadge(false)).toBe(false);
     });
 
     it('confirmPrayFor calls recordPrayedFor, incrementPrayedFor, and updates local prayer', async () => {

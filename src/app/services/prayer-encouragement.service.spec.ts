@@ -20,14 +20,22 @@ describe('PrayerEncouragementService', () => {
     mockSupabase = {
       client: {
         rpc: vi.fn().mockResolvedValue({
-          data: [{ prayer_encouragement_enabled: true, prayer_encouragement_cooldown_hours: 4 }],
+          data: [{
+            prayer_encouragement_enabled: true,
+            prayer_encouragement_cooldown_hours: 4,
+            prayer_encouragement_count_visible_to_all: true,
+          }],
           error: null,
         }),
         from: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               maybeSingle: vi.fn().mockResolvedValue({
-                data: { prayer_encouragement_enabled: true, prayer_encouragement_cooldown_hours: 4 },
+                data: {
+                  prayer_encouragement_enabled: true,
+                  prayer_encouragement_cooldown_hours: 4,
+                  prayer_encouragement_count_visible_to_all: false,
+                },
                 error: null
               })
             })
@@ -168,6 +176,41 @@ describe('PrayerEncouragementService', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
       expect(await firstValueFrom(newService.getCooldownHours$())).toBe(8);
       newService.ngOnDestroy();
+    });
+  });
+
+  describe('getCountVisibleToAll$', () => {
+    it('emits false by default from admin_settings fetch', async () => {
+      const visible = await firstValueFrom(service.getCountVisibleToAll$());
+      expect(visible).toBe(false);
+    });
+
+    it('emits true when tenant RPC returns count visible to all', async () => {
+      mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-1' });
+      const tenantService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
+      const visible = await firstValueFrom(
+        tenantService.getCountVisibleToAll$().pipe(skip(1), take(1))
+      );
+      expect(visible).toBe(true);
+      tenantService.ngOnDestroy();
+      mockTenantContext.getActiveTenant.mockReturnValue(null);
+    });
+
+    it('seeds countVisibleToAll from localStorage cache', () => {
+      localStorage.setItem(
+        'prayer_encouragement_enabled',
+        JSON.stringify({
+          value: true,
+          cooldownHours: 4,
+          countVisibleToAll: true,
+          timestamp: Date.now(),
+        })
+      );
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
+      return firstValueFrom(newService.getCountVisibleToAll$()).then((visible) => {
+        expect(visible).toBe(true);
+        newService.ngOnDestroy();
+      });
     });
   });
 

@@ -1,0 +1,3 @@
+-- Placeholder: remote-only migration version (20260123135839) recorded in Supabase history.
+-- Schema changes were consolidated into 20260123140820_remote_schema.sql locally.
+-- No-op so local migration history matches the linked project.

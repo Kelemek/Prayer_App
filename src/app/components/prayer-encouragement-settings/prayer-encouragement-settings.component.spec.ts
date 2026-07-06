@@ -40,6 +40,7 @@ describe('PrayerEncouragementSettingsComponent', () => {
               {
                 prayer_encouragement_enabled: true,
                 prayer_encouragement_cooldown_hours: 4,
+                prayer_encouragement_count_visible_to_all: false,
               },
             ],
             error: null,
@@ -77,6 +78,7 @@ describe('PrayerEncouragementSettingsComponent', () => {
     expect(component.sectionExpanded).toBe(false);
     expect(component.prayerEncouragementEnabled).toBe(false);
     expect(component.cooldownHours).toBe(4);
+    expect(component.countVisibleToAll).toBe(false);
     expect(component.isSaving).toBe(false);
     expect(component.isLoading).toBe(false);
     expect(component.successMessage).toBe('');
@@ -165,6 +167,7 @@ describe('PrayerEncouragementSettingsComponent', () => {
             {
               prayer_encouragement_enabled: false,
               prayer_encouragement_cooldown_hours: 6,
+              prayer_encouragement_count_visible_to_all: true,
             },
           ],
           error: null,
@@ -173,6 +176,7 @@ describe('PrayerEncouragementSettingsComponent', () => {
       await component.loadSettings();
       expect(component.prayerEncouragementEnabled).toBe(false);
       expect(component.cooldownHours).toBe(6);
+      expect(component.countVisibleToAll).toBe(true);
     });
 
     it('should set errorMessage when load fails', async () => {
@@ -221,6 +225,7 @@ describe('PrayerEncouragementSettingsComponent', () => {
 
       component.prayerEncouragementEnabled = true;
       component.cooldownHours = 4;
+      component.countVisibleToAll = true;
       await component.submitSettings();
 
       expect(rpcMock).toHaveBeenCalledWith(
@@ -229,6 +234,7 @@ describe('PrayerEncouragementSettingsComponent', () => {
           p_tenant_id: TENANT_ID,
           p_prayer_encouragement_enabled: true,
           p_prayer_encouragement_cooldown_hours: 4,
+          p_prayer_encouragement_count_visible_to_all: true,
           p_email: 'admin@test.com',
         }
       );

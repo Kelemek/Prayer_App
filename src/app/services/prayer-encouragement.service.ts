@@ -11,6 +11,7 @@ const FLAG_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 interface CachedFlag {
   value: boolean;
   cooldownHours: number;
+  countVisibleToAll: boolean;
   timestamp: number;
 }
 
@@ -20,6 +21,7 @@ interface CachedFlag {
 export class PrayerEncouragementService implements OnDestroy {
   private enabledSubject = new BehaviorSubject<boolean>(false);
   private cooldownHoursSubject = new BehaviorSubject<number>(DEFAULT_COOLDOWN_HOURS);
+  private countVisibleToAllSubject = new BehaviorSubject<boolean>(false);
   private loaded = false;
   private loadPromise: Promise<void> | null = null;
   private readonly destroy$ = new Subject<void>();
@@ -94,6 +96,12 @@ export class PrayerEncouragementService implements OnDestroy {
   getCooldownHours$(): Observable<number> {
     this.ensureLoaded();
     return this.cooldownHoursSubject.asObservable();
+  }
+
+  /** When true, all users see prayed-for count; when false, requester + admins only. */
+  getCountVisibleToAll$(): Observable<boolean> {
+    this.ensureLoaded();
+    return this.countVisibleToAllSubject.asObservable();
   }
 
   getCooldownKey(prayerId: string): string {
@@ -175,6 +183,9 @@ export class PrayerEncouragementService implements OnDestroy {
             ? parsed.cooldownHours
             : DEFAULT_COOLDOWN_HOURS;
           this.cooldownHoursSubject.next(hours);
+          if (typeof parsed.countVisibleToAll === 'boolean') {
+            this.countVisibleToAllSubject.next(parsed.countVisibleToAll);
+          }
         }
       }
     } catch {}
@@ -204,6 +215,7 @@ export class PrayerEncouragementService implements OnDestroy {
         type EncouragementRow = {
           prayer_encouragement_enabled?: boolean | null;
           prayer_encouragement_cooldown_hours?: number | null;
+          prayer_encouragement_count_visible_to_all?: boolean | null;
         };
 
         const data = (rows as EncouragementRow[] | null)?.[0] ?? null;
@@ -212,15 +224,18 @@ export class PrayerEncouragementService implements OnDestroy {
         const cooldownHours = typeof rawHours === 'number' && rawHours >= 1 && rawHours <= 168
           ? rawHours
           : DEFAULT_COOLDOWN_HOURS;
+        const countVisibleToAll = !!data?.prayer_encouragement_count_visible_to_all;
 
         this.enabledSubject.next(value);
         this.cooldownHoursSubject.next(cooldownHours);
+        this.countVisibleToAllSubject.next(countVisibleToAll);
         this.loaded = true;
 
         try {
           localStorage.setItem(this.flagCacheKey(), JSON.stringify({
             value,
             cooldownHours,
+            countVisibleToAll,
             timestamp: Date.now()
           } as CachedFlag));
         } catch {}
@@ -229,7 +244,9 @@ export class PrayerEncouragementService implements OnDestroy {
 
       const { data, error } = await this.supabase.client
         .from('admin_settings')
-        .select('prayer_encouragement_enabled, prayer_encouragement_cooldown_hours')
+        .select(
+          'prayer_encouragement_enabled, prayer_encouragement_cooldown_hours, prayer_encouragement_count_visible_to_all'
+        )
         .eq('id', 1)
         .maybeSingle();
 
@@ -243,15 +260,18 @@ export class PrayerEncouragementService implements OnDestroy {
       const cooldownHours = typeof rawHours === 'number' && rawHours >= 1 && rawHours <= 168
         ? rawHours
         : DEFAULT_COOLDOWN_HOURS;
+      const countVisibleToAll = !!data?.prayer_encouragement_count_visible_to_all;
 
       this.enabledSubject.next(value);
       this.cooldownHoursSubject.next(cooldownHours);
+      this.countVisibleToAllSubject.next(countVisibleToAll);
       this.loaded = true;
 
       try {
         localStorage.setItem(this.flagCacheKey(), JSON.stringify({
           value,
           cooldownHours,
+          countVisibleToAll,
           timestamp: Date.now()
         } as CachedFlag));
       } catch {}

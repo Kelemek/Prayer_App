@@ -147,7 +147,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
             </button>
           }
         }
-        @if ((prayerEncouragementService.getPrayerEncouragementEnabled$() | async) && showPrayedForBadge()) {
+        @if ((prayerEncouragementService.getPrayerEncouragementEnabled$() | async) && showPrayedForBadge((prayerEncouragementService.getCountVisibleToAll$() | async) ?? false)) {
           <span
             class="flex-shrink-0 px-1.5 py-1 text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md border border-blue-600 dark:border-blue-500 whitespace-nowrap"
             title="Number praying for this request"
@@ -722,9 +722,10 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
     return true; // 'everyone'
   }
 
-  showPrayedForBadge(): boolean {
+  showPrayedForBadge(countVisibleToAll: boolean): boolean {
     const count = this.prayer.prayed_for_count ?? 0;
     if (count <= 0) return false;
+    if (countVisibleToAll) return true;
     if (this.isAdmin) return true;
     return this.isCurrentUserTheRequester();
   }
