@@ -30,7 +30,7 @@ const TESTAMENT_KEY = 'prayer_app_memorize_add_testament';
   template: `
     @if (isOpen) {
     <div
-      class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/50 p-2 sm:p-4"
+      class="fixed inset-0 z-[200] flex items-center justify-center bg-gray-900/50 p-2 sm:p-4 safe-area-overlay"
       style="padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom));"
       role="dialog"
       aria-modal="true"
@@ -104,13 +104,13 @@ const TESTAMENT_KEY = 'prayer_app_memorize_add_testament';
 
               @if (showTranslationDropdown) {
               <div
-                class="fixed inset-0 z-[101]"
+                class="fixed inset-0 z-[201]"
                 (click)="closeTranslationDropdown()"
               ></div>
               <div
                 role="listbox"
                 aria-label="Bible translation options"
-                class="absolute left-0 right-0 z-[102] mt-1 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
+                class="absolute left-0 right-0 z-[202] mt-1 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
               >
                 @for (code of translationCodes; track code) {
                 <button

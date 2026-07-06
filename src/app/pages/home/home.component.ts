@@ -356,85 +356,6 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
             </svg>
             <span>Refreshing prayers…</span>
           </div>
-          <!-- Prayer Form Modal -->
-          <app-prayer-form
-            [isOpen]="showPrayerForm"
-            (close)="onPrayerFormClose($event)"
-          ></app-prayer-form>
-
-          <!-- User Settings Modal -->
-          <app-user-settings
-            [isOpen]="showSettings"
-            (onClose)="showSettings = false"
-          ></app-user-settings>
-
-          <!-- Help Modal -->
-          <app-help-modal
-            [isOpen]="showHelp"
-            (closeModal)="showHelp = false"
-          ></app-help-modal>
-
-          <!-- Logout Confirmation Modal -->
-          @if (showLogoutConfirmation) {
-          <app-confirmation-dialog
-            title="Log Out?"
-            message="Are you sure you want to log out?"
-            confirmText="Log Out"
-            cancelText="Cancel"
-            [isDangerous]="false"
-            (confirm)="handleLogout()"
-            (cancel)="showLogoutConfirmation = false"
-          ></app-confirmation-dialog>
-          }
-
-          <!-- Personal Prayer Edit Modal -->
-          <app-personal-prayer-edit-modal
-            [isOpen]="showEditPersonalPrayer"
-            [prayer]="editingPrayer"
-            (close)="showEditPersonalPrayer = false"
-            (save)="onPersonalPrayerSaved()"
-          ></app-personal-prayer-edit-modal>
-
-          <!-- Personal Prayer Update Edit Modal -->
-          <app-personal-prayer-update-edit-modal
-            [isOpen]="showEditPersonalUpdate"
-            [update]="editingUpdate"
-            [prayerId]="editingUpdatePrayerId"
-            (close)="showEditPersonalUpdate = false"
-            (save)="onPersonalUpdateSaved()"
-          ></app-personal-prayer-update-edit-modal>
-
-          <app-add-memorized-verse-modal
-            [isOpen]="showAddMemorizedVerse"
-            (onClose)="showAddMemorizedVerse = false"
-            (translationChange)="preferredBibleTranslation = $event"
-          />
-          <app-add-memorized-bible-books-modal
-            [isOpen]="showAddMemorizedBibleBooks"
-            [translation]="preferredBibleTranslation"
-            (onClose)="showAddMemorizedBibleBooks = false"
-          />
-          @if (practiceMemorizedItem) {
-          <app-memorization-practice-session
-            [item]="practiceMemorizedItem"
-            [isOpen]="!!practiceMemorizedItem"
-            (closed)="closeMemorizationPractice()"
-            (completed)="onMemorizationPracticeComplete($event)"
-            (persistInProgress)="onMemorizationPersistInProgress($event)"
-            (clearInProgress)="onMemorizationClearInProgress()"
-          />
-          }
-          @if (showRemoveMemorizedConfirm && memorizedItemToRemove) {
-          <app-confirmation-dialog
-            title="Remove from list?"
-            [message]="'Remove ' + memorizedItemToRemove.reference + ' from your memorization list?'"
-            confirmText="Remove"
-            cancelText="Cancel"
-            [isDangerous]="true"
-            (confirm)="removeMemorizedItemConfirmed()"
-            (cancel)="showRemoveMemorizedConfirm = false"
-          />
-          }
 
           <!-- Prayer Filters -->
           <app-prayer-filters
@@ -1037,6 +958,81 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
           aria-hidden="true"
         ></footer>
       </div>
+
+      <!-- Overlays outside scroll viewport so position:fixed covers full screen on iOS Safari -->
+      <app-prayer-form
+        [isOpen]="showPrayerForm"
+        (close)="onPrayerFormClose($event)"
+      ></app-prayer-form>
+
+      <app-user-settings
+        [isOpen]="showSettings"
+        (onClose)="showSettings = false"
+      ></app-user-settings>
+
+      <app-help-modal
+        [isOpen]="showHelp"
+        (closeModal)="showHelp = false"
+      ></app-help-modal>
+
+      @if (showLogoutConfirmation) {
+      <app-confirmation-dialog
+        title="Log Out?"
+        message="Are you sure you want to log out?"
+        confirmText="Log Out"
+        cancelText="Cancel"
+        [isDangerous]="false"
+        (confirm)="handleLogout()"
+        (cancel)="showLogoutConfirmation = false"
+      ></app-confirmation-dialog>
+      }
+
+      <app-personal-prayer-edit-modal
+        [isOpen]="showEditPersonalPrayer"
+        [prayer]="editingPrayer"
+        (close)="showEditPersonalPrayer = false"
+        (save)="onPersonalPrayerSaved()"
+      ></app-personal-prayer-edit-modal>
+
+      <app-personal-prayer-update-edit-modal
+        [isOpen]="showEditPersonalUpdate"
+        [update]="editingUpdate"
+        [prayerId]="editingUpdatePrayerId"
+        (close)="showEditPersonalUpdate = false"
+        (save)="onPersonalUpdateSaved()"
+      ></app-personal-prayer-update-edit-modal>
+
+      <app-add-memorized-verse-modal
+        [isOpen]="showAddMemorizedVerse"
+        (onClose)="showAddMemorizedVerse = false"
+        (translationChange)="preferredBibleTranslation = $event"
+      />
+      <app-add-memorized-bible-books-modal
+        [isOpen]="showAddMemorizedBibleBooks"
+        [translation]="preferredBibleTranslation"
+        (onClose)="showAddMemorizedBibleBooks = false"
+      />
+      @if (practiceMemorizedItem) {
+      <app-memorization-practice-session
+        [item]="practiceMemorizedItem"
+        [isOpen]="!!practiceMemorizedItem"
+        (closed)="closeMemorizationPractice()"
+        (completed)="onMemorizationPracticeComplete($event)"
+        (persistInProgress)="onMemorizationPersistInProgress($event)"
+        (clearInProgress)="onMemorizationClearInProgress()"
+      />
+      }
+      @if (showRemoveMemorizedConfirm && memorizedItemToRemove) {
+      <app-confirmation-dialog
+        title="Remove from list?"
+        [message]="'Remove ' + memorizedItemToRemove.reference + ' from your memorization list?'"
+        confirmText="Remove"
+        cancelText="Cancel"
+        [isDangerous]="true"
+        (confirm)="removeMemorizedItemConfirmed()"
+        (cancel)="showRemoveMemorizedConfirm = false"
+      />
+      }
 
       <!-- No Footer Links -->
     </div>

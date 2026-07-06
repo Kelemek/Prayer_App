@@ -27,7 +27,7 @@ const SCOPE_OPTIONS: {
   template: `
     @if (isOpen) {
     <div
-      class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/50 p-2 sm:p-4"
+      class="fixed inset-0 z-[200] flex items-center justify-center bg-gray-900/50 p-2 sm:p-4 safe-area-overlay"
       style="padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom));"
       role="dialog"
       aria-modal="true"
