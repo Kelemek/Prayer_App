@@ -176,12 +176,12 @@ const TESTAMENT_KEY = 'prayer_app_memorize_add_testament';
                 <span class="text-gray-400">{{ expandedBookId === book.id ? '▾' : '▸' }}</span>
               </button>
               @if (expandedBookId === book.id) {
-              <div class="px-3 pb-3 flex flex-wrap gap-2">
+              <div class="px-3 pb-3 grid grid-cols-[repeat(auto-fill,minmax(3.5rem,1fr))] gap-2">
                 @for (ch of book.chapters; track ch.id) {
                 <button
                   type="button"
                   (click)="onChapterClick(book, ch.id, +ch.number)"
-                  class="min-w-[2.75rem] min-h-[44px] px-3 py-2 text-sm rounded-lg border cursor-pointer transition-colors inline-flex items-center justify-center touch-manipulation"
+                  class="w-full min-h-[44px] px-2 py-2 text-sm rounded-lg border cursor-pointer transition-colors inline-flex items-center justify-center touch-manipulation"
                   [class]="selectedChapterId === ch.id ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'"
                 >
                   {{ ch.number }}
@@ -196,12 +196,12 @@ const TESTAMENT_KEY = 'prayer_app_memorize_add_testament';
           @if (verseCount && verseCount > 0) {
           <div class="shrink-0 mt-3">
             <p class="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Select verse(s)</p>
-            <div class="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(3.5rem,1fr))] gap-2 max-h-40 overflow-y-auto">
               @for (n of verseNumbers; track n) {
               <button
                 type="button"
                 (click)="onVerseClick(n)"
-                class="min-w-[2.75rem] min-h-[44px] px-3 py-2 text-sm rounded-lg border cursor-pointer transition-colors inline-flex items-center justify-center touch-manipulation"
+                class="w-full min-h-[44px] px-2 py-2 text-sm rounded-lg border cursor-pointer transition-colors inline-flex items-center justify-center touch-manipulation"
                 [class]="inRange(n) ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'"
               >
                 {{ n }}
