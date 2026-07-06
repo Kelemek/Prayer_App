@@ -20,7 +20,6 @@ import {
 } from "../../components/prayer-filters/prayer-filters.component";
 import { SkeletonLoaderComponent } from "../../components/skeleton-loader/skeleton-loader.component";
 import { AppLogoComponent } from "../../components/app-logo/app-logo.component";
-import { TenantSwitcherDropdownComponent } from "../../components/tenant-switcher-dropdown/tenant-switcher-dropdown.component";
 import { PrayerCardComponent } from "../../components/prayer-card/prayer-card.component";
 import {
   PromptCardComponent,
@@ -42,7 +41,7 @@ import { AdminAuthService } from "../../services/admin-auth.service";
 import { UserSessionService } from "../../services/user-session.service";
 import { SupabaseService } from "../../services/supabase.service";
 import { BadgeService } from "../../services/badge.service";
-import { Observable, take, Subject, takeUntil, filter } from "rxjs";
+import { Observable, take, Subject, takeUntil, filter, map, distinctUntilChanged, skip } from "rxjs";
 import { ToastService } from "../../services/toast.service";
 import { AnalyticsService } from "../../services/analytics.service";
 import { PullToRefreshDirective } from "../../directives/pull-to-refresh.directive";
@@ -73,7 +72,6 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
     PrayerFiltersComponent,
     SkeletonLoaderComponent,
     AppLogoComponent,
-    TenantSwitcherDropdownComponent,
     PrayerCardComponent,
     PromptCardComponent,
     UserSettingsComponent,
@@ -113,15 +111,6 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
               </div>
 
               <div class="flex flex-col items-end gap-2 min-w-0">
-                @if (showTenantSwitcherInHeader) {
-                <div class="w-full min-w-[8rem] max-w-[12rem]">
-                  <app-tenant-switcher-dropdown
-                    [compact]="true"
-                    triggerId="home-tenant-switcher-mobile"
-                    (tenantSelected)="onTenantSelect($event)"
-                  />
-                </div>
-                }
                 <!-- Email Indicator - Top Right -->
                 @if ((userSessionService.userSession$ | async); as session) {
                 <button
@@ -234,12 +223,7 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
               <div class="flex flex-col items-end gap-2">
                 <!-- Top row: Admin button and Email Indicator -->
                 <div class="flex items-center gap-2">
-                  @if (showTenantSwitcherInHeader) {
-                  <app-tenant-switcher-dropdown
-                    triggerId="home-tenant-switcher-desktop"
-                    (tenantSelected)="onTenantSelect($event)"
-                  />
-                  } @if (canAccessAdminFeatures) {
+                  @if (canAccessAdminFeatures) {
                   <button
                     (click)="navigateToAdmin()"
                     class="flex items-center gap-1 border border-red-600 dark:border-red-500 text-red-600 dark:text-red-500 px-2 py-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors text-xs cursor-pointer"
@@ -1144,13 +1128,6 @@ export class HomeComponent implements OnInit, OnDestroy {
     );
   }
 
-  get showTenantSwitcherInHeader(): boolean {
-    return (
-      this.showTenantSwitcher &&
-      !this.tenantContextService.getIsImpersonatingTenant()
-    );
-  }
-
   isAdmin = false;
   // Admin settings for access control policies
   // These are loaded from admin_settings and control who can delete prayers/updates
@@ -1217,11 +1194,27 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.promptService.loadPrompts();
     if (this.tenantContextService?.activeTenant$) {
       this.tenantContextService.activeTenant$
-        .pipe(takeUntil(this.destroy$))
-        .subscribe(() => {
+        .pipe(
+          map((tenant) => tenant?.id ?? null),
+          distinctUntilChanged(),
+          skip(1),
+          takeUntil(this.destroy$)
+        )
+        .subscribe(async () => {
           this.canAccessShared = this.tenantPermissionService.canAccessShared();
-          if (!this.canAccessShared && this.activeFilter !== "personal" && this.activeFilter !== "memorize") {
+          if (
+            !this.canAccessShared &&
+            this.activeFilter !== "personal" &&
+            this.activeFilter !== "memorize"
+          ) {
             this.setFilter("personal");
+          } else {
+            await Promise.all([
+              this.prayerService.loadPrayers(),
+              this.promptService.loadPrompts(),
+              this.prayerService.loadPersonalPrayers(false),
+              this.memorizationService.loadItems(),
+            ]);
           }
           this.cdr.markForCheck();
         });
@@ -2016,29 +2009,6 @@ export class HomeComponent implements OnInit, OnDestroy {
   async handleLogout(): Promise<void> {
     this.showLogoutConfirmation = false;
     await this.logout();
-  }
-
-  async onTenantSelect(tenantId: string): Promise<void> {
-    if (!this.tenantContextService || tenantId === this.activeTenantId) {
-      return;
-    }
-    const changed = await this.tenantContextService.switchTenant(tenantId);
-    if (!changed) {
-      this.toastService.error("Unable to switch tenant");
-      return;
-    }
-
-    this.canAccessShared = this.tenantPermissionService.canAccessShared();
-    if (!this.canAccessShared) {
-      this.activeFilter = "personal";
-    }
-    await Promise.all([
-      this.prayerService.loadPrayers(),
-      this.promptService.loadPrompts(),
-      this.prayerService.loadPersonalPrayers(false),
-      this.memorizationService.loadItems(),
-    ]);
-    this.cdr.markForCheck();
   }
 
   navigateToAdmin(): void {

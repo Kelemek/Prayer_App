@@ -156,29 +156,6 @@ describe('AdminComponent', () => {
     expect(component.showTenantSwitcher).toBe(false);
   });
 
-  it('onTenantSelect switches tenant for super admin', async () => {
-    tenantContextService.getActiveTenant.mockReturnValue({
-      id: 'tenant-a',
-      name: 'Alpha Church',
-      plan_tier: 'churches',
-      plan_status: 'active'
-    });
-
-    await component.onTenantSelect('tenant-b');
-
-    expect(tenantContextService.switchTenant).toHaveBeenCalledWith('tenant-b');
-    expect(toastService.error).not.toHaveBeenCalled();
-    expect(cdr.markForCheck).toHaveBeenCalled();
-  });
-
-  it('onTenantSelect shows error when switch fails', async () => {
-    tenantContextService.switchTenant.mockResolvedValue(false);
-
-    await component.onTenantSelect('tenant-b');
-
-    expect(toastService.error).toHaveBeenCalledWith('Unable to switch tenant');
-  });
-
   it('subscribes and fetches admin data on init', async () => {
     const autoSpy = vi.spyOn(component as any, 'autoProgressTabs');
 

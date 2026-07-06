@@ -20,25 +20,45 @@ import type { Tenant } from '../../types/tenant';
   template: `
     @if (visible) {
       <div
-        class="sticky top-0 z-[60] border-b border-amber-300 bg-amber-100/95 px-4 py-2 dark:border-amber-700 dark:bg-amber-900/90"
+        class="sticky top-0 z-[60] border-b px-4 py-2"
+        [class]="
+          impersonationBar
+            ? 'border-amber-300 bg-amber-100/95 dark:border-amber-700 dark:bg-amber-900/90'
+            : 'border-gray-200 bg-white/95 backdrop-blur-md dark:border-gray-700 dark:bg-gray-800/95'
+        "
       >
         <div
           class="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-2 sm:justify-center"
         >
           <span
-            class="text-xs font-medium text-amber-900 dark:text-amber-100 shrink-0"
+            class="text-xs font-medium shrink-0"
+            [class]="
+              impersonationBar
+                ? 'text-amber-900 dark:text-amber-100'
+                : 'text-gray-600 dark:text-gray-300'
+            "
           >
             Viewing organization:
           </span>
 
           <div class="relative min-w-0 flex-1 sm:flex-none sm:min-w-[12rem]">
             <div
-              [ngClass]="{
-                'border-amber-500 ring-1 ring-amber-500/40 dark:border-amber-500':
-                  showTenantDropdown,
-                'border-amber-400 dark:border-amber-600': !showTenantDropdown
-              }"
-              class="overflow-hidden rounded-lg border-2 bg-white/90 transition-all dark:bg-amber-950/50"
+              class="overflow-hidden rounded-lg border-2 transition-all"
+              [ngClass]="
+                impersonationBar
+                  ? {
+                      'border-amber-500 ring-1 ring-amber-500/40 dark:border-amber-500':
+                        showTenantDropdown,
+                      'border-amber-400 dark:border-amber-600': !showTenantDropdown,
+                      'bg-white/90 dark:bg-amber-950/50': true,
+                    }
+                  : {
+                      'border-blue-500 ring-1 ring-blue-500/30 dark:border-blue-400':
+                        showTenantDropdown,
+                      'border-gray-300 dark:border-gray-600': !showTenantDropdown,
+                      'bg-white dark:bg-gray-800': true,
+                    }
+              "
             >
               <button
                 type="button"
@@ -51,7 +71,12 @@ import type { Tenant } from '../../types/tenant';
                 class="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 px-2 py-1.5 text-left transition-all"
               >
                 <span
-                  class="truncate text-xs font-medium text-amber-950 dark:text-amber-50"
+                  class="truncate text-xs font-medium"
+                  [class]="
+                    impersonationBar
+                      ? 'text-amber-950 dark:text-amber-50'
+                      : 'text-gray-700 dark:text-gray-200'
+                  "
                 >
                   {{ activeTenantName }}
                 </span>
@@ -64,7 +89,12 @@ import type { Tenant } from '../../types/tenant';
                   stroke-width="2"
                   stroke-linecap="round"
                   stroke-linejoin="round"
-                  class="shrink-0 text-amber-700 transition-transform dark:text-amber-300"
+                  class="shrink-0 transition-transform"
+                  [class]="
+                    impersonationBar
+                      ? 'text-amber-700 dark:text-amber-300'
+                      : 'text-gray-500 dark:text-gray-400'
+                  "
                   [class.rotate-180]="showTenantDropdown"
                   aria-hidden="true"
                 >
@@ -81,7 +111,12 @@ import type { Tenant } from '../../types/tenant';
               <div
                 role="listbox"
                 aria-label="Organizations"
-                class="absolute left-0 right-0 z-[62] mt-1 max-h-60 overflow-y-auto rounded-lg border border-amber-300 bg-white py-1 shadow-lg dark:border-amber-700 dark:bg-gray-800"
+                class="absolute left-0 right-0 z-[62] mt-1 max-h-60 overflow-y-auto rounded-lg border bg-white py-1 shadow-lg dark:bg-gray-800"
+                [class]="
+                  impersonationBar
+                    ? 'border-amber-300 dark:border-amber-700'
+                    : 'border-gray-200 dark:border-gray-600'
+                "
               >
                 @for (tenant of tenantSwitchOptions; track tenant.id) {
                   <button
@@ -89,14 +124,33 @@ import type { Tenant } from '../../types/tenant';
                     role="option"
                     [attr.aria-selected]="tenant.id === activeTenantId"
                     (click)="selectTenant(tenant.id)"
-                    class="flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-xs text-gray-700 transition-colors hover:bg-amber-50 dark:text-gray-200 dark:hover:bg-amber-900/30"
-                    [class.bg-amber-100]="tenant.id === activeTenantId"
-                    [class.dark:bg-amber-900/40]="tenant.id === activeTenantId"
+                    class="flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-xs text-gray-700 transition-colors dark:text-gray-200"
+                    [ngClass]="
+                      impersonationBar
+                        ? {
+                            'hover:bg-amber-50 dark:hover:bg-amber-900/30':
+                              tenant.id !== activeTenantId,
+                            'bg-amber-100 dark:bg-amber-900/40':
+                              tenant.id === activeTenantId,
+                          }
+                        : {
+                            'hover:bg-gray-50 dark:hover:bg-gray-700/60':
+                              tenant.id !== activeTenantId,
+                            'bg-blue-50 dark:bg-blue-900/30':
+                              tenant.id === activeTenantId,
+                          }
+                    "
                     [title]="'Switch to ' + tenant.name"
                   >
                     <span class="truncate">{{ tenant.name }}</span>
                     @if (tenant.id === activeTenantId) {
-                      <span class="ml-2 shrink-0 text-amber-700 dark:text-amber-300"
+                      <span
+                        class="ml-2 shrink-0"
+                        [class]="
+                          impersonationBar
+                            ? 'text-amber-700 dark:text-amber-300'
+                            : 'text-blue-600 dark:text-blue-400'
+                        "
                         >✓</span
                       >
                     }
@@ -159,11 +213,15 @@ export class TenantSwitcherBarComponent implements OnInit, OnDestroy {
     }
   }
 
+  get impersonationBar(): boolean {
+    return this.tenantContextService.getIsImpersonatingTenant();
+  }
+
   get visible(): boolean {
     return (
       !this.tenantContextLoading &&
       !!this.activeTenantId &&
-      this.tenantContextService.getIsImpersonatingTenant()
+      this.tenantSwitchOptions.length > 1
     );
   }
 

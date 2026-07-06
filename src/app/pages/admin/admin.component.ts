@@ -32,7 +32,6 @@ import { GitHubFeedbackService } from '../../services/github-feedback.service';
 import { PrayerEncouragementSettingsComponent } from '../../components/prayer-encouragement-settings/prayer-encouragement-settings.component';
 import { ConfirmationDialogComponent } from '../../components/confirmation-dialog/confirmation-dialog.component';
 import { TenantManagementComponent } from '../../components/tenant-management/tenant-management.component';
-import { TenantSwitcherDropdownComponent } from '../../components/tenant-switcher-dropdown/tenant-switcher-dropdown.component';
 import { SiteAnalyticsActivityChartComponent } from '../../components/site-analytics-activity-chart/site-analytics-activity-chart.component';
 import { TenantContextService } from '../../services/tenant-context.service';
 import { ToastService } from '../../services/toast.service';
@@ -70,7 +69,6 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
     PrayerEncouragementSettingsComponent,
     ConfirmationDialogComponent,
     TenantManagementComponent,
-    TenantSwitcherDropdownComponent,
     SiteAnalyticsActivityChartComponent
   ],
   styles: `
@@ -117,13 +115,6 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
             <!-- Right side: Email indicator and navigation controls -->
             <div class="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
               <div class="flex items-center gap-2 w-full sm:w-auto flex-wrap justify-end">
-                @if (showTenantSwitcherInHeader) {
-                <app-tenant-switcher-dropdown
-                  [compact]="true"
-                  triggerId="admin-tenant-switcher"
-                  (tenantSelected)="onTenantSelect($event)"
-                />
-                }
                 <!-- Email Indicator -->
                 @if ((userSessionService.userSession$ | async); as session) {
                   <button
@@ -1096,13 +1087,6 @@ export class AdminComponent implements OnInit, OnDestroy {
     );
   }
 
-  get showTenantSwitcherInHeader(): boolean {
-    return (
-      this.showTenantSwitcher &&
-      !this.tenantContextService.getIsImpersonatingTenant()
-    );
-  }
-
   get tenantSwitchOptions(): Tenant[] {
     const options = this.tenantContextService.getTenantSwitcherOptions();
     const unique = new Map(options.map((tenant) => [tenant.id, tenant]));
@@ -1112,20 +1096,6 @@ export class AdminComponent implements OnInit, OnDestroy {
     }
 
     return Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  async onTenantSelect(tenantId: string): Promise<void> {
-    if (!tenantId || tenantId === this.activeTenantId) {
-      return;
-    }
-
-    const changed = await this.tenantContextService.switchTenant(tenantId);
-    if (!changed) {
-      this.toastService.error('Unable to switch tenant');
-      return;
-    }
-
-    this.cdr.markForCheck();
   }
 
   async handleLogout(): Promise<void> {
