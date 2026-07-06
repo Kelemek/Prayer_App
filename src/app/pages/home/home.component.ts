@@ -38,10 +38,10 @@ import {
 } from "../../services/prayer.service";
 import { PromptService } from "../../services/prompt.service";
 import { AdminAuthService } from "../../services/admin-auth.service";
-import { UserSessionService } from "../../services/user-session.service";
+import { UserSessionService, type UserSessionData } from "../../services/user-session.service";
 import { SupabaseService } from "../../services/supabase.service";
 import { BadgeService } from "../../services/badge.service";
-import { Observable, take, Subject, takeUntil, filter, map, distinctUntilChanged, skip } from "rxjs";
+import { Observable, take, Subject, takeUntil, filter, map, distinctUntilChanged, skip, combineLatest } from "rxjs";
 import { ToastService } from "../../services/toast.service";
 import { AnalyticsService } from "../../services/analytics.service";
 import { PullToRefreshDirective } from "../../directives/pull-to-refresh.directive";
@@ -1331,23 +1331,18 @@ export class HomeComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       });
 
-    // Wait for the first real user session to apply the default view preference
-    this.userSessionService.userSession$
-      .pipe(
-        filter((session) => !!session),
-        take(1),
-        takeUntil(this.destroy$)
-      )
-      .subscribe((session) => {
-        const s = session!;
-        const preferred = s.defaultPrayerView ?? "current";
-        this.activeFilter =
-          preferred === "current" || preferred === "personal"
-            ? preferred
-            : "current";
-        this.setFilter(this.activeFilter);
-        this.viewReady = true;
-        this.cdr.markForCheck();
+    // Apply default view only after tenant context and user session have finished loading.
+    // Otherwise canAccessShared stays false and setFilter forces personal prayers.
+    combineLatest([
+      this.userSessionService.userSession$.pipe(
+        filter((session): session is UserSessionData => !!session)
+      ),
+      this.userSessionService.isLoading$.pipe(filter((loading) => !loading), take(1)),
+      this.tenantContextService.loading$.pipe(filter((loading) => !loading), take(1)),
+    ])
+      .pipe(take(1), takeUntil(this.destroy$))
+      .subscribe(([session]) => {
+        this.applyInitialView(session);
       });
   }
 
@@ -1444,6 +1439,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       | "personal"
       | "memorize"
   ): void {
+    this.canAccessShared = this.tenantPermissionService.canAccessShared();
     if (
       !this.canAccessShared &&
       filter !== "personal" &&
@@ -1482,6 +1478,22 @@ export class HomeComponent implements OnInit, OnDestroy {
         search: this.filters.searchTerm,
       });
     }
+  }
+
+  private applyInitialView(session: UserSessionData): void {
+    if (this.viewReady) {
+      return;
+    }
+
+    this.canAccessShared = this.tenantPermissionService.canAccessShared();
+    const preferred = session.defaultPrayerView ?? "current";
+    const filter =
+      preferred === "current" || preferred === "personal"
+        ? preferred
+        : "current";
+    this.setFilter(filter);
+    this.viewReady = true;
+    this.cdr.markForCheck();
   }
 
   /**

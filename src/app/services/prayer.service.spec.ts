@@ -7,12 +7,22 @@ const PRAYER_SPEC_SHARED_CACHE_KEY = `tenant_${PRAYER_SPEC_TEST_TENANT.id}_praye
 const PRAYER_SPEC_PERSONAL_CACHE_KEY = `personalTenant_${PRAYER_SPEC_TEST_TENANT.id}`;
 
 function createPrayerSpecTenantContext() {
+  const loadingSubject = new BehaviorSubject(true);
   return {
     getActiveTenant: vi.fn(() => PRAYER_SPEC_TEST_TENANT),
     getIsSuperAdmin: vi.fn(() => false),
     getIsImpersonatingTenant: vi.fn(() => false),
-    activeTenant$: new BehaviorSubject(PRAYER_SPEC_TEST_TENANT)
+    activeTenant$: new BehaviorSubject(PRAYER_SPEC_TEST_TENANT),
+    loading$: loadingSubject.asObservable(),
+    loadingSubject,
   };
+}
+
+async function activateTenantContext(
+  tenantCtx: ReturnType<typeof createPrayerSpecTenantContext>
+): Promise<void> {
+  tenantCtx.loadingSubject.next(false);
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 describe('PrayerService', () => {
@@ -75,6 +85,7 @@ describe('PrayerService', () => {
     supabase.ensureConnected = vi.fn().mockResolvedValue(undefined);
 
     service = new PrayerService(supabase, toast, emailNotification, verificationService as any, cache, badgeService, userSessionService, tenantContext as any);
+    tenantContext.loadingSubject.next(false);
   });
 
   describe('incrementPrayedFor', () => {
@@ -1054,7 +1065,7 @@ describe('PrayerService - Integration Tests', () => {
       mockTenantContext
     );
 
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await activateTenantContext(mockTenantContext);
 
       expect(mockCacheService.set).toHaveBeenCalledWith(
         PRAYER_SPEC_SHARED_CACHE_KEY,
@@ -1106,7 +1117,7 @@ describe('PrayerService - Integration Tests', () => {
       mockTenantContext
     );
 
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await activateTenantContext(mockTenantContext);
 
       // Verify that from was called with 'prayers'
       expect(mockSupabaseService.client.from).toHaveBeenCalledWith('prayers');
@@ -1373,7 +1384,7 @@ describe('PrayerService - Integration Tests', () => {
       trig.mockRestore();
     });
 
-    it('window app-became-visible addEventListener callback triggers recovery using cache', () => {
+    it('window app-became-visible addEventListener callback triggers recovery using cache', async () => {
       // Capture the addEventListener callback for the custom event by temporarily overriding
       // the global `addEventListener` so we reliably capture the handler even if other tests mocked it.
       let capturedCallback: any = null;
@@ -1398,6 +1409,8 @@ describe('PrayerService - Integration Tests', () => {
       mockTenantContext
     );
 
+      vi.useFakeTimers();
+
       // If we couldn't capture the handler (other tests may have mocked addEventListener),
       // fall back to directly triggering the recovery to assert the same behavior.
       if (capturedCallback) {
@@ -1414,10 +1427,12 @@ describe('PrayerService - Integration Tests', () => {
         (service as any).triggerBackgroundRecovery();
       }
 
-      // recovery should use cached data synchronously
+      await vi.advanceTimersByTimeAsync(500);
+
       expect(mockCacheService.get).toHaveBeenCalledWith(PRAYER_SPEC_SHARED_CACHE_KEY);
       expect((service as any).allPrayersSubject.value).toEqual(cached);
 
+      vi.useRealTimers();
       // restore previous addEventListener to avoid side effects
       (window as any).addEventListener = previousAdd;
     });
@@ -1958,7 +1973,7 @@ describe('PrayerService - Integration Tests', () => {
   });
 
   describe('loadPrayers', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
       service = new PrayerService(
         mockSupabaseService,
         mockToastService,
@@ -1969,6 +1984,7 @@ describe('PrayerService - Integration Tests', () => {
       userSessionService,
       mockTenantContext
     );
+      await activateTenantContext(mockTenantContext);
     });
 
     it('should load prayers from database when cache is empty', async () => {
@@ -2027,8 +2043,7 @@ describe('PrayerService - Integration Tests', () => {
       mockTenantContext
     );
 
-      // wait for init load
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await activateTenantContext(mockTenantContext);
 
       expect(mockToastService.error).toHaveBeenCalled();
       const err = await firstValueFrom(service.error$);
@@ -2421,7 +2436,7 @@ describe('PrayerService - Integration Tests', () => {
       mockTenantContext
     );
 
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await activateTenantContext(mockTenantContext);
 
       expect((service as any).allPrayersSubject.value).toEqual(cachedPrayers);
       // Error may or may not be set depending on timing; just verify cache was used
@@ -2987,7 +3002,7 @@ describe('PrayerService - Integration Tests', () => {
       mockTenantContext
     );
 
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await activateTenantContext(mockTenantContext);
 
       const allPrayers = (service as any).allPrayersSubject.value;
       expect(allPrayers[0].id).toBe('1');

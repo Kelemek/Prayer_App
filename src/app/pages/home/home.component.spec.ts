@@ -50,6 +50,7 @@ const makeMocks = () => {
   const userSessionService: any = {
     userSessionSubject,
     userSession$: userSessionSubject.asObservable(),
+    isLoading$: new BehaviorSubject(false).asObservable(),
     getUserEmail: vi.fn(() => null),
     getUserFullName: vi.fn(() => null),
     getCurrentSession: vi.fn(() => null)
@@ -2939,6 +2940,41 @@ describe('HomeComponent', () => {
 
       // Filter should be applied immediately after personal prayers
       expect(comp.activeFilter).toBe('current');
+    });
+
+    it('should apply current default view after tenant context loads', async () => {
+      const mocks = makeMocks();
+      const tenantLoadingSubject = new BehaviorSubject(true);
+      mocks.tenantContextService.loading$ = tenantLoadingSubject.asObservable();
+      mocks.tenantPermissionService.canAccessShared.mockReturnValue(true);
+
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.supabaseService,
+        mocks.tenantPermissionService,
+        mocks.tenantContextService
+      );
+
+      comp.ngOnInit();
+      mocks.userSessionSubject.next({ defaultPrayerView: 'current' });
+
+      await new Promise(resolve => setTimeout(resolve, 20));
+      expect(comp.viewReady).toBe(false);
+
+      tenantLoadingSubject.next(false);
+      await new Promise(resolve => setTimeout(resolve, 20));
+
+      expect(comp.viewReady).toBe(true);
+      expect(comp.activeFilter).toBe('current');
+      expect(comp.canAccessShared).toBe(true);
     });
 
     it('should handle error loading personal prayers gracefully', async () => {

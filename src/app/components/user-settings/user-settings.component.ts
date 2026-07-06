@@ -2507,7 +2507,7 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
         const { error: updateError } = await this.supabase.client
           .from("tenant_memberships")
           .update({ default_prayer_view: newView })
-          .eq("user_email", email);
+          .match(this.membershipMatchFilter(email));
 
         if (updateError) {
           throw updateError;

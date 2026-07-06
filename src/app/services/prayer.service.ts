@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, fromEvent, distinctUntilChanged, first } from 'rxjs';
+import { BehaviorSubject, Observable, fromEvent, distinctUntilChanged, first, combineLatest, filter, map } from 'rxjs';
 import { SupabaseService } from './supabase.service';
 import { ToastService } from './toast.service';
 import { EmailNotificationService } from './email-notification.service';
@@ -8,6 +8,7 @@ import { CacheService } from './cache.service';
 import { BadgeService } from './badge.service';
 import { UserSessionService } from './user-session.service';
 import { TenantContextService } from './tenant-context.service';
+import type { Tenant } from '../types/tenant';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export type PrayerStatus = 'current' | 'answered' | 'archived';
@@ -112,8 +113,8 @@ export class PrayerService {
   }
 
   private async initializePrayers(): Promise<void> {
-    await this.loadPrayers();
-    
+    this.setupTenantScopedPrayerLoading();
+
     // Subscribe to user session changes to auto-load personal prayers
     this.userSessionService.userSession$
       .pipe(
@@ -135,24 +136,56 @@ export class PrayerService {
         }
       });
 
-    // Reload shared and personal prayers when tenant context resolves or changes.
-    this.tenantContext.activeTenant$
-      .pipe(
-        distinctUntilChanged((prev, curr) => prev?.id === curr?.id)
-      )
-      .subscribe(() => {
-        this.loadPrayers(true).catch(err =>
-          console.error('[PrayerService] Error loading prayers on tenant change:', err)
-        );
-        this.loadPersonalPrayers(false).catch(err =>
-          console.error('[PrayerService] Error loading personal prayers on tenant change:', err)
-        );
-      });
-    
     this.setupRealtimeSubscription();
     this.setupVisibilityListener();
     this.setupInactivityListener();
     this.setupBackgroundRecoveryListener();
+  }
+
+  /**
+   * Load shared and personal prayers once tenant context has finished resolving,
+   * and again when the active tenant changes. Waits for auth/session (via ensureConnected)
+   * so iOS Safari refresh does not query with an empty JWT and cache an empty list.
+   */
+  private setupTenantScopedPrayerLoading(): void {
+    combineLatest([
+      this.tenantContext.loading$.pipe(filter((loading) => !loading)),
+      this.tenantContext.activeTenant$.pipe(
+        filter((tenant): tenant is Tenant => !!tenant?.id)
+      ),
+    ])
+      .pipe(
+        map(([, tenant]) => tenant.id),
+        distinctUntilChanged()
+      )
+      .subscribe(() => {
+        void this.reloadPrayersForActiveTenant();
+      });
+  }
+
+  private async reloadPrayersForActiveTenant(): Promise<void> {
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) {
+      return;
+    }
+
+    try {
+      await this.supabase.ensureConnected();
+    } catch (err) {
+      console.debug('[PrayerService] ensureConnected before tenant prayer load failed:', err);
+    }
+
+    try {
+      await this.loadPrayers(false);
+    } catch (err) {
+      console.error('[PrayerService] Error loading prayers for tenant:', err);
+    }
+
+    try {
+      await this.loadPersonalPrayers(false);
+    } catch (err) {
+      console.error('[PrayerService] Error loading personal prayers for tenant:', err);
+    }
   }
 
   /**
@@ -166,9 +199,8 @@ export class PrayerService {
       console.log('[PrayerService] Loading prayers...');
       const tenantId = this.getActiveTenantId();
       if (!tenantId) {
-        // No active tenant means shared prayers are unavailable in current context.
-        this.allPrayersSubject.next([]);
-        this.applyFilters(this.currentFilters);
+        // Tenant context still resolving — do not clear in-memory/cached prayers.
+        console.log('[PrayerService] No active tenant yet — deferring shared prayer load');
         this.errorSubject.next(null);
         return;
       }
