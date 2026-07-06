@@ -22,6 +22,15 @@ function supabaseSelectResult(data: unknown, error: unknown = null) {
   return chain;
 }
 
+/** Supabase update chain supporting .match() (and legacy .eq()). */
+function supabaseUpdateResult(error: unknown = null) {
+  const result = { data: null, error };
+  return {
+    match: vi.fn(() => Promise.resolve(result)),
+    eq: vi.fn(() => Promise.resolve(result)),
+  };
+}
+
 describe('UserSettingsComponent', () => {
   let component: UserSettingsComponent;
   let mockThemeService: any;
@@ -656,9 +665,7 @@ describe('UserSettingsComponent', () => {
       const mockExisting = { id: 'sub-123' };
       mockSupabaseService.client.from.mockReturnValue({
         select: vi.fn(() => supabaseSelectResult(mockExisting)),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-        }))
+        update: vi.fn(() => supabaseUpdateResult())
       });
 
       await component.onNotificationToggle();
@@ -712,9 +719,7 @@ describe('UserSettingsComponent', () => {
       const mockExisting = { id: 'sub-123' };
       mockSupabaseService.client.from.mockReturnValue({
         select: vi.fn(() => supabaseSelectResult(mockExisting)),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-        }))
+        update: vi.fn(() => supabaseUpdateResult())
       });
 
       await component.onNotificationToggle();
@@ -791,9 +796,7 @@ describe('UserSettingsComponent', () => {
       const mockExisting = { id: 'sub-456' };
       mockSupabaseService.client.from.mockReturnValue({
         select: vi.fn(() => supabaseSelectResult(mockExisting)),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-        }))
+        update: vi.fn(() => supabaseUpdateResult())
       });
 
       await component.onPushNotificationToggle();
@@ -2201,9 +2204,7 @@ describe('UserSettingsComponent', () => {
     it('should update default view when email exists', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-        }))
+        update: vi.fn(() => supabaseUpdateResult())
       }));
 
       await component.onDefaultViewChange('personal');
@@ -2256,12 +2257,7 @@ describe('UserSettingsComponent', () => {
     it('should handle update error', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({
-            data: null,
-            error: new Error('Update error')
-          }))
-        }))
+        update: vi.fn(() => supabaseUpdateResult(new Error('Update error')))
       }));
 
       component.defaultPrayerView = 'current';
@@ -2290,9 +2286,7 @@ describe('UserSettingsComponent', () => {
     it('should update user session service', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-        }))
+        update: vi.fn(() => supabaseUpdateResult())
       }));
 
       await component.onDefaultViewChange('personal');
@@ -2305,9 +2299,7 @@ describe('UserSettingsComponent', () => {
     it('should clear success message after 3 seconds', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-        }))
+        update: vi.fn(() => supabaseUpdateResult())
       }));
 
       await component.onDefaultViewChange('personal');
@@ -2321,9 +2313,7 @@ describe('UserSettingsComponent', () => {
     it('should set proper text for current view', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-        }))
+        update: vi.fn(() => supabaseUpdateResult())
       }));
 
       await component.onDefaultViewChange('current');
@@ -2334,9 +2324,7 @@ describe('UserSettingsComponent', () => {
     it('should set proper text for personal view', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-        }))
+        update: vi.fn(() => supabaseUpdateResult())
       }));
 
       await component.onDefaultViewChange('personal');
@@ -2353,9 +2341,7 @@ describe('UserSettingsComponent', () => {
 
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-        }))
+        update: vi.fn(() => supabaseUpdateResult())
       }));
 
       component.badgeFunctionalityEnabled = true;
@@ -2371,9 +2357,7 @@ describe('UserSettingsComponent', () => {
 
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-        }))
+        update: vi.fn(() => supabaseUpdateResult())
       }));
 
       component.badgeFunctionalityEnabled = false;
@@ -2388,9 +2372,7 @@ describe('UserSettingsComponent', () => {
 
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-        }))
+        update: vi.fn(() => supabaseUpdateResult())
       }));
 
       component.badgeFunctionalityEnabled = true;
@@ -2408,9 +2390,7 @@ describe('UserSettingsComponent', () => {
 
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-        }))
+        update: vi.fn(() => supabaseUpdateResult())
       }));
 
       component.badgeFunctionalityEnabled = true;
@@ -2425,9 +2405,7 @@ describe('UserSettingsComponent', () => {
 
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-        }))
+        update: vi.fn(() => supabaseUpdateResult())
       }));
 
       component.badgeFunctionalityEnabled = false;

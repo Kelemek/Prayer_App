@@ -5,7 +5,9 @@ import { PrayerService } from './prayer.service';
 const noopTenantContext = {
   getActiveTenant: () => ({ id: 'test-tenant-id', name: 'Test', slug: 'test' }),
   getIsSuperAdmin: () => false,
-  activeTenant$: new BehaviorSubject({ id: 'test-tenant-id', name: 'Test', slug: 'test' })
+  getIsImpersonatingTenant: () => false,
+  activeTenant$: new BehaviorSubject({ id: 'test-tenant-id', name: 'Test', slug: 'test' }),
+  loading$: new BehaviorSubject(false).asObservable(),
 };
 
 const makeSupabase = (overrides: any = {}) => ({

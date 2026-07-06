@@ -148,9 +148,15 @@ export class PrayerService {
    * so iOS Safari refresh does not query with an empty JWT and cache an empty list.
    */
   private setupTenantScopedPrayerLoading(): void {
+    const loading$ = this.tenantContext.loading$;
+    const activeTenant$ = this.tenantContext.activeTenant$;
+    if (!loading$ || !activeTenant$) {
+      return;
+    }
+
     combineLatest([
-      this.tenantContext.loading$.pipe(filter((loading) => !loading)),
-      this.tenantContext.activeTenant$.pipe(
+      loading$.pipe(filter((loading) => !loading)),
+      activeTenant$.pipe(
         filter((tenant): tenant is Tenant => !!tenant?.id)
       ),
     ])
