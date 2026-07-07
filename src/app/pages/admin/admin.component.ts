@@ -102,19 +102,18 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
         <div class="max-w-6xl mx-auto w-full safe-area-header py-6">
           <div class="flex items-start justify-between gap-4">
             <!-- Left side: Logo and title -->
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 min-w-0">
               <svg class="text-red-600 dark:text-red-400" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
               </svg>
               <div>
                 <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">Admin Portal</h1>
-                <p class="text-gray-600 dark:text-gray-300">Manage prayer requests and updates</p>
               </div>
             </div>
             
             <!-- Right side: Email indicator and navigation controls -->
-            <div class="flex flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
-              <div class="flex items-center gap-2 w-full sm:w-auto flex-wrap justify-end">
+            <div class="flex flex-col items-end gap-2 shrink-0">
+              <div class="flex items-center gap-2 flex-wrap justify-end">
                 <!-- Email Indicator -->
                 @if ((userSessionService.userSession$ | async); as session) {
                   <button
@@ -138,7 +137,7 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
               <!-- Navigation Controls -->
               <button
                 (click)="goToHome()"
-                class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-900 transition-colors text-sm cursor-pointer"
+                class="self-end w-fit shrink-0 flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-900 transition-colors text-sm cursor-pointer"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="19" y1="12" x2="5" y2="12"></line>

@@ -5,6 +5,9 @@ import { Subject, takeUntil } from 'rxjs';
 
 export const BRANDING_SERVICE_TOKEN = new InjectionToken<BrandingService>('BrandingService');
 
+/** Default app icon shown beside the title when no custom tenant logo is configured. */
+const DEFAULT_APP_ICON_SRC = '/icons/icon-96.webp';
+
 @Component({
   selector: 'app-logo',
   standalone: true,
@@ -23,8 +26,16 @@ export const BRANDING_SERVICE_TOKEN = new InjectionToken<BrandingService>('Brand
       </div>
     }
     @if (!useLogo && appTitle) {
-      <div class="min-w-0 flex-1">
-        <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
+      <div class="min-w-0 flex-1 flex items-center gap-2 sm:gap-3">
+        <img
+          [src]="defaultAppIconSrc"
+          alt=""
+          aria-hidden="true"
+          class="h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-lg object-contain"
+          width="36"
+          height="36"
+        />
+        <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 min-w-0">
           {{ appTitle }}
         </h1>
       </div>
@@ -36,6 +47,7 @@ export class AppLogoComponent implements OnInit, OnDestroy {
   imageUrl: string = '';
   useLogo = false;
   appTitle: string = 'Church Prayer Manager';
+  readonly defaultAppIconSrc = DEFAULT_APP_ICON_SRC;
   @Output() logoStatusChange = new EventEmitter<boolean>();
   
   private destroy$ = new Subject<void>();
