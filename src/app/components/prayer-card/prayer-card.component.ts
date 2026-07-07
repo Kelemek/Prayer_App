@@ -21,7 +21,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div 
-      [class]="'bg-white dark:bg-gray-800 rounded-lg shadow-md border-[2px] p-6 mb-4 transition-colors relative ' + (dragHandle && isPersonal ? ' pl-10 ' : '') + getBorderClass()"
+      [class]="'bg-white dark:bg-gray-800 rounded-lg shadow-md border-[2px] px-6 pt-6 pb-4 mb-4 transition-colors relative ' + (dragHandle && isPersonal ? ' pl-10 ' : '') + getBorderClass()"
     >
       <!-- Drag Handle: rendered as first child so absolute left-3 top-1/2 is relative to card root (not header) -->
       @if (dragHandle && isPersonal) {
@@ -120,7 +120,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
 
       <!-- Action buttons - flex-nowrap, reduced padding so row fits without wrap or scroll -->
       @if (showAddUpdateButton()) {
-      <div class="flex flex-nowrap gap-1 mb-4 items-center min-w-0">
+      <div class="flex flex-nowrap gap-1 mb-0 items-center min-w-0">
         <button
           (click)="toggleAddUpdate()"
           title="Add an update to this prayer"
@@ -261,7 +261,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
 
       <!-- Recent Updates -->
       @if (prayer.updates && prayer.updates.length > 0) {
-      <div class=>
+      <div class="mt-4">
         <div class="flex items-center justify-between mb-2">
           <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">
             Recent Updates @if (!showAllUpdates && getDisplayedUpdates().length < prayer.updates.length) {<span>({{ getDisplayedUpdates().length }} of {{ prayer.updates.length }})</span>}

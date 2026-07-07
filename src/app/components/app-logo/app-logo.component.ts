@@ -31,11 +31,11 @@ const DEFAULT_APP_ICON_SRC = '/icons/icon-96.webp';
           [src]="defaultAppIconSrc"
           alt=""
           aria-hidden="true"
-          class="h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-lg object-contain"
-          width="36"
-          height="36"
+          class="h-8 w-8 sm:h-11 sm:w-11 shrink-0 rounded-lg object-contain"
+          width="44"
+          height="44"
         />
-        <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 min-w-0">
+        <h1 class="text-xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 min-w-0">
           {{ appTitle }}
         </h1>
       </div>
