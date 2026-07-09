@@ -18,6 +18,7 @@ const makeMocks = () => {
   };
 
   const supabaseService: any = {
+    isNetworkError: vi.fn(() => false),
     client: {
       from: vi.fn(() => ({
         select: vi.fn(() => ({
@@ -72,7 +73,14 @@ const makeMocks = () => {
     })
   };
 
-  return { adminAuthService, supabaseService, emailNotificationService, userSessionService, themeService, tenantContextService, router, route, cdr, requireSiteLogin$, isAdmin$ };
+  const connectivity = {
+    isOnline: vi.fn(() => true),
+    isOnline$: new BehaviorSubject(true).asObservable(),
+    requireOnline: vi.fn(() => true),
+  };
+  const toast = { info: vi.fn(), error: vi.fn(), success: vi.fn(), warning: vi.fn() };
+
+  return { adminAuthService, supabaseService, emailNotificationService, userSessionService, themeService, tenantContextService, connectivity, toast, router, route, cdr, requireSiteLogin$, isAdmin$ };
 };
 
 const mockMatchMedia = (matches = false) => ({
@@ -93,7 +101,9 @@ const makeComponent = (mocks: any) => {
     mocks.tenantContextService,
     mocks.router,
     mocks.route,
-    mocks.cdr
+    mocks.cdr,
+    mocks.connectivity,
+    mocks.toast
   );
   // Provide a mock QueryList for ViewChildren `codeInputs` used by focusInput
   comp.codeInputs = { toArray: () => [{ nativeElement: { focus: vi.fn() } }] } as any;
@@ -104,7 +114,13 @@ const makeComponent = (mocks: any) => {
 
 // Helper to create LoginComponent with custom service mocks (for tests with modified mocks)
 let componentsToCleanup: LoginComponent[] = [];
-const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, userSession: any, theme: any, tenantContext: any, router: any, route: any, cdr: any) => {
+const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, userSession: any, theme: any, tenantContext: any, router: any, route: any, cdr: any, connectivity?: any, toast?: any) => {
+  const connectivityMock = connectivity ?? {
+    isOnline: vi.fn(() => true),
+    isOnline$: new BehaviorSubject(true).asObservable(),
+    requireOnline: vi.fn(() => true),
+  };
+  const toastMock = toast ?? { info: vi.fn(), error: vi.fn(), success: vi.fn(), warning: vi.fn() };
   const comp = new LoginComponent(
     adminAuth,
     supabase,
@@ -112,6 +128,8 @@ const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, 
     userSession,
     theme,
     tenantContext,
+    connectivityMock,
+    toastMock,
     router,
     route,
     cdr
@@ -189,6 +207,43 @@ describe('LoginComponent', () => {
     expect(sessionStorage.getItem('login_email')).toBe('u@e.com');
     expect(comp.success).toBe(true);
     expect(comp.waitingForMfaCode).toBe(true);
+  });
+
+  it('handleSubmit awaits MFA verification without clearing loading early', async () => {
+    let resolveVerify!: (value: { success: boolean; isAdmin: boolean }) => void;
+    mocks.adminAuthService.verifyMfaCode = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveVerify = resolve;
+        })
+    );
+    const navigateSpy = vi
+      .spyOn(LoginComponent.prototype as any, 'checkEmailSubscriberAndNavigate')
+      .mockResolvedValue(undefined);
+
+    const comp = makeComponent(mocks);
+    comp.waitingForMfaCode = true;
+    comp.email = 'u@e.com';
+    comp.codeLength = 4;
+    comp.mfaCodeInput = '1234';
+    comp.mfaCode = ['1', '2', '3', '4'];
+
+    const submitPromise = comp.handleSubmit(new Event('submit'));
+
+    // Verification still in flight — loading must stay true
+    expect(comp.loading).toBe(true);
+    expect(mocks.adminAuthService.verifyMfaCode).toHaveBeenCalledWith('1234');
+
+    resolveVerify({ success: true, isAdmin: false });
+    await submitPromise;
+
+    // Success path keeps loading true until navigation timeout
+    expect(comp.loading).toBe(true);
+    expect(comp.waitingForMfaCode).toBe(false);
+
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    expect(navigateSpy).toHaveBeenCalled();
+    navigateSpy.mockRestore();
   });
 
   it('handleResendCode uses sendMfaCode and clears code on success', async () => {

@@ -73,6 +73,16 @@ describe('CacheService', () => {
       localStorage.setItem = originalSetItem;
       localStorage.removeItem = originalRemoveItem;
     });
+
+    it('should return stale data after TTL via getStale', async () => {
+      const testData = { id: 2, name: 'Stale' };
+      const ttl = 50;
+      service.set('stale_key', testData, ttl);
+      await new Promise(resolve => setTimeout(resolve, ttl + 30));
+      expect(service.get('stale_key')).toBeNull();
+      expect(service.getStale('stale_key')).toEqual(testData);
+      expect(service.hasData('stale_key')).toBe(true);
+    });
   });
 
   describe('clear', () => {

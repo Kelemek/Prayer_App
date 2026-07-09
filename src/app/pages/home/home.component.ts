@@ -47,6 +47,7 @@ import { AnalyticsService } from "../../services/analytics.service";
 import { PullToRefreshDirective } from "../../directives/pull-to-refresh.directive";
 import { TenantPermissionService } from "../../services/tenant-permission.service";
 import { TenantContextService } from "../../services/tenant-context.service";
+import { ConnectivityService } from "../../services/connectivity.service";
 import { MemorizationService } from "../../services/memorization.service";
 import { MemorizationActionBarComponent } from "../../components/memorization-action-bar/memorization-action-bar.component";
 import { MemorizedVerseCardComponent } from "../../components/memorized-verse-card/memorized-verse-card.component";
@@ -91,6 +92,14 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
     <div
       class="main-page-shell w-full min-h-screen bg-gray-50 dark:bg-gray-900"
     >
+      @if (!isOnline) {
+      <div
+        class="sticky top-0 z-40 border-b border-amber-300 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100"
+        role="status"
+      >
+        You’re offline. You can view previously loaded prayers. Connect to submit or update.
+      </div>
+      }
       <!-- Scroll viewport below safe area: header sticky inside so content scrolls under header to top of header, never into safe area -->
       <div
         class="safe-area-viewport w-full bg-gray-50 dark:bg-gray-900"
@@ -196,7 +205,7 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
                 <span>Pray</span>
               </button>
               <button
-                (click)="showPrayerForm = true"
+                (click)="openPrayerRequest()"
                 class="flex items-center gap-1 bg-blue-600 dark:bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-sm cursor-pointer"
               >
                 <span>Request</span>
@@ -315,7 +324,7 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
                     <span>Pray</span>
                   </button>
                   <button
-                    (click)="showPrayerForm = true"
+                    (click)="openPrayerRequest()"
                     class="flex items-center justify-center h-12 gap-1 bg-blue-600 dark:bg-blue-600 text-white px-3 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-sm cursor-pointer"
                   >
                     <span>Request</span>
@@ -1075,6 +1084,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   preferredBibleTranslation: BibleTranslation = 'esv';
 
   showPrayerForm = false;
+  isOnline = true;
   showSettings = false;
   showHelp = false;
   showLogoutConfirmation = false;
@@ -1147,6 +1157,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     private supabaseService: SupabaseService,
     private tenantPermissionService: TenantPermissionService,
     private tenantContextService: TenantContextService,
+    private connectivity: ConnectivityService,
     public memorizationService: MemorizationService
   ) {
     const windowCache = (window as { __cachedLogos?: { tenantId?: string | null; useLogo?: boolean } }).__cachedLogos;
@@ -1166,6 +1177,14 @@ export class HomeComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     // Track page view on home component load
     this.analyticsService.trackPageView();
+
+    this.isOnline = this.connectivity.isOnline();
+    this.connectivity.isOnline$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((online) => {
+        this.isOnline = online;
+        this.cdr.markForCheck();
+      });
 
     this.prayers$ = this.prayerService.prayers$;
     this.prompts$ = this.promptService.prompts$;
@@ -1355,6 +1374,9 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   async onPullToRefresh(): Promise<void> {
+    if (!this.connectivity.requireOnline('refresh prayers')) {
+      return;
+    }
     const now = Date.now();
     // Avoid hammering Supabase if user pulls repeatedly
     const minIntervalMs = 30_000; // 30 seconds
@@ -2019,7 +2041,17 @@ export class HomeComponent implements OnInit, OnDestroy {
     await this.logout();
   }
 
+  openPrayerRequest(): void {
+    if (!this.connectivity.requireOnline('submit a prayer')) {
+      return;
+    }
+    this.showPrayerForm = true;
+  }
+
   navigateToAdmin(): void {
+    if (!this.connectivity.requireOnline('open the admin portal')) {
+      return;
+    }
     if (!this.canAccessAdminFeatures && this.tenantMemberships.length > 0) {
       this.toastService.error("Admin access is not available for this account");
       return;

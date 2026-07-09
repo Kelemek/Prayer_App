@@ -16,6 +16,8 @@ import { ThemeService } from "../../services/theme.service";
 import { UserSessionService } from "../../services/user-session.service";
 import { EmailNotificationService } from "../../services/email-notification.service";
 import { TenantContextService } from "../../services/tenant-context.service";
+import { ConnectivityService } from "../../services/connectivity.service";
+import { ToastService } from "../../services/toast.service";
 import { Subject, takeUntil } from "rxjs";
 
 @Component({
@@ -51,6 +53,15 @@ import { Subject, takeUntil } from "rxjs";
             "Where prayer brings us together"
           </p>
         </div>
+
+        @if (!isOnline) {
+        <div
+          class="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100"
+          role="status"
+        >
+          You’re offline. Connect to the internet to sign in.
+        </div>
+        }
 
         <div class="mt-2 text-center">
           <a
@@ -653,6 +664,8 @@ export class LoginComponent implements OnInit, OnDestroy {
   private isDarkMode = false;
   private returnUrl: string = "/";
 
+  isOnline = true;
+
   private destroy$ = new Subject<void>();
 
   constructor(
@@ -662,6 +675,8 @@ export class LoginComponent implements OnInit, OnDestroy {
     private userSessionService: UserSessionService,
     private themeService: ThemeService,
     private tenantContext: TenantContextService,
+    private connectivity: ConnectivityService,
+    private toast: ToastService,
     private router: Router,
     private route: ActivatedRoute,
     private cdr: ChangeDetectorRef
@@ -694,6 +709,14 @@ export class LoginComponent implements OnInit, OnDestroy {
 
     // Watch for theme changes
     this.watchThemeChanges();
+
+    this.isOnline = this.connectivity.isOnline();
+    this.connectivity.isOnline$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((online) => {
+        this.isOnline = online;
+        this.cdr?.markForCheck?.();
+      });
 
     // Get returnUrl and sessionExpired flag from query params
     this.route.queryParams.subscribe((params) => {
@@ -775,13 +798,22 @@ export class LoginComponent implements OnInit, OnDestroy {
   async handleSubmit(event: Event) {
     event.preventDefault();
     this.error = "";
+
+    // MFA verification owns its own loading state; do not wrap it in this
+    // try/finally or set loading first (verifyMfaCode guards on loading).
+    if (this.waitingForMfaCode) {
+      await this.verifyMfaCode();
+      return;
+    }
+
     this.loading = true;
     this.cdr?.markForCheck?.();
 
     try {
-      // If waiting for MFA code, verify it
-      if (this.waitingForMfaCode) {
-        return this.verifyMfaCode();
+      if (!this.connectivity.requireOnline('sign in')) {
+        this.loading = false;
+        this.cdr?.markForCheck?.();
+        return;
       }
 
       // Otherwise, send MFA code
@@ -817,10 +849,15 @@ export class LoginComponent implements OnInit, OnDestroy {
       }
     } catch (err) {
       console.error("[AdminLogin] Exception in handleSubmit:", err);
-      this.error =
-        err instanceof Error
-          ? err.message
-          : "An error occurred. Please try again.";
+      if (!this.connectivity.isOnline() || this.supabaseService.isNetworkError(err)) {
+        this.toast.info('You need to be online to sign in.');
+        this.error = '';
+      } else {
+        this.error =
+          err instanceof Error
+            ? err.message
+            : "An error occurred. Please try again.";
+      }
       this.cdr?.markForCheck?.();
     } finally {
       this.loading = false;
@@ -832,6 +869,10 @@ export class LoginComponent implements OnInit, OnDestroy {
     try {
       // Prevent double submission
       if (this.loading) {
+        return;
+      }
+
+      if (!this.connectivity.requireOnline('verify your sign-in code')) {
         return;
       }
 

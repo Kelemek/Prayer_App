@@ -10,10 +10,12 @@ describe('MemorizationService', () => {
   let toast: any;
   let userSession: any;
   let tenantContext: any;
+  let connectivity: any;
 
   beforeEach(() => {
     localStorage.clear();
     supabase = {
+      isNetworkError: vi.fn(() => false),
       client: {
         from: vi.fn(),
         auth: {
@@ -31,7 +33,11 @@ describe('MemorizationService', () => {
       activeTenant$: new BehaviorSubject(TEST_TENANT),
     };
 
-    service = new MemorizationService(supabase, toast, userSession, tenantContext);
+    connectivity = {
+      isOnline: vi.fn(() => true),
+      requireOnline: vi.fn(() => true),
+    };
+    service = new MemorizationService(supabase, toast, userSession, tenantContext, connectivity as any);
   });
 
   it('getPreferredTranslation defaults to esv', () => {

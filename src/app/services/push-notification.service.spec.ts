@@ -6,6 +6,7 @@ describe('PushNotificationService', () => {
   let mockSupabase: any;
   let mockUserSession: any;
   let mockCapacitor: any;
+  let mockConnectivity: any;
   let pushTokenCallback: (t: any) => void;
   let sessionCallback: (s: any) => void;
 
@@ -27,6 +28,10 @@ describe('PushNotificationService', () => {
         }),
       },
     };
+    mockConnectivity = {
+      isOnline: vi.fn(() => true),
+      requireOnline: vi.fn(() => true),
+    };
     mockCapacitor = {
       pushToken$: {
         subscribe: vi.fn((fn: (t: any) => void) => {
@@ -42,8 +47,8 @@ describe('PushNotificationService', () => {
     service = new PushNotificationService(
       mockSupabase as any,
       mockUserSession as any,
-      mockCapacitor as any
-    );
+      mockCapacitor as any,
+      mockConnectivity as any);
   });
 
   afterEach(() => {
@@ -213,8 +218,8 @@ describe('PushNotificationService', () => {
       const svc = new PushNotificationService(
         mockSupabase as any,
         mockUserSession as any,
-        mockCapacitor as any
-      );
+        mockCapacitor as any,
+      mockConnectivity as any);
       pushTokenCallback(token);
       await new Promise((r) => setTimeout(r, 0));
       expect(mockSupabase.client.from).toHaveBeenCalledWith('device_tokens');
@@ -248,8 +253,8 @@ describe('PushNotificationService', () => {
       const svc = new PushNotificationService(
         mockSupabase as any,
         mockUserSession as any,
-        mockCapacitor as any
-      );
+        mockCapacitor as any,
+      mockConnectivity as any);
       sessionCallback({ email: 'session@test.com' });
       await new Promise((r) => setTimeout(r, 0));
       expect(mockSupabase.client.from).toHaveBeenCalledWith('device_tokens');

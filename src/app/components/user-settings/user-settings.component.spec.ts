@@ -44,6 +44,8 @@ describe('UserSettingsComponent', () => {
   let mockUserSessionService: any;
   let mockCapacitorService: any;
   let mockChangeDetectorRef: any;
+  let mockConnectivity: any;
+  let mockToast: any;
 
   beforeEach(() => {
     localStorage.clear();
@@ -144,6 +146,13 @@ describe('UserSettingsComponent', () => {
       markForCheck: vi.fn()
     };
 
+    mockConnectivity = {
+      isOnline: vi.fn(() => true),
+      requireOnline: vi.fn(() => true),
+      isOnline$: { subscribe: vi.fn() },
+    };
+    mockToast = { info: vi.fn(), error: vi.fn(), success: vi.fn(), warning: vi.fn() };
+
     component = new UserSettingsComponent(
       mockThemeService,
       mockTextSizeService,
@@ -157,6 +166,8 @@ describe('UserSettingsComponent', () => {
       mockCapacitorService as CapacitorService,
       mockUserPrayerReminderService as any,
       mockTenantContextService as any,
+      mockConnectivity as any,
+      mockToast as any,
       mockChangeDetectorRef as ChangeDetectorRef
     );
   });

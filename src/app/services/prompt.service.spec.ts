@@ -12,6 +12,7 @@ describe('PromptService', () => {
   let mockToastService: any;
   let mockCacheService: any;
   let mockBadgeService: any;
+  let mockConnectivity: any;
   let consoleErrorSpy: any;
 
   beforeEach(() => {
@@ -26,8 +27,14 @@ describe('PromptService', () => {
     // Mock CacheService
     mockCacheService = {
       get: vi.fn().mockReturnValue(null),
+      getStale: vi.fn().mockReturnValue(null),
       set: vi.fn(),
       invalidate: vi.fn()
+    };
+
+    mockConnectivity = {
+      isOnline: vi.fn(() => true),
+      requireOnline: vi.fn(() => true),
     };
 
     // Mock BadgeService
@@ -42,6 +49,7 @@ describe('PromptService', () => {
 
     // Mock SupabaseService with default responses
     mockSupabaseService = {
+      isNetworkError: vi.fn(() => false),
       client: {
         from: vi.fn((table: string) => {
           if (table === 'prayer_types') {
@@ -88,7 +96,7 @@ describe('PromptService', () => {
       }
     };
 
-    service = new PromptService(mockSupabaseService, mockToastService, mockCacheService, mockBadgeService);
+    service = new PromptService(mockSupabaseService, mockToastService, mockCacheService, mockBadgeService, mockConnectivity);
   });
 
   afterEach(() => {
@@ -115,6 +123,31 @@ describe('PromptService', () => {
 
     it('should expose error$ observable', () => {
       expect(service.error$).toBeDefined();
+    });
+  });
+
+  describe('offline behavior', () => {
+    it('uses stale cache when offline and does not error-toast', async () => {
+      const stale = [{ id: '1', type: 'Healing', title: 'Cached Prompt' }];
+      mockConnectivity.isOnline.mockReturnValue(false);
+      mockCacheService.get.mockReturnValue(null);
+      mockCacheService.getStale.mockReturnValue(stale);
+
+      await service.loadPrompts();
+
+      expect(await firstValueFrom(service.prompts$)).toEqual(stale);
+      expect(mockToastService.error).not.toHaveBeenCalled();
+    });
+
+    it('addPrompt is gated when offline', async () => {
+      mockConnectivity.requireOnline.mockReturnValue(false);
+      const result = await service.addPrompt({
+        title: 'T',
+        type: 'Healing',
+        description: 'D',
+      } as any);
+      expect(result).toBe(false);
+      expect(mockConnectivity.requireOnline).toHaveBeenCalledWith('add a prompt');
     });
   });
 

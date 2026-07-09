@@ -2,6 +2,8 @@ import { bootstrapApplication } from "@angular/platform-browser";
 import { provideRouter, withInMemoryScrolling } from "@angular/router";
 import { provideHttpClient, withXhr } from "@angular/common/http";
 import { provideAnimations } from "@angular/platform-browser/animations";
+import { provideServiceWorker } from "@angular/service-worker";
+import { isDevMode } from "@angular/core";
 
 import { IMAGE_CONFIG } from "@angular/common";
 import { APP_INITIALIZER } from "@angular/core";
@@ -79,6 +81,10 @@ bootstrapApplication(AppComponent, {
     ),
     provideHttpClient(withXhr()),
     provideAnimations(),
+    provideServiceWorker("ngsw-worker.js", {
+      enabled: !isDevMode(),
+      registrationStrategy: "registerWhenStable:30000",
+    }),
     BrandingService,
     { provide: BRANDING_SERVICE_TOKEN, useExisting: BrandingService },
     {

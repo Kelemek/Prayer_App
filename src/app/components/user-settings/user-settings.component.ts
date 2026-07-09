@@ -26,6 +26,8 @@ import { Subject, takeUntil, debounceTime, distinctUntilChanged } from "rxjs";
 import { getUserInfo } from "../../../utils/userInfoStorage";
 import { UserPrayerReminderService } from "../../services/user-prayer-reminder.service";
 import { TenantContextService } from "../../services/tenant-context.service";
+import { ConnectivityService } from "../../services/connectivity.service";
+import { ToastService } from "../../services/toast.service";
 import type { UserPrayerHourReminderSlot } from "../../types/user-prayer-hour-reminder";
 
 type ThemeOption = "light" | "dark" | "system";
@@ -1693,6 +1695,8 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     public capacitorService: CapacitorService,
     private userPrayerReminderService: UserPrayerReminderService,
     private tenantContext: TenantContextService,
+    private connectivity: ConnectivityService,
+    private toast: ToastService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -2183,6 +2187,9 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     ) {
       return;
     }
+    if (!this.connectivity.requireOnline('save settings')) {
+      return;
+    }
     this.receiveNotifications = enabled;
     void this.onNotificationToggle();
   }
@@ -2195,6 +2202,9 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     ) {
       return;
     }
+    if (!this.connectivity.requireOnline('save settings')) {
+      return;
+    }
     this.receivePushNotifications = enabled;
     void this.onPushNotificationToggle();
   }
@@ -2205,6 +2215,9 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
       this.savingBadge ||
       this.badgeFunctionalityEnabled === enabled
     ) {
+      return;
+    }
+    if (!this.connectivity.requireOnline('save settings')) {
       return;
     }
     this.badgeFunctionalityEnabled = enabled;
@@ -2481,6 +2494,10 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
 
     if (!email) {
       this.error = "Email not found. Please log in again.";
+      return;
+    }
+
+    if (!this.connectivity.requireOnline('save settings')) {
       return;
     }
 

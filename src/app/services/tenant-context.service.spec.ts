@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TenantContextService } from './tenant-context.service';
 
 const tenantA = {
@@ -20,13 +20,20 @@ describe('TenantContextService', () => {
   let service: TenantContextService;
   let supabase: any;
   let authIdentity: any;
+  let connectivity: any;
 
   beforeEach(() => {
+    localStorage.clear();
     authIdentity = {
       getEmail: vi.fn().mockResolvedValue('user@example.com')
     };
 
+    connectivity = {
+      isOnline: vi.fn(() => true),
+      requireOnline: vi.fn(() => true),
+    };
     supabase = {
+      isNetworkError: vi.fn(() => false),
       client: {
         auth: {
           getSession: vi.fn().mockResolvedValue({
@@ -39,7 +46,11 @@ describe('TenantContextService', () => {
       }
     };
 
-    service = new TenantContextService(supabase, authIdentity);
+    service = new TenantContextService(supabase, authIdentity, connectivity);
+  });
+
+  afterEach(() => {
+    localStorage.clear();
   });
 
   it('includes membership tenants in switcher options for regular users', async () => {
@@ -143,5 +154,56 @@ describe('TenantContextService', () => {
     await service.refresh();
 
     expect(service.getAccessibleTenants()).toHaveLength(2);
+  });
+
+
+  it('restores tenant snapshot when offline', async () => {
+    connectivity.isOnline.mockReturnValue(true);
+    supabase.client.from.mockImplementation((table: string) => {
+      if (table === 'tenant_memberships') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  tenant_id: tenantA.id,
+                  user_email: 'user@example.com',
+                  role: 'member',
+                  tenants: tenantA
+                }
+              ],
+              error: null
+            })
+          })
+        };
+      }
+      if (table === 'global_roles') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
+              })
+            })
+          })
+        };
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ data: [], error: null })
+        })
+      };
+    });
+
+    await service.refresh();
+    expect(service.getActiveTenant()?.id).toBe(tenantA.id);
+    expect(localStorage.getItem('tenant_context_snapshot')).toBeTruthy();
+
+    connectivity.isOnline.mockReturnValue(false);
+    supabase.client.from.mockClear();
+    await service.refresh();
+
+    expect(service.getActiveTenant()?.id).toBe(tenantA.id);
+    expect(supabase.client.from).not.toHaveBeenCalled();
   });
 });

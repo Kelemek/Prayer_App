@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { SupabaseService } from './supabase.service';
 import { UserSessionService } from './user-session.service';
 import { CapacitorService, PushNotificationToken } from './capacitor.service';
+import { ConnectivityService } from './connectivity.service';
 
 /**
  * Service for managing device tokens and push notification setup
@@ -15,7 +16,8 @@ export class PushNotificationService {
   constructor(
     private supabase: SupabaseService,
     private userSession: UserSessionService,
-    private capacitor: CapacitorService
+    private capacitor: CapacitorService,
+    private connectivity: ConnectivityService
   ) {
     this.setupDeviceTokenHandling();
     this.setupSessionChangeHandling();
@@ -55,6 +57,10 @@ export class PushNotificationService {
    * @param token - The push notification token for this device
    */
   async storeDeviceToken(token: PushNotificationToken): Promise<void> {
+    if (!this.connectivity.isOnline()) {
+      console.log('[PushNotificationService] Skipping device token store while offline');
+      return;
+    }
     try {
       // Prefer session (portal + admin MFA); fall back to localStorage when token arrives before session is loaded
       const sessionEmail = this.userSession.getCurrentSession()?.email?.trim();

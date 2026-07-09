@@ -61,6 +61,7 @@
               "sourceMap": false,
               "namedChunks": false,
               "extractLicenses": true,
+              "serviceWorker": "ngsw-config.json",
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",

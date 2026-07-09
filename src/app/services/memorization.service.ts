@@ -4,6 +4,7 @@ import { SupabaseService } from './supabase.service';
 import { ToastService } from './toast.service';
 import { UserSessionService } from './user-session.service';
 import { TenantContextService } from './tenant-context.service';
+import { ConnectivityService } from './connectivity.service';
 import {
   bibleBooksPlainText,
   bibleBooksReferenceLabel,
@@ -46,7 +47,8 @@ export class MemorizationService {
     private supabase: SupabaseService,
     private toast: ToastService,
     private userSession: UserSessionService,
-    private tenantContext: TenantContextService
+    private tenantContext: TenantContextService,
+    private connectivity: ConnectivityService
   ) {
     this.userSession.userSession$
       .pipe(distinctUntilChanged((a, b) => a?.email === b?.email))
@@ -97,6 +99,11 @@ export class MemorizationService {
       return;
     }
 
+    if (!this.connectivity.isOnline()) {
+      this.loadingSubject.next(false);
+      return;
+    }
+
     this.loadingSubject.next(true);
     try {
       const { data, error } = await this.supabase.client
@@ -111,7 +118,9 @@ export class MemorizationService {
       this.itemsSubject.next(items);
     } catch (err) {
       console.error('[MemorizationService] loadItems failed:', err);
-      this.toast.error('Failed to load memorization list');
+      if (!this.supabase.isNetworkError(err) && this.connectivity.isOnline()) {
+        this.toast.error('Failed to load memorization list');
+      }
     } finally {
       this.loadingSubject.next(false);
     }
@@ -122,6 +131,9 @@ export class MemorizationService {
     text: string,
     translation: BibleTranslation
   ): Promise<AddMemorizedItemOutcome> {
+    if (!this.connectivity.requireOnline('add a verse to memorize')) {
+      return { ok: false, reason: 'db_error' };
+    }
     const normalizedRef = reference.trim();
     if (!normalizedRef) return { ok: false, reason: 'empty_reference' };
     const plain = stripScriptureForMemorization(text);
@@ -170,6 +182,9 @@ export class MemorizationService {
     scope: BibleBooksMemorizationScope,
     translation: BibleTranslation
   ): Promise<AddMemorizedItemOutcome> {
+    if (!this.connectivity.requireOnline('add a memorization item')) {
+      return { ok: false, reason: 'db_error' };
+    }
     const plain = bibleBooksPlainText(scope);
     if (!plain) return { ok: false, reason: 'empty_text' };
 
@@ -208,6 +223,9 @@ export class MemorizationService {
   }
 
   async removeItem(id: string): Promise<boolean> {
+    if (!this.connectivity.requireOnline('remove a memorization item')) {
+      return false;
+    }
     const { error } = await this.supabase.client.from('memorized_items').delete().eq('id', id);
     if (error) {
       console.error('[MemorizationService] removeItem failed:', error);
@@ -219,6 +237,9 @@ export class MemorizationService {
   }
 
   async updatePracticeStats(id: string, result: PracticeSessionResult): Promise<MemorizedItem | null> {
+    if (!this.connectivity.requireOnline('save practice progress')) {
+      return null;
+    }
     const existing = this.items.find((v) => v.id === id);
     if (!existing) return null;
 
@@ -255,6 +276,9 @@ export class MemorizationService {
   }
 
   async saveInProgress(id: string, payload: MemorizationInProgressSavePayload): Promise<void> {
+    if (!this.connectivity.requireOnline('save practice progress')) {
+      return;
+    }
     const inProgress: MemorizationInProgress = {
       ...payload,
       updatedAt: Date.now(),
@@ -275,6 +299,9 @@ export class MemorizationService {
   }
 
   async clearInProgress(id: string): Promise<void> {
+    if (!this.connectivity.requireOnline('update practice progress')) {
+      return;
+    }
     const { error } = await this.supabase.client
       .from('memorized_items')
       .update({ in_progress_practice: null })

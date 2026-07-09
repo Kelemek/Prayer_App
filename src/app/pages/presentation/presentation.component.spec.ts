@@ -19,6 +19,12 @@ function createQuery(result: any) {
   return q;
 }
 
+const connectivityMock = {
+  isOnline: () => true,
+  isOnline$: { subscribe: (fn: any) => { fn(true); return { unsubscribe() {} }; } },
+  requireOnline: () => true,
+};
+
 describe('PresentationComponent', () => {
   let component: PresentationComponent;
   let mockRouter: any;
@@ -43,16 +49,7 @@ describe('PresentationComponent', () => {
       getActiveTenant: () => ({ id: 't1', name: 'T', slug: 't', plan_tier: 'churches' as const, plan_status: 'active' as const }),
       activeTenant$: new BehaviorSubject(null)
     };
-    component = new PresentationComponent(
-      mockRouter,
-      mockSupabase,
-      mockPrayerService,
-      mockThemeService,
-      mockTenantPermissions as any,
-      mockTenantContext as any,
-      cdr,
-      ngZone as any
-    );
+    component = new PresentationComponent(mockRouter, mockSupabase, mockPrayerService, mockThemeService, mockTenantPermissions as any, mockTenantContext as any, connectivityMock, cdr, ngZone as any);
     component.canAccessSharedContent = true;
   });
 
@@ -330,16 +327,7 @@ describe('PresentationComponent', () => {
       activeTenant$: new BehaviorSubject(null)
     };
 
-    component = new PresentationComponent(
-      mockRouter as unknown as Router,
-      mockSupabase as unknown as SupabaseService,
-      mockPrayerService as any,
-      mockThemeService as unknown as ThemeService,
-      mockTenantPermissions as any,
-      mockTenantContext as any,
-      mockCdr as unknown as ChangeDetectorRef,
-      mockNgZone as unknown as NgZone
-    );
+    component = new PresentationComponent(mockRouter as unknown as Router, mockSupabase as unknown as SupabaseService, mockPrayerService as any, mockThemeService as unknown as ThemeService, mockTenantPermissions as any, mockTenantContext as any, connectivityMock, mockCdr as unknown as ChangeDetectorRef, mockNgZone as unknown as NgZone);
     component.canAccessSharedContent = true;
   });
 
@@ -1368,11 +1356,17 @@ describe('PresentationComponent', () => {
       (component as any).countdownSubscription = { unsubscribe: vi.fn() } as any;
       (component as any).initialTimerHandle = setTimeout(() => {}, 1000);
       (component as any).prayerTimerSubscription = { unsubscribe: vi.fn() } as any;
+      const connectivityUnsubscribe = vi.fn();
+      (component as any).connectivitySub = { unsubscribe: connectivityUnsubscribe } as any;
+      const tenantUnsubscribe = vi.fn();
+      (component as any).tenantChangeSub = { unsubscribe: tenantUnsubscribe } as any;
       
       component.ngOnDestroy();
       
       expect((component as any).autoAdvanceInterval).toBeNull();
       expect((component as any).countdownSubscription).toBeNull();
+      expect(connectivityUnsubscribe).toHaveBeenCalled();
+      expect(tenantUnsubscribe).toHaveBeenCalled();
     });
 
     it('loadContent catches errors from fetchPrayers', async () => {

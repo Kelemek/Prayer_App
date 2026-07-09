@@ -64,17 +64,26 @@ export class CacheService {
   }
 
   /**
-   * Initialize in-memory cache from localStorage
+   * Initialize in-memory cache from localStorage (config keys + tenant-scoped keys).
    */
   private initializeFromLocalStorage(): void {
     if (!this.localStorageEnabled) return;
 
     try {
       for (const [, config] of this.cacheConfigs) {
-        const cached = localStorage.getItem(config.key);
-        if (cached) {
-          const parsed = JSON.parse(cached) as CachedData<any>;
-          this.inMemoryCache.set(config.key, parsed);
+        this.hydrateKeyFromLocalStorage(config.key);
+      }
+
+      // Tenant-scoped prayer/prompt caches are stored under dynamic keys
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key) continue;
+        if (
+          key.startsWith('tenant_') ||
+          key.startsWith('personalTenant_') ||
+          key.startsWith('prompts:')
+        ) {
+          this.hydrateKeyFromLocalStorage(key);
         }
       }
     } catch (error) {
@@ -82,30 +91,73 @@ export class CacheService {
     }
   }
 
-  /**
-   * Get cached data by key
-   */
-  get<T>(key: string): T | null {
+  private hydrateKeyFromLocalStorage(storageKey: string): void {
+    if (!this.localStorageEnabled || this.inMemoryCache.has(storageKey)) return;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as CachedData<any>;
+      if (parsed && typeof parsed.timestamp === 'number' && 'data' in parsed) {
+        this.inMemoryCache.set(storageKey, parsed);
+      }
+    } catch {
+      // Ignore corrupt entries
+    }
+  }
+
+  private resolveStorageKey(key: string): string {
     const configKey = key.split('_')[0];
     const config = this.cacheConfigs.get(configKey);
-    const storageKey = config?.key || key;
+    return config?.key || key;
+  }
 
-    const cached = this.inMemoryCache.get(storageKey);
+  private readEntry(storageKey: string): CachedData<any> | null {
+    let cached = this.inMemoryCache.get(storageKey) || null;
+    if (!cached) {
+      this.hydrateKeyFromLocalStorage(storageKey);
+      cached = this.inMemoryCache.get(storageKey) || null;
+    }
+    return cached;
+  }
+
+  /**
+   * Get cached data by key (respects TTL — expired entries are removed).
+   */
+  get<T>(key: string): T | null {
+    const storageKey = this.resolveStorageKey(key);
+    const cached = this.readEntry(storageKey);
 
     if (!cached) {
       return null;
     }
 
-    // Check if cache has expired
+    // Check if cache has expired — drop from memory only; keep localStorage for getStale/offline
     if (this.isExpired(cached)) {
       this.inMemoryCache.delete(storageKey);
-      if (this.localStorageEnabled) {
-        localStorage.removeItem(storageKey);
-      }
       return null;
     }
 
     return cached.data as T;
+  }
+
+  /**
+   * Get cached data even if TTL has expired (for offline read fallback).
+   * Does not delete expired entries.
+   */
+  getStale<T>(key: string): T | null {
+    const storageKey = this.resolveStorageKey(key);
+    const cached = this.readEntry(storageKey);
+    if (!cached) {
+      return null;
+    }
+    return cached.data as T;
+  }
+
+  /**
+   * Whether any cached payload exists for the key (fresh or stale).
+   */
+  hasData(key: string): boolean {
+    return this.getStale(key) !== null;
   }
 
   /**
@@ -114,7 +166,7 @@ export class CacheService {
   set<T>(key: string, data: T, ttl?: number): void {
     const configKey = key.split('_')[0];
     const config = this.cacheConfigs.get(configKey);
-    const storageKey = config?.key || key;
+    const storageKey = this.resolveStorageKey(key);
     const finalTtl = ttl || config?.ttl || 5 * 60 * 1000;
 
     const cached: CachedData<T> = {
@@ -183,11 +235,11 @@ export class CacheService {
    * Invalidate all caches
    */
   invalidateAll(): void {
-    this.inMemoryCache.clear();
-    this.observableCache.clear();
-
     if (this.localStorageEnabled) {
       try {
+        for (const key of this.inMemoryCache.keys()) {
+          localStorage.removeItem(key);
+        }
         for (const [, config] of this.cacheConfigs) {
           localStorage.removeItem(config.key);
         }
@@ -195,6 +247,9 @@ export class CacheService {
         console.warn('Failed to clear localStorage cache:', error);
       }
     }
+
+    this.inMemoryCache.clear();
+    this.observableCache.clear();
   }
 
   /**

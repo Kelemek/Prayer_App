@@ -8,6 +8,7 @@ import { CacheService } from './cache.service';
 import { BadgeService } from './badge.service';
 import { UserSessionService } from './user-session.service';
 import { TenantContextService } from './tenant-context.service';
+import { ConnectivityService } from './connectivity.service';
 import type { Tenant } from '../types/tenant';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -107,7 +108,8 @@ export class PrayerService {
     private cache: CacheService,
     private badgeService: BadgeService,
     private userSessionService: UserSessionService,
-    private tenantContext: TenantContextService
+    private tenantContext: TenantContextService,
+    private connectivity: ConnectivityService
   ) {
     this.initializePrayers();
   }
@@ -175,10 +177,12 @@ export class PrayerService {
       return;
     }
 
-    try {
-      await this.supabase.ensureConnected();
-    } catch (err) {
-      console.debug('[PrayerService] ensureConnected before tenant prayer load failed:', err);
+    if (this.connectivity.isOnline()) {
+      try {
+        await this.supabase.ensureConnected();
+      } catch (err) {
+        console.debug('[PrayerService] ensureConnected before tenant prayer load failed:', err);
+      }
     }
 
     try {
@@ -223,6 +227,22 @@ export class PrayerService {
           console.log('[PrayerService] Cache hit for silent refresh - skipping database query');
           return;
         }
+      }
+
+      // Offline: serve stale cache and skip network
+      if (!this.connectivity.isOnline()) {
+        const stale = this.getStaleSharedPrayers(tenantId);
+        if (stale) {
+          console.log(`[PrayerService] Offline — showing ${stale.length} stale cached prayers`);
+          this.allPrayersSubject.next(stale);
+          this.applyFilters(this.currentFilters);
+        } else {
+          console.log('[PrayerService] Offline with no cached prayers');
+          this.allPrayersSubject.next([]);
+          this.applyFilters(this.currentFilters);
+        }
+        this.errorSubject.next(null);
+        return;
       }
       
       // Only show loading if we need to fetch from DB and it's not a silent refresh
@@ -314,14 +334,20 @@ export class PrayerService {
         : (err instanceof Error ? err.message : 'Failed to load prayers');
       console.error('[PrayerService] Failed to load prayers:', err);
       
-      // Try to load from cache as fallback
+      // Try to load from cache as fallback (including stale when offline / network error)
       const fallbackTenantId = this.getActiveTenantId();
-      const cachedPrayers = fallbackTenantId ? this.getCachedSharedPrayers(fallbackTenantId) : null;
+      const cachedPrayers = fallbackTenantId
+        ? (this.getCachedSharedPrayers(fallbackTenantId) || this.getStaleSharedPrayers(fallbackTenantId))
+        : null;
       if (cachedPrayers && cachedPrayers.length > 0) {
         console.log(`[PrayerService] Showing ${cachedPrayers.length} cached prayers (error fallback)`);
         this.allPrayersSubject.next(cachedPrayers);
         this.applyFilters(this.currentFilters);
         this.errorSubject.next(null); // Clear error to show data silently
+      } else if (this.supabase.isNetworkError(err) || !this.connectivity.isOnline()) {
+        this.errorSubject.next(null);
+        this.allPrayersSubject.next([]);
+        this.applyFilters(this.currentFilters);
       } else {
         // No cache available
         this.errorSubject.next(errorMessage);
@@ -363,16 +389,25 @@ export class PrayerService {
       }
 
       const cacheKey = this.personalPrayersCacheKey(tenantId)!;
-      const cachedPersonalPrayers = this.cache.get<PrayerRequest[]>(cacheKey);
+      const cachedPersonalPrayers =
+        this.cache.get<PrayerRequest[]>(cacheKey) ||
+        (!this.connectivity.isOnline() ? this.cache.getStale<PrayerRequest[]>(cacheKey) : null);
       if (cachedPersonalPrayers && cachedPersonalPrayers.length > 0) {
         console.log(`[PrayerService] Using cached personal prayers (${cachedPersonalPrayers.length} items)`);
         this.allPersonalPrayersSubject.next(cachedPersonalPrayers);
 
-        if (silentRefresh) {
-          console.log('[PrayerService] Cache hit for silent refresh - skipping personal prayers database query');
+        if (silentRefresh || !this.connectivity.isOnline()) {
+          console.log('[PrayerService] Cache hit — skipping personal prayers database query');
           this.loadingPersonalPrayersSubject.next(false);
           return;
         }
+      }
+
+      if (!this.connectivity.isOnline()) {
+        console.log('[PrayerService] Offline with no personal prayer cache');
+        this.allPersonalPrayersSubject.next([]);
+        this.loadingPersonalPrayersSubject.next(false);
+        return;
       }
 
       const { data, error } = await this.supabase.client
@@ -441,7 +476,9 @@ export class PrayerService {
       console.error('[PrayerService] Failed to load personal prayers:', err);
 
       const userEmail = await this.getUserEmail();
-      const cachedPersonalPrayers = this.getPersonalPrayersCached();
+      const cachedPersonalPrayers =
+        this.getPersonalPrayersCached() ||
+        this.getStalePersonalPrayers();
 
       if (cachedPersonalPrayers && cachedPersonalPrayers.length > 0 && userEmail) {
         const allCachedPrayersMatchCurrentUser = cachedPersonalPrayers.every(p => p.email === userEmail);
@@ -620,7 +657,9 @@ export class PrayerService {
       console.log('[PrayerService] Resume refresh: ensuring connection then loading prayers');
       try {
         const tid = this.getActiveTenantId();
-        const cachedPrayers = tid ? this.getCachedSharedPrayers(tid) : null;
+        const cachedPrayers = tid
+          ? (this.getCachedSharedPrayers(tid) || this.getStaleSharedPrayers(tid))
+          : null;
         if (cachedPrayers && cachedPrayers.length > 0) {
           this.allPrayersSubject.next(cachedPrayers);
           this.applyFilters(this.currentFilters);
@@ -628,18 +667,23 @@ export class PrayerService {
       } catch {
         // Cache may throw (e.g. storage unavailable); continue to refresh
       }
+      if (!this.connectivity.isOnline()) {
+        return;
+      }
       await this.supabase.ensureConnected();
       await this.loadPrayers(true);
     } catch (err) {
       console.debug('[PrayerService] Resume refresh failed, keeping cached data visible:', err);
       const tid = this.getActiveTenantId();
-      const cached = tid ? this.getCachedSharedPrayers(tid) : null;
+      const cached = tid
+        ? (this.getCachedSharedPrayers(tid) || this.getStaleSharedPrayers(tid))
+        : null;
       if (cached && cached.length > 0) {
         this.allPrayersSubject.next(cached);
         this.applyFilters(this.currentFilters);
       }
     } finally {
-      if (!this.realtimeChannel) {
+      if (this.connectivity.isOnline() && !this.realtimeChannel) {
         this.setupRealtimeSubscription();
       }
     }
@@ -701,6 +745,9 @@ export class PrayerService {
    * Add a new prayer request
    */
   async addPrayer(prayer: Omit<PrayerRequest, 'id' | 'date_requested' | 'created_at' | 'updated_at' | 'updates'>): Promise<boolean> {
+    if (!this.connectivity.requireOnline('submit a prayer')) {
+      return false;
+    }
     try {
       const tenantId = this.getActiveTenantId();
       if (!tenantId) {
@@ -786,6 +833,9 @@ export class PrayerService {
    * Update prayer status
    */
   async updatePrayerStatus(id: string, status: PrayerStatus): Promise<boolean> {
+    if (!this.connectivity.requireOnline('update prayer status')) {
+      return false;
+    }
     try {
       const tenantId = this.getActiveTenantId();
       let updateQuery = this.supabase.client
@@ -823,6 +873,9 @@ export class PrayerService {
    * @returns The new count, or null on error.
    */
   async incrementPrayedFor(prayerId: string): Promise<number | null> {
+    if (!this.connectivity.requireOnline('mark that you prayed')) {
+      return null;
+    }
     try {
       const { data: newCount, error } = await this.supabase.client
         .rpc('increment_prayed_for_count', { prayer_id: prayerId });
@@ -848,6 +901,9 @@ export class PrayerService {
    * Add an update to a prayer
    */
   async addPrayerUpdate(prayerId: string, content: string, author: string): Promise<boolean> {
+    if (!this.connectivity.requireOnline('add a prayer update')) {
+      return false;
+    }
     try {
       const tenantId = this.getActiveTenantId();
       const { data, error } = await this.supabase.client
@@ -899,6 +955,9 @@ export class PrayerService {
    * Delete a prayer
    */
   async deletePrayer(id: string): Promise<boolean> {
+    if (!this.connectivity.requireOnline('delete a prayer')) {
+      return false;
+    }
     try {
       const tenantId = this.getActiveTenantId();
       let deleteQuery = this.supabase.client
@@ -936,6 +995,9 @@ export class PrayerService {
    * Delete a prayer update
    */
   async deletePrayerUpdate(updateId: string): Promise<boolean> {
+    if (!this.connectivity.requireOnline('delete an update')) {
+      return false;
+    }
     try {
       const tenantId = this.getActiveTenantId();
       let deleteQuery = this.supabase.client
@@ -997,6 +1059,10 @@ export class PrayerService {
    * Set up real-time subscription for prayer changes
    */
   private setupRealtimeSubscription(): void {
+    if (!this.connectivity.isOnline()) {
+      console.log('[PrayerService] Skipping realtime subscription while offline');
+      return;
+    }
     try {
       console.log('[PrayerService] Setting up realtime subscription...');
       
@@ -1076,6 +1142,9 @@ export class PrayerService {
    * Add an update to a prayer with full details
    */
   async addUpdate(updateData: any): Promise<boolean> {
+    if (!this.connectivity.requireOnline('add a prayer update')) {
+      return false;
+    }
     try {
       const tenantId = this.getActiveTenantId();
       const { data, error } = await this.supabase.client
@@ -1130,6 +1199,9 @@ export class PrayerService {
    * Delete an update
    */
   async deleteUpdate(updateId: string): Promise<boolean> {
+    if (!this.connectivity.requireOnline('delete an update')) {
+      return false;
+    }
     try {
       const tenantId = this.getActiveTenantId();
       let deleteQuery = this.supabase.client
@@ -1157,6 +1229,9 @@ export class PrayerService {
    * Request deletion of a prayer
    */
   async requestDeletion(requestData: any): Promise<boolean> {
+    if (!this.connectivity.requireOnline('request deletion')) {
+      return false;
+    }
     try {
       const tenantId = this.getActiveTenantId();
       const fullName = `${requestData.requester_first_name} ${requestData.requester_last_name}`;
@@ -1216,6 +1291,9 @@ export class PrayerService {
    * Request deletion of a prayer update
    */
   async requestUpdateDeletion(requestData: any): Promise<boolean> {
+    if (!this.connectivity.requireOnline('request deletion')) {
+      return false;
+    }
     try {
       const tenantId = this.getActiveTenantId();
       const fullName = `${requestData.requester_first_name} ${requestData.requester_last_name}`;
@@ -1510,6 +1588,9 @@ export class PrayerService {
    * Add a new personal prayer
    */
   async addPersonalPrayer(prayer: Omit<PrayerRequest, 'id' | 'date_requested' | 'created_at' | 'updated_at' | 'updates' | 'approval_status'>): Promise<boolean> {
+    if (!this.connectivity.requireOnline('add a personal prayer')) {
+      return false;
+    }
     try {
       const tenantId = this.getActiveTenantId();
       if (!tenantId) {
@@ -1636,6 +1717,9 @@ export class PrayerService {
    * Delete a personal prayer
    */
   async deletePersonalPrayer(id: string): Promise<boolean> {
+    if (!this.connectivity.requireOnline('delete a personal prayer')) {
+      return false;
+    }
     try {
       const tenantId = this.getActiveTenantId();
       if (!tenantId) {
@@ -1679,6 +1763,9 @@ export class PrayerService {
     id: string,
     updates: Partial<Pick<PrayerRequest, 'title' | 'prayer_for' | 'description' | 'category'>>
   ): Promise<boolean> {
+    if (!this.connectivity.requireOnline('update a personal prayer')) {
+      return false;
+    }
     try {
       const tenantId = this.getActiveTenantId();
       if (!tenantId) {
@@ -1782,6 +1869,9 @@ export class PrayerService {
    * Enforces category range boundaries - reordering stays within that category's range
    */
   async updatePersonalPrayerOrder(prayers: PrayerRequest[], categoryFilter?: string): Promise<boolean> {
+    if (!this.connectivity.requireOnline('reorder personal prayers')) {
+      return false;
+    }
     try {
       const tenantId = this.getActiveTenantId();
       if (!tenantId) {
@@ -1925,6 +2015,9 @@ export class PrayerService {
     prayerId: string,
     updates: Partial<Pick<PrayerUpdate, 'content'>>
   ): Promise<boolean> {
+    if (!this.connectivity.requireOnline('update a personal prayer')) {
+      return false;
+    }
     try {
       const userEmail = await this.getUserEmail();
       if (!userEmail) {
@@ -2015,6 +2108,9 @@ export class PrayerService {
     authorEmail: string,
     markAsAnswered: boolean = false
   ): Promise<boolean> {
+    if (!this.connectivity.requireOnline('add a personal prayer update')) {
+      return false;
+    }
     try {
       const updateData = {
         personal_prayer_id: personalPrayerId,
@@ -2087,6 +2183,9 @@ export class PrayerService {
    * Delete personal prayer update
    */
   async deletePersonalPrayerUpdate(updateId: string): Promise<boolean> {
+    if (!this.connectivity.requireOnline('delete a personal prayer update')) {
+      return false;
+    }
     try {
       const userEmail = await this.getUserEmail();
       if (!userEmail) {
@@ -2125,6 +2224,9 @@ export class PrayerService {
    * Mark personal prayer update as answered
    */
   async markPersonalPrayerUpdateAsAnswered(updateId: string): Promise<boolean> {
+    if (!this.connectivity.requireOnline('update a personal prayer')) {
+      return false;
+    }
     try {
       const { error } = await this.supabase.client
         .from('personal_prayer_updates')
@@ -2163,6 +2265,9 @@ export class PrayerService {
    * Assigns new prefix values to match the desired order
    */
   async reorderCategories(orderedCategories: (string | null)[]): Promise<boolean> {
+    if (!this.connectivity.requireOnline('reorder categories')) {
+      return false;
+    }
     try {
       const tenantId = this.getActiveTenantId();
       if (!tenantId) {
@@ -2345,6 +2450,9 @@ export class PrayerService {
    * Example: If A has 2000-2999 and B has 1000-1999, swapping gives A 1000-1999 and B 2000-2999
    */
   async swapCategoryRanges(categoryA: string | null | undefined, categoryB: string | null | undefined): Promise<boolean> {
+    if (!this.connectivity.requireOnline('reorder categories')) {
+      return false;
+    }
     const tenantId = this.getActiveTenantId();
     if (!tenantId) {
       console.error('[PrayerService] No active tenant for category swap');
@@ -2495,6 +2603,9 @@ export class PrayerService {
    * @param personalPrayerId The ID of the personal prayer to share
    */
   async sharePrayerForApproval(personalPrayerId: string): Promise<string> {
+    if (!this.connectivity.requireOnline('share a prayer')) {
+      return '';
+    }
     try {
       const tenantId = this.getActiveTenantId();
       if (!tenantId) {
@@ -2749,6 +2860,18 @@ export class PrayerService {
     const key = this.sharedPrayersCacheKey(tenantId);
     if (!key) return null;
     return this.cache.get<PrayerRequest[]>(key);
+  }
+
+  private getStaleSharedPrayers(tenantId: string | null | undefined): PrayerRequest[] | null {
+    const key = this.sharedPrayersCacheKey(tenantId);
+    if (!key) return null;
+    return this.cache.getStale<PrayerRequest[]>(key);
+  }
+
+  private getStalePersonalPrayers(): PrayerRequest[] | null {
+    const key = this.personalPrayersCacheKey(this.getActiveTenantId());
+    if (!key) return null;
+    return this.cache.getStale<PrayerRequest[]>(key);
   }
 
   private setCachedSharedPrayers(tenantId: string | null | undefined, prayers: PrayerRequest[]): void {

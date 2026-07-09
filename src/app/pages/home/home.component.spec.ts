@@ -151,7 +151,13 @@ const makeMocks = () => {
     clearInProgress: vi.fn()
   };
 
-  return { prayerService, promptService, adminAuthService, userSessionService, badgeService, cacheService, toastService, analyticsService, cdr, router, supabaseService, tenantPermissionService, tenantContextService, memorizationService, prayersSubject, promptsSubject, userSessionSubject, allPersonalPrayersSubject };
+  const connectivity: any = {
+    isOnline: vi.fn(() => true),
+    isOnline$: new BehaviorSubject(true).asObservable(),
+    requireOnline: vi.fn(() => true),
+  };
+
+  return { prayerService, promptService, adminAuthService, userSessionService, badgeService, cacheService, toastService, analyticsService, cdr, router, supabaseService, tenantPermissionService, tenantContextService, memorizationService, connectivity, prayersSubject, promptsSubject, userSessionSubject, allPersonalPrayersSubject };
 };
 
 let mocks: ReturnType<typeof makeMocks>;
@@ -194,7 +200,8 @@ const createHomeComponent = (
   supabaseService: any,
   tenantPermissionService?: any,
   tenantContextService?: any,
-  memorizationService?: any
+  memorizationService?: any,
+  connectivity?: any
 ) => {
   const m = mocks;
   const comp = new HomeComponent(
@@ -210,6 +217,7 @@ const createHomeComponent = (
     supabaseService,
     tenantPermissionService ?? m.tenantPermissionService,
     tenantContextService ?? m.tenantContextService,
+    connectivity ?? m.connectivity,
     memorizationService ?? m.memorizationService
   );
   const permissions = tenantPermissionService ?? m.tenantPermissionService;

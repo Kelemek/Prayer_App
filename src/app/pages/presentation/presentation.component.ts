@@ -15,6 +15,7 @@ import { PrayerService } from "../../services/prayer.service";
 import { ThemeService } from "../../services/theme.service";
 import { TenantPermissionService } from "../../services/tenant-permission.service";
 import { TenantContextService } from "../../services/tenant-context.service";
+import { ConnectivityService } from "../../services/connectivity.service";
 import { PresentationToolbarComponent } from "../../components/presentation-toolbar/presentation-toolbar.component";
 import { PrayerDisplayCardComponent } from "../../components/prayer-display-card/prayer-display-card.component";
 import { PresentationSettingsModalComponent } from "../../components/presentation-settings-modal/presentation-settings-modal.component";
@@ -63,6 +64,14 @@ type TimeFilter = "week" | "twoweeks" | "month" | "year" | "all";
     <div
       class="w-full min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white relative"
     >
+      @if (!isOnline) {
+      <div
+        class="absolute top-0 left-0 right-0 z-50 border-b border-amber-300 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100"
+        role="status"
+      >
+        You’re offline. Showing previously loaded content.
+      </div>
+      }
       <!-- Loading State -->
       @if (loading) {
       <div class="w-full min-h-screen flex items-center justify-center">
@@ -271,6 +280,7 @@ export class PresentationComponent implements OnInit, OnDestroy {
   showTimerNotification = false;
   showSmartModeDetails = false;
   canAccessSharedContent = false;
+  isOnline = true;
 
   private autoAdvanceInterval: any;
   private countdownSubscription: Subscription | null = null;
@@ -285,6 +295,7 @@ export class PresentationComponent implements OnInit, OnDestroy {
   private readonly minSwipeDistance = 50;
   private readonly doubleTapThreshold = 300;
   private tenantChangeSub?: Subscription;
+  private connectivitySub?: Subscription;
 
   constructor(
     private router: Router,
@@ -293,11 +304,17 @@ export class PresentationComponent implements OnInit, OnDestroy {
     private themeService: ThemeService,
     private tenantPermissions: TenantPermissionService,
     private tenantContext: TenantContextService,
+    private connectivity: ConnectivityService,
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone
   ) {}
 
   ngOnInit(): void {
+    this.isOnline = this.connectivity.isOnline();
+    this.connectivitySub = this.connectivity.isOnline$.subscribe((online) => {
+      this.isOnline = online;
+      this.cdr.markForCheck();
+    });
     this.canAccessSharedContent = this.tenantPermissions.canAccessShared();
     if (!this.canAccessSharedContent) {
       this.contentType = "personal";
@@ -314,6 +331,7 @@ export class PresentationComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.connectivitySub?.unsubscribe();
     this.tenantChangeSub?.unsubscribe();
     this.clearIntervals();
     if (this.initialTimerHandle) {

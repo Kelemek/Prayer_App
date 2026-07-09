@@ -8,10 +8,15 @@ describe('VerificationService', () => {
   let service: VerificationService;
   let supabaseService: SupabaseService;
   let mockTenantContext: { getActiveTenant: ReturnType<typeof vi.fn> };
+  let mockConnectivity: any;
 
   beforeEach(() => {
     mockTenantContext = {
       getActiveTenant: vi.fn(() => ({ id: 'tenant-1' })),
+    };
+    mockConnectivity = {
+      isOnline: vi.fn(() => true),
+      requireOnline: vi.fn(() => true),
     };
 
     // Mock SupabaseService
@@ -19,11 +24,12 @@ describe('VerificationService', () => {
       client: {
         from: vi.fn()
       },
-      describeFunctionInvokeFailure
+      describeFunctionInvokeFailure,
+      isNetworkError: vi.fn(() => false),
     } as any;
 
     // Create service with mocked dependency
-    service = new VerificationService(supabaseService, mockTenantContext as any);
+    service = new VerificationService(supabaseService, mockTenantContext as any, mockConnectivity);
   });
 
   afterEach(() => {
@@ -52,7 +58,7 @@ describe('VerificationService', () => {
         }
       } as any;
 
-      const testService = new VerificationService(mockSupabase, mockTenantContext as any);
+      const testService = new VerificationService(mockSupabase, mockTenantContext as any, mockConnectivity);
 
       // Fast-forward time
       vi.advanceTimersByTime(100);
