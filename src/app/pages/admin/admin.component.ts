@@ -19,6 +19,7 @@ import { PromptManagerComponent } from '../../components/prompt-manager/prompt-m
 import { PrayerTypesManagerComponent } from '../../components/prayer-types-manager/prayer-types-manager.component';
 import { EmailSettingsComponent } from '../../components/email-settings/email-settings.component';
 import { EmailSubscribersComponent } from '../../components/email-subscribers/email-subscribers.component';
+import { AdminSubscriberEmailBroadcastComponent } from '../../components/admin-subscriber-email-broadcast/admin-subscriber-email-broadcast.component';
 import { EmailTemplatesManagerComponent } from '../../components/email-templates-manager/email-templates-manager.component';
 import { AdminUserManagementComponent } from '../../components/admin-user-management/admin-user-management.component';
 import { PrayerSearchComponent } from '../../components/prayer-search/prayer-search.component';
@@ -58,6 +59,7 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
     PrayerTypesManagerComponent,
     EmailSettingsComponent,
     EmailSubscribersComponent,
+    AdminSubscriberEmailBroadcastComponent,
     EmailTemplatesManagerComponent,
     AdminUserManagementComponent,
     PrayerSearchComponent,
@@ -675,6 +677,9 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
               <div class="space-y-6">
                 <div class="mb-4">
                   <app-email-subscribers></app-email-subscribers>
+                </div>
+                <div class="mb-4">
+                  <app-admin-subscriber-email-broadcast></app-admin-subscriber-email-broadcast>
                 </div>
                 <div class="mb-4">
                   <app-email-settings></app-email-settings>

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { markdownToPlainText, markdownToSafeHtml } from './markdown';
+import {
+  htmlToPlainText,
+  markdownToPlainText,
+  markdownToSafeHtml,
+  sanitizeEmailHtml,
+} from './markdown';
 
 describe('markdownToPlainText', () => {
   it('returns empty string for null/undefined/empty input', () => {
@@ -95,5 +100,40 @@ describe('markdownToSafeHtml', () => {
     expect(html).toContain('<blockquote');
     expect(html).toContain('border-left');
     expect(html).toContain('rgba(57, 112, 77, 0.5)');
+  });
+
+  it('allows https images from markdown when present', () => {
+    const html = markdownToSafeHtml('![alt](https://example.com/a.png)');
+    expect(html).toContain('<img');
+    expect(html).toContain('https://example.com/a.png');
+  });
+});
+
+describe('sanitizeEmailHtml', () => {
+  it('returns empty for nullish input', () => {
+    expect(sanitizeEmailHtml(null)).toBe('');
+    expect(sanitizeEmailHtml(undefined)).toBe('');
+    expect(sanitizeEmailHtml('')).toBe('');
+  });
+
+  it('keeps safe marketing HTML and strips scripts', () => {
+    const html = sanitizeEmailHtml(
+      '<p>Friends</p><script>alert(1)</script><img src="https://example.com/marketing.png" alt="Memorize" width="560" />'
+    );
+    expect(html).toContain('<p>Friends</p>');
+    expect(html).toContain('<img');
+    expect(html).toContain('marketing.png');
+    expect(html).not.toContain('<script');
+  });
+});
+
+describe('htmlToPlainText', () => {
+  it('strips tags and keeps readable text', () => {
+    expect(htmlToPlainText('<p>Hello <strong>world</strong></p>')).toBe('Hello world');
+  });
+
+  it('returns empty for nullish input', () => {
+    expect(htmlToPlainText(null)).toBe('');
+    expect(htmlToPlainText(undefined)).toBe('');
   });
 });

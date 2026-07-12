@@ -18,9 +18,10 @@ const ALLOWED_TAGS = [
   'pre',
   'a',
   'hr',
+  'img',
 ];
 
-const ALLOWED_ATTR = ['href', 'title', 'target', 'rel', 'style'];
+const ALLOWED_ATTR = ['href', 'title', 'target', 'rel', 'style', 'src', 'alt', 'width', 'height'];
 
 const SANITIZE_CONFIG = {
   ALLOWED_TAGS,
@@ -40,6 +41,20 @@ function isSafeHref(value: string): boolean {
   return true;
 }
 
+/** Images in email/broadcast HTML: https only, or root-relative paths (not protocol-relative). */
+function isSafeImageSrc(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith('javascript:') || lower.startsWith('vbscript:') || lower.startsWith('data:')) {
+    return false;
+  }
+  if (lower.startsWith('https://')) return true;
+  // Root-relative only (e.g. /marketing/…). Reject //evil.example or http:
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return true;
+  return false;
+}
+
 // Inline styles matter for email clients that ignore <style>/class rules.
 // Kept in sync with `RichTextViewComponent` styles so in-app rendering looks the
 // same whether the CSS class applies (DOM-rendered) or the inline style wins
@@ -49,6 +64,8 @@ const INLINE_STYLES: Record<string, string> = {
     'margin: 0.5rem 0; padding: 0.25rem 0.75rem; border-left: 3px solid rgba(57, 112, 77, 0.5); opacity: 0.9;',
   /** Email clients often ignore default `u` styling; matches `RichTextViewComponent` */
   U: 'text-decoration: underline;',
+  /** Subscriber broadcast / email screenshots — fluid width in narrow mail clients */
+  IMG: 'display:block;max-width:100%;height:auto;border:0;border-radius:8px;margin:12px 0;',
 };
 
 type DomPurifyInstance = {
@@ -64,11 +81,17 @@ function isPassthroughPurify(purify: DomPurifyInstance): boolean {
   return probe.includes('<script');
 }
 
-/** Some DOM implementations (e.g. happy-dom in Vitest) drop allowlisted parents but keep children. */
-function sanitizeLostStructuralTags(rawHtml: string, sanitized: string): boolean {
+/**
+ * Some DOM implementations (e.g. happy-dom in Vitest) drop allowlisted parents but keep
+ * children, or leave forbidden tags when images are present. Prefer the manual allowlist.
+ */
+function sanitizeNeedsAllowlistFallback(rawHtml: string, sanitized: string): boolean {
   const raw = rawHtml.toLowerCase();
   const out = sanitized.toLowerCase();
-  const markers = ['<ul', '<ol', '<blockquote'];
+  if (out.includes('<script') || out.includes('<style')) {
+    return true;
+  }
+  const markers = ['<ul', '<ol', '<blockquote', '<p', '<img'];
   return markers.some((marker) => raw.includes(marker) && !out.includes(marker));
 }
 
@@ -168,6 +191,20 @@ function applyRichHtmlEnhancements(root: ParentNode | null | undefined): void {
       node.setAttribute('style', INLINE_STYLES['BLOCKQUOTE']);
     }
   });
+
+  root.querySelectorAll('img').forEach((node) => {
+    const src = node.getAttribute('src') || '';
+    if (!isSafeImageSrc(src)) {
+      node.remove();
+      return;
+    }
+    if (!node.getAttribute('alt')) {
+      node.setAttribute('alt', '');
+    }
+    if (!node.getAttribute('style')) {
+      node.setAttribute('style', INLINE_STYLES['IMG']);
+    }
+  });
 }
 
 function stripToAllowlistedHtml(html: string, doc: Document): string {
@@ -175,15 +212,43 @@ function stripToAllowlistedHtml(html: string, doc: Document): string {
     return html;
   }
 
-  const template = doc.createElement('template');
-  template.innerHTML = html;
-  const source = template.content ?? template;
+  // Prefer a plain container over <template>: some DOM implementations (happy-dom)
+  // expose incomplete NodeList/NamedNodeMap proxies on template.content.
+  const source = doc.createElement('div');
+  source.innerHTML = html;
+
+  const childList = (node: ParentNode | Element): ChildNode[] => {
+    const list = node.childNodes;
+    if (!list || typeof (list as unknown as { length?: unknown }).length !== 'number') {
+      return [];
+    }
+    try {
+      return Array.from(list);
+    } catch {
+      return [];
+    }
+  };
+
+  const attrList = (el: Element): Attr[] => {
+    const attrs = el.attributes;
+    if (!attrs || typeof (attrs as unknown as { length?: unknown }).length !== 'number') {
+      return [];
+    }
+    try {
+      return Array.from(attrs);
+    } catch {
+      return [];
+    }
+  };
+
+  const TEXT_NODE = 3;
+  const ELEMENT_NODE = 1;
 
   const cloneCleanTree = (node: Node): Node | DocumentFragment | null => {
-    if (node.nodeType === Node.TEXT_NODE) {
+    if (node.nodeType === TEXT_NODE) {
       return doc.createTextNode(node.textContent ?? '');
     }
-    if (node.nodeType !== Node.ELEMENT_NODE) {
+    if (node.nodeType !== ELEMENT_NODE) {
       return null;
     }
 
@@ -191,7 +256,7 @@ function stripToAllowlistedHtml(html: string, doc: Document): string {
     const tag = el.tagName;
     if (!ALLOWED_TAG_SET.has(tag)) {
       const fragment = doc.createDocumentFragment();
-      Array.from(el.childNodes).forEach((child) => {
+      childList(el).forEach((child) => {
         const cleaned = cloneCleanTree(child);
         if (cleaned) {
           fragment.appendChild(cleaned);
@@ -201,16 +266,19 @@ function stripToAllowlistedHtml(html: string, doc: Document): string {
     }
 
     const out = doc.createElement(tag.toLowerCase());
-    Array.from(el.attributes).forEach((attr) => {
+    attrList(el).forEach((attr) => {
       if (!ALLOWED_ATTR.includes(attr.name)) {
         return;
       }
       if (attr.name === 'href' && !isSafeHref(attr.value)) {
         return;
       }
+      if (attr.name === 'src' && !isSafeImageSrc(attr.value)) {
+        return;
+      }
       out.setAttribute(attr.name, attr.value);
     });
-    Array.from(el.childNodes).forEach((child) => {
+    childList(el).forEach((child) => {
       const cleaned = cloneCleanTree(child);
       if (cleaned) {
         out.appendChild(cleaned);
@@ -220,7 +288,7 @@ function stripToAllowlistedHtml(html: string, doc: Document): string {
   };
 
   const container = doc.createElement('div');
-  Array.from(source.childNodes).forEach((child) => {
+  childList(source).forEach((child) => {
     const cleaned = cloneCleanTree(child);
     if (cleaned) {
       container.appendChild(cleaned);
@@ -241,26 +309,57 @@ function postProcessHtml(html: string): string {
   return container.innerHTML;
 }
 
+/**
+ * Sanitize already-authored HTML for email (Admin broadcast HTML paste).
+ * Same allowlist as {@link markdownToSafeHtml} (including safe HTTPS / root-relative images).
+ */
+export function sanitizeEmailHtml(html: string | null | undefined): string {
+  if (!html) return '';
+  const rawHtml = String(html);
+
+  const purify = getDomPurify();
+  let out = purify.sanitize(rawHtml, SANITIZE_CONFIG);
+
+  const useAllowlistFallback =
+    typeof document !== 'undefined' &&
+    (isPassthroughPurify(purify) || sanitizeNeedsAllowlistFallback(rawHtml, out));
+
+  if (useAllowlistFallback) {
+    out = stripToAllowlistedHtml(rawHtml, document);
+  } else {
+    out = postProcessHtml(out);
+  }
+
+  return out;
+}
+
 export function markdownToSafeHtml(markdown: string | null | undefined): string {
   if (!markdown) return '';
   const preprocessed = expandTiptapUnderlineForMarked(markdown);
   const parsed = getMarked().parse(preprocessed, { async: false });
   const rawHtml = typeof parsed === 'string' ? parsed : String(parsed);
+  return sanitizeEmailHtml(rawHtml);
+}
 
-  const purify = getDomPurify();
-  let html = purify.sanitize(rawHtml, SANITIZE_CONFIG);
-
-  const useAllowlistFallback =
-    typeof document !== 'undefined' &&
-    (isPassthroughPurify(purify) || sanitizeLostStructuralTags(rawHtml, html));
-
-  if (useAllowlistFallback) {
-    html = stripToAllowlistedHtml(rawHtml, document);
-  } else {
-    html = postProcessHtml(html);
+/**
+ * Strip tags from HTML for the plain-text MIME part of emails.
+ */
+export function htmlToPlainText(html: string | null | undefined): string {
+  if (!html) return '';
+  const raw = String(html);
+  if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
+    return raw
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
-
-  return html;
+  const el = document.createElement('div');
+  el.innerHTML = raw;
+  el.querySelectorAll('script,style').forEach((node) => node.remove());
+  const text = (el.textContent ?? '').replace(/\u00a0/g, ' ');
+  return text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim();
 }
 
 /**
