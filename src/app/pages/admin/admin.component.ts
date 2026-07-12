@@ -603,6 +603,23 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
                     </div>
                     <div class="text-[10px] leading-tight text-gray-500 dark:text-gray-400 mt-0.5">leader or tenant_admin roles</div>
                   </div>
+                  <!-- Memorize Total -->
+                  <div class="bg-[#F8F7F5] dark:bg-gray-800/60 rounded-md p-2.5 border border-[#D1CCC4] dark:border-gray-600 border-l-[3px] border-l-[#3E5266]">
+                    <div class="flex items-center gap-1.5 mb-1">
+                      <svg class="text-[#3E5266] dark:text-[#A8B8C8]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                        <line x1="8" y1="7" x2="16" y2="7"></line>
+                        <line x1="8" y1="11" x2="16" y2="11"></line>
+                        <line x1="8" y1="15" x2="12" y2="15"></line>
+                      </svg>
+                      <div class="text-xs font-medium text-gray-700 dark:text-gray-200">Total</div>
+                    </div>
+                    <div class="text-xl font-bold leading-tight text-[#3E5266] dark:text-[#A8B8C8]">
+                      {{ analyticsStats.memorizationTotal.toLocaleString() }}
+                    </div>
+                    <div class="text-[10px] leading-tight text-gray-500 dark:text-gray-400 mt-0.5">memorized verses</div>
+                  </div>
                   <!-- Memorize Learning -->
                   <div class="bg-[#F8F7F5] dark:bg-gray-800/60 rounded-md p-2.5 border border-[#D1CCC4] dark:border-gray-600 border-l-[3px] border-l-[#3E5266]">
                     <div class="flex items-center gap-1.5 mb-1">
@@ -795,6 +812,7 @@ export class AdminComponent implements OnInit, OnDestroy {
     archivedPrayers: 0,
     totalTenantMembers: 0,
     tenantLeadersAndAdmins: 0,
+    memorizationTotal: 0,
     memorizationLearning: 0,
     memorizationPracticing: 0,
     memorizationMastered: 0,
@@ -1057,6 +1075,7 @@ export class AdminComponent implements OnInit, OnDestroy {
         archivedPrayers: 0,
         totalTenantMembers: 0,
         tenantLeadersAndAdmins: 0,
+        memorizationTotal: 0,
         memorizationLearning: 0,
         memorizationPracticing: 0,
         memorizationMastered: 0,

@@ -19,6 +19,7 @@ export interface AnalyticsStats {
   totalTenantMembers: number;
   /** Members with leader or tenant_admin role */
   tenantLeadersAndAdmins: number;
+  memorizationTotal: number;
   memorizationLearning: number;
   memorizationPracticing: number;
   memorizationMastered: number;
@@ -175,6 +176,7 @@ export class AnalyticsService {
       archivedPrayers: 0,
       totalTenantMembers: 0,
       tenantLeadersAndAdmins: 0,
+      memorizationTotal: 0,
       memorizationLearning: 0,
       memorizationPracticing: 0,
       memorizationMastered: 0,
@@ -260,7 +262,6 @@ export class AnalyticsService {
           .from('memorized_items')
           .select('practice_sessions')
           .eq('tenant_id', tenantId)
-          .or('kind.eq.verse,kind.is.null')
       ]);
 
       if (totalResult.error) {
@@ -340,6 +341,7 @@ export class AnalyticsService {
             practiceSessions: Array.isArray(row.practice_sessions) ? row.practice_sessions : []
           }))
         );
+        stats.memorizationTotal = rows.length;
         stats.memorizationLearning = mastery.learning;
         stats.memorizationPracticing = mastery.practicing;
         stats.memorizationMastered = mastery.mastered;

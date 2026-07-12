@@ -49,6 +49,7 @@ describe('AdminComponent', () => {
         archivedPrayers: 9,
         totalTenantMembers: 10,
         tenantLeadersAndAdmins: 11,
+        memorizationTotal: 39,
         memorizationLearning: 12,
         memorizationPracticing: 13,
         memorizationMastered: 14,

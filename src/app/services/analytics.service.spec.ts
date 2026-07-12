@@ -344,6 +344,7 @@ describe('AnalyticsService', () => {
         archivedPrayers: 0,
         totalTenantMembers: 0,
         tenantLeadersAndAdmins: 0,
+        memorizationTotal: 0,
         memorizationLearning: 0,
         memorizationPracticing: 0,
         memorizationMastered: 0,
@@ -366,6 +367,7 @@ describe('AnalyticsService', () => {
         archivedPrayers: 0,
         totalTenantMembers: 0,
         tenantLeadersAndAdmins: 0,
+        memorizationTotal: 0,
         memorizationLearning: 0,
         memorizationPracticing: 0,
         memorizationMastered: 0,
@@ -389,6 +391,7 @@ describe('AnalyticsService', () => {
           archivedPrayers: expect.any(Number),
           totalTenantMembers: expect.any(Number),
           tenantLeadersAndAdmins: expect.any(Number),
+          memorizationTotal: expect.any(Number),
           memorizationLearning: expect.any(Number),
           memorizationPracticing: expect.any(Number),
           memorizationMastered: expect.any(Number),
@@ -430,6 +433,7 @@ describe('AnalyticsService', () => {
 
       const stats = await service.getStats(TEST_TENANT_ID);
 
+      expect(stats.memorizationTotal).toBe(4);
       expect(stats.memorizationLearning).toBe(2);
       expect(stats.memorizationPracticing).toBe(1);
       expect(stats.memorizationMastered).toBe(1);
