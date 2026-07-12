@@ -9,7 +9,7 @@ import {
   pickHiddenWordIndices,
   MEMORIZATION_FULL_HIDE_ROUND,
 } from './memorizationPracticeUtils';
-import { getMasterLevel, countCompletedSessions } from './memorization-mastery';
+import { getMasterLevel, countCompletedSessions, countByMasterLevel, masterLevelFromCompletedCount } from './memorization-mastery';
 import type { MemorizedItem } from '../../types/memorization';
 
 describe('memorizationPracticeUtils', () => {
@@ -107,5 +107,30 @@ describe('memorization-mastery', () => {
         ],
       })
     ).toBe(1);
+  });
+
+  it('masterLevelFromCompletedCount uses 3 and 9 thresholds', () => {
+    expect(masterLevelFromCompletedCount(0)).toBe('learning');
+    expect(masterLevelFromCompletedCount(2)).toBe('learning');
+    expect(masterLevelFromCompletedCount(3)).toBe('practicing');
+    expect(masterLevelFromCompletedCount(8)).toBe('practicing');
+    expect(masterLevelFromCompletedCount(9)).toBe('mastered');
+  });
+
+  it('countByMasterLevel aggregates learning / practicing / mastered', () => {
+    const sessions = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        date: i,
+        wrongAttempts: 0,
+        correctKeystrokes: 1,
+        completed: true,
+      }));
+    expect(
+      countByMasterLevel([
+        { practiceSessions: sessions(1) },
+        { practiceSessions: sessions(4) },
+        { practiceSessions: sessions(12) },
+      ])
+    ).toEqual({ learning: 1, practicing: 1, mastered: 1 });
   });
 });

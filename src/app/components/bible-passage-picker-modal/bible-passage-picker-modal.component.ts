@@ -214,11 +214,11 @@ const TESTAMENT_KEY = 'prayer_app_memorize_add_testament';
           <div class="shrink-0 pt-4">
             <button
               type="button"
-              [disabled]="!canConfirm || submitting"
+              [disabled]="!canConfirm || submitting || busy"
               (click)="confirm()"
               class="w-full py-2.5 rounded-lg font-medium transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700 hover:border-blue-300 dark:hover:border-blue-600 disabled:hover:bg-blue-100 dark:disabled:hover:bg-blue-900/40 disabled:hover:border-blue-200 dark:disabled:hover:border-blue-700"
             >
-              {{ submitting ? 'Adding…' : confirmLabel }}
+              {{ submitting || busy ? 'Adding…' : confirmLabel }}
             </button>
           </div>
         </div>
@@ -232,6 +232,8 @@ export class BiblePassagePickerModalComponent implements OnChanges {
 
   @Input() isOpen = false;
   @Input() confirmLabel = 'Add';
+  /** Parent-driven busy state (e.g. validating/saving after confirm). */
+  @Input() busy = false;
   @Output() close = new EventEmitter<void>();
   @Output() confirmed = new EventEmitter<string>();
   @Output() translationChange = new EventEmitter<BibleTranslation>();
@@ -277,6 +279,7 @@ export class BiblePassagePickerModalComponent implements OnChanges {
       this.selectedChapterNum !== null &&
       this.verseStart !== null &&
       !this.submitting &&
+      !this.busy &&
       this.verseCount !== null &&
       this.verseCount > 0
     );

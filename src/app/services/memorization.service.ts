@@ -128,16 +128,16 @@ export class MemorizationService {
 
   async addVerse(
     reference: string,
-    text: string,
-    translation: BibleTranslation
+    translation: BibleTranslation,
+    text = ''
   ): Promise<AddMemorizedItemOutcome> {
     if (!this.connectivity.requireOnline('add a verse to memorize')) {
       return { ok: false, reason: 'db_error' };
     }
     const normalizedRef = reference.trim();
     if (!normalizedRef) return { ok: false, reason: 'empty_reference' };
-    const plain = stripScriptureForMemorization(text);
-    if (!plain) return { ok: false, reason: 'empty_text' };
+    // Prefer storing validated passage text so practice can fall back offline.
+    const plain = text ? stripScriptureForMemorization(text) : '';
 
     const dup = this.items.some(
       (v) =>

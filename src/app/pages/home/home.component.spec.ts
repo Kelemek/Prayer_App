@@ -148,7 +148,19 @@ const makeMocks = () => {
     removeItem: vi.fn(),
     updatePracticeStats: vi.fn(),
     saveInProgress: vi.fn(),
-    clearInProgress: vi.fn()
+    clearInProgress: vi.fn(),
+    addVerse: vi.fn(),
+  };
+
+  const memorizationRecommendationsService: any = {
+    items$: new BehaviorSubject([]).asObservable(),
+    loading$: of(false),
+    load: vi.fn().mockResolvedValue([]),
+    groupedSnapshot: [],
+  };
+
+  const scriptureService: any = {
+    getPassage: vi.fn().mockResolvedValue({ text: 'For God so loved the world' }),
   };
 
   const connectivity: any = {
@@ -157,7 +169,7 @@ const makeMocks = () => {
     requireOnline: vi.fn(() => true),
   };
 
-  return { prayerService, promptService, adminAuthService, userSessionService, badgeService, cacheService, toastService, analyticsService, cdr, router, supabaseService, tenantPermissionService, tenantContextService, memorizationService, connectivity, prayersSubject, promptsSubject, userSessionSubject, allPersonalPrayersSubject };
+  return { prayerService, promptService, adminAuthService, userSessionService, badgeService, cacheService, toastService, analyticsService, cdr, router, supabaseService, tenantPermissionService, tenantContextService, memorizationService, memorizationRecommendationsService, scriptureService, connectivity, prayersSubject, promptsSubject, userSessionSubject, allPersonalPrayersSubject };
 };
 
 let mocks: ReturnType<typeof makeMocks>;
@@ -201,7 +213,9 @@ const createHomeComponent = (
   tenantPermissionService?: any,
   tenantContextService?: any,
   memorizationService?: any,
-  connectivity?: any
+  connectivity?: any,
+  memorizationRecommendationsService?: any,
+  scriptureService?: any
 ) => {
   const m = mocks;
   const comp = new HomeComponent(
@@ -218,7 +232,9 @@ const createHomeComponent = (
     tenantPermissionService ?? m.tenantPermissionService,
     tenantContextService ?? m.tenantContextService,
     connectivity ?? m.connectivity,
-    memorizationService ?? m.memorizationService
+    memorizationService ?? m.memorizationService,
+    memorizationRecommendationsService ?? m.memorizationRecommendationsService,
+    scriptureService ?? m.scriptureService
   );
   const permissions = tenantPermissionService ?? m.tenantPermissionService;
   comp.canAccessShared = permissions.canAccessShared();
@@ -3017,5 +3033,89 @@ describe('HomeComponent', () => {
       expect(comp).toBeDefined();
     });
 
+  });
+
+  describe('memorization keyboard bridge', () => {
+    it('openMemorizationPractice primes the keyboard bridge for in-progress type mode', () => {
+      const mocks = makeMocks();
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.supabaseService
+      );
+
+      const bridge = document.createElement('input');
+      const focusSpy = vi.spyOn(bridge, 'focus');
+      const clickSpy = vi.spyOn(bridge, 'click');
+      (comp as any).memorizeKeyboardBridge = { nativeElement: bridge };
+
+      const item = {
+        id: 'v1',
+        reference: 'John 3:16',
+        text: '',
+        translation: 'esv',
+        dateAdded: 1,
+        lastPracticedAt: null,
+        practiceSessions: [],
+        inProgressPractice: {
+          sessionSeed: 's',
+          wrongAttempts: 0,
+          correctKeystrokes: 1,
+          updatedAt: 1,
+          phase: { kind: 'inRound', roundIndex: 1 },
+          practiceMode: 'type',
+        },
+      } as any;
+
+      comp.openMemorizationPractice(item);
+
+      expect(focusSpy).toHaveBeenCalled();
+      expect(clickSpy).toHaveBeenCalled();
+      expect(comp.practiceMemorizedItem).toEqual(item);
+      focusSpy.mockRestore();
+      clickSpy.mockRestore();
+    });
+
+    it('openMemorizationPractice does not prime the keyboard bridge for a fresh verse', () => {
+      const mocks = makeMocks();
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.supabaseService
+      );
+
+      const bridge = document.createElement('input');
+      const focusSpy = vi.spyOn(bridge, 'focus');
+      (comp as any).memorizeKeyboardBridge = { nativeElement: bridge };
+
+      const item = {
+        id: 'v1',
+        reference: 'John 3:16',
+        text: '',
+        translation: 'esv',
+        dateAdded: 1,
+        lastPracticedAt: null,
+        practiceSessions: [],
+      } as any;
+
+      comp.openMemorizationPractice(item);
+
+      expect(focusSpy).not.toHaveBeenCalled();
+      focusSpy.mockRestore();
+    });
   });
 });

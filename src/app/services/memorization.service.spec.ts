@@ -64,7 +64,7 @@ describe('MemorizationService', () => {
       },
     ]);
 
-    const result = await service.addVerse('John 3:16', 'For God so loved', 'esv');
+    const result = await service.addVerse('John 3:16', 'esv');
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe('duplicate');
   });

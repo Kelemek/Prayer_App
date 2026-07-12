@@ -12,6 +12,7 @@ function createThenableChain(result: { count: number | null; error: Error | null
   chain.select = vi.fn(() => chain);
   chain.eq = vi.fn(() => chain);
   chain.in = vi.fn(() => chain);
+  chain.or = vi.fn(() => chain);
   chain.gte = vi.fn(() => chain);
   chain.insert = vi.fn(() => Promise.resolve({ data: null, error: null }));
   chain.update = vi.fn(() => ({
@@ -32,7 +33,12 @@ describe('AnalyticsService', () => {
   beforeEach(() => {
     mockSupabaseClient = {
       from: vi.fn((table: string) => {
-        if (table === 'analytics' || table === 'prayers' || table === 'tenant_memberships') {
+        if (
+          table === 'analytics' ||
+          table === 'prayers' ||
+          table === 'tenant_memberships' ||
+          table === 'memorized_items'
+        ) {
           return createThenableChain();
         }
         return {
@@ -338,6 +344,9 @@ describe('AnalyticsService', () => {
         archivedPrayers: 0,
         totalTenantMembers: 0,
         tenantLeadersAndAdmins: 0,
+        memorizationLearning: 0,
+        memorizationPracticing: 0,
+        memorizationMastered: 0,
         loading: false
       });
     });
@@ -357,6 +366,9 @@ describe('AnalyticsService', () => {
         archivedPrayers: 0,
         totalTenantMembers: 0,
         tenantLeadersAndAdmins: 0,
+        memorizationLearning: 0,
+        memorizationPracticing: 0,
+        memorizationMastered: 0,
         loading: false
       });
     });
@@ -377,9 +389,50 @@ describe('AnalyticsService', () => {
           archivedPrayers: expect.any(Number),
           totalTenantMembers: expect.any(Number),
           tenantLeadersAndAdmins: expect.any(Number),
+          memorizationLearning: expect.any(Number),
+          memorizationPracticing: expect.any(Number),
+          memorizationMastered: expect.any(Number),
           loading: false
         })
       );
+    });
+
+    it('should aggregate memorization mastery counts for the tenant', async () => {
+      const completed = (n: number) =>
+        Array.from({ length: n }, (_, i) => ({
+          date: i,
+          wrongAttempts: 0,
+          correctKeystrokes: 1,
+          completed: true
+        }));
+
+      mockSupabaseClient.from = vi.fn((table: string) => {
+        if (table === 'memorized_items') {
+          const p = Promise.resolve({
+            data: [
+              { practice_sessions: completed(1) },
+              { practice_sessions: completed(5) },
+              { practice_sessions: completed(10) },
+              { practice_sessions: null }
+            ],
+            error: null
+          });
+          const chain: Record<string, unknown> = {};
+          chain.select = vi.fn(() => chain);
+          chain.eq = vi.fn(() => chain);
+          chain.or = vi.fn(() => chain);
+          chain.then = (onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) =>
+            p.then(onFulfilled, onRejected);
+          return chain;
+        }
+        return createThenableChain();
+      });
+
+      const stats = await service.getStats(TEST_TENANT_ID);
+
+      expect(stats.memorizationLearning).toBe(2);
+      expect(stats.memorizationPracticing).toBe(1);
+      expect(stats.memorizationMastered).toBe(1);
     });
 
     it('should handle errors for individual stat queries', async () => {

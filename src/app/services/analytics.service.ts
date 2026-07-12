@@ -1,4 +1,6 @@
 import { Injectable } from '@angular/core';
+import { countByMasterLevel } from '../lib/memorization/memorization-mastery';
+import type { MemorizationPracticeSessionRecord } from '../types/memorization';
 import { SupabaseService } from './supabase.service';
 import { UserSessionService } from './user-session.service';
 import { TenantContextService } from './tenant-context.service';
@@ -17,6 +19,9 @@ export interface AnalyticsStats {
   totalTenantMembers: number;
   /** Members with leader or tenant_admin role */
   tenantLeadersAndAdmins: number;
+  memorizationLearning: number;
+  memorizationPracticing: number;
+  memorizationMastered: number;
   loading: boolean;
 }
 
@@ -170,6 +175,9 @@ export class AnalyticsService {
       archivedPrayers: 0,
       totalTenantMembers: 0,
       tenantLeadersAndAdmins: 0,
+      memorizationLearning: 0,
+      memorizationPracticing: 0,
+      memorizationMastered: 0,
       loading: true
     };
 
@@ -227,7 +235,8 @@ export class AnalyticsService {
         answeredPrayersResult,
         archivedPrayersResult,
         membersResult,
-        leadersResult
+        leadersResult,
+        memorizedResult
       ] = await Promise.all([
         analyticsBase(),
         analyticsBase().gte('created_at', todayStartISO),
@@ -246,7 +255,12 @@ export class AnalyticsService {
           .from('tenant_memberships')
           .select('*', { count: 'exact', head: true })
           .eq('tenant_id', tenantId)
-          .in('role', ['leader', 'tenant_admin'])
+          .in('role', ['leader', 'tenant_admin']),
+        this.supabase.client
+          .from('memorized_items')
+          .select('practice_sessions')
+          .eq('tenant_id', tenantId)
+          .or('kind.eq.verse,kind.is.null')
       ]);
 
       if (totalResult.error) {
@@ -313,6 +327,22 @@ export class AnalyticsService {
         console.error('Error fetching leaders/admins count:', leadersResult.error);
       } else {
         stats.tenantLeadersAndAdmins = leadersResult.count || 0;
+      }
+
+      if (memorizedResult.error) {
+        console.error('Error fetching memorized items for mastery counts:', memorizedResult.error);
+      } else {
+        const rows = (memorizedResult.data ?? []) as Array<{
+          practice_sessions?: MemorizationPracticeSessionRecord[] | null;
+        }>;
+        const mastery = countByMasterLevel(
+          rows.map((row) => ({
+            practiceSessions: Array.isArray(row.practice_sessions) ? row.practice_sessions : []
+          }))
+        );
+        stats.memorizationLearning = mastery.learning;
+        stats.memorizationPracticing = mastery.practicing;
+        stats.memorizationMastered = mastery.mastered;
       }
     } catch (error) {
       console.error('Error fetching analytics stats:', error);

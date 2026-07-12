@@ -3,6 +3,8 @@ import {
   OnInit,
   OnDestroy,
   ChangeDetectionStrategy,
+  ElementRef,
+  ViewChild,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
@@ -49,13 +51,23 @@ import { TenantPermissionService } from "../../services/tenant-permission.servic
 import { TenantContextService } from "../../services/tenant-context.service";
 import { ConnectivityService } from "../../services/connectivity.service";
 import { MemorizationService } from "../../services/memorization.service";
+import { MemorizationRecommendationsService } from "../../services/memorization-recommendations.service";
+import { ScriptureService } from "../../services/scripture.service";
 import { MemorizationActionBarComponent } from "../../components/memorization-action-bar/memorization-action-bar.component";
 import { MemorizedVerseCardComponent } from "../../components/memorized-verse-card/memorized-verse-card.component";
+import { MemorizationRecommendationsModalComponent } from "../../components/memorization-recommendations-modal/memorization-recommendations-modal.component";
 import { AddMemorizedVerseModalComponent } from "../../components/add-memorized-verse-modal/add-memorized-verse-modal.component";
 import { AddMemorizedBibleBooksModalComponent } from "../../components/add-memorized-bible-books-modal/add-memorized-bible-books-modal.component";
 import { MemorizationPracticeSessionComponent } from "../../components/memorization-practice-session/memorization-practice-session.component";
 import { groupItemsByMasterLevel } from "../../lib/memorization/memorization-mastery";
-import type { MemorizedItem, MemorizationInProgressSavePayload, BibleTranslation } from "../../types/memorization";
+import { memorizationNeedsKeyboardOnOpen } from "../../lib/memorization/memorizationKeyboardPractice";
+import type {
+  MemorizedItem,
+  MemorizationInProgressSavePayload,
+  BibleTranslation,
+  MemorizationRecommendation,
+  MemorizationRecommendationCategoryGroup,
+} from "../../types/memorization";
 import {
   BRANDING_CACHE_KEYS,
   getBrandingCacheKey,
@@ -83,15 +95,80 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
     PullToRefreshDirective,
     MemorizationActionBarComponent,
     MemorizedVerseCardComponent,
+    MemorizationRecommendationsModalComponent,
     AddMemorizedVerseModalComponent,
     AddMemorizedBibleBooksModalComponent,
     MemorizationPracticeSessionComponent,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
+  styles: [
+    `
+      /*
+        Always-mounted bridge for resume keyboard open. WebKit only opens the software
+        keyboard when focus happens on an already-present field inside the user gesture;
+        newly created session inputs are too late after close→reopen.
+      */
+      .memorize-keyboard-bridge {
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        height: 1px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: transparent;
+        caret-color: transparent;
+        outline: none;
+        box-shadow: none;
+        opacity: 0.01;
+        font-size: 16px;
+        overflow: hidden;
+        z-index: 0;
+        -webkit-appearance: none;
+        appearance: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .memorize-keyboard-bridge:focus {
+        outline: none;
+        box-shadow: none;
+      }
+      .memorize-keyboard-bridge::-webkit-contacts-auto-fill-button,
+      .memorize-keyboard-bridge::-webkit-credentials-auto-fill-button {
+        visibility: hidden;
+        display: none !important;
+        pointer-events: none;
+        position: absolute;
+        right: 0;
+        opacity: 0;
+      }
+    `,
+  ],
   template: `
     <div
       class="main-page-shell w-full min-h-screen bg-gray-50 dark:bg-gray-900"
     >
+      <!-- Pre-mounted so resume can focus inside the verse-card tap (iOS keyboard). -->
+      <form autocomplete="off" class="contents" (submit)="$event.preventDefault()">
+        <input
+          #memorizeKeyboardBridge
+          type="text"
+          name="search"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          enterkeyhint="done"
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-form-type="other"
+          aria-hidden="true"
+          tabindex="-1"
+          class="memorize-keyboard-bridge"
+          data-testid="memorize-keyboard-bridge"
+        />
+      </form>
       @if (!isOnline) {
       <div
         class="sticky top-0 z-40 border-b border-amber-300 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100"
@@ -876,6 +953,7 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
             <app-memorization-action-bar
               (addVerses)="showAddMemorizedVerse = true"
               (addBibleBooks)="showAddMemorizedBibleBooks = true"
+              (openRecommended)="openMemorizationRecommendations()"
             />
             @if (!(memorizationService.loading$ | async) && memorizedItems.length
             === 0) {
@@ -886,7 +964,7 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
                 No memorized passages yet
               </h3>
               <p class="text-gray-500 dark:text-gray-400">
-                Add verses or Bible books to start practicing.
+                Add verses, Bible books, or pick from Recommended to start practicing.
               </p>
             </div>
             } @if (memorizedLearning.length > 0) {
@@ -1021,6 +1099,15 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
         [translation]="preferredBibleTranslation"
         (onClose)="showAddMemorizedBibleBooks = false"
       />
+      <app-memorization-recommendations-modal
+        [isOpen]="showMemorizationRecommendations"
+        [groups]="memorizationRecommendationGroups"
+        [alreadyAddedReferences]="memorizationRecommendationOwnedKeys"
+        [busyId]="addingRecommendationId"
+        [loading]="!!(memorizationRecommendationsService.loading$ | async)"
+        (onClose)="showMemorizationRecommendations = false"
+        (add)="addRecommendedVerse($event)"
+      />
       @if (practiceMemorizedItem) {
       <app-memorization-practice-session
         [item]="practiceMemorizedItem"
@@ -1048,6 +1135,9 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
   `,
 })
 export class HomeComponent implements OnInit, OnDestroy {
+  @ViewChild("memorizeKeyboardBridge")
+  private memorizeKeyboardBridge?: ElementRef<HTMLInputElement>;
+
   prayers$!: Observable<PrayerRequest[]>;
   prompts$!: Observable<PrayerPrompt[]>;
   loading$!: Observable<boolean>;
@@ -1076,8 +1166,12 @@ export class HomeComponent implements OnInit, OnDestroy {
   memorizedLearning: MemorizedItem[] = [];
   memorizedPracticing: MemorizedItem[] = [];
   memorizedMastered: MemorizedItem[] = [];
+  memorizationRecommendationGroups: MemorizationRecommendationCategoryGroup[] = [];
+  memorizationRecommendationOwnedKeys = new Set<string>();
+  addingRecommendationId: string | null = null;
   showAddMemorizedVerse = false;
   showAddMemorizedBibleBooks = false;
+  showMemorizationRecommendations = false;
   practiceMemorizedItem: MemorizedItem | null = null;
   showRemoveMemorizedConfirm = false;
   memorizedItemToRemove: MemorizedItem | null = null;
@@ -1158,7 +1252,9 @@ export class HomeComponent implements OnInit, OnDestroy {
     private tenantPermissionService: TenantPermissionService,
     private tenantContextService: TenantContextService,
     private connectivity: ConnectivityService,
-    public memorizationService: MemorizationService
+    public memorizationService: MemorizationService,
+    public memorizationRecommendationsService: MemorizationRecommendationsService,
+    private scriptureService: ScriptureService
   ) {
     const windowCache = (window as { __cachedLogos?: { tenantId?: string | null; useLogo?: boolean } }).__cachedLogos;
     const tenantId = localStorage.getItem("active_tenant_id");
@@ -1343,6 +1439,19 @@ export class HomeComponent implements OnInit, OnDestroy {
         this.memorizedLearning = grouped.learning;
         this.memorizedPracticing = grouped.practicing;
         this.memorizedMastered = grouped.mastered;
+        this.memorizationRecommendationOwnedKeys = new Set(
+          items
+            .filter((item) => item.kind === "verse" || item.kind == null)
+            .map((item) => `${item.translation}:${item.reference}`)
+        );
+        this.cdr.markForCheck();
+      });
+
+    this.memorizationRecommendationsService.items$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.memorizationRecommendationGroups =
+          this.memorizationRecommendationsService.groupedSnapshot;
         this.cdr.markForCheck();
       });
 
@@ -2111,8 +2220,103 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   openMemorizationPractice(item: MemorizedItem): void {
+    // Focus a pre-mounted bridge input *before* creating the session. iOS only opens
+    // the keyboard when focus happens on an already-present field in the tap gesture;
+    // a newly mounted practice input after close→reopen is too late.
+    if (memorizationNeedsKeyboardOnOpen(item)) {
+      this.primeMemorizeKeyboardBridge();
+    }
     this.practiceMemorizedItem = item;
+    // Sync CD so the practice session mounts inside the same user-gesture turn.
     this.cdr.markForCheck();
+    try {
+      this.cdr.detectChanges();
+    } catch {
+      // Test doubles / detached views may not support full CD.
+    }
+  }
+
+  /** Keep the software keyboard open across close→reopen for type/initials resume. */
+  private primeMemorizeKeyboardBridge(): void {
+    const input = this.memorizeKeyboardBridge?.nativeElement;
+    if (!input) return;
+    try {
+      input.focus({ preventScroll: true });
+    } catch {
+      try {
+        input.focus();
+      } catch {
+        return;
+      }
+    }
+    try {
+      input.click();
+    } catch {
+      // ignore
+    }
+  }
+
+  openMemorizationRecommendations(): void {
+    this.showMemorizationRecommendations = true;
+    this.cdr.markForCheck();
+    void this.memorizationRecommendationsService.load(true).then(() => {
+      this.memorizationRecommendationGroups =
+        this.memorizationRecommendationsService.groupedSnapshot;
+      this.cdr.markForCheck();
+    });
+  }
+
+  isRecommendationAlreadyAdded(rec: MemorizationRecommendation): boolean {
+    return this.memorizedItems.some(
+      (item) =>
+        (item.kind === "verse" || item.kind == null) &&
+        item.reference === rec.reference &&
+        item.translation === rec.translation
+    );
+  }
+
+  async addRecommendedVerse(rec: MemorizationRecommendation): Promise<void> {
+    if (this.addingRecommendationId || this.isRecommendationAlreadyAdded(rec)) {
+      return;
+    }
+    this.addingRecommendationId = rec.id;
+    this.cdr.markForCheck();
+    try {
+      // Validate the passage resolves before saving a reference-only row.
+      const passage = await this.scriptureService.getPassage(
+        rec.reference,
+        rec.translation
+      );
+      const text = passage.text?.trim();
+      if (!text) {
+        this.toastService.error("No text returned for this passage.");
+        return;
+      }
+      const result = await this.memorizationService.addVerse(
+        rec.reference,
+        rec.translation,
+        text
+      );
+      if (result.ok) {
+        this.toastService.success("Added to memorization list.");
+      } else if (result.reason === "duplicate") {
+        this.toastService.error(
+          "This passage is already in your memorization list."
+        );
+      } else if (result.reason === "no_user") {
+        this.toastService.error("Sign in to add verses to memorize.");
+      } else if (result.reason === "no_tenant") {
+        this.toastService.error("Select an organization to memorize verses.");
+      } else {
+        this.toastService.error("Could not save this passage.");
+      }
+    } catch (e) {
+      console.error(e);
+      this.toastService.error("Could not save this passage.");
+    } finally {
+      this.addingRecommendationId = null;
+      this.cdr.markForCheck();
+    }
   }
 
   closeMemorizationPractice(): void {

@@ -97,3 +97,51 @@ export const BIBLE_TRANSLATION_LABELS: Record<BibleTranslation, string> = {
   nlt: 'NLT',
   csb: 'CSB',
 };
+
+/** Admin-curated category for Memorize recommendation verses (tenant-scoped). */
+export interface MemorizationRecommendationCategory {
+  id: string;
+  tenantId: string;
+  name: string;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MemorizationRecommendationCategoryRow {
+  id: string;
+  tenant_id: string;
+  name: string;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Admin-curated verse shown on the Memorize tab as a recommendation. */
+export interface MemorizationRecommendation {
+  id: string;
+  tenantId: string;
+  reference: string;
+  translation: BibleTranslation;
+  categoryId: string;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MemorizationRecommendationRow {
+  id: string;
+  tenant_id: string;
+  reference: string;
+  translation: string;
+  category_id: string;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Category with its verses, ordered for the Recommended modal / admin UI. */
+export interface MemorizationRecommendationCategoryGroup {
+  category: MemorizationRecommendationCategory;
+  items: MemorizationRecommendation[];
+}

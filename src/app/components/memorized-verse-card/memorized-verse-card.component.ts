@@ -6,39 +6,47 @@ import {
 } from '../../lib/memorization/bibleBooksMemorization';
 import { getMasterLevel } from '../../lib/memorization/memorization-mastery';
 import type { MemorizedItem } from '../../types/memorization';
+import { ScriptureHoverPreviewComponent } from '../scripture-hover-preview/scripture-hover-preview.component';
 
 @Component({
   selector: 'app-memorized-verse-card',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, ScriptureHoverPreviewComponent],
   template: `
     <div
       class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 mb-3 overflow-hidden"
       role="listitem"
     >
       <div class="flex">
-        <button
-          type="button"
-          (click)="practice.emit(item)"
-          class="min-w-0 flex-1 text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
+        <app-scripture-hover-preview
+          class="min-w-0 flex-1"
+          [reference]="item.reference"
+          [translation]="item.translation"
+          [disabled]="isBibleBooksMemorizationItem(item)"
         >
-          <span class="font-semibold text-gray-900 dark:text-gray-100 block truncate">
-            {{ item.reference }}
-          </span>
-          <span class="text-xs text-gray-600 dark:text-gray-400 mt-0.5 block">
-            @if (isBibleBooksMemorizationItem(item)) {
-              {{ bibleBooksCountLabel(item.bibleBooksScope!) }}
-            } @else {
-              {{ item.translation.toUpperCase() }}
-            }
-            @if (item.lastPracticedAt) {
-              · Last: {{ formatDate(item.lastPracticedAt) }}
-            }
-          </span>
-          <span class="text-xs text-gray-500 dark:text-gray-500 mt-0.5 block">
-            Sessions: {{ completedCount }} completed · {{ masterLabel }}
-          </span>
-        </button>
+          <button
+            type="button"
+            (click)="practice.emit(item)"
+            class="w-full min-w-0 text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
+          >
+            <span class="font-semibold text-gray-900 dark:text-gray-100 block truncate">
+              {{ item.reference }}
+            </span>
+            <span class="text-xs text-gray-600 dark:text-gray-400 mt-0.5 block">
+              @if (isBibleBooksMemorizationItem(item)) {
+                {{ bibleBooksCountLabel(item.bibleBooksScope!) }}
+              } @else {
+                {{ item.translation.toUpperCase() }}
+              }
+              @if (item.lastPracticedAt) {
+                · Last: {{ formatDate(item.lastPracticedAt) }}
+              }
+            </span>
+            <span class="text-xs text-gray-500 dark:text-gray-500 mt-0.5 block">
+              Sessions: {{ completedCount }} completed · {{ masterLabel }}
+            </span>
+          </button>
+        </app-scripture-hover-preview>
         <button
           type="button"
           (click)="remove.emit(item)"

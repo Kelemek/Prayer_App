@@ -13,6 +13,7 @@ import type { BibleTranslation } from '../../types/memorization';
   template: `
     <app-bible-passage-picker-modal
       [isOpen]="isOpen"
+      [busy]="adding"
       confirmLabel="Add"
       (close)="onClose.emit()"
       (confirmed)="onPassageConfirmed($event)"
@@ -26,6 +27,8 @@ export class AddMemorizedVerseModalComponent {
   @Output() added = new EventEmitter<void>();
   @Output() translationChange = new EventEmitter<BibleTranslation>();
 
+  adding = false;
+
   constructor(
     private scripture: ScriptureService,
     private memorization: MemorizationService,
@@ -33,15 +36,18 @@ export class AddMemorizedVerseModalComponent {
   ) {}
 
   async onPassageConfirmed(reference: string): Promise<void> {
+    if (this.adding) return;
+    this.adding = true;
     try {
       const translation = this.memorization.getPreferredTranslation();
+      // Validate the passage resolves before saving a reference-only row.
       const passage = await this.scripture.getPassage(reference, translation);
       const text = passage.text?.trim();
       if (!text) {
         this.toast.error('No text returned for this passage.');
         return;
       }
-      const result = await this.memorization.addVerse(reference, text, translation);
+      const result = await this.memorization.addVerse(reference, translation, text);
       if (result.ok) {
         this.toast.success('Added to memorization list.');
         this.added.emit();
@@ -54,6 +60,8 @@ export class AddMemorizedVerseModalComponent {
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to add passage.';
       this.toast.error(msg);
+    } finally {
+      this.adding = false;
     }
   }
 }

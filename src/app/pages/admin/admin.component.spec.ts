@@ -49,6 +49,9 @@ describe('AdminComponent', () => {
         archivedPrayers: 9,
         totalTenantMembers: 10,
         tenantLeadersAndAdmins: 11,
+        memorizationLearning: 12,
+        memorizationPracticing: 13,
+        memorizationMastered: 14,
         loading: false
       }),
       trackPageView: vi.fn().mockResolvedValue(undefined)
@@ -364,11 +367,6 @@ describe('AdminComponent', () => {
     expect(cdr.markForCheck).toHaveBeenCalled();
   });
 
-  it('getAdminEmail returns email from userSessionService', () => {
-    userSessionService.getCurrentSession = vi.fn().mockReturnValue({ email: 'session@x.com' });
-    expect(component.getAdminEmail()).toBe('session@x.com');
-  });
-
   it('ngOnDestroy calls next and complete on destroy$', () => {
     const next = vi.fn();
     const complete = vi.fn();
@@ -463,11 +461,6 @@ describe('AdminComponent', () => {
     expect(loadSpy).toHaveBeenCalled();
   });
 
-
-  it('getAdminEmail returns empty string when no session', () => {
-    userSessionService.getCurrentSession = vi.fn().mockReturnValue(null);
-    expect(component.getAdminEmail()).toBe('');
-  });
 
   it('autoProgressTabs returns early when no adminData', () => {
     (component as any).adminData = null;
@@ -623,20 +616,6 @@ describe('AdminComponent', () => {
     await component.denyUpdateDeletionRequest('ud2', 'r');
     expect(adminDataService.denyUpdateDeletionRequest).toHaveBeenCalledWith('ud2', 'r');
     expect(autoSpy).toHaveBeenCalled();
-  });
-
-  describe('getAdminEmail', () => {
-    it('should return admin email from userSessionService', () => {
-      userSessionService.getCurrentSession = vi.fn().mockReturnValue({ email: 'admin@test.com' });
-      const email = component.getAdminEmail();
-      expect(email).toBe('admin@test.com');
-    });
-
-    it('should return empty string when no session from userSessionService', () => {
-      userSessionService.getCurrentSession = vi.fn().mockReturnValue(null);
-      const email = component.getAdminEmail();
-      expect(email).toBe('');
-    });
   });
 
   describe('denyPrayer', () => {

@@ -13,7 +13,7 @@ import {
   ViewChild,
   inject,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, NgClass } from '@angular/common';
 import type { MemorizationReorderChunk } from '../../lib/memorization/memorizationPracticeUtils';
 
 const POINTER_REORDER_TOUCH_DELAY_MS = 110;
@@ -45,11 +45,11 @@ function slotIndexUnderPointer(listRoot: HTMLElement, clientX: number, clientY: 
 @Component({
   selector: 'app-memorization-reorder-panel',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, NgClass],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
-      class="rounded-md transition-shadow"
+      class="rounded-md"
       [class.ring-2]="listFlashError"
       [class.ring-red-400]="listFlashError"
       [class.dark:ring-red-500]="listFlashError"
@@ -58,19 +58,19 @@ function slotIndexUnderPointer(listRoot: HTMLElement, clientX: number, clientY: 
       <div
         #listRoot
         data-testid="memorize-reorder-list"
-        class="flex flex-wrap items-baseline gap-x-0 gap-y-2 sm:gap-y-1 text-base leading-relaxed font-serif"
-        [class]="className"
+        class="flex flex-wrap items-baseline gap-y-2 sm:gap-y-1 text-base leading-relaxed font-serif"
+        [ngClass]="className"
         (pointerdown)="onListPointerDown($event)"
       >
         @for (slotIndex of slotIndices; track slotIndex) {
-          @let chunkId = slotChunkIds[slotIndex] ?? slotIndex;
+          @let chunkId = slotChunkIds[slotIndex];
           @let chunk = chunks[chunkId];
-          @let text = chunk?.text ?? '';
+          @let text = chunk.text;
           @let showHoldPeek =
             holdHintPeekFirstWrong &&
             firstWrongSlotIndex === slotIndex &&
             slotChunkIds[slotIndex] !== slotIndex;
-          @let peekText = chunks[slotIndex]?.text ?? '';
+          @let peekText = chunks[slotIndex].text;
           @let displayText = showHoldPeek ? peekText : text;
           @let isSolved = slotChunkIds[slotIndex] === slotIndex;
           @let wasInRoundShuffle = roundMovableIndices.has(slotIndex);
@@ -85,32 +85,7 @@ function slotIndexUnderPointer(listRoot: HTMLElement, clientX: number, clientY: 
             [attr.data-reorder-slot]="slotIndex"
             [attr.draggable]="nativeDraggable ? true : null"
             class="min-w-0 max-w-full rounded-md text-gray-800 dark:text-gray-100 wrap-anywhere hyphens-auto select-none [-webkit-touch-callout:none]"
-            [class.transition-shadow]="draggedSlot === null"
-            [class.mr-2]="needsAttention"
-            [class.sm:mr-1]="needsAttention"
-            [class.mr-3]="!needsAttention && extraFixedSlotSpacing"
-            [class.sm:mr-2.5]="!needsAttention && extraFixedSlotSpacing"
-            [class.mr-1.5]="!needsAttention && !extraFixedSlotSpacing"
-            [class.sm:mr-0.5]="!needsAttention && !extraFixedSlotSpacing"
-            [class.last:mr-0]="true"
-            [class.px-2.5]="needsAttention"
-            [class.py-1]="needsAttention"
-            [class.sm:px-2]="needsAttention"
-            [class.sm:py-0.5]="needsAttention"
-            [class.ring-2]="isDragOver || needsAttention"
-            [class.ring-blue-400]="isDragOver"
-            [class.dark:ring-blue-500]="isDragOver"
-            [class.ring-amber-300]="needsAttention && !isDragOver"
-            [class.dark:ring-amber-600/80]="needsAttention && !isDragOver"
-            [class.bg-amber-50/90]="needsAttention && !isDragOver"
-            [class.dark:bg-amber-950/35]="needsAttention && !isDragOver"
-            [class.ring-transparent]="!isDragOver && !needsAttention"
-            [class.opacity-35]="isDragging && usePointerPath"
-            [class.opacity-60]="isDragging && !usePointerPath"
-            [class.cursor-move]="draggable"
-            [class.touch-none]="draggable && usePointerPath"
-            [class.touch-manipulation]="draggable && !usePointerPath"
-            [class.cursor-default]="!draggable"
+            [ngClass]="slotClasses(slotIndex, needsAttention, isDragOver, isDragging, draggable)"
             [attr.aria-label]="slotAriaLabel(slotIndex, lockedByRound, isSolved)"
             (dragstart)="onDragStart($event, slotIndex)"
             (dragover)="onDragOver($event, slotIndex)"
@@ -131,7 +106,7 @@ function slotIndexUnderPointer(listRoot: HTMLElement, clientX: number, clientY: 
             <span
               data-testid="memorize-reorder-chapter-verse-colon"
               aria-hidden="true"
-              class="text-gray-800 dark:text-gray-100 shrink-0 self-baseline -mx-px pointer-events-none select-none"
+              class="text-gray-800 dark:text-gray-100 shrink-0 self-baseline pointer-events-none select-none"
             >
               :
             </span>
@@ -223,6 +198,47 @@ export class MemorizationReorderPanelComponent implements OnInit, OnChanges, OnD
     if (lockedByRound) return `Verse part ${slotIndex + 1} (fixed)`;
     if (isSolved) return `Verse part ${slotIndex + 1} (in correct order)`;
     return `Verse part ${slotIndex + 1}; drag to reorder`;
+  }
+
+  /** Reading-order space between chips (not before a static chapter:verse colon). */
+  slotNeedsTrailingSpace(slotIndex: number): boolean {
+    if (slotIndex >= this.slotIndices.length - 1) return false;
+    if (this.colonAfterSlotIndex === slotIndex) return false;
+    return true;
+  }
+
+  /** ngClass map — fractional/responsive Tailwind must not use `[class.mr-1.5]` (Angular parses the dot). */
+  slotClasses(
+    slotIndex: number,
+    needsAttention: boolean,
+    isDragOver: boolean,
+    isDragging: boolean,
+    draggable: boolean,
+  ): Record<string, boolean> {
+    const trail = this.slotNeedsTrailingSpace(slotIndex);
+    return {
+      'transition-shadow': this.draggedSlot === null,
+      'mr-1.5': trail && !this.extraFixedSlotSpacing,
+      'mr-3': trail && this.extraFixedSlotSpacing,
+      'px-2.5': needsAttention,
+      'py-1': needsAttention,
+      'sm:px-2': needsAttention,
+      'sm:py-0.5': needsAttention,
+      'ring-2': isDragOver || needsAttention,
+      'ring-blue-400': isDragOver,
+      'dark:ring-blue-500': isDragOver,
+      'ring-amber-300': needsAttention && !isDragOver,
+      'dark:ring-amber-600/80': needsAttention && !isDragOver,
+      'bg-amber-50/90': needsAttention && !isDragOver,
+      'dark:bg-amber-950/35': needsAttention && !isDragOver,
+      'ring-transparent': !isDragOver && !needsAttention,
+      'opacity-35': isDragging && this.usePointerPath,
+      'opacity-60': isDragging && !this.usePointerPath,
+      'cursor-move': draggable,
+      'touch-none': draggable && this.usePointerPath,
+      'touch-manipulation': draggable && !this.usePointerPath,
+      'cursor-default': !draggable,
+    };
   }
 
   onListPointerDown(event: PointerEvent): void {

@@ -43,8 +43,12 @@ export function referenceToSpeechText(reference: string): string {
   return ref.replace(/(\d+)\s*:\s*(\d+)/g, 'chapter $1, verse $2');
 }
 
-export function getMemorizationListenUtteranceText(item: MemorizedItem): string {
-  const body = getWordsForMemorization(item.text).join(' ');
+export function getMemorizationListenUtteranceText(
+  item: MemorizedItem,
+  passageText?: string
+): string {
+  const sourceText = passageText ?? item.text;
+  const body = getWordsForMemorization(sourceText).join(' ');
   if (isBibleBooksMemorizationItem(item)) {
     return booksForScope(item.bibleBooksScope)
       .map((b) => bibleBookNameToSpeechText(b.name))

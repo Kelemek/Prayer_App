@@ -81,7 +81,8 @@ export class CacheService {
         if (
           key.startsWith('tenant_') ||
           key.startsWith('personalTenant_') ||
-          key.startsWith('prompts:')
+          key.startsWith('prompts:') ||
+          key.startsWith('memorizationRecommendations:')
         ) {
           this.hydrateKeyFromLocalStorage(key);
         }
