@@ -4,6 +4,7 @@ import {
   EventEmitter,
   Input,
   Output,
+  inject,
 } from '@angular/core';
 import { EnabledDisabledToggleComponent } from '../../enabled-disabled-toggle/enabled-disabled-toggle.component';
 import { CapacitorService } from '../../../services/capacitor.service';
@@ -18,6 +19,8 @@ import { USER_SETTINGS_SECTION_HOST_STYLES } from '../user-settings-section-host
   styles: [...USER_SETTINGS_SECTION_HOST_STYLES],
 })
 export class UserSettingsNotificationPreferencesSectionComponent {
+  readonly capacitorService = inject(CapacitorService);
+
   @Input() preferencesLoaded = false;
   @Input() receiveNotifications: boolean | null = null;
   @Input() savingNotification = false;
@@ -35,6 +38,4 @@ export class UserSettingsNotificationPreferencesSectionComponent {
   @Output() receiveNotificationsChange = new EventEmitter<boolean>();
   @Output() receivePushNotificationsChange = new EventEmitter<boolean>();
   @Output() badgeFunctionalityEnabledChange = new EventEmitter<boolean>();
-
-  constructor(public capacitorService: CapacitorService) {}
 }

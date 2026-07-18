@@ -122,4 +122,104 @@ describe('HourReminderSettingsSectionComponent', () => {
     });
     expect(component.slots).toEqual([]);
   });
+
+  it('ngOnChanges reloads when opened or email changes while open', () => {
+    const reloadSpy = vi.spyOn(component, 'reload').mockImplementation(() => undefined);
+    component.ngOnChanges({
+      isOpen: {
+        currentValue: true,
+        previousValue: false,
+        firstChange: false,
+        isFirstChange: () => false,
+      },
+    });
+    expect(reloadSpy).toHaveBeenCalled();
+    reloadSpy.mockClear();
+    component.isOpen = true;
+    component.ngOnChanges({
+      email: {
+        currentValue: 'new@example.com',
+        previousValue: 'test@example.com',
+        firstChange: false,
+        isFirstChange: () => false,
+      },
+    });
+    expect(reloadSpy).toHaveBeenCalled();
+  });
+
+  it('setSelectedHour updates hour and closes dropdown', () => {
+    component.showHourDropdown = true;
+    component.setSelectedHour(14);
+    expect(component.selectedHour).toBe(14);
+    expect(component.showHourDropdown).toBe(false);
+    expect(mockCdr.markForCheck).toHaveBeenCalled();
+  });
+
+  it('reload clears slots when email is empty', () => {
+    component.email = '   ';
+    component.slots = [{ id: 'x', local_hour: 1, iana_timezone: 'UTC' }];
+    component.reload();
+    expect(component.slots).toEqual([]);
+    expect(component.loading).toBe(false);
+  });
+
+  it('reload uses session cache when email matches', async () => {
+    const cached = [{ id: 'cached', local_hour: 7, iana_timezone: 'UTC' }];
+    mockUserSession.getCurrentSession.mockReturnValue({
+      email: 'test@example.com',
+      prayerHourReminders: cached,
+    });
+    mockReminders.ensureLoaded.mockResolvedValue(cached);
+    component.reload();
+    expect(component.slots).toEqual(cached);
+    expect(component.loading).toBe(false);
+    await vi.waitFor(() => expect(mockReminders.ensureLoaded).toHaveBeenCalled());
+  });
+
+  it('reload sets error on ensureLoaded failure', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockReminders.ensureLoaded.mockRejectedValue({ message: 'load boom' });
+    component.reload();
+    await vi.waitFor(() => {
+      expect(component.error).toBe('load boom');
+      expect(component.loading).toBe(false);
+    });
+    errSpy.mockRestore();
+  });
+
+  it('addSlot no-ops without email and handles generic errors', async () => {
+    component.email = '';
+    await component.addSlot();
+    expect(mockReminders.addSlot).not.toHaveBeenCalled();
+
+    component.email = 'test@example.com';
+    mockReminders.addSlot.mockRejectedValue({ message: 'save failed' });
+    await component.addSlot();
+    expect(component.error).toBe('save failed');
+  });
+
+  it('removeSlot updates slots and handles errors', async () => {
+    mockReminders.removeSlot.mockResolvedValue([]);
+    await component.removeSlot('slot-1');
+    expect(mockReminders.removeSlot).toHaveBeenCalledWith(
+      'prayer',
+      'test@example.com',
+      'slot-1'
+    );
+    expect(component.slots).toEqual([]);
+    expect(component.success).toContain('removed');
+
+    component.email = '';
+    await component.removeSlot('slot-1');
+    expect(mockReminders.removeSlot).toHaveBeenCalledTimes(1);
+
+    component.email = 'test@example.com';
+    mockReminders.removeSlot.mockRejectedValue({ message: 'remove failed' });
+    await component.removeSlot('slot-1');
+    expect(component.error).toBe('remove failed');
+
+    mockReminders.removeSlot.mockRejectedValue('x');
+    await component.removeSlot('slot-1');
+    expect(component.error).toBe('Could not remove reminder.');
+  });
 });

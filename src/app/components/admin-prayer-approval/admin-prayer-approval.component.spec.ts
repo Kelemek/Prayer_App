@@ -1,9 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { ChangeDetectorRef } from '@angular/core';
 import { AdminPrayerApprovalComponent } from './admin-prayer-approval.component';
 import type { PrayerRequest } from '../../services/prayer.service';
+import { AdminDataService } from '../../services/admin-data.service';
+import { ToastService } from '../../services/toast.service';
 
 describe('AdminPrayerApprovalComponent', () => {
   let component: AdminPrayerApprovalComponent;
+  let editPrayer: ReturnType<typeof vi.fn>;
+  let toast: { success: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
+  let cdr: { markForCheck: ReturnType<typeof vi.fn> };
 
   const mockPrayer: PrayerRequest = {
     id: 'test-prayer-1',
@@ -20,8 +26,15 @@ describe('AdminPrayerApprovalComponent', () => {
   };
 
   beforeEach(() => {
-    component = new AdminPrayerApprovalComponent();
-    component.prayer = mockPrayer;
+    editPrayer = vi.fn().mockResolvedValue(undefined);
+    toast = { success: vi.fn(), error: vi.fn() };
+    cdr = { markForCheck: vi.fn() };
+    component = new AdminPrayerApprovalComponent(
+      { editPrayer } as unknown as AdminDataService,
+      toast as unknown as ToastService,
+      cdr as unknown as ChangeDetectorRef
+    );
+    component.prayer = { ...mockPrayer };
   });
 
   describe('Component Initialization', () => {
@@ -215,6 +228,65 @@ describe('AdminPrayerApprovalComponent', () => {
       component.handleDeny();
       // Empty string or whitespace converts to null in the handler
       expect(spy).toHaveBeenCalledWith({ id: 'test-prayer-1', reason: '   ' });
+    });
+  });
+
+  describe('Description edit', () => {
+    it('startDescriptionEdit copies prayer description and opens editor', () => {
+      component.startDescriptionEdit();
+      expect(component.editedDescription).toBe('Please pray for this test request');
+      expect(component.isEditingDescription).toBe(true);
+    });
+
+    it('startDescriptionEdit uses empty string when description missing', () => {
+      component.prayer = { ...mockPrayer, description: undefined as unknown as string };
+      component.startDescriptionEdit();
+      expect(component.editedDescription).toBe('');
+    });
+
+    it('cancelDescriptionEdit resets edit state', () => {
+      component.isEditingDescription = true;
+      component.editedDescription = 'draft';
+      component.cancelDescriptionEdit();
+      expect(component.isEditingDescription).toBe(false);
+      expect(component.editedDescription).toBe('');
+    });
+
+    it('saveDescription persists edit and emits onEdit', async () => {
+      const editSpy = vi.spyOn(component.onEdit, 'emit');
+      component.startDescriptionEdit();
+      component.editedDescription = 'Updated description';
+      await component.saveDescription();
+      expect(editPrayer).toHaveBeenCalledWith('test-prayer-1', {
+        description: 'Updated description',
+      });
+      expect(component.prayer.description).toBe('Updated description');
+      expect(editSpy).toHaveBeenCalledWith({
+        id: 'test-prayer-1',
+        updates: { description: 'Updated description' },
+      });
+      expect(component.isEditingDescription).toBe(false);
+      expect(toast.success).toHaveBeenCalledWith('Description updated.');
+      expect(component.isSavingDescription).toBe(false);
+      expect(cdr.markForCheck).toHaveBeenCalled();
+    });
+
+    it('saveDescription is a no-op while already saving', async () => {
+      component.isSavingDescription = true;
+      await component.saveDescription();
+      expect(editPrayer).not.toHaveBeenCalled();
+    });
+
+    it('saveDescription shows error toast on failure', async () => {
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      editPrayer.mockRejectedValue(new Error('boom'));
+      component.startDescriptionEdit();
+      component.editedDescription = 'fail';
+      await component.saveDescription();
+      expect(toast.error).toHaveBeenCalledWith('Failed to update description.');
+      expect(component.isSavingDescription).toBe(false);
+      expect(component.isEditingDescription).toBe(true);
+      errSpy.mockRestore();
     });
   });
 

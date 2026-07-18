@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { BehaviorSubject } from 'rxjs';
 import { MemorizationRecommendationsService } from './memorization-recommendations.service';
 
 const CAT_ID = 'cat-general';
@@ -683,5 +684,209 @@ describe('MemorizationRecommendationsService', () => {
 
     expect(values.at(-1)).toBe(true);
     sub.unsubscribe();
+  });
+
+  it('load returns cached snapshot without hitting the database', async () => {
+    const cachedCategories = [
+      {
+        id: CAT_ID,
+        tenantId: TENANT_ID,
+        name: 'Cached',
+        displayOrder: 0,
+        catalogSource: null,
+      },
+    ];
+    const cachedItems = [
+      {
+        id: 'cached-1',
+        tenantId: TENANT_ID,
+        reference: 'Psalm 1:1',
+        categoryId: CAT_ID,
+        displayOrder: 0,
+        catalogSource: null,
+      },
+    ];
+    cache.get.mockReturnValue({ categories: cachedCategories, items: cachedItems });
+
+    const groups = await service.load(false);
+    expect(groups[0].category.name).toBe('Cached');
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  it('renameCategory updates category name', async () => {
+    mockLoadTables([makeCategoryRow()], []);
+    await service.load(true);
+
+    const single = vi.fn().mockResolvedValue({
+      data: makeCategoryRow({ name: 'Renamed' }),
+      error: null,
+    });
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'memorization_recommendation_categories') {
+        return {
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                select: vi.fn().mockReturnValue({ single }),
+              }),
+            }),
+          }),
+          select: vi.fn().mockReturnValue(selectEqOrder([makeCategoryRow({ name: 'Renamed' })])),
+        };
+      }
+      return { select: vi.fn().mockReturnValue(selectEqOrder([])) };
+    });
+
+    const result = await service.renameCategory(CAT_ID, 'Renamed');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.category.name).toBe('Renamed');
+    }
+  });
+
+  it('addCategory returns duplicate on unique violation', async () => {
+    fromMock.mockReturnValue({
+      insert: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: null,
+            error: { code: '23505', message: 'duplicate' },
+          }),
+        }),
+      }),
+    });
+
+    const result = await service.addCategory('General');
+    expect(result).toEqual({ ok: false, reason: 'duplicate' });
+  });
+
+  it('removeIbcdCatalog maps unauthorized RPC errors', async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { message: 'Not authorized for tenant' },
+    });
+    const result = await service.removeIbcdCatalog();
+    expect(result).toEqual({ ok: false, reason: 'not_admin' });
+  });
+
+  it('load clears state when tenant is missing', async () => {
+    const tenantContext = {
+      getActiveTenant: vi.fn(() => null),
+      activeTenant$: { subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })) },
+    };
+    const localService = new MemorizationRecommendationsService(
+      { client: { from: fromMock, rpc: rpcMock } } as any,
+      cache as any,
+      tenantContext as any
+    );
+    await expect(localService.load(true)).resolves.toEqual([]);
+    expect(localService.snapshot).toEqual([]);
+  });
+
+  it('reloads when active tenant changes and ignores duplicate emissions', async () => {
+    const activeTenant$ = new BehaviorSubject<{ id: string } | null>({ id: TENANT_ID });
+    mockLoadTables([makeCategoryRow()], [makeRow()]);
+    const localService = new MemorizationRecommendationsService(
+      { client: { from: fromMock, rpc: rpcMock } } as any,
+      cache as any,
+      {
+        getActiveTenant: vi.fn(() => activeTenant$.value),
+        activeTenant$,
+      } as any
+    );
+    await vi.waitFor(() => expect(localService.snapshot.length).toBeGreaterThan(0));
+    fromMock.mockClear();
+    activeTenant$.next({ id: TENANT_ID });
+    expect(fromMock).not.toHaveBeenCalled();
+    mockLoadTables([makeCategoryRow()], [makeRow({ id: 't2' })]);
+    activeTenant$.next({ id: 'tenant-2' });
+    await vi.waitFor(() => {
+      expect(fromMock).toHaveBeenCalled();
+    });
+  });
+
+  it('guards empty inputs and no-tenant paths for category/verse mutations', async () => {
+    expect(await service.addCategory('  ')).toEqual({ ok: false, reason: 'empty_name' });
+    expect(await service.renameCategory(CAT_ID, '')).toEqual({
+      ok: false,
+      reason: 'empty_name',
+    });
+    expect(await service.reorderCategories([])).toBe(true);
+    expect(await service.persistVersePlacements([])).toBe(true);
+
+    const noTenant = new MemorizationRecommendationsService(
+      { client: { from: fromMock, rpc: rpcMock } } as any,
+      cache as any,
+      {
+        getActiveTenant: vi.fn(() => null),
+        activeTenant$: { subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })) },
+      } as any
+    );
+    expect(await noTenant.addCategory('X')).toEqual({ ok: false, reason: 'no_tenant' });
+    expect(await noTenant.renameCategory(CAT_ID, 'X')).toEqual({
+      ok: false,
+      reason: 'no_tenant',
+    });
+    expect(await noTenant.deleteCategory(CAT_ID)).toEqual({ ok: false, reason: 'db_error' });
+    expect(await noTenant.addRecommendation('John 3:16', CAT_ID)).toEqual({
+      ok: false,
+      reason: 'no_tenant',
+    });
+    expect(await noTenant.removeRecommendation('rec-1')).toBe(false);
+    expect(await noTenant.applyIbcdCatalog()).toEqual({ ok: false, reason: 'no_tenant' });
+    expect(await noTenant.removeIbcdCatalog()).toEqual({ ok: false, reason: 'no_tenant' });
+  });
+
+  it('returns db_error for category/verse failures and reorder unknown ids', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    fromMock.mockReturnValue({
+      insert: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: null,
+            error: { code: 'XX', message: 'fail' },
+          }),
+        }),
+      }),
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: null,
+                error: { code: '23505', message: 'dup' },
+              }),
+            }),
+          }),
+        }),
+      }),
+      delete: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ error: { code: '23503', message: 'fk' } }),
+        }),
+      }),
+    });
+    expect(await service.addCategory('X')).toEqual({ ok: false, reason: 'db_error' });
+    expect(await service.renameCategory(CAT_ID, 'X')).toEqual({
+      ok: false,
+      reason: 'duplicate',
+    });
+    expect(await service.deleteCategory(CAT_ID)).toEqual({ ok: false, reason: 'not_empty' });
+    expect(await service.addRecommendation('John 3:16', CAT_ID)).toEqual({
+      ok: false,
+      reason: 'db_error',
+    });
+    expect(await service.removeRecommendation('rec-1')).toBe(false);
+    expect(await service.reorder(['missing-id'])).toBe(false);
+
+    rpcMock.mockResolvedValue({ data: null, error: { message: 'rpc fail' } });
+    expect(await service.reorderCategories([CAT_ID])).toBe(false);
+    expect(await service.persistVersePlacements([
+      { id: 'rec-1', categoryId: CAT_ID, displayOrder: 0 },
+    ])).toBe(false);
+    expect(await service.getIbcdCatalogStatus()).toBeNull();
+    expect(await service.applyIbcdCatalog()).toEqual({ ok: false, reason: 'db_error' });
+    expect(await service.removeIbcdCatalog()).toEqual({ ok: false, reason: 'db_error' });
+    errSpy.mockRestore();
   });
 });

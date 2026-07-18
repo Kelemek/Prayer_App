@@ -1,9 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { ChangeDetectorRef } from '@angular/core';
 import { ConsolidatedPrayerApprovalComponent } from './consolidated-prayer-approval.component';
 import type { PrayerRequest } from '../../services/prayer.service';
+import { AdminDataService } from '../../services/admin-data.service';
+import { ToastService } from '../../services/toast.service';
 
 describe('ConsolidatedPrayerApprovalComponent', () => {
   let component: ConsolidatedPrayerApprovalComponent;
+  let editUpdate: ReturnType<typeof vi.fn>;
+  let toast: { success: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
+  let cdr: { markForCheck: ReturnType<typeof vi.fn> };
 
   const makePrayer = (overrides: Partial<PrayerRequest> = {}): PrayerRequest => ({
     id: 'prayer-1',
@@ -20,7 +26,14 @@ describe('ConsolidatedPrayerApprovalComponent', () => {
   });
 
   beforeEach(() => {
-    component = new ConsolidatedPrayerApprovalComponent();
+    editUpdate = vi.fn().mockResolvedValue(undefined);
+    toast = { success: vi.fn(), error: vi.fn() };
+    cdr = { markForCheck: vi.fn() };
+    component = new ConsolidatedPrayerApprovalComponent(
+      { editUpdate } as unknown as AdminDataService,
+      toast as unknown as ToastService,
+      cdr as unknown as ChangeDetectorRef
+    );
     component.prayer = makePrayer();
     component.pendingUpdates = [];
     component.hasAnyPendingUpdates = false;
@@ -332,6 +345,73 @@ describe('ConsolidatedPrayerApprovalComponent', () => {
       component.onUpdateSaved();
       expect(spy).not.toHaveBeenCalled();
       expect(component.showEditUpdate).toBe(false);
+    });
+  });
+
+  describe('Inline update edit', () => {
+    it('startInlineUpdateEdit and cancelInlineUpdate manage state', () => {
+      component.startInlineUpdateEdit({ id: 'u1', content: 'Hello' });
+      expect(component.inlineEditingUpdateId).toBe('u1');
+      expect(component.inlineEditingUpdateContent).toBe('Hello');
+      component.cancelInlineUpdate();
+      expect(component.inlineEditingUpdateId).toBeNull();
+      expect(component.inlineEditingUpdateContent).toBe('');
+    });
+
+    it('startInlineUpdateEdit uses empty content when missing', () => {
+      component.startInlineUpdateEdit({ id: 'u1', content: undefined as unknown as string });
+      expect(component.inlineEditingUpdateContent).toBe('');
+    });
+
+    it('saveInlineUpdate persists content and emits', async () => {
+      const emitSpy = vi.spyOn(component.onUpdateEdited, 'emit');
+      component.pendingUpdates = [
+        {
+          id: 'update-1',
+          content: 'old',
+          author: 'A',
+          author_email: 'a@b.com',
+          created_at: new Date().toISOString(),
+          is_anonymous: false,
+          mark_as_answered: false,
+        },
+      ];
+      component.inlineEditingUpdateContent = 'new content';
+      await component.saveInlineUpdate('update-1');
+      expect(editUpdate).toHaveBeenCalledWith('update-1', { content: 'new content' });
+      expect(component.pendingUpdates[0].content).toBe('new content');
+      expect(emitSpy).toHaveBeenCalledWith({
+        id: 'update-1',
+        updates: { content: 'new content' },
+      });
+      expect(toast.success).toHaveBeenCalledWith('Update edited.');
+      expect(component.inlineEditingUpdateId).toBeNull();
+      expect(component.isSavingUpdate).toBe(false);
+    });
+
+    it('saveInlineUpdate no-ops while saving and handles errors', async () => {
+      component.isSavingUpdate = true;
+      await component.saveInlineUpdate('update-1');
+      expect(editUpdate).not.toHaveBeenCalled();
+
+      component.isSavingUpdate = false;
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      editUpdate.mockRejectedValue(new Error('fail'));
+      await component.saveInlineUpdate('update-1');
+      expect(toast.error).toHaveBeenCalledWith('Failed to edit update.');
+      expect(component.isSavingUpdate).toBe(false);
+      errSpy.mockRestore();
+    });
+
+    it('formatDate and formatUpdateDate catch blocks return empty string', () => {
+      const spy = vi
+        .spyOn(Date.prototype, 'toLocaleDateString')
+        .mockImplementation(() => {
+          throw new Error('bad date');
+        });
+      expect(component.formatDate('2024-01-01')).toBe('');
+      expect(component.formatUpdateDate('2024-01-01')).toBe('');
+      spy.mockRestore();
     });
   });
 });

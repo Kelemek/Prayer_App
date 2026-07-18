@@ -70,4 +70,21 @@ describe('TenantMembershipPreferencesService', () => {
     expect(result).toEqual({ ok: true });
     expect(updateMock).toHaveBeenCalledWith({ memorization_strict_mode: true });
   });
+
+  it('upsert returns error when update fails', async () => {
+    maybeSingleMock.mockResolvedValue({ data: { id: 'row-1' }, error: null });
+    updateMock.mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: new Error('update failed') }),
+    });
+    const result = await service.upsert('user@example.com', { is_active: false });
+    expect(result.ok).toBe(false);
+    expect(result.error).toBeInstanceOf(Error);
+  });
+
+  it('matchFilter omits tenant_id when no active tenant', () => {
+    tenantContext.getActiveTenant.mockReturnValueOnce(null);
+    expect(service.matchFilter('user@example.com')).toEqual({
+      user_email: 'user@example.com',
+    });
+  });
 });

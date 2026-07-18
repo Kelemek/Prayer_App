@@ -92,4 +92,97 @@ describe('HourlyReminderTemplateSectionComponent', () => {
     expect(saved).toHaveBeenCalled();
     expect(component.saving).toBe(false);
   });
+
+  it('ngOnInit sets expanded and selectedKey then loads', async () => {
+    component.startExpanded = true;
+    component.defaultKey = 'user_hourly_memorization_reminder';
+    component.ngOnInit();
+    expect(component.expanded).toBe(true);
+    expect(component.selectedKey).toBe('user_hourly_memorization_reminder');
+    await vi.waitFor(() => expect(component.loading).toBe(false));
+  });
+
+  it('toggleExpanded flips expanded and marks for check', () => {
+    component.expanded = false;
+    component.toggleExpanded();
+    expect(component.expanded).toBe(true);
+    expect(mockCdr.markForCheck).toHaveBeenCalled();
+  });
+
+  it('selectedLabel returns matching or fallback labels', () => {
+    component.selectedKey = 'user_hourly_memorization_reminder_with_spotlight';
+    expect(component.selectedLabel()).toBe('Spotlight');
+    component.selectedKey = 'unknown';
+    expect(component.selectedLabel()).toBe('Simple nudge (default)');
+    component.templateOptions = [];
+    expect(component.selectedLabel()).toBe('Simple nudge (default)');
+  });
+
+  it('setTemplateKey updates selection and closes dropdown', () => {
+    component.showDropdown = true;
+    component.setTemplateKey('user_hourly_memorization_reminder');
+    expect(component.selectedKey).toBe('user_hourly_memorization_reminder');
+    expect(component.showDropdown).toBe(false);
+  });
+
+  it('load resets to default when no tenant', async () => {
+    mockTenantContext.getActiveTenant.mockReturnValue(null);
+    component.defaultKey = 'user_hourly_memorization_reminder';
+    await component.load();
+    expect(component.selectedKey).toBe('user_hourly_memorization_reminder');
+    expect(component.loading).toBe(false);
+  });
+
+  it('load emits loadFailed on error with message', async () => {
+    const loadFailed = vi.fn();
+    component.loadFailed.subscribe(loadFailed);
+    mockSupabase.client.from.mockReturnValue({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          maybeSingle: vi.fn(() =>
+            Promise.resolve({ data: null, error: { message: 'db down' } })
+          ),
+        })),
+      })),
+    });
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await component.load();
+    expect(component.loadError).toContain('db down');
+    expect(loadFailed).toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+
+  it('load uses Unknown error when thrown value has no message', async () => {
+    mockSupabase.client.from.mockReturnValue({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          maybeSingle: vi.fn(() => Promise.reject('fail')),
+        })),
+      })),
+    });
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await component.load();
+    expect(component.loadError).toContain('Unknown error');
+    errSpy.mockRestore();
+  });
+
+  it('save requires tenant and handles save errors', async () => {
+    mockTenantContext.getActiveTenant.mockReturnValue(null);
+    await component.save();
+    expect(mockToast.error).toHaveBeenCalledWith('Select an organization first.');
+
+    mockTenantContext.getActiveTenant.mockReturnValue({ id: TENANT_ID });
+    mockSupabase.client.from.mockReturnValue({
+      update: vi.fn(() => ({
+        eq: vi.fn(() => Promise.resolve({ error: { message: 'write failed' } })),
+      })),
+    });
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await component.save();
+    expect(component.loadError).toContain('write failed');
+    expect(mockToast.error).toHaveBeenCalledWith(
+      'Failed to save memorization reminder template'
+    );
+    errSpy.mockRestore();
+  });
 });

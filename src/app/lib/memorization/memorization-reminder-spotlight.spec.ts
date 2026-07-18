@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   pickMemorizationSpotlightCandidate,
   masteryTierFromCompletedCount,
+  masteryLevelLabel,
+  kindLabelForMemorizedItem,
 } from './memorization-reminder-spotlight';
 
 function item(
@@ -58,5 +60,32 @@ describe('memorization-reminder-spotlight', () => {
 
   it('returns null for empty list', () => {
     expect(pickMemorizationSpotlightCandidate([], null)).toBeNull();
+  });
+
+  it('exposes mastery and kind labels', () => {
+    expect(masteryLevelLabel(0)).toBe('Learning');
+    expect(masteryLevelLabel(1)).toBe('Practicing');
+    expect(masteryLevelLabel(2)).toBe('Mastered');
+    expect(kindLabelForMemorizedItem('verse')).toBe('Verse');
+    expect(kindLabelForMemorizedItem('bibleBooks')).toBe('Bible books');
+  });
+
+  it('prefers earlier practice date when tiers match', () => {
+    const pick = pickMemorizationSpotlightCandidate(
+      [
+        item('later', 1, '2026-02-01T00:00:00Z'),
+        item('earlier', 1, '2026-01-01T00:00:00Z'),
+      ],
+      null
+    );
+    expect(pick?.id).toBe('earlier');
+  });
+
+  it('uses reference order as final tie-breaker', () => {
+    const pick = pickMemorizationSpotlightCandidate(
+      [item('b', 0, null, 'Romans 8:28'), item('a', 0, null, 'John 3:16')],
+      null
+    );
+    expect(pick?.id).toBe('a');
   });
 });

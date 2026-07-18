@@ -2395,4 +2395,190 @@ describe('UserSettingsComponent', () => {
       consoleSpy.mockRestore();
     });
   });
+
+  describe('preference setters and encouragement toggles', () => {
+    it('early-returns when preferences not loaded or offline', () => {
+      component.preferencesLoaded = false;
+      component.setReceiveNotifications(false);
+      expect(mockConnectivity.requireOnline).not.toHaveBeenCalled();
+
+      component.preferencesLoaded = true;
+      component.receiveNotifications = true;
+      component.setReceiveNotifications(true);
+
+      mockConnectivity.requireOnline.mockReturnValue(false);
+      component.setReceiveNotifications(false);
+      expect(component.receiveNotifications).toBe(true);
+
+      mockConnectivity.requireOnline.mockReturnValue(true);
+      component.savingPushNotification = true;
+      component.setReceivePushNotifications(true);
+      component.savingPushNotification = false;
+      component.receivePushNotifications = false;
+      mockConnectivity.requireOnline.mockReturnValue(false);
+      component.setReceivePushNotifications(true);
+      expect(component.receivePushNotifications).toBe(false);
+    });
+
+    it('setBadge and encouragement setters respect loaded flags and offline', () => {
+      component.badgePreferencesLoaded = false;
+      component.setBadgeFunctionalityEnabled(true);
+
+      component.badgePreferencesLoaded = true;
+      component.badgeFunctionalityEnabled = false;
+      mockConnectivity.requireOnline.mockReturnValue(false);
+      component.setBadgeFunctionalityEnabled(true);
+      expect(component.badgeFunctionalityEnabled).toBe(false);
+
+      component.prayerEncouragementUiLoaded = true;
+      component.showPrayForButton = true;
+      component.showPrayingCount = true;
+      mockConnectivity.requireOnline.mockReturnValue(false);
+      component.setShowPrayForButton(false);
+      component.setShowPrayingCount(false);
+      expect(component.showPrayForButton).toBe(true);
+      expect(component.showPrayingCount).toBe(true);
+    });
+
+    it('selectDefaultPrayerView and setMemorizationStrictMode', async () => {
+      component.defaultViewPreferencesLoaded = true;
+      component.savingDefaultView = false;
+      component.defaultPrayerView = 'current';
+      const viewSpy = vi.spyOn(component, 'onDefaultViewChange').mockResolvedValue();
+      component.selectDefaultPrayerView('personal');
+      expect(viewSpy).toHaveBeenCalledWith('personal');
+
+      component.memorizationStrictModeLoaded = true;
+      component.savingMemorizationStrictMode = false;
+      component.memorizationStrictMode = false;
+      const strictSpy = vi.spyOn(component, 'onMemorizationStrictModeToggle').mockResolvedValue();
+      component.setMemorizationStrictMode(true);
+      expect(component.memorizationStrictMode).toBe(true);
+      expect(strictSpy).toHaveBeenCalled();
+    });
+
+    it('onMemorizationStrictModeToggle persists and handles errors', async () => {
+      component.email = 'test@example.com';
+      component.memorizationStrictMode = true;
+      await component.onMemorizationStrictModeToggle();
+      expect(mockMembershipPrefs.updateOnly).toHaveBeenCalled();
+      expect(mockUserSessionService.updateUserSession).toHaveBeenCalledWith({
+        memorizationStrictMode: true,
+      });
+
+      component.email = '';
+      await component.onMemorizationStrictModeToggle();
+      expect(component.error).toContain('Email not found');
+
+      component.email = 'test@example.com';
+      component.memorizationStrictMode = true;
+      (component as any).tenantContext = { getActiveTenant: () => null };
+      await component.onMemorizationStrictModeToggle();
+      expect(component.error).toContain('organization');
+      expect(component.memorizationStrictMode).toBe(false);
+
+      (component as any).tenantContext = {
+        getActiveTenant: () => ({ id: 'test-tenant-id' }),
+      };
+      component.memorizationStrictMode = true;
+      mockMembershipPrefs.updateOnly.mockResolvedValueOnce({
+        ok: false,
+        error: new Error('strict fail'),
+      });
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      await component.onMemorizationStrictModeToggle();
+      expect(component.memorizationStrictMode).toBe(false);
+      consoleSpy.mockRestore();
+    });
+
+    it('onShowPrayForButtonToggle and onShowPrayingCountToggle', async () => {
+      vi.useRealTimers();
+      component.email = 'test@example.com';
+      component.showPrayForButton = false;
+      await component.onShowPrayForButtonToggle();
+      expect(mockMembershipPrefs.upsert).toHaveBeenCalled();
+      expect(component.successPrayerEncouragementUi).toContain('hidden');
+
+      component.email = '';
+      await component.onShowPrayForButtonToggle();
+      expect(component.error).toContain('Email not found');
+
+      component.email = 'test@example.com';
+      component.showPrayForButton = true;
+      mockMembershipPrefs.upsert.mockResolvedValueOnce({
+        ok: false,
+        error: new Error('pray fail'),
+      });
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      await component.onShowPrayForButtonToggle();
+      expect(component.showPrayForButton).toBe(false);
+      consoleSpy.mockRestore();
+
+      component.email = 'test@example.com';
+      component.showPrayingCount = false;
+      mockMembershipPrefs.upsert.mockResolvedValue({ ok: true });
+      await component.onShowPrayingCountToggle();
+      expect(component.successPrayerEncouragementUi).toContain('hidden');
+
+      component.email = '';
+      await component.onShowPrayingCountToggle();
+      expect(component.error).toContain('Email not found');
+
+      component.email = 'test@example.com';
+      component.showPrayingCount = true;
+      mockMembershipPrefs.upsert.mockResolvedValueOnce({
+        ok: false,
+        error: new Error('count fail'),
+      });
+      await component.onShowPrayingCountToggle();
+      expect(component.showPrayingCount).toBe(false);
+    });
+
+    it('onDefaultViewChange returns early when offline', async () => {
+      component.email = 'test@example.com';
+      mockConnectivity.requireOnline.mockReturnValue(false);
+      await component.onDefaultViewChange('personal');
+      expect(mockMembershipPrefs.upsert).not.toHaveBeenCalled();
+    });
+
+    it('loadGitHubFeedbackStatus handles errors', async () => {
+      const github = (component as any).githubFeedbackService;
+      github.getGitHubConfig.mockRejectedValueOnce(new Error('gh'));
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      await component.loadGitHubFeedbackStatus();
+      expect(component.githubFeedbackEnabled).toBe(false);
+      consoleSpy.mockRestore();
+    });
+
+    it('ngOnChanges without session or email uses defaults', () => {
+      mockUserSessionService.getCurrentSession.mockReturnValue(null);
+      localStorage.removeItem('prayerapp_user_email');
+      component.isOpen = true;
+      component.ngOnChanges({
+        isOpen: {
+          currentValue: true,
+          previousValue: false,
+          firstChange: true,
+          isFirstChange: () => true,
+        },
+      } as SimpleChanges);
+      expect(component.preferencesLoaded).toBe(true);
+      expect(component.receiveNotifications).toBe(true);
+      expect(component.prayerEncouragementUiLoaded).toBe(true);
+    });
+
+    it('onPushNotificationToggle error reverts and clears success timer path', async () => {
+      vi.useRealTimers();
+      component.email = 'test@example.com';
+      component.receivePushNotifications = true;
+      mockMembershipPrefs.upsert.mockResolvedValueOnce({
+        ok: false,
+        error: new Error('push fail'),
+      });
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      await component.onPushNotificationToggle();
+      expect(component.receivePushNotifications).toBe(false);
+      consoleSpy.mockRestore();
+    });
+  });
 });

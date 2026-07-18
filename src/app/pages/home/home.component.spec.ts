@@ -3236,4 +3236,124 @@ describe('HomeComponent', () => {
       focusSpy.mockRestore();
     });
   });
+
+  describe('pull-to-refresh and tenant getters', () => {
+    it('isSuperAdmin and onPullToRefresh refresh prayers', async () => {
+      mocks = makeMocks();
+      mocks.tenantContextService.getIsSuperAdmin.mockReturnValue(true);
+      mocks.prayerService.loadPrayers = vi.fn().mockResolvedValue(undefined);
+      mocks.prayerService.loadPersonalPrayers = vi.fn().mockResolvedValue(undefined);
+      mocks.userSessionService.getCurrentSession.mockReturnValue({
+        email: 'user@test.com',
+      });
+
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService,
+        mocks.tenantPermissionService,
+        mocks.tenantContextService,
+        mocks.memorizationService,
+        mocks.connectivity,
+        mocks.memorizationRecommendationsService,
+        mocks.scriptureService
+      );
+
+      expect(comp.isSuperAdmin).toBe(true);
+
+      await comp.onPullToRefresh();
+      expect(mocks.prayerService.loadPrayers).toHaveBeenCalledWith(false);
+      expect(mocks.prayerService.loadPersonalPrayers).toHaveBeenCalledWith(false);
+      expect(mocks.memorizationService.loadItems).toHaveBeenCalled();
+      expect(comp.isRefreshing).toBe(false);
+
+      mocks.prayerService.loadPrayers.mockClear();
+      await comp.onPullToRefresh();
+      expect(mocks.prayerService.loadPrayers).not.toHaveBeenCalled();
+    });
+
+    it('onPullToRefresh returns early when offline', async () => {
+      mocks = makeMocks();
+      mocks.connectivity.requireOnline.mockReturnValue(false);
+      mocks.prayerService.loadPrayers = vi.fn();
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService,
+        mocks.tenantPermissionService,
+        mocks.tenantContextService,
+        mocks.memorizationService,
+        mocks.connectivity,
+        mocks.memorizationRecommendationsService,
+        mocks.scriptureService
+      );
+      await comp.onPullToRefresh();
+      expect(mocks.prayerService.loadPrayers).not.toHaveBeenCalled();
+    });
+
+    it('onPullToRefresh shows toast on failure', async () => {
+      mocks = makeMocks();
+      mocks.prayerService.loadPrayers = vi.fn().mockRejectedValue(new Error('fail'));
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService,
+        mocks.tenantPermissionService,
+        mocks.tenantContextService,
+        mocks.memorizationService,
+        mocks.connectivity,
+        mocks.memorizationRecommendationsService,
+        mocks.scriptureService
+      );
+      await comp.onPullToRefresh();
+      expect(mocks.toastService.error).toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
+
+    it('onFiltersChange preserves status/type and applies search', () => {
+      mocks = makeMocks();
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      comp.filters = { status: 'current', type: 'all', searchTerm: '' } as any;
+      comp.onFiltersChange({ searchTerm: 'healing' } as any);
+      expect(comp.filters.searchTerm).toBe('healing');
+      expect(mocks.prayerService.applyFilters).toHaveBeenCalled();
+    });
+  });
 });
