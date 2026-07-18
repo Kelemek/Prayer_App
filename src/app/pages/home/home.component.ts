@@ -1284,7 +1284,14 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.route.queryParams
       .pipe(takeUntil(this.destroy$))
       .subscribe((params) => {
-        this.applyMemorizeFilterFromQuery(params["filter"]);
+        if (!this.viewReady) {
+          return;
+        }
+        if (params["filter"] === "memorize") {
+          this.setFilter("memorize");
+          this.clearMemorizeFilterQueryParam();
+          this.cdr.markForCheck();
+        }
       });
 
     this.isOnline = this.connectivity.isOnline();
@@ -1619,8 +1626,8 @@ export class HomeComponent implements OnInit, OnDestroy {
 
     if (this.route.snapshot.queryParamMap.get("filter") === "memorize") {
       this.setFilter("memorize");
-      this.viewReady = true;
       this.clearMemorizeFilterQueryParam();
+      this.viewReady = true;
       this.cdr.markForCheck();
       return;
     }
@@ -1633,15 +1640,6 @@ export class HomeComponent implements OnInit, OnDestroy {
         : "current";
     this.setFilter(filter);
     this.viewReady = true;
-    this.cdr.markForCheck();
-  }
-
-  private applyMemorizeFilterFromQuery(filter: string | undefined): void {
-    if (filter !== "memorize") {
-      return;
-    }
-    this.setFilter("memorize");
-    this.clearMemorizeFilterQueryParam();
     this.cdr.markForCheck();
   }
 

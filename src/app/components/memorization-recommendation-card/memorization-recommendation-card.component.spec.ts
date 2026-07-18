@@ -7,9 +7,11 @@ import type { MemorizationRecommendation } from '../../types/memorization';
 
 const sample: MemorizationRecommendation = {
   id: 'r1',
+  tenantId: 'tenant-1',
   reference: 'John 3:16',
   categoryId: 'cat-1',
   displayOrder: 0,
+  catalogSource: null,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 };

@@ -1,0 +1,28 @@
+      <!-- Memorization strict mode -->
+      <div
+        id="tour-settings-memorization-strict-mode"
+        class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-2"
+      >
+        <div class="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base">
+          @if (memorizationStrictModeLoaded) { Memorization practice } @else {
+          <span class="inline-block h-5 w-48 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></span>
+          }
+        </div>
+        @if (memorizationStrictModeLoaded) {
+        <app-enabled-disabled-toggle
+          [loaded]="memorizationStrictModeLoaded"
+          [saving]="savingMemorizationStrictMode"
+          [value]="!memorizationStrictMode"
+          enabledLabel="Standard"
+          disabledLabel="Strict"
+          (valueChange)="memorizationStrictModeChange.emit(!$event)"
+        />
+        <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+          {{
+            memorizationStrictMode
+              ? 'Wrong answers are not auto-solved; keep trying until you get each blank right.'
+              : 'After three wrong attempts on a blank, the answer is revealed automatically.'
+          }}
+        </p>
+        }
+      </div>

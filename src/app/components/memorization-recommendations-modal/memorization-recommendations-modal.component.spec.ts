@@ -24,9 +24,11 @@ function createModal(): MemorizationRecommendationsModalComponent {
 
 const sample: MemorizationRecommendation = {
   id: 'r1',
+  tenantId: 'tenant-1',
   reference: 'John 3:16',
   categoryId: 'cat-1',
   displayOrder: 0,
+  catalogSource: null,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 };
@@ -35,8 +37,10 @@ const groups: MemorizationRecommendationCategoryGroup[] = [
   {
     category: {
       id: 'cat-1',
+      tenantId: 'tenant-1',
       name: 'Gospel',
       displayOrder: 0,
+      catalogSource: null,
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
     },
@@ -45,8 +49,10 @@ const groups: MemorizationRecommendationCategoryGroup[] = [
   {
     category: {
       id: 'cat-2',
+      tenantId: 'tenant-1',
       name: 'Empty',
       displayOrder: 1,
+      catalogSource: null,
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
     },

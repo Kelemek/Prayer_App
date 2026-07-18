@@ -94,6 +94,15 @@ const makeMocks = () => {
     navigate: vi.fn()
   };
 
+  const route: any = {
+    queryParams: of({}),
+    snapshot: {
+      queryParamMap: {
+        get: vi.fn(() => null),
+      },
+    },
+  };
+
   const supabaseService: any = {
     client: {
       from: vi.fn(() => ({
@@ -169,7 +178,7 @@ const makeMocks = () => {
     requireOnline: vi.fn(() => true),
   };
 
-  return { prayerService, promptService, adminAuthService, userSessionService, badgeService, cacheService, toastService, analyticsService, cdr, router, supabaseService, tenantPermissionService, tenantContextService, memorizationService, memorizationRecommendationsService, scriptureService, connectivity, prayersSubject, promptsSubject, userSessionSubject, allPersonalPrayersSubject };
+  return { prayerService, promptService, adminAuthService, userSessionService, badgeService, cacheService, toastService, analyticsService, cdr, router, route, supabaseService, tenantPermissionService, tenantContextService, memorizationService, memorizationRecommendationsService, scriptureService, connectivity, prayersSubject, promptsSubject, userSessionSubject, allPersonalPrayersSubject };
 };
 
 let mocks: ReturnType<typeof makeMocks>;
@@ -209,6 +218,7 @@ const createHomeComponent = (
   analyticsService: any,
   cdr: any,
   router: any,
+  route: any,
   supabaseService: any,
   tenantPermissionService?: any,
   tenantContextService?: any,
@@ -228,6 +238,7 @@ const createHomeComponent = (
     analyticsService,
     cdr,
     router,
+    route,
     supabaseService,
     tenantPermissionService ?? m.tenantPermissionService,
     tenantContextService ?? m.tenantContextService,
@@ -320,6 +331,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     expect(comp.hasLogo).toBe(true);
@@ -339,6 +351,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     expect(comp.hasLogo).toBe(false);
@@ -356,6 +369,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     expect(comp.getUserEmail()).toBe('cached@example.com');
@@ -373,6 +387,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     expect(comp.getUserEmail()).toBe('a@b.com');
@@ -389,6 +404,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     localStorage.setItem('userEmail', 'user@example.com');
@@ -406,6 +422,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     localStorage.setItem('prayerapp_user_email', 'prayerapp@example.com');
@@ -423,6 +440,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     localStorage.clear();
@@ -441,6 +459,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     expect(comp.getUserEmail()).toBe('Not logged in');
@@ -458,6 +477,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
 
@@ -501,6 +521,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     comp.filters = { status: 'answered', searchTerm: '', type: undefined };
@@ -520,6 +541,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     // initialize subscriptions
@@ -538,6 +560,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     comp.filters.searchTerm = 'search';
@@ -559,6 +582,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     comp.filters.searchTerm = 's';
@@ -578,6 +602,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     comp.filters.searchTerm = 's2';
@@ -597,6 +622,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     comp.markAsAnswered('id1');
@@ -616,6 +642,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     // success
@@ -640,6 +667,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     mocks.prayerService.deleteUpdate.mockResolvedValue(undefined);
@@ -662,6 +690,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     mocks.prayerService.requestDeletion.mockResolvedValue(undefined);
@@ -690,6 +719,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     await comp.deletePrompt('p1');
@@ -707,6 +737,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     comp.selectedPromptTypes = ['A'];
@@ -729,6 +760,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     const items = [
@@ -772,6 +804,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     const items = [
@@ -796,6 +829,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     const s = comp.formatDate('2025-12-27T00:00:00Z');
@@ -817,6 +851,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     await comp.logout();
@@ -835,6 +870,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     comp.navigateToAdmin();
@@ -863,6 +899,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     comp.tenantContextLoading = false;
@@ -892,6 +929,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     comp.tenantContextLoading = false;
@@ -911,6 +949,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
     comp.tenantMemberships = [{ tenant_id: 'test-tenant-id' } as any];
@@ -950,6 +989,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mockSupabaseService
     );
 
@@ -986,6 +1026,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mockSupabaseService
     );
 
@@ -1019,6 +1060,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mockSupabaseService
     );
 
@@ -1055,6 +1097,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mockSupabaseService
     );
 
@@ -1094,6 +1137,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mockSupabaseService
     );
 
@@ -1120,6 +1164,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       mocks.supabaseService
     );
 
@@ -1147,6 +1192,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       supabase.supabaseService as any
     );
 
@@ -1179,6 +1225,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       supabase.supabaseService as any
     );
 
@@ -1218,6 +1265,7 @@ describe('HomeComponent', () => {
       mocks.analyticsService,
       mocks.cdr,
       mocks.router,
+      mocks.route,
       supabase.supabaseService as any
     );
 
@@ -1238,6 +1286,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1263,6 +1312,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1292,6 +1342,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1321,6 +1372,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1345,6 +1397,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1381,6 +1434,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1401,6 +1455,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1421,6 +1476,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1442,6 +1498,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1462,6 +1519,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1489,6 +1547,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1511,6 +1570,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1536,6 +1596,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1564,6 +1625,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1590,6 +1652,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1616,6 +1679,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1638,6 +1702,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1662,6 +1727,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
       comp.personalPrayers = prayers;
@@ -1688,6 +1754,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
       comp.personalPrayers = prayers;
@@ -1737,6 +1804,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
       comp.personalPrayers = prayers as any;
@@ -1764,6 +1832,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
       comp.personalPrayers = prayers;
@@ -1786,6 +1855,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1805,6 +1875,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1824,6 +1895,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1845,6 +1917,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1866,6 +1939,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1889,6 +1963,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1920,6 +1995,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -1963,6 +2039,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2007,6 +2084,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2039,6 +2117,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2059,6 +2138,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2082,6 +2162,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2109,6 +2190,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2142,6 +2224,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2179,6 +2262,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2207,6 +2291,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2238,6 +2323,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2278,6 +2364,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2313,6 +2400,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2345,6 +2433,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2384,6 +2473,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2419,6 +2509,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2441,6 +2532,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2462,6 +2554,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2481,6 +2574,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2499,6 +2593,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2517,6 +2612,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2537,6 +2633,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2559,6 +2656,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2584,6 +2682,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2606,6 +2705,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2635,6 +2735,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2655,6 +2756,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
       comp.tenantMemberships = [{ tenant_id: 'test-tenant-id' } as any];
@@ -2678,6 +2780,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2699,6 +2802,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2723,6 +2827,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2744,6 +2849,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2767,6 +2873,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2789,6 +2896,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2811,6 +2919,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2833,6 +2942,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2854,6 +2964,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2887,6 +2998,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2918,6 +3030,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2948,6 +3061,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -2982,6 +3096,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService,
         mocks.tenantPermissionService,
         mocks.tenantContextService
@@ -3016,6 +3131,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -3048,6 +3164,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 
@@ -3095,6 +3212,7 @@ describe('HomeComponent', () => {
         mocks.analyticsService,
         mocks.cdr,
         mocks.router,
+        mocks.route,
         mocks.supabaseService
       );
 

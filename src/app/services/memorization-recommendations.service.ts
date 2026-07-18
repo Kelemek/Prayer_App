@@ -528,6 +528,7 @@ function mapCategoryRow(
     tenantId: row.tenant_id,
     name: row.name,
     displayOrder: row.display_order,
+    catalogSource: row.catalog_source ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -540,6 +541,7 @@ function mapItemRow(row: MemorizationRecommendationRow): MemorizationRecommendat
     reference: row.reference,
     categoryId: row.category_id,
     displayOrder: row.display_order,
+    catalogSource: row.catalog_source ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

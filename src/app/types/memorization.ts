@@ -100,12 +100,15 @@ export interface MemorizedItemRow {
   updated_at: string;
 }
 
+export type MemorizationCatalogSource = 'ibcd' | null;
+
 /** Admin-curated category for Memorize recommendation verses (tenant-scoped). */
 export interface MemorizationRecommendationCategory {
   id: string;
   tenantId: string;
   name: string;
   displayOrder: number;
+  catalogSource: MemorizationCatalogSource;
   createdAt: string;
   updatedAt: string;
 }
@@ -115,6 +118,7 @@ export interface MemorizationRecommendationCategoryRow {
   tenant_id: string;
   name: string;
   display_order: number;
+  catalog_source?: MemorizationCatalogSource;
   created_at: string;
   updated_at: string;
 }
@@ -126,6 +130,7 @@ export interface MemorizationRecommendation {
   reference: string;
   categoryId: string;
   displayOrder: number;
+  catalogSource: MemorizationCatalogSource;
   createdAt: string;
   updatedAt: string;
 }
@@ -136,6 +141,7 @@ export interface MemorizationRecommendationRow {
   reference: string;
   category_id: string;
   display_order: number;
+  catalog_source?: MemorizationCatalogSource;
   created_at: string;
   updated_at: string;
 }

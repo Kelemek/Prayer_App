@@ -293,11 +293,6 @@ export class HourReminderSettingsSectionComponent implements OnChanges {
   reload(): void {
     this.error = null;
     const modalEmail = this.email?.trim() ?? '';
-    const session = this.userSession.getCurrentSession();
-    const sessionEmail = session?.email?.trim() ?? '';
-    const { slotsKey } = this.reminders.sessionCacheKeys(this.kind);
-    const sessionCacheMatchesModal =
-      sessionEmail === modalEmail && session?.[slotsKey] !== undefined;
 
     if (!modalEmail) {
       this.slots = [];
@@ -306,35 +301,35 @@ export class HourReminderSettingsSectionComponent implements OnChanges {
       return;
     }
 
+    const session = this.userSession.getCurrentSession();
+    const sessionEmail = session?.email?.trim() ?? '';
+    const { slotsKey } = this.reminders.sessionCacheKeys(this.kind);
+    const sessionCacheMatchesModal =
+      sessionEmail === modalEmail && session?.[slotsKey] !== undefined;
+
     if (sessionCacheMatchesModal) {
       this.slots = [...session![slotsKey]!];
+      this.loading = false;
+      this.cdr.markForCheck();
     } else {
       this.slots = [];
+      this.loading = true;
+      this.cdr.markForCheck();
     }
-
-    const needsBlockingLoad = !sessionCacheMatchesModal;
-    this.loading = needsBlockingLoad;
-    this.cdr.markForCheck();
 
     this.reminders
       .ensureLoaded(this.kind, true)
       .then((loaded) => {
         if ((this.email?.trim() ?? '') !== modalEmail) {
-          this.loading = false;
-          this.cdr.markForCheck();
           return;
         }
-        const currentSessionEmail =
+        const sessionEmail =
           this.userSession.getCurrentSession()?.email?.trim() ?? '';
-        if (currentSessionEmail !== modalEmail) {
+        if (sessionEmail !== modalEmail) {
           this.slots = [];
-          this.loading = false;
-          this.cdr.markForCheck();
           return;
         }
         this.slots = [...loaded];
-        this.loading = false;
-        this.cdr.markForCheck();
       })
       .catch((err: unknown) => {
         console.error(`${this.kind} reminders load failed:`, err);
@@ -342,6 +337,8 @@ export class HourReminderSettingsSectionComponent implements OnChanges {
           err && typeof err === 'object' && 'message' in err
             ? String((err as { message: string }).message)
             : LOAD_ERROR[this.kind];
+      })
+      .finally(() => {
         this.loading = false;
         this.cdr.markForCheck();
       });

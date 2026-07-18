@@ -3,14 +3,15 @@ import {
   ChangeDetectorRef,
   Component,
   EventEmitter,
-  Input,
-  OnChanges,
+  OnDestroy,
+  OnInit,
   Output,
-  SimpleChanges,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Subscription } from 'rxjs';
 import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
 import { MemorizationRecommendationsService } from '../../services/memorization-recommendations.service';
+import { TenantContextService } from '../../services/tenant-context.service';
 import { ToastService } from '../../services/toast.service';
 import type { IbcdCatalogStatus } from '../../types/memorization';
 
@@ -40,7 +41,11 @@ import type { IbcdCatalogStatus } from '../../types/memorization';
         </p>
       </div>
 
-      @if (status && status.applied) {
+      @if (statusLoading) {
+        <p class="text-sm text-gray-500 dark:text-gray-400" aria-live="polite">
+          Loading IBCD catalog status…
+        </p>
+      } @else if (status && status.applied) {
         <p class="text-sm text-gray-700 dark:text-gray-200">
           IBCD catalog applied —
           {{ status.ibcdVerseCount }} verse{{ status.ibcdVerseCount === 1 ? '' : 's' }}
@@ -65,6 +70,10 @@ import type { IbcdCatalogStatus } from '../../types/memorization';
             Remove IBCD catalog
           </button>
         </div>
+      } @else if (!activeTenantId) {
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+          Select an organization to manage the IBCD catalog.
+        </p>
       } @else {
         <button
           type="button"
@@ -99,35 +108,63 @@ import type { IbcdCatalogStatus } from '../../types/memorization';
     }
   `,
 })
-export class IbcdMemorizationCatalogPanelComponent implements OnChanges {
-  @Input() activeTenantId: string | null = null;
+export class IbcdMemorizationCatalogPanelComponent implements OnInit, OnDestroy {
   @Output() catalogChanged = new EventEmitter<void>();
 
+  activeTenantId: string | null = null;
   status: IbcdCatalogStatus | null = null;
+  statusLoading = false;
   busy = false;
   showApplyConfirm = false;
   showRemoveConfirm = false;
 
+  private tenantSub?: Subscription;
+  private statusRequestGeneration = 0;
+
   constructor(
     private recommendations: MemorizationRecommendationsService,
+    private tenantContext: TenantContextService,
     private toast: ToastService,
     private cdr: ChangeDetectorRef
   ) {}
 
-  ngOnChanges(changes: SimpleChanges): void {
-    if ('activeTenantId' in changes) {
-      this.status = null;
+  ngOnInit(): void {
+    this.activeTenantId = this.tenantContext.getActiveTenant()?.id ?? null;
+    void this.refreshStatus();
+    this.tenantSub = this.tenantContext.activeTenant$.subscribe((tenant) => {
+      const nextId = tenant?.id ?? null;
+      if (nextId === this.activeTenantId) {
+        return;
+      }
+      this.activeTenantId = nextId;
       void this.refreshStatus();
-    }
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.tenantSub?.unsubscribe();
   }
 
   async refreshStatus(): Promise<void> {
-    if (!this.activeTenantId) {
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
       this.status = null;
+      this.statusLoading = false;
       this.mark();
       return;
     }
-    this.status = await this.recommendations.getIbcdCatalogStatus();
+    const requestId = ++this.statusRequestGeneration;
+    this.statusLoading = true;
+    this.mark();
+    const status = await this.recommendations.getIbcdCatalogStatus();
+    if (requestId !== this.statusRequestGeneration) {
+      return;
+    }
+    if (this.activeTenantId !== tenantId) {
+      return;
+    }
+    this.status = status;
+    this.statusLoading = false;
     this.mark();
   }
 

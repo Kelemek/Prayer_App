@@ -22,7 +22,6 @@ import { UserSessionService } from '../../services/user-session.service';
 import type { PracticeSessionResult } from '../../services/memorization.service';
 import {
   isMemorizationListenTranslation,
-  type MemorizationInProgress,
   type MemorizationInProgressSavePayload,
   type MemorizationPracticeMode,
   type MemorizedItem,
@@ -46,6 +45,19 @@ import {
   isBibleBooksMemorizationItem,
 } from '../../lib/memorization/bibleBooksMemorization';
 import { isKeyboardPracticeMode } from '../../lib/memorization/memorizationKeyboardPractice';
+import {
+  type MemorizationStrictModeSessionContext,
+  hydratedRoundCompletedWithErrors,
+  mustRepeatFinalRound,
+  resolveHydratedWrongAttemptsInRound,
+  shouldAutoFinishFinalRoundAfterSessionLoad,
+  shouldAutoRevealToken,
+  shouldCountReorderWrongSwap,
+  shouldDeferFinalRoundUntilSessionInit,
+  showFinishPracticeOption,
+  showNextRoundOption,
+  strictModeToggleSetsRoundCompletedWithErrors,
+} from '../../lib/memorization/memorization-strict-mode-policy';
 import {
   applyMemorizeListenPlaybackRateToMediaElement,
   MEMORIZE_LISTEN_REPEAT_GAP_MS,
@@ -86,7 +98,6 @@ export type { PracticeSessionResult };
 
 type Phase = 'intro' | 'practicing' | 'done';
 
-const MAX_WRONG_BEFORE_REVEAL = 3;
 const MEMORIZATION_WORD_CHOICE_COUNT_WORD = 8;
 const MEMORIZATION_WORD_CHOICE_COUNT_DIGIT = 6;
 const MEMORIZE_EXTRA_GAP_ABOVE_KEYBOARD_PX = 48;
@@ -348,19 +359,21 @@ export class MemorizationPracticeSessionComponent
   }
 
   get showNextRoundOption(): boolean {
-    if (this.isFinalRound) return false;
-    if (!this.roundCompletedWithErrors) return true;
-    return !this.mustRepeatDueToErrors();
+    return showNextRoundOption({
+      isFinalRound: this.isFinalRound,
+      roundCompletedWithErrors: this.roundCompletedWithErrors,
+      wrongAttemptsInRound: this.wrongAttemptsInRound,
+      ctx: this.strictModeContext(),
+    });
   }
 
   /** Final round in standard mode: finish with errors after resume or strict-mode toggle. */
   get showFinishPracticeOption(): boolean {
-    return (
-      this.awaitingRoundAdvance &&
-      this.isFinalRound &&
-      this.userSessionService.isSessionInitialized() &&
-      !this.strictModeEnabled
-    );
+    return showFinishPracticeOption({
+      awaitingRoundAdvance: this.awaitingRoundAdvance,
+      isFinalRound: this.isFinalRound,
+      ctx: this.strictModeContext(),
+    });
   }
 
   get roundAdvanceHeaderCopy(): string {
@@ -713,7 +726,7 @@ export class MemorizationPracticeSessionComponent
   }
 
   onReorderWrongSwap(): void {
-    if (!this.strictModeEnabled) return;
+    if (!shouldCountReorderWrongSwap(this.strictModeContext())) return;
     this.recordWrongAttempt();
     this.syncMetricRefs();
     this.flashErrorBriefly();
@@ -1101,9 +1114,12 @@ export class MemorizationPracticeSessionComponent
     this.sessionSeed = ip.sessionSeed;
     this.practiceCompleted = false;
     this.wrongAttemptsTotal = ip.wrongAttempts;
-    const hydratedRoundErrors = this.resolveHydratedWrongAttemptsInRound(ip);
+    const hydratedRoundErrors = resolveHydratedWrongAttemptsInRound(ip);
     if (ip.phase.kind === 'betweenRounds') {
-      this.roundCompletedWithErrors = hydratedRoundErrors > 0;
+      this.roundCompletedWithErrors = hydratedRoundCompletedWithErrors(
+        ip.phase.kind,
+        hydratedRoundErrors
+      );
       this.pendingBetweenRoundsErrors = hydratedRoundErrors;
       this.wrongAttemptsInRound = hydratedRoundErrors;
     } else {
@@ -1338,57 +1354,51 @@ export class MemorizationPracticeSessionComponent
   private applyStrictModeFromSession(strict: boolean): void {
     if (this.strictModeEnabled === strict) return;
     this.strictModeEnabled = strict;
-    if (strict && this.awaitingRoundAdvance && this.wrongAttemptsInRound > 0) {
+    if (
+      strictModeToggleSetsRoundCompletedWithErrors(
+        strict,
+        this.awaitingRoundAdvance,
+        this.wrongAttemptsInRound
+      )
+    ) {
       this.roundCompletedWithErrors = true;
     }
     this.cdr.markForCheck();
   }
 
-  /** Block auto-reveal until session bootstrap resolves strict vs standard. */
-  private isAutoRevealBlocked(): boolean {
-    return this.strictModeEnabled || !this.userSessionService.isSessionInitialized();
+  private strictModeContext(): MemorizationStrictModeSessionContext {
+    return {
+      strictModeEnabled: this.strictModeEnabled,
+      sessionInitialized: this.userSessionService.isSessionInitialized(),
+    };
   }
 
-  /**
-   * Legacy in-progress saves may omit per-round error counts; treat missing as zero
-   * so session totals do not inflate the current round after resume.
-   */
-  private resolveHydratedWrongAttemptsInRound(ip: MemorizationInProgress): number {
-    return ip.wrongAttemptsInRound ?? 0;
-  }
-
-  /** Strict mode (or pending session) requires repeating after errors before advancing mid-run. */
-  private mustRepeatDueToErrors(): boolean {
-    if (this.wrongAttemptsInRound <= 0) return false;
-    if (!this.userSessionService.isSessionInitialized()) return true;
-    return this.strictModeEnabled;
-  }
-
-  /** Final round: defer until session loads, then repeat only in strict mode. */
-  private mustRepeatFinalRound(): boolean {
-    if (!this.isFinalRound || this.wrongAttemptsInRound <= 0) return false;
-    if (!this.userSessionService.isSessionInitialized()) return true;
-    return this.strictModeEnabled;
-  }
-
-  /** Standard mode on final round: auto-finish with errors once session bootstrap resolves. */
   private reconcileFinalRoundAfterSessionLoad(): void {
-    if (!this.deferFinalRoundUntilSessionInit) return;
-    this.deferFinalRoundUntilSessionInit = false;
     if (
-      !this.awaitingRoundAdvance ||
-      !this.isFinalRound ||
-      this.wrongAttemptsInRound <= 0 ||
-      this.strictModeEnabled
+      !shouldAutoFinishFinalRoundAfterSessionLoad({
+        deferFinalRoundUntilSessionInit: this.deferFinalRoundUntilSessionInit,
+        awaitingRoundAdvance: this.awaitingRoundAdvance,
+        isFinalRound: this.isFinalRound,
+        wrongAttemptsInRound: this.wrongAttemptsInRound,
+        ctx: this.strictModeContext(),
+      })
     ) {
+      if (this.deferFinalRoundUntilSessionInit) {
+        this.deferFinalRoundUntilSessionInit = false;
+      }
       return;
     }
+    this.deferFinalRoundUntilSessionInit = false;
     this.finishPracticeSession();
   }
 
   private tryAutoRevealAfterWrong(revealFirstLetterCue = false): void {
-    if (this.isAutoRevealBlocked() || this.currentTargetIndex === null) return;
-    if (this.consecutiveWrong < MAX_WRONG_BEFORE_REVEAL) return;
+    if (
+      !shouldAutoRevealToken(this.consecutiveWrong, this.strictModeContext()) ||
+      this.currentTargetIndex === null
+    ) {
+      return;
+    }
     const idx = this.currentTargetIndex;
     if (revealFirstLetterCue) {
       this.revealFirstLetterCueForToken(idx);
@@ -1419,9 +1429,13 @@ export class MemorizationPracticeSessionComponent
 
   private onRoundComplete(): void {
     this.syncMetricRefs();
-    const mustRepeatFinalRound = this.mustRepeatFinalRound();
+    const mustRepeatFinal = mustRepeatFinalRound(
+      this.isFinalRound,
+      this.wrongAttemptsInRound,
+      this.strictModeContext()
+    );
 
-    if (this.isFinalRound && !mustRepeatFinalRound) {
+    if (this.isFinalRound && !mustRepeatFinal) {
       this.finishPracticeSession();
       return;
     }
@@ -1431,9 +1445,11 @@ export class MemorizationPracticeSessionComponent
     this.pendingBetweenRoundsErrors = this.wrongAttemptsInRound;
     this.roundCompletedWithErrors = this.wrongAttemptsInRound > 0;
     if (
-      this.isFinalRound &&
-      this.wrongAttemptsInRound > 0 &&
-      !this.userSessionService.isSessionInitialized()
+      shouldDeferFinalRoundUntilSessionInit(
+        this.isFinalRound,
+        this.wrongAttemptsInRound,
+        this.userSessionService.isSessionInitialized()
+      )
     ) {
       this.deferFinalRoundUntilSessionInit = true;
     }

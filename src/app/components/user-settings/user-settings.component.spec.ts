@@ -43,6 +43,7 @@ describe('UserSettingsComponent', () => {
   let mockBadgeService: any;
   let mockUserSessionService: any;
   let mockCapacitorService: any;
+  let mockMembershipPrefs: any;
   let mockChangeDetectorRef: any;
   let mockConnectivity: any;
   let mockToast: any;
@@ -135,6 +136,21 @@ describe('UserSettingsComponent', () => {
       getGitHubConfig: vi.fn(() => Promise.resolve(null)),
     };
 
+    mockMembershipPrefs = {
+      matchFilter: vi.fn((email: string) => ({
+        user_email: email,
+        tenant_id: 'test-tenant-id',
+      })),
+      upsert: vi.fn(() => Promise.resolve({ ok: true })),
+      updateOnly: vi.fn(() => Promise.resolve({ ok: true })),
+      insertPayload: vi.fn((email: string, fields: Record<string, unknown>) => ({
+        user_email: email,
+        role: 'member',
+        tenant_id: 'test-tenant-id',
+        ...fields,
+      })),
+    };
+
     const mockTenantContextService = {
       getActiveTenant: vi.fn(() => ({ id: 'test-tenant-id', name: 'Test', slug: 'test' }))
     };
@@ -154,16 +170,14 @@ describe('UserSettingsComponent', () => {
     component = new UserSettingsComponent(
       mockThemeService,
       mockTextSizeService,
-      mockPrintService,
       mockSupabaseService,
-      mockPrayerService,
-      mockEmailNotificationService,
       mockAdminAuthService,
       mockGitHubFeedbackService as any,
       mockBadgeService as any,
       mockUserSessionService,
       mockCapacitorService as CapacitorService,
       mockTenantContextService as any,
+      mockMembershipPrefs as any,
       mockConnectivity as any,
       mockToast as any,
       mockChangeDetectorRef as ChangeDetectorRef
@@ -244,7 +258,7 @@ describe('UserSettingsComponent', () => {
   });
 
   describe('ngOnChanges', () => {
-    it('should load prompt types when modal opens', async () => {
+    it.skip('loads prompt types in print section when modal opens', async () => {
       const mockData = [
         { name: 'Type1', display_order: 1 },
         { name: 'Type2', display_order: 2 }
@@ -402,7 +416,7 @@ describe('UserSettingsComponent', () => {
     });
   });
 
-  describe('loadPromptTypes', () => {
+  describe.skip('loadPromptTypes', () => {
     it('should load active prayer types ordered by display_order', async () => {
       const mockData = [
         { name: 'Prayer', display_order: 1 },
@@ -495,7 +509,7 @@ describe('UserSettingsComponent', () => {
     });
   });
 
-  describe('setPrintRange', () => {
+  describe.skip('setPrintRange', () => {
     it('should update print range', () => {
       component.setPrintRange('month');
       expect(component.printRange).toBe('month');
@@ -511,7 +525,7 @@ describe('UserSettingsComponent', () => {
     });
   });
 
-  describe('handlePrint', () => {
+  describe.skip('handlePrint', () => {
     it('should open new window and call print service', async () => {
       const mockWindow = {} as Window;
       const openSpy = vi.spyOn(window, 'open').mockReturnValue(mockWindow);
@@ -563,7 +577,7 @@ describe('UserSettingsComponent', () => {
     });
   });
 
-  describe('handlePrintPrompts', () => {
+  describe.skip('handlePrintPrompts', () => {
     it('should open new window and call print service', async () => {
       const mockWindow = {} as Window;
       const openSpy = vi.spyOn(window, 'open').mockReturnValue(mockWindow);
@@ -606,7 +620,7 @@ describe('UserSettingsComponent', () => {
     });
   });
 
-  describe('togglePromptType', () => {
+  describe.skip('togglePromptType', () => {
     it('should add prompt type if not selected', () => {
       component.selectedPromptTypes = [];
       component.togglePromptType('Type1');
@@ -671,14 +685,9 @@ describe('UserSettingsComponent', () => {
       localStorage.setItem('prayerapp_user_email', 'test@example.com');
       component.receiveNotifications = true;
 
-      const mockExisting = { id: 'sub-123' };
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => supabaseSelectResult(mockExisting)),
-        update: vi.fn(() => supabaseUpdateResult())
-      });
-
       await component.onNotificationToggle();
 
+      expect(mockMembershipPrefs.upsert).toHaveBeenCalled();
       expect(component.success).toBeTruthy();
       expect(component.success).toContain('enabled');
       expect(component.saving).toBe(false);
@@ -686,17 +695,13 @@ describe('UserSettingsComponent', () => {
 
     it('should create new subscriber if not exists', async () => {
       localStorage.setItem('prayerapp_user_email', 'new@example.com');
-      localStorage.setItem('prayerapp_user_first_name', 'New');
-      localStorage.setItem('prayerapp_user_last_name', 'User');
+      component.email = 'new@example.com';
+      component.name = 'New User';
       component.receiveNotifications = true;
-
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => supabaseSelectResult(null)),
-        insert: vi.fn(() => Promise.resolve({ data: null, error: null }))
-      });
 
       await component.onNotificationToggle();
 
+      expect(mockMembershipPrefs.upsert).toHaveBeenCalled();
       expect(component.success).toBeTruthy();
       expect(component.success).toContain('enabled');
       expect(component.saving).toBe(false);
@@ -707,14 +712,14 @@ describe('UserSettingsComponent', () => {
       const initialValue = true;
       component.receiveNotifications = initialValue;
 
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => supabaseSelectResult(null, new Error('DB error')))
+      mockMembershipPrefs.upsert.mockResolvedValueOnce({
+        ok: false,
+        error: new Error('DB error'),
       });
 
       await component.onNotificationToggle();
 
       expect(component.error).toBeTruthy();
-      // Should be reverted to opposite of initial value
       expect(component.receiveNotifications).toBe(!initialValue);
       expect(component.saving).toBe(false);
       
@@ -746,12 +751,9 @@ describe('UserSettingsComponent', () => {
       const initialValue = true;
       component.receiveNotifications = initialValue;
 
-      const mockExisting = { id: 'sub-123' };
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => supabaseSelectResult(mockExisting)),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: new Error('Update failed') }))
-        }))
+      mockMembershipPrefs.upsert.mockResolvedValueOnce({
+        ok: false,
+        error: new Error('Update failed'),
       });
 
       await component.onNotificationToggle();
@@ -759,7 +761,6 @@ describe('UserSettingsComponent', () => {
       expect(component.error).toBeTruthy();
       expect(component.receiveNotifications).toBe(!initialValue);
       expect(component.saving).toBe(false);
-      expect(consoleSpy).toHaveBeenCalledWith('Update error:', expect.any(Error));
       
       consoleSpy.mockRestore();
     });
@@ -769,9 +770,9 @@ describe('UserSettingsComponent', () => {
       const initialValue = true;
       component.receiveNotifications = initialValue;
 
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => supabaseSelectResult(null)),
-        insert: vi.fn(() => Promise.resolve({ data: null, error: new Error('Insert failed') }))
+      mockMembershipPrefs.upsert.mockResolvedValueOnce({
+        ok: false,
+        error: new Error('Insert failed'),
       });
 
       await component.onNotificationToggle();
@@ -779,7 +780,6 @@ describe('UserSettingsComponent', () => {
       expect(component.error).toBeTruthy();
       expect(component.receiveNotifications).toBe(!initialValue);
       expect(component.saving).toBe(false);
-      expect(consoleSpy).toHaveBeenCalledWith('Insert error:', expect.any(Error));
       
       consoleSpy.mockRestore();
     });
@@ -1083,7 +1083,7 @@ describe('UserSettingsComponent', () => {
     });
   });
 
-  describe('handlePrint', () => {
+  describe.skip('handlePrint', () => {
     it('should set isPrinting to true during print', async () => {
       mockPrintService.downloadPrintablePrayerList.mockImplementation(() => new Promise<void>(resolve => {
         expect(component.isPrinting).toBe(true);
@@ -1119,7 +1119,7 @@ describe('UserSettingsComponent', () => {
     });
   });
 
-  describe('handlePrintPrompts', () => {
+  describe.skip('handlePrintPrompts', () => {
     it('should set isPrintingPrompts to true during print', async () => {
       mockPrintService.downloadPrintablePromptList.mockImplementation(() => new Promise<void>(resolve => {
         expect(component.isPrintingPrompts).toBe(true);
@@ -1155,7 +1155,7 @@ describe('UserSettingsComponent', () => {
     });
   });
 
-  describe('togglePromptType', () => {
+  describe.skip('togglePromptType', () => {
     it('should add prompt type when not selected', () => {
       component.selectedPromptTypes = [];
       component.togglePromptType('Healing');
@@ -1181,7 +1181,7 @@ describe('UserSettingsComponent', () => {
     });
   });
 
-  describe('setPrintRange', () => {
+  describe.skip('setPrintRange', () => {
     it('should update printRange property', () => {
       component.setPrintRange('month');
       expect(component.printRange).toBe('month');
@@ -1224,7 +1224,7 @@ describe('UserSettingsComponent', () => {
     });
   });
 
-  describe('loadPromptTypes', () => {
+  describe.skip('loadPromptTypes', () => {
     it('should load and set prompt types from database', async () => {
       mockSupabaseService.client.from.mockReturnValue({
         select: vi.fn(() => ({
@@ -1299,7 +1299,7 @@ describe('UserSettingsComponent', () => {
     });
   });
 
-  describe('Dropdown visibility', () => {
+  describe.skip('Dropdown visibility', () => {
     it('should toggle print dropdown visibility', () => {
       component.showPrintDropdown = false;
       component.showPrintDropdown = !component.showPrintDropdown;
@@ -1325,11 +1325,6 @@ describe('UserSettingsComponent', () => {
       expect(component.saving).toBe(false);
       expect(component.error).toBe(null);
       expect(component.success).toBe(null);
-      expect(component.isPrinting).toBe(false);
-      expect(component.isPrintingPrompts).toBe(false);
-      expect(component.printRange).toBe('week');
-      expect(component.showPrintDropdown).toBe(false);
-      expect(component.showPromptTypesDropdown).toBe(false);
     });
   });
 
@@ -1342,7 +1337,7 @@ describe('UserSettingsComponent', () => {
     });
   });
 
-  describe('Print range options', () => {
+  describe.skip('Print range options', () => {
     it('should have all five print range options defined', () => {
       expect(component.printRangeOptions.length).toBe(5);
       expect(component.printRangeOptions.map(o => o.value)).toEqual(['week', 'twoweeks', 'month', 'year', 'all']);
@@ -1372,19 +1367,15 @@ describe('UserSettingsComponent', () => {
 
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn(() => supabaseSelectResult({ id: '123' })),
-        update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ error: new Error('Update failed') }))
-        }))
+      mockMembershipPrefs.upsert.mockResolvedValueOnce({
+        ok: false,
+        error: new Error('Update failed'),
       });
 
       await component.onNotificationToggle();
 
-      // The function should toggle the value and then revert it on error
-      // So the final value should be back to the initial value
-      expect(component.receiveNotifications).toBe(!initialValue); // After toggle but before revert
-      expect(component.error).toBeTruthy(); // Error should be set
+      expect(component.receiveNotifications).toBe(!initialValue);
+      expect(component.error).toBeTruthy();
       
       consoleErrorSpy.mockRestore();
     });
@@ -1396,7 +1387,6 @@ describe('UserSettingsComponent', () => {
       expect(component.saving).toBe(false);
       expect(component.error).toBeNull();
       expect(component.success).toBeNull();
-      expect(component.isPrinting).toBe(false);
     });
 
     it('should track error state', () => {
@@ -1423,14 +1413,6 @@ describe('UserSettingsComponent', () => {
       expect(component.saving).toBe(false);
     });
 
-    it('should manage print state', () => {
-      component.isPrinting = false;
-      expect(component.isPrinting).toBe(false);
-      
-      component.isPrinting = true;
-      expect(component.isPrinting).toBe(true);
-    });
-
     it('should manage open state', () => {
       component.isOpen = false;
       expect(component.isOpen).toBe(false);
@@ -1449,45 +1431,6 @@ describe('UserSettingsComponent', () => {
       const destroySpy = vi.spyOn(component['destroy$'], 'complete');
       component.ngOnDestroy();
       expect(destroySpy).toHaveBeenCalled();
-    });
-
-    it('should handle dropdown toggle for print', () => {
-      component.showPrintDropdown = false;
-      component.showPrintDropdown = true;
-      expect(component.showPrintDropdown).toBe(true);
-      
-      component.showPrintDropdown = false;
-      expect(component.showPrintDropdown).toBe(false);
-    });
-
-    it('should handle dropdown toggle for prompt types', () => {
-      component.showPromptTypesDropdown = false;
-      component.showPromptTypesDropdown = true;
-      expect(component.showPromptTypesDropdown).toBe(true);
-      
-      component.showPromptTypesDropdown = false;
-      expect(component.showPromptTypesDropdown).toBe(false);
-    });
-
-    it('should maintain independent dropdown states', () => {
-      component.showPrintDropdown = true;
-      component.showPromptTypesDropdown = true;
-      
-      component.showPrintDropdown = false;
-      
-      expect(component.showPrintDropdown).toBe(false);
-      expect(component.showPromptTypesDropdown).toBe(true);
-    });
-
-    it('should handle print range changes', () => {
-      component.printRange = 'week';
-      expect(component.printRange).toBe('week');
-      
-      component.printRange = 'month';
-      expect(component.printRange).toBe('month');
-      
-      component.printRange = 'year';
-      expect(component.printRange).toBe('year');
     });
 
     it('should handle theme selection', () => {
@@ -1528,11 +1471,6 @@ describe('UserSettingsComponent', () => {
     it('should handle print theme options', () => {
       expect(component.themeOptions).toBeDefined();
       expect(component.themeOptions.length).toBeGreaterThan(0);
-    });
-
-    it('should handle print range options', () => {
-      expect(component.printRangeOptions).toBeDefined();
-      expect(component.printRangeOptions.length).toBeGreaterThan(0);
     });
   });
 
@@ -1620,10 +1558,6 @@ describe('UserSettingsComponent', () => {
       expect(Array.isArray(component.themeOptions)).toBe(true);
     });
 
-    it('should have printRangeOptions available', () => {
-      expect(component.printRangeOptions).toBeDefined();
-      expect(Array.isArray(component.printRangeOptions)).toBe(true);
-    });
 
     it('should track saving states independently', () => {
       component.saving = true;
@@ -1643,14 +1577,7 @@ describe('UserSettingsComponent', () => {
       expect(typeof component.email).toBe('string');
     });
 
-    it('should have printRange property', () => {
-      expect(component.printRange === 'week' || component.printRange === 'month' || component.printRange === 'year').toBe(true);
-    });
 
-    it('should have dropdown visibility properties', () => {
-      expect(typeof component.showPrintDropdown).toBe('boolean');
-      expect(typeof component.showPromptTypesDropdown).toBe('boolean');
-    });
 
     it('should have notification preferences', () => {
       // These properties may or may not exist, just verify the component is initialized
@@ -1731,9 +1658,6 @@ describe('UserSettingsComponent', () => {
       expect(component.themeOptions.length).toBeGreaterThan(0);
     });
 
-    it('should handle date range options', () => {
-      expect(component.printRangeOptions.length).toBeGreaterThan(0);
-    });
 
     it('should track component initialization state', () => {
       // Component should be initialized from beforeEach
@@ -1769,13 +1693,6 @@ describe('UserSettingsComponent', () => {
   });
 
   describe('User Settings - Extended Coverage Tests', () => {
-    it('should handle printRange state changes', () => {
-      const ranges: string[] = ['week', 'twoweeks', 'month', 'year', 'all'];
-      ranges.forEach(range => {
-        component.printRange = range as any;
-        expect(component.printRange).toBe(range);
-      });
-    });
 
     it('should handle theme state changes', () => {
       component.theme = 'light';
@@ -1828,13 +1745,6 @@ describe('UserSettingsComponent', () => {
       expect((component as any).saveReminder).toBe(false);
     });
 
-    it('should manage printing state', () => {
-      component.isPrinting = true;
-      expect(component.isPrinting).toBe(true);
-      component.isPrinting = false;
-      expect(component.isPrinting).toBe(false);
-    });
-
     it('should manage modal open state', () => {
       component.isOpen = true;
       expect(component.isOpen).toBe(true);
@@ -1850,11 +1760,6 @@ describe('UserSettingsComponent', () => {
       expect(component.error).toBeNull();
     });
 
-    it('should verify print range options exist', () => {
-      expect(component.printRangeOptions).toBeDefined();
-      expect(Array.isArray(component.printRangeOptions)).toBe(true);
-      expect(component.printRangeOptions.length).toBeGreaterThan(0);
-    });
 
     it('should verify theme options exist', () => {
       expect(component.themeOptions).toBeDefined();
@@ -1884,7 +1789,6 @@ describe('UserSettingsComponent', () => {
       (component as any).lastName = 'Johnson';
       component.email = 'alice@example.com';
       component.theme = 'dark';
-      component.printRange = 'month';
       (component as any).saveReminder = true;
       component.receiveNotifications = true;
       (component as any).receiveAdminEmails = false;
@@ -1893,7 +1797,6 @@ describe('UserSettingsComponent', () => {
       expect((component as any).lastName).toBe('Johnson');
       expect(component.email).toBe('alice@example.com');
       expect(component.theme).toBe('dark');
-      expect(component.printRange).toBe('month');
       expect((component as any).saveReminder).toBe(true);
       expect(component.receiveNotifications).toBe(true);
       expect((component as any).receiveAdminEmails).toBe(false);
@@ -1914,10 +1817,6 @@ describe('UserSettingsComponent', () => {
       expect(component.email).toBe(originalEmail);
     });
 
-    it('should handle print action call', () => {
-      component.handlePrint();
-      expect(component).toBeDefined();
-    });
 
     it('should track localStorage values', () => {
       const firstName = localStorage.getItem('prayerapp_user_first_name');
@@ -1987,13 +1886,11 @@ describe('UserSettingsComponent', () => {
       (component as any).lastName = 'Test2';
       component.email = 'test@test.com';
       component.theme = 'light';
-      component.printRange = 'month';
       
       expect((component as any).firstName).toBe('Test1');
       expect((component as any).lastName).toBe('Test2');
       expect(component.email).toBe('test@test.com');
       expect(component.theme).toBe('light');
-      expect(component.printRange).toBe('month');
     });
 
     it('should handle null/undefined error transitions', () => {
@@ -2178,9 +2075,10 @@ describe('UserSettingsComponent', () => {
     component.badgeFunctionalityEnabled = false;
     const initialState = component.badgeFunctionalityEnabled;
 
-    mockSupabaseService.client.from = vi.fn(() => ({
-      select: vi.fn(() => supabaseSelectResult(null, new Error('DB error')))
-    }));
+    mockMembershipPrefs.upsert.mockResolvedValueOnce({
+      ok: false,
+      error: new Error('DB error'),
+    });
 
     component.badgeFunctionalityEnabled = !initialState;
     await component.onBadgeFunctionalityToggle();
@@ -2224,21 +2122,11 @@ describe('UserSettingsComponent', () => {
     });
 
     it('should create new record if subscriber does not exist', async () => {
-      const insertSpy = vi.fn(() => Promise.resolve({ data: null, error: null }));
-      mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => supabaseSelectResult(null)),
-        insert: insertSpy
-      }));
-
       await component.onDefaultViewChange('current');
 
-      expect(insertSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          user_email: 'test@example.com',
-          default_prayer_view: 'current',
-          role: 'member',
-          tenant_id: 'test-tenant-id',
-        })
+      expect(mockMembershipPrefs.upsert).toHaveBeenCalledWith(
+        'test@example.com',
+        { default_prayer_view: 'current' }
       );
       expect(component.defaultPrayerView).toBe('current');
     });
@@ -2249,13 +2137,14 @@ describe('UserSettingsComponent', () => {
       await component.onDefaultViewChange('personal');
 
       expect(component.error).toBe('Email not found. Please log in again.');
-      expect(mockSupabaseService.client.from).not.toHaveBeenCalled();
+      expect(mockMembershipPrefs.upsert).not.toHaveBeenCalled();
     });
 
     it('should handle fetch error when checking subscriber', async () => {
-      mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => supabaseSelectResult(null, new Error('Fetch error')))
-      }));
+      mockMembershipPrefs.upsert.mockResolvedValueOnce({
+        ok: false,
+        error: new Error('Fetch error'),
+      });
 
       await component.onDefaultViewChange('personal');
 
@@ -2264,10 +2153,10 @@ describe('UserSettingsComponent', () => {
     });
 
     it('should handle update error', async () => {
-      mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
-        update: vi.fn(() => supabaseUpdateResult(new Error('Update error')))
-      }));
+      mockMembershipPrefs.upsert.mockResolvedValueOnce({
+        ok: false,
+        error: new Error('Update error'),
+      });
 
       component.defaultPrayerView = 'current';
       await component.onDefaultViewChange('personal');
@@ -2277,13 +2166,10 @@ describe('UserSettingsComponent', () => {
     });
 
     it('should handle insert error', async () => {
-      mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => supabaseSelectResult(null)),
-        insert: vi.fn(() => Promise.resolve({
-          data: null,
-          error: new Error('Insert error')
-        }))
-      }));
+      mockMembershipPrefs.upsert.mockResolvedValueOnce({
+        ok: false,
+        error: new Error('Insert error'),
+      });
 
       component.defaultPrayerView = 'current';
       await component.onDefaultViewChange('personal');
@@ -2440,13 +2326,10 @@ describe('UserSettingsComponent', () => {
       component.email = 'test@example.com';
       component.badgeFunctionalityEnabled = false;
 
-      mockSupabaseService.client.from = vi.fn(() => ({
-        select: vi.fn(() => supabaseSelectResult(null)),
-        insert: vi.fn(() => Promise.resolve({
-          data: null,
-          error: new Error('Insert error')
-        }))
-      }));
+      mockMembershipPrefs.upsert.mockResolvedValueOnce({
+        ok: false,
+        error: new Error('Insert error'),
+      });
 
       component.badgeFunctionalityEnabled = true;
       await component.onBadgeFunctionalityToggle();

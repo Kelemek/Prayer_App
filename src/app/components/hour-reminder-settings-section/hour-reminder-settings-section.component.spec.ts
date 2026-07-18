@@ -98,6 +98,14 @@ describe('HourReminderSettingsSectionComponent', () => {
     });
   });
 
+  it('reload forces a fresh fetch from the service', async () => {
+    component.reload();
+    await vi.waitFor(() => {
+      expect(component.loading).toBe(false);
+    });
+    expect(mockReminders.ensureLoaded).toHaveBeenCalledWith('prayer', true);
+  });
+
   it('reload ignores ensureLoaded result when session email changed', async () => {
     const slots = [{ id: 'cached', local_hour: 6, iana_timezone: 'UTC' }];
     mockUserSession.getCurrentSession.mockReturnValue({

@@ -1,0 +1,280 @@
+      <!-- Email Subscription Toggle -->
+      <div
+        id="tour-settings-email-subscription"
+        class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-2"
+      >
+        <div class="flex items-start gap-2 sm:gap-3">
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-3">
+              <div
+                class="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base"
+              >
+                Email Notifications
+              </div>
+              @if (savingNotification) {
+              <svg
+                class="animate-spin h-4 w-4 text-blue-600"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                ></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              }
+            </div>
+            <app-enabled-disabled-toggle
+              [loaded]="preferencesLoaded"
+              [saving]="savingNotification"
+              [value]="receiveNotifications"
+              enabledTitle="Enable email notifications"
+              disabledTitle="Disable email notifications"
+              (valueChange)="receiveNotificationsChange.emit($event)"
+            />
+          </div>
+        </div>
+        <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+          @if (preferencesLoaded && receiveNotifications !== null) {
+          {{
+            savingNotification
+              ? "Saving..."
+              : receiveNotifications
+              ? "Receive email notifications for new prayers and updates"
+              : "Email notifications are disabled"
+          }}
+          } @else {
+          <span
+            class="inline-block h-4 w-64 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"
+          ></span>
+          }
+        </p>
+        @if (successNotification) {
+        <div
+          class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-2"
+          role="alert"
+          aria-live="assertive"
+          aria-atomic="true"
+        >
+          <div class="flex items-start gap-2">
+            <svg
+              class="text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <p
+              class="text-xs sm:text-sm text-green-800 dark:text-green-200"
+            >
+              {{ successNotification }}
+            </p>
+          </div>
+        </div>
+        }
+      </div>
+
+      <!-- Push Subscription Toggle: show in native app always; in PWA standalone show when preferences loaded (so user can see state and turn off; turn on only in native app) -->
+      @if (capacitorService.showPushNotificationSetting() &&
+      (capacitorService.isNative() || preferencesLoaded)) {
+      <div
+        id="tour-settings-push-notifications"
+        class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-2"
+      >
+        <div class="flex items-start gap-2 sm:gap-3">
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-3">
+              <div
+                class="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base"
+              >
+                Push Notifications
+              </div>
+              @if (savingPushNotification) {
+              <svg
+                class="animate-spin h-4 w-4 text-blue-600"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                ></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              }
+            </div>
+            <app-enabled-disabled-toggle
+              [loaded]="preferencesLoaded"
+              [saving]="savingPushNotification"
+              [value]="receivePushNotifications"
+              enabledTitle="Enable push notifications"
+              disabledTitle="Disable push notifications"
+              (valueChange)="receivePushNotificationsChange.emit($event)"
+            />
+          </div>
+        </div>
+        <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+          @if (preferencesLoaded && receivePushNotifications !== null) {
+          {{
+            savingPushNotification
+              ? "Saving..."
+              : receivePushNotifications
+              ? "Receive push notifications for new prayers and updates"
+              : "Push notifications are disabled"
+          }}
+          } @else {
+          <span
+            class="inline-block h-4 w-64 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"
+          ></span>
+          }
+        </p>
+        @if (successPushNotification) {
+        <div
+          class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-2"
+          role="alert"
+          aria-live="assertive"
+          aria-atomic="true"
+        >
+          <div class="flex items-start gap-2">
+            <svg
+              class="text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <p
+              class="text-xs sm:text-sm text-green-800 dark:text-green-200"
+            >
+              {{ successPushNotification }}
+            </p>
+          </div>
+        </div>
+        }
+      </div>
+      }
+
+      <!-- Badge Functionality Toggle -->
+      <div
+        id="tour-settings-badges"
+        class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-2"
+      >
+        <div class="flex items-start gap-2 sm:gap-3">
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-3">
+              <div
+                class="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base"
+              >
+                Notification Badges
+              </div>
+              @if (savingBadge) {
+              <svg
+                class="animate-spin h-4 w-4 text-blue-600"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                ></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              }
+            </div>
+            <app-enabled-disabled-toggle
+              [loaded]="badgePreferencesLoaded"
+              [saving]="savingBadge"
+              [value]="badgeFunctionalityEnabled"
+              enabledTitle="Enable notification badges"
+              disabledTitle="Disable notification badges"
+              (valueChange)="badgeFunctionalityEnabledChange.emit($event)"
+            />
+          </div>
+        </div>
+        <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+          @if (badgePreferencesLoaded && badgeFunctionalityEnabled !== null)
+          {
+          {{
+            savingBadge
+              ? "Saving..."
+              : badgeFunctionalityEnabled
+              ? "Display badge counts on new prayers and updates"
+              : "Notification badges are disabled"
+          }}
+          } @else {
+          <span
+            class="inline-block h-4 w-64 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"
+          ></span>
+          }
+        </p>
+        @if (successBadge) {
+        <div
+          class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-2"
+          role="alert"
+          aria-live="assertive"
+          aria-atomic="true"
+        >
+          <div class="flex items-start gap-2">
+            <svg
+              class="text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <p
+              class="text-xs sm:text-sm text-green-800 dark:text-green-200"
+            >
+              {{ successBadge }}
+            </p>
+          </div>
+        </div>
+        }
+      </div>
+

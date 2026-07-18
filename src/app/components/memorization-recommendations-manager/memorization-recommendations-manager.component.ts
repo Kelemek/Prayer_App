@@ -84,7 +84,6 @@ import type {
       } @else {
         <div class="space-y-6">
           <app-ibcd-memorization-catalog-panel
-            [activeTenantId]="activeTenantId"
             (catalogChanged)="onIbcdCatalogChanged()"
           />
 
