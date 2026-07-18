@@ -1,11 +1,11 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, combineLatest, map } from 'rxjs';
 import { SupabaseService } from './supabase.service';
 import { CacheService } from './cache.service';
 import { TenantContextService } from './tenant-context.service';
+import { isTenantAdminRpcUnauthorized } from '../lib/supabase/tenant-admin-rpc';
 import {
-  isBibleTranslation,
-  type BibleTranslation,
+  type IbcdCatalogStatus,
   type MemorizationRecommendation,
   type MemorizationRecommendationCategory,
   type MemorizationRecommendationCategoryGroup,
@@ -38,6 +38,14 @@ export type DeleteCategoryOutcome =
   | { ok: true }
   | { ok: false; reason: 'not_empty' | 'db_error' };
 
+export type ApplyIbcdCatalogOutcome =
+  | { ok: true; categoriesAdded: number; versesAdded: number }
+  | { ok: false; reason: 'no_tenant' | 'not_admin' | 'db_error' };
+
+export type RemoveIbcdCatalogOutcome =
+  | { ok: true; removedCategories: number; removedVerses: number }
+  | { ok: false; reason: 'no_tenant' | 'not_admin' | 'db_error' };
+
 @Injectable({
   providedIn: 'root',
 })
@@ -53,6 +61,10 @@ export class MemorizationRecommendationsService {
   readonly items$ = this.itemsSubject.asObservable();
   readonly categories$ = this.categoriesSubject.asObservable();
   readonly loading$ = this.loadingSubject.asObservable();
+  readonly hasRecommendations$ = this.items$.pipe(map((items) => items.length > 0));
+  readonly grouped$ = combineLatest([this.categories$, this.items$]).pipe(
+    map(([categories, items]) => groupByCategory(categories, items))
+  );
 
   constructor(
     private supabase: SupabaseService,
@@ -281,8 +293,7 @@ export class MemorizationRecommendationsService {
 
   async addRecommendation(
     reference: string,
-    categoryId: string,
-    translation: BibleTranslation = 'esv'
+    categoryId: string
   ): Promise<AddRecommendationOutcome> {
     const normalizedRef = reference.trim();
     if (!normalizedRef) return { ok: false, reason: 'empty_reference' };
@@ -300,7 +311,6 @@ export class MemorizationRecommendationsService {
       .insert({
         tenant_id: tenantId,
         reference: normalizedRef,
-        translation,
         category_id: categoryId,
         display_order: nextOrder,
       })
@@ -390,6 +400,83 @@ export class MemorizationRecommendationsService {
     }
   }
 
+  async getIbcdCatalogStatus(): Promise<IbcdCatalogStatus | null> {
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) return null;
+
+    try {
+      const { data, error } = await this.supabase.client.rpc(
+        'get_memorization_ibcd_catalog_status',
+        { p_tenant_id: tenantId }
+      );
+      if (error) throw error;
+      return mapIbcdCatalogStatus(data);
+    } catch (err) {
+      console.error('Failed to load IBCD catalog status:', err);
+      return null;
+    }
+  }
+
+  async applyIbcdCatalog(): Promise<ApplyIbcdCatalogOutcome> {
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) return { ok: false, reason: 'no_tenant' };
+
+    try {
+      const { data, error } = await this.supabase.client.rpc(
+        'apply_ibcd_memorization_recommendations',
+        { p_tenant_id: tenantId }
+      );
+      if (error) {
+        if (isTenantAdminRpcUnauthorized(error)) {
+          return { ok: false, reason: 'not_admin' };
+        }
+        throw error;
+      }
+
+      this.invalidateCache();
+      await this.load(true);
+      const payload = data as Record<string, unknown> | null;
+      return {
+        ok: true,
+        categoriesAdded: Number(payload?.['categories_added'] ?? 0),
+        versesAdded: Number(payload?.['verses_added'] ?? 0),
+      };
+    } catch (err) {
+      console.error('Failed to apply IBCD catalog:', err);
+      return { ok: false, reason: 'db_error' };
+    }
+  }
+
+  async removeIbcdCatalog(): Promise<RemoveIbcdCatalogOutcome> {
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) return { ok: false, reason: 'no_tenant' };
+
+    try {
+      const { data, error } = await this.supabase.client.rpc(
+        'remove_ibcd_memorization_recommendations',
+        { p_tenant_id: tenantId }
+      );
+      if (error) {
+        if (isTenantAdminRpcUnauthorized(error)) {
+          return { ok: false, reason: 'not_admin' };
+        }
+        throw error;
+      }
+
+      this.invalidateCache();
+      await this.load(true);
+      const payload = data as Record<string, unknown> | null;
+      return {
+        ok: true,
+        removedCategories: Number(payload?.['removed_categories'] ?? 0),
+        removedVerses: Number(payload?.['removed_verses'] ?? 0),
+      };
+    } catch (err) {
+      console.error('Failed to remove IBCD catalog:', err);
+      return { ok: false, reason: 'db_error' };
+    }
+  }
+
   private commitLocalSnapshot(): void {
     const tenantId = this.getActiveTenantId();
     if (!tenantId) return;
@@ -447,12 +534,10 @@ function mapCategoryRow(
 }
 
 function mapItemRow(row: MemorizationRecommendationRow): MemorizationRecommendation {
-  const translation = isBibleTranslation(row.translation) ? row.translation : 'esv';
   return {
     id: row.id,
     tenantId: row.tenant_id,
     reference: row.reference,
-    translation,
     categoryId: row.category_id,
     displayOrder: row.display_order,
     createdAt: row.created_at,
@@ -472,3 +557,14 @@ function groupByCategory(
       .map((i) => ({ ...i })),
   }));
 }
+
+function mapIbcdCatalogStatus(data: unknown): IbcdCatalogStatus {
+  const row = (data ?? {}) as Record<string, unknown>;
+  return {
+    applied: Boolean(row['applied']),
+    ibcdCategoryCount: Number(row['ibcd_category_count'] ?? 0),
+    ibcdVerseCount: Number(row['ibcd_verse_count'] ?? 0),
+  };
+}
+
+export type { IbcdCatalogStatus } from '../types/memorization';

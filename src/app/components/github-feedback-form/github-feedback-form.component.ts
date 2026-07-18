@@ -4,16 +4,18 @@ import {
   ChangeDetectorRef,
   ChangeDetectionStrategy,
 } from "@angular/core";
-import { CommonModule } from "@angular/common";
+import { CommonModule, NgClass } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { GitHubFeedbackService } from "../../services/github-feedback.service";
 import { UserSessionService } from "../../services/user-session.service";
 import { Subject, takeUntil } from "rxjs";
 
+type FeedbackType = "suggestion" | "feature" | "bug";
+
 @Component({
   selector: "app-github-feedback-form",
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, NgClass, FormsModule],
   template: `
     <div class="space-y-4">
       <!-- Header -->
@@ -32,134 +34,140 @@ import { Subject, takeUntil } from "rxjs";
       <!-- Form -->
       <form (ngSubmit)="onSubmit()" class="space-y-4">
         <!-- Issue Type -->
-        <div>
-          <label
-            for="issueType"
+        <div id="tour-settings-feedback-type">
+          <span
+            id="issueType-label"
             class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
           >
             Feedback Type
-          </label>
-          <div class="relative">
-            <select
-              id="issueType"
-              [(ngModel)]="feedbackType"
-              name="feedbackType"
-              [disabled]="isLoading"
-              class="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed appearance-none pr-8 cursor-pointer"
-            >
-              <option value="suggestion">💡 Suggestion</option>
-              <option value="feature">✨ Feature Request</option>
-              <option value="bug">🐛 Bug Report</option>
-            </select>
-            <svg
-              class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-900 dark:text-gray-100 pointer-events-none"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
+          </span>
+          <div
+            id="issueType"
+            role="radiogroup"
+            aria-labelledby="issueType-label"
+            (keydown)="onFeedbackTypeKeydown($event)"
+            class="grid grid-cols-1 sm:grid-cols-3 gap-1.5 sm:gap-2"
+          >
+            @for (option of feedbackTypeOptions; track option.value) {
+              <button
+                type="button"
+                role="radio"
+                [id]="feedbackTypeOptionId(option.value)"
+                [attr.aria-checked]="feedbackType === option.value"
+                [attr.tabindex]="feedbackType === option.value ? 0 : -1"
+                [disabled]="isLoading"
+                (click)="selectFeedbackType(option.value)"
+                [ngClass]="feedbackTypeTileClasses(feedbackType === option.value)"
+                class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+              >
+                <span
+                  class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 text-center"
+                  >{{ option.label }}</span
+                >
+              </button>
+            }
           </div>
         </div>
 
-        <!-- Title -->
-        <div>
-          <label
-            for="feedbackTitle"
-            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-          >
-            Title
-          </label>
-          <input
-            type="text"
-            id="feedbackTitle"
-            [(ngModel)]="feedbackTitle"
-            name="feedbackTitle"
-            placeholder="Brief summary of your feedback"
-            [disabled]="isLoading"
-            required
-            maxlength="100"
-            class="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {{ feedbackTitle.length }}/100
-          </p>
-        </div>
-
-        <!-- Description -->
-        <div>
-          <label
-            for="feedbackDescription"
-            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-          >
-            Description
-          </label>
-          <textarea
-            id="feedbackDescription"
-            [(ngModel)]="feedbackDescription"
-            name="feedbackDescription"
-            placeholder="Provide details about your feedback..."
-            [disabled]="isLoading"
-            required
-            rows="4"
-            maxlength="1000"
-            class="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
-          ></textarea>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {{ feedbackDescription.length }}/1000
-          </p>
-        </div>
-
-        <!-- Submit Button -->
-        <div class="flex gap-2">
-          <button
-            type="submit"
-            [disabled]="
-              isLoading || !feedbackTitle.trim() || !feedbackDescription.trim()
-            "
-            class="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm cursor-pointer"
-          >
-            @if (isLoading) {
-            <svg
-              class="animate-spin h-4 w-4"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
+        <div id="tour-settings-feedback-details" class="space-y-4">
+          <!-- Title -->
+          <div>
+            <label
+              for="feedbackTitle"
+              class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
             >
-              <circle
-                class="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
+              Title
+            </label>
+            <input
+              type="text"
+              id="feedbackTitle"
+              [(ngModel)]="feedbackTitle"
+              name="feedbackTitle"
+              placeholder="Brief summary of your feedback"
+              [disabled]="isLoading"
+              required
+              maxlength="100"
+              class="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {{ feedbackTitle.length }}/100
+            </p>
+          </div>
+
+          <!-- Description -->
+          <div>
+            <label
+              for="feedbackDescription"
+              class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+            >
+              Description
+            </label>
+            <textarea
+              id="feedbackDescription"
+              [(ngModel)]="feedbackDescription"
+              name="feedbackDescription"
+              placeholder="Provide details about your feedback..."
+              [disabled]="isLoading"
+              required
+              rows="4"
+              maxlength="1000"
+              class="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+            ></textarea>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {{ feedbackDescription.length }}/1000
+            </p>
+          </div>
+
+          <!-- Submit Button -->
+          <div class="flex gap-2">
+            <button
+              type="submit"
+              [disabled]="
+                isLoading ||
+                !feedbackTitle.trim() ||
+                !feedbackDescription.trim()
+              "
+              class="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm cursor-pointer"
+            >
+              @if (isLoading) {
+              <svg
+                class="animate-spin h-4 w-4"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                ></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              <span>Sending...</span>
+              } @else {
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
                 stroke="currentColor"
-                stroke-width="4"
-              ></circle>
-              <path
-                class="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              ></path>
-            </svg>
-            <span>Sending...</span>
-            } @else {
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M22 2L11 13M22 2l-7 20-5-9-9-5 20-7z"></path>
-            </svg>
-            <span>Send Feedback</span>
-            }
-          </button>
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M22 2L11 13M22 2l-7 20-5-9-9-5 20-7z"></path>
+              </svg>
+              <span>Send Feedback</span>
+              }
+            </button>
+          </div>
         </div>
       </form>
 
@@ -238,7 +246,16 @@ import { Subject, takeUntil } from "rxjs";
   styles: [],
 })
 export class GitHubFeedbackFormComponent implements OnDestroy {
-  feedbackType: "suggestion" | "feature" | "bug" = "suggestion";
+  readonly feedbackTypeOptions: ReadonlyArray<{
+    value: FeedbackType;
+    label: string;
+  }> = [
+    { value: "suggestion", label: "💡 Suggestion" },
+    { value: "feature", label: "✨ Feature Request" },
+    { value: "bug", label: "🐛 Bug Report" },
+  ];
+
+  feedbackType: FeedbackType = "suggestion";
   feedbackTitle: string = "";
   feedbackDescription: string = "";
   isLoading: boolean = false;
@@ -257,6 +274,59 @@ export class GitHubFeedbackFormComponent implements OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  selectFeedbackType(type: FeedbackType): void {
+    if (this.isLoading || this.feedbackType === type) {
+      return;
+    }
+    this.feedbackType = type;
+  }
+
+  feedbackTypeTileClasses(selected: boolean): Record<string, boolean> {
+    return {
+      "border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30":
+        selected,
+      "border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20":
+        !selected,
+    };
+  }
+
+  feedbackTypeOptionId(type: FeedbackType): string {
+    return `feedbackType-${type}`;
+  }
+
+  private focusFeedbackTypeOption(type: FeedbackType): void {
+    document.getElementById(this.feedbackTypeOptionId(type))?.focus();
+  }
+
+  onFeedbackTypeKeydown(event: KeyboardEvent): void {
+    if (this.isLoading) {
+      return;
+    }
+
+    const order = this.feedbackTypeOptions.map((option) => option.value);
+    const currentIndex = order.indexOf(this.feedbackType);
+    if (currentIndex < 0) {
+      return;
+    }
+
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      nextIndex = (currentIndex + 1) % order.length;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      nextIndex = (currentIndex - 1 + order.length) % order.length;
+    }
+
+    if (nextIndex === null) {
+      return;
+    }
+
+    event.preventDefault();
+    const nextType = order[nextIndex];
+    this.feedbackType = nextType;
+    this.cdr.markForCheck();
+    queueMicrotask(() => this.focusFeedbackTypeOption(nextType));
   }
 
   async onSubmit(): Promise<void> {

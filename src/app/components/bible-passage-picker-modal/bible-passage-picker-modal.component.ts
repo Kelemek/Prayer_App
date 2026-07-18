@@ -1,23 +1,23 @@
 import {
   Component,
+  ElementRef,
   EventEmitter,
   HostListener,
   Input,
   OnChanges,
+  OnDestroy,
   Output,
   SimpleChanges,
+  ViewChild,
   inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { BibleTranslationPickerComponent } from '../bible-translation-picker/bible-translation-picker.component';
 import { BIBLE_BOOKS_PUBLIC } from '../../lib/memorization/bibleCanonPublic';
 import { buildBiblePassageReference } from '../../lib/memorization/buildBiblePassageReference';
 import type { BibleBookPublic } from '../../lib/memorization/bible-structure-types';
 import { MemorizationService } from '../../services/memorization.service';
-import {
-  BIBLE_TRANSLATION_CODES,
-  BIBLE_TRANSLATION_LABELS,
-  type BibleTranslation,
-} from '../../types/memorization';
+import type { BibleTranslation } from '../../types/memorization';
 
 type Testament = 'ot' | 'nt';
 
@@ -26,24 +26,37 @@ const TESTAMENT_KEY = 'prayer_app_memorize_add_testament';
 @Component({
   selector: 'app-bible-passage-picker-modal',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, BibleTranslationPickerComponent],
+  styles: [
+    `
+      .picker-book-list {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+      .picker-book-list::-webkit-scrollbar {
+        display: none;
+      }
+    `,
+  ],
   template: `
     @if (isOpen) {
     <div
-      class="fixed inset-0 z-[200] flex items-center justify-center bg-gray-900/50 p-2 sm:p-4 safe-area-overlay"
+      class="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-gray-900/50 p-0 sm:p-4 safe-area-overlay overscroll-none touch-none"
       style="padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom));"
       role="dialog"
       aria-modal="true"
       aria-labelledby="bible-passage-picker-title"
       (click)="close.emit()"
+      (touchmove)="onModalTouchMove($event)"
     >
       <div
-        class="w-full max-w-lg max-h-[min(92vh,720px)] flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden"
+        class="w-full sm:max-w-lg max-h-[min(92vh,720px)] flex flex-col bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden touch-none"
         (click)="$event.stopPropagation()"
+        (touchmove)="onModalTouchMove($event)"
       >
-        <div class="shrink-0 flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 id="bible-passage-picker-title" class="text-xl font-semibold text-gray-800 dark:text-gray-200">
-            {{ selectedChapterNum ? 'Pick Verse Range' : 'Pick Chapter' }}
+        <div class="shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b border-gray-200 dark:border-gray-700 touch-none">
+          <h2 id="bible-passage-picker-title" class="text-lg font-semibold text-gray-800 dark:text-gray-200">
+            {{ selectedChapterId ? 'Pick Verse Range' : 'Pick Chapter' }}
           </h2>
           <button
             type="button"
@@ -57,76 +70,114 @@ const TESTAMENT_KEY = 'prayer_app_memorize_add_testament';
           </button>
         </div>
 
-        <div class="flex-1 min-h-0 flex flex-col px-4 sm:px-6 py-4 overflow-hidden">
-          <div class="shrink-0 mb-3">
-            <p class="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
-              Bible translation
-            </p>
-            <div class="relative">
+        <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div class="shrink-0 px-4 sm:px-6 pt-3 touch-none">
+            <app-bible-translation-picker
+              [translation]="translation"
+              triggerId="bible-translation-picker-trigger"
+              (translationChange)="onTranslationChanged($event)"
+            />
+
+            <div
+              class="shrink-0 flex gap-2 mb-3"
+              role="tablist"
+              aria-label="Testament"
+            >
+              <button
+                type="button"
+                role="tab"
+                [attr.aria-selected]="testament === 'ot'"
+                (click)="setTestament('ot')"
+                class="flex-1 px-4 py-2.5 text-sm rounded-lg font-medium transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800"
+                [class]="testament === 'ot'
+                  ? 'bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700 hover:border-blue-300 dark:hover:border-blue-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200 hover:border-gray-400 dark:hover:border-gray-500'"
+              >
+                Old Testament
+              </button>
+              <button
+                type="button"
+                role="tab"
+                [attr.aria-selected]="testament === 'nt'"
+                (click)="setTestament('nt')"
+                class="flex-1 px-4 py-2.5 text-sm rounded-lg font-medium transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800"
+                [class]="testament === 'nt'
+                  ? 'bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700 hover:border-blue-300 dark:hover:border-blue-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200 hover:border-gray-400 dark:hover:border-gray-500'"
+              >
+                New Testament
+              </button>
+            </div>
+          </div>
+
+          <div
+            #bookListScroller
+            class="picker-book-list flex-1 min-h-0 overflow-y-auto overscroll-y-contain touch-pan-y px-4 sm:px-6 pb-3"
+          >
+            <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              @for (book of filteredBooks; track book.id) {
               <div
-                class="overflow-hidden rounded-lg border bg-white dark:bg-gray-800 transition-all"
-                [class.border-blue-500]="showTranslationDropdown"
-                [class.ring-1]="showTranslationDropdown"
-                [class.ring-blue-500/30]="showTranslationDropdown"
-                [class.dark:border-blue-400]="showTranslationDropdown"
-                [class.border-gray-300]="!showTranslationDropdown"
-                [class.dark:border-gray-600]="!showTranslationDropdown"
+                class="border-b border-gray-100 dark:border-gray-700 last:border-b-0 scroll-mt-3"
+                [attr.data-book-id]="book.id"
               >
                 <button
                   type="button"
-                  id="bible-translation-picker-trigger"
-                  (click)="toggleTranslationDropdown()"
-                  [attr.aria-expanded]="showTranslationDropdown"
-                  aria-haspopup="listbox"
-                  aria-label="Preferred Bible translation for memorization"
-                  class="flex w-full min-h-[44px] cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-all touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800"
+                  (click)="toggleBook(book)"
+                  class="w-full flex items-start justify-between gap-2 px-3 py-3 min-h-[48px] text-left text-sm font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer touch-manipulation"
                 >
-                  <span class="font-medium text-gray-800 dark:text-gray-100">
-                    {{ selectedTranslationLabel }}
-                  </span>
+                  <span class="min-w-0 flex-1 leading-snug">{{ book.name }}</span>
                   <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
+                    class="w-5 h-5 shrink-0 text-gray-400 mt-0.5 transition-transform"
+                    [class.rotate-180]="expandedBookId === book.id"
                     fill="none"
                     stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="shrink-0 text-gray-500 transition-transform dark:text-gray-400"
-                    [class.rotate-180]="showTranslationDropdown"
+                    viewBox="0 0 24 24"
                     aria-hidden="true"
                   >
-                    <polyline points="6 9 12 15 18 9"></polyline>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
-              </div>
+                @if (expandedBookId === book.id) {
+                <div class="px-3 pb-3">
+                  <p class="text-xs font-medium text-gray-600 dark:text-gray-400 pt-2 pb-1.5">Chapter</p>
+                  <div class="grid grid-cols-[repeat(auto-fill,minmax(3.5rem,1fr))] gap-2">
+                    @for (ch of sortedChapters(book); track ch.id) {
+                    <button
+                      type="button"
+                      [attr.data-chapter-id]="ch.id"
+                      (click)="onChapterClick(book, ch.id, +ch.number)"
+                      class="w-full min-h-[44px] px-2 py-2 text-sm rounded-lg border cursor-pointer transition-colors inline-flex items-center justify-center touch-manipulation"
+                      [class]="selectedChapterId === ch.id && selectedBookId === book.id
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                    >
+                      {{ ch.number }}
+                    </button>
+                    }
+                  </div>
 
-              @if (showTranslationDropdown) {
-              <div
-                class="fixed inset-0 z-[201]"
-                (click)="closeTranslationDropdown()"
-              ></div>
-              <div
-                role="listbox"
-                aria-label="Bible translation options"
-                class="absolute left-0 right-0 z-[202] mt-1 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
-              >
-                @for (code of translationCodes; track code) {
-                <button
-                  type="button"
-                  role="option"
-                  [attr.aria-selected]="translation === code"
-                  (click)="setTranslation(code)"
-                  class="flex w-full min-h-[44px] cursor-pointer items-center justify-between px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60 touch-manipulation"
-                  [class.bg-blue-50]="translation === code"
-                  [class.dark:bg-blue-900/30]="translation === code"
-                >
-                  <span>{{ translationLabels[code] }}</span>
-                  @if (translation === code) {
-                  <span class="ml-2 shrink-0 text-blue-600 dark:text-blue-400">✓</span>
+                  @if (selectedBookId === book.id && selectedChapterId) {
+                  <div #verseSection class="mt-4 scroll-mt-3">
+                    <p class="text-xs font-medium text-gray-600 dark:text-gray-400 pb-1.5">Select verse(s)</p>
+                    @if (verseNumbers.length > 0) {
+                    <div class="grid grid-cols-[repeat(auto-fill,minmax(3.5rem,1fr))] gap-2">
+                      @for (n of verseNumbers; track n) {
+                      <button
+                        type="button"
+                        (click)="onVerseClick(n)"
+                        class="w-full min-h-[44px] px-2 py-2 text-sm rounded-lg border cursor-pointer transition-colors inline-flex items-center justify-center touch-manipulation"
+                        [class]="inRange(n)
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                      >
+                        {{ n }}
+                      </button>
+                      }
+                    </div>
+                    }
+                  </div>
                   }
-                </button>
+                </div>
                 }
               </div>
               }
@@ -134,91 +185,17 @@ const TESTAMENT_KEY = 'prayer_app_memorize_add_testament';
           </div>
 
           <div
-            class="shrink-0 flex gap-2 mb-3"
-            role="tablist"
-            aria-label="Testament"
+            class="shrink-0 border-t border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 bg-gray-50 dark:bg-gray-900/40 touch-none"
+            style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom));"
+            (touchmove)="onModalTouchMove($event)"
           >
             <button
               type="button"
-              role="tab"
-              [attr.aria-selected]="testament === 'ot'"
-              (click)="setTestament('ot')"
-              class="flex-1 px-4 py-2.5 text-sm rounded-lg font-medium transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800"
-              [class]="testament === 'ot'
-                ? 'bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700 hover:border-blue-300 dark:hover:border-blue-600'
-                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200 hover:border-gray-400 dark:hover:border-gray-500'"
-            >
-              Old Testament
-            </button>
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="testament === 'nt'"
-              (click)="setTestament('nt')"
-              class="flex-1 px-4 py-2.5 text-sm rounded-lg font-medium transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800"
-              [class]="testament === 'nt'
-                ? 'bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700 hover:border-blue-300 dark:hover:border-blue-600'
-                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-200 hover:border-gray-400 dark:hover:border-gray-500'"
-            >
-              New Testament
-            </button>
-          </div>
-
-          <div class="flex-1 min-h-0 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
-            @for (book of filteredBooks; track book.id) {
-            <div class="border-b border-gray-100 dark:border-gray-700 last:border-b-0">
-              <button
-                type="button"
-                (click)="toggleBook(book)"
-                class="w-full flex items-center justify-between px-3 py-3 min-h-[44px] text-left text-sm font-medium text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer touch-manipulation"
-              >
-                {{ book.name }}
-                <span class="text-gray-400">{{ expandedBookId === book.id ? '▾' : '▸' }}</span>
-              </button>
-              @if (expandedBookId === book.id) {
-              <div class="px-3 pb-3 grid grid-cols-[repeat(auto-fill,minmax(3.5rem,1fr))] gap-2">
-                @for (ch of book.chapters; track ch.id) {
-                <button
-                  type="button"
-                  (click)="onChapterClick(book, ch.id, +ch.number)"
-                  class="w-full min-h-[44px] px-2 py-2 text-sm rounded-lg border cursor-pointer transition-colors inline-flex items-center justify-center touch-manipulation"
-                  [class]="selectedChapterId === ch.id ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'"
-                >
-                  {{ ch.number }}
-                </button>
-                }
-              </div>
-              }
-            </div>
-            }
-          </div>
-
-          @if (verseCount && verseCount > 0) {
-          <div class="shrink-0 mt-3">
-            <p class="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Select verse(s)</p>
-            <div class="grid grid-cols-[repeat(auto-fill,minmax(3.5rem,1fr))] gap-2 max-h-40 overflow-y-auto">
-              @for (n of verseNumbers; track n) {
-              <button
-                type="button"
-                (click)="onVerseClick(n)"
-                class="w-full min-h-[44px] px-2 py-2 text-sm rounded-lg border cursor-pointer transition-colors inline-flex items-center justify-center touch-manipulation"
-                [class]="inRange(n) ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'"
-              >
-                {{ n }}
-              </button>
-              }
-            </div>
-          </div>
-          }
-
-          <div class="shrink-0 pt-4">
-            <button
-              type="button"
-              [disabled]="!canConfirm || submitting || busy"
+              [disabled]="!canConfirm"
               (click)="confirm()"
-              class="w-full py-2.5 rounded-lg font-medium transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700 hover:border-blue-300 dark:hover:border-blue-600 disabled:hover:bg-blue-100 dark:disabled:hover:bg-blue-900/40 disabled:hover:border-blue-200 dark:disabled:hover:border-blue-700"
+              class="w-full min-h-[48px] py-2.5 rounded-lg font-medium transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700 hover:border-blue-300 dark:hover:border-blue-600 disabled:hover:bg-blue-100 dark:disabled:hover:bg-blue-900/40 disabled:hover:border-blue-200 dark:disabled:hover:border-blue-700"
             >
-              {{ submitting || busy ? 'Adding…' : confirmLabel }}
+              {{ busy ? 'Adding…' : confirmLabel }}
             </button>
           </div>
         </div>
@@ -227,21 +204,39 @@ const TESTAMENT_KEY = 'prayer_app_memorize_add_testament';
     }
   `,
 })
-export class BiblePassagePickerModalComponent implements OnChanges {
+export class BiblePassagePickerModalComponent implements OnChanges, OnDestroy {
   private readonly memorization = inject(MemorizationService);
+
+  private static readonly TOUCH_GUARD_OPTIONS: AddEventListenerOptions = {
+    passive: false,
+    capture: true,
+  };
+
+  private scrollLockEl: HTMLElement | null = null;
+  private scrollLockPreviousOverflow = '';
+  private scrollLockPreviousTouchAction = '';
+  private bodyPreviousOverflow = '';
+  private htmlPreviousOverflow = '';
+
+  private readonly blockModalTouchMove = (event: TouchEvent): void => {
+    if (!this.isOpen || this.isBookListTouch(event)) return;
+    event.preventDefault();
+  };
 
   @Input() isOpen = false;
   @Input() confirmLabel = 'Add';
-  /** Parent-driven busy state (e.g. validating/saving after confirm). */
+  /** Parent sets true while saving (e.g. scripture fetch + DB insert). */
   @Input() busy = false;
   @Output() close = new EventEmitter<void>();
   @Output() confirmed = new EventEmitter<string>();
   @Output() translationChange = new EventEmitter<BibleTranslation>();
 
-  readonly translationCodes = BIBLE_TRANSLATION_CODES;
-  readonly translationLabels = BIBLE_TRANSLATION_LABELS;
   translation: BibleTranslation = 'esv';
-  showTranslationDropdown = false;
+
+  @ViewChild(BibleTranslationPickerComponent)
+  private translationPicker?: BibleTranslationPickerComponent;
+  @ViewChild('bookListScroller') private bookListScroller?: ElementRef<HTMLElement>;
+  @ViewChild('verseSection') private verseSection?: ElementRef<HTMLElement>;
 
   testament: Testament = 'ot';
   expandedBookId: string | null = null;
@@ -252,16 +247,44 @@ export class BiblePassagePickerModalComponent implements OnChanges {
   verseCount: number | null = null;
   verseStart: number | null = null;
   verseEnd: number | null = null;
-  submitting = false;
 
   ngOnChanges(changes: SimpleChanges): void {
+    if ('isOpen' in changes) {
+      if (this.isOpen) {
+        this.lockBackgroundScroll();
+        document.addEventListener(
+          'touchmove',
+          this.blockModalTouchMove,
+          BiblePassagePickerModalComponent.TOUCH_GUARD_OPTIONS
+        );
+      } else {
+        document.removeEventListener(
+          'touchmove',
+          this.blockModalTouchMove,
+          BiblePassagePickerModalComponent.TOUCH_GUARD_OPTIONS
+        );
+        this.unlockBackgroundScroll();
+      }
+    }
     if (changes['isOpen']?.currentValue === true) {
       this.translation = this.memorization.getPreferredTranslation();
-      this.showTranslationDropdown = false;
       this.testament = this.readTestament();
       this.resetSelection();
       this.expandedBookId = null;
     }
+  }
+
+  ngOnDestroy(): void {
+    document.removeEventListener(
+      'touchmove',
+      this.blockModalTouchMove,
+      BiblePassagePickerModalComponent.TOUCH_GUARD_OPTIONS
+    );
+    this.unlockBackgroundScroll();
+  }
+
+  onModalTouchMove(event: TouchEvent): void {
+    this.blockModalTouchMove(event);
   }
 
   get filteredBooks(): BibleBookPublic[] {
@@ -277,41 +300,26 @@ export class BiblePassagePickerModalComponent implements OnChanges {
     return (
       this.selectedBookId !== null &&
       this.selectedChapterNum !== null &&
-      this.verseStart !== null &&
-      !this.submitting &&
-      !this.busy &&
-      this.verseCount !== null &&
-      this.verseCount > 0
+      !this.busy
     );
   }
 
-  get selectedTranslationLabel(): string {
-    return this.translationLabels[this.translation];
+  sortedChapters(book: BibleBookPublic) {
+    return [...book.chapters].sort((a, b) => +a.number - +b.number);
   }
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
     if (!this.isOpen) return;
-    if (this.showTranslationDropdown) {
-      this.closeTranslationDropdown();
+    if (this.translationPicker?.isDropdownOpen) {
+      this.translationPicker.closeDropdown();
       return;
     }
     this.close.emit();
   }
 
-  toggleTranslationDropdown(): void {
-    this.showTranslationDropdown = !this.showTranslationDropdown;
-  }
-
-  closeTranslationDropdown(): void {
-    this.showTranslationDropdown = false;
-  }
-
-  setTranslation(next: BibleTranslation): void {
-    this.closeTranslationDropdown();
-    if (this.translation === next) return;
+  onTranslationChanged(next: BibleTranslation): void {
     this.translation = next;
-    this.memorization.setPreferredTranslation(next);
     this.translationChange.emit(next);
   }
 
@@ -323,11 +331,25 @@ export class BiblePassagePickerModalComponent implements OnChanges {
       /* ignore */
     }
     this.expandedBookId = null;
+    this.selectedBookId = null;
+    this.selectedBookName = '';
     this.resetSelection();
+    requestAnimationFrame(() => this.resetBookListScroll());
   }
 
   toggleBook(book: BibleBookPublic): void {
-    this.expandedBookId = this.expandedBookId === book.id ? null : book.id;
+    const wasExpanded = this.expandedBookId === book.id;
+    if (wasExpanded) {
+      this.expandedBookId = null;
+      return;
+    }
+    this.expandedBookId = book.id;
+    if (this.selectedBookId !== book.id) {
+      this.resetSelection();
+      this.selectedBookId = null;
+      this.selectedBookName = '';
+    }
+    this.scheduleScrollBookRow(book.id);
   }
 
   onChapterClick(book: BibleBookPublic, chapterId: string, chapterNumber: number): void {
@@ -339,6 +361,7 @@ export class BiblePassagePickerModalComponent implements OnChanges {
     this.verseStart = null;
     this.verseEnd = null;
     this.verseCount = typeof ch?.verseCount === 'number' ? ch.verseCount : 0;
+    this.scheduleScrollVerseSection();
   }
 
   onVerseClick(v: number): void {
@@ -348,7 +371,10 @@ export class BiblePassagePickerModalComponent implements OnChanges {
       return;
     }
     if (this.verseEnd === null) {
-      if (v === this.verseStart) return;
+      if (v === this.verseStart) {
+        this.verseStart = null;
+        return;
+      }
       const lo = Math.min(v, this.verseStart);
       const hi = Math.max(v, this.verseStart);
       this.verseStart = lo;
@@ -367,7 +393,7 @@ export class BiblePassagePickerModalComponent implements OnChanges {
     return n >= lo && n <= hi;
   }
 
-  async confirm(): Promise<void> {
+  confirm(): void {
     if (!this.canConfirm || this.selectedBookId === null || this.selectedChapterNum === null) return;
     const ref = buildBiblePassageReference(
       this.selectedBookId,
@@ -376,22 +402,50 @@ export class BiblePassagePickerModalComponent implements OnChanges {
       this.verseStart,
       this.verseEnd
     );
-    this.submitting = true;
-    try {
-      this.confirmed.emit(ref);
-    } finally {
-      this.submitting = false;
-    }
+    this.confirmed.emit(ref);
   }
 
   private resetSelection(): void {
     this.selectedChapterId = null;
     this.selectedChapterNum = null;
-    this.selectedBookId = null;
-    this.selectedBookName = '';
     this.verseCount = null;
     this.verseStart = null;
     this.verseEnd = null;
+  }
+
+  private resetBookListScroll(): void {
+    const scroller = this.bookListScroller?.nativeElement;
+    if (scroller) scroller.scrollTop = 0;
+  }
+
+  private scheduleScrollBookRow(bookId: string): void {
+    requestAnimationFrame(() => {
+      const scroller = this.bookListScroller?.nativeElement;
+      if (!scroller) return;
+      const row = scroller.querySelector<HTMLElement>(`[data-book-id="${bookId}"]`);
+      if (!row) return;
+      this.scrollElementIntoScroller(row);
+    });
+  }
+
+  private scheduleScrollVerseSection(): void {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = this.verseSection?.nativeElement;
+        if (!el) return;
+        this.scrollElementIntoScroller(el);
+      });
+    });
+  }
+
+  private scrollElementIntoScroller(element: HTMLElement): void {
+    const reducedMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    element.scrollIntoView({
+      block: 'start',
+      behavior: reducedMotion ? 'instant' : 'smooth',
+    });
   }
 
   private readTestament(): Testament {
@@ -402,5 +456,62 @@ export class BiblePassagePickerModalComponent implements OnChanges {
       /* ignore */
     }
     return 'ot';
+  }
+
+  private lockBackgroundScroll(): void {
+    // Capture body/html first. If the page scroller is documentElement (e.g. Admin
+    // has no `.safe-area-viewport`), mutating it before this would make unlock restore
+    // `hidden` and leave the page unscrollable.
+    this.bodyPreviousOverflow = document.body.style.overflow;
+    this.htmlPreviousOverflow = document.documentElement.style.overflow;
+
+    const scroller = this.findPageScrollContainer();
+    if (scroller !== document.documentElement && scroller !== document.body) {
+      this.scrollLockEl = scroller;
+      this.scrollLockPreviousOverflow = scroller.style.overflow;
+      this.scrollLockPreviousTouchAction = scroller.style.touchAction;
+      scroller.style.overflow = 'hidden';
+      scroller.style.touchAction = 'none';
+    } else {
+      this.scrollLockEl = null;
+      this.scrollLockPreviousOverflow = '';
+      this.scrollLockPreviousTouchAction = '';
+    }
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+  }
+
+  private unlockBackgroundScroll(): void {
+    if (this.scrollLockEl) {
+      this.scrollLockEl.style.overflow = this.scrollLockPreviousOverflow;
+      this.scrollLockEl.style.touchAction = this.scrollLockPreviousTouchAction;
+      this.scrollLockEl = null;
+    }
+    document.body.style.overflow = this.bodyPreviousOverflow;
+    document.documentElement.style.overflow = this.htmlPreviousOverflow;
+  }
+
+  private isBookListTouch(event: TouchEvent): boolean {
+    const scroller = this.bookListScroller?.nativeElement;
+    return !!(
+      scroller &&
+      event.target instanceof Node &&
+      scroller.contains(event.target)
+    );
+  }
+
+  private findPageScrollContainer(): HTMLElement {
+    const viewport = document.querySelector('.safe-area-viewport');
+    if (viewport instanceof HTMLElement) return viewport;
+
+    const scroller = this.bookListScroller?.nativeElement;
+    let node: HTMLElement | null = scroller?.parentElement ?? null;
+    while (node && node !== document.body) {
+      const overflowY = window.getComputedStyle(node).overflowY;
+      if (overflowY === 'auto' || overflowY === 'scroll') return node;
+      node = node.parentElement;
+    }
+    return document.documentElement;
   }
 }

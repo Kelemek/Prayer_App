@@ -19,7 +19,10 @@ import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation
 import { ScriptureHoverPreviewComponent } from '../scripture-hover-preview/scripture-hover-preview.component';
 import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
 import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
-import { MemorizationRecommendationsService } from '../../services/memorization-recommendations.service';
+import { IbcdMemorizationCatalogPanelComponent } from '../ibcd-memorization-catalog-panel/ibcd-memorization-catalog-panel.component';
+import {
+  MemorizationRecommendationsService,
+} from '../../services/memorization-recommendations.service';
 import { MemorizationService } from '../../services/memorization.service';
 import { ScriptureService } from '../../services/scripture.service';
 import { ToastService } from '../../services/toast.service';
@@ -43,6 +46,7 @@ import type {
     ScriptureHoverPreviewComponent,
     AdminCollapsibleSectionComponent,
     AdminSectionLoadingComponent,
+    IbcdMemorizationCatalogPanelComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -79,6 +83,11 @@ import type {
         </p>
       } @else {
         <div class="space-y-6">
+          <app-ibcd-memorization-catalog-panel
+            [activeTenantId]="activeTenantId"
+            (catalogChanged)="onIbcdCatalogChanged()"
+          />
+
           <p class="text-sm text-gray-600 dark:text-gray-300">
             Manage categories and curated verses for the Memorize
             <strong>Recommended</strong> modal. Every verse must belong to a category.
@@ -266,13 +275,10 @@ import type {
                         <app-scripture-hover-preview
                           class="min-w-0 flex-1"
                           [reference]="item.reference"
-                          [translation]="item.translation"
+                          [translation]="previewTranslation"
                         >
                           <div class="min-w-0 font-medium text-gray-900 dark:text-gray-100 truncate">
                             {{ item.reference }}
-                            <span class="text-xs font-normal text-gray-500 dark:text-gray-400 ml-1">
-                              {{ item.translation.toUpperCase() }}
-                            </span>
                           </div>
                         </app-scripture-hover-preview>
                         <button
@@ -327,6 +333,7 @@ import type {
         (cancel)="pendingRemoveCategory = null; mark()"
       />
     }
+
   `,
 })
 export class MemorizationRecommendationsManagerComponent implements OnDestroy {
@@ -350,6 +357,10 @@ export class MemorizationRecommendationsManagerComponent implements OnDestroy {
   pendingRemoveCategory: MemorizationRecommendationCategory | null = null;
   activeTenantId: string | null = null;
   pickerTranslation: BibleTranslation = 'esv';
+
+  get previewTranslation(): BibleTranslation {
+    return this.pickerTranslation || this.memorization.getPreferredTranslation();
+  }
 
   constructor(
     private recommendations: MemorizationRecommendationsService,
@@ -500,8 +511,7 @@ export class MemorizationRecommendationsManagerComponent implements OnDestroy {
 
       const result = await this.recommendations.addRecommendation(
         reference,
-        this.addTargetCategoryId,
-        translation
+        this.addTargetCategoryId
       );
       if (result.ok) {
         this.toast.success('Recommendation added.');
@@ -529,6 +539,17 @@ export class MemorizationRecommendationsManagerComponent implements OnDestroy {
 
   confirmRemoveVerse(item: MemorizationRecommendation): void {
     this.pendingRemoveVerse = item;
+    this.mark();
+  }
+
+  onIbcdCatalogChanged(): void {
+    this.syncFromService();
+    if (
+      this.addTargetCategoryId &&
+      !this.groups.some((g) => g.category.id === this.addTargetCategoryId)
+    ) {
+      this.addTargetCategoryId = this.groups[0]?.category.id ?? null;
+    }
     this.mark();
   }
 

@@ -579,6 +579,35 @@ export class HelpContentService {
         createdBy: 'system',
       },
       {
+        id: 'help_memorization_reminders',
+        title: 'Memorization reminders',
+        description: 'Optional hourly nudges to practice scripture memory',
+        icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+        content: [
+          {
+            subtitle: 'What they are',
+            text: 'Memorization reminders are optional, personal prompts at the top of clock hours you choose—a short nudge to open the Memorize tab and practice your verses. They are separate from prayer reminders and from admin email broadcasts.',
+          },
+          {
+            subtitle: 'How to set them up',
+            text: 'Open Settings (gear icon). In the Memorization reminders section (below Memorization practice), pick an hour from the dropdown and tap Add reminder. You can add more than one hour. Remove any slot you no longer need. Reminder times use your device time zone.',
+          },
+          {
+            subtitle: 'Email and push',
+            text: 'If Email subscription is on in Settings, you can receive a reminder email at each chosen hour. If push notifications are enabled and this device is registered for push, you can also get a push at those times. If both are on, you may receive both. Emails may highlight a verse or list item that needs the most practice when your organization uses the spotlight template.',
+          },
+          {
+            subtitle: 'Tips',
+            text: 'Add verses on the Memorize tab first so spotlight reminders have something to suggest. You can change or clear memorization reminders anytime in Settings without affecting prayer reminders.',
+          },
+        ],
+        order: 11,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: 'system',
+      },
+      {
         id: 'help_feedback',
         title: 'Send Feedback',
         description: 'Share suggestions, report bugs, and request features',
@@ -601,7 +630,7 @@ export class HelpContentService {
             text: 'Your feedback is valuable! Whether you find a bug, want a new feature, or have a suggestion to make the app better, please share it with us. We read and consider all feedback from our users.',
           },
         ],
-        order: 11,
+        order: 12,
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -642,6 +671,14 @@ export class HelpContentService {
             text: 'Set your preferred default view when you log in. Choose between "Current Prayers View" to see public prayers waiting for prayer, or "Personal Prayers View" to see your personal prayer list. Your selection is saved and will be remembered each time you log in.',
           },
           {
+            subtitle: 'Memorization practice',
+            text: 'Choose **Standard** or **Strict** for scripture memory sessions. **Standard** auto-reveals blanks after three wrong attempts in Type, Initials, and Word modes. **Strict** disables auto-reveal, shows **Errors: N** during practice when the round has mistakes, and in **Reorder** counts a swap as wrong when no part lands in its correct slot. Strict mode hides **Next round** until the current round finishes with zero errors (use **Repeat this round** until then). Saved per organization and synced across devices.',
+          },
+          {
+            subtitle: 'Memorization reminders (hourly nudges)',
+            text: 'Below **Memorization practice**, choose one or more clock hours when you would like a short reminder to practice memorization for this organization. Times follow your device time zone. If email subscription is on, you will get an email at those hours; if push notifications are on and this device is registered for push, you will also get a push reminder—if both are on, you may receive both. These are separate from **Prayer reminders**.',
+          },
+          {
             subtitle: 'Prayer reminders (hourly nudges)',
             text: 'In Settings you can choose one or more clock hours (at the top of each hour) when you would like a short reminder to pray. Times follow your device time zone. If email subscription is on, you will get an email at those hours; if push notifications are on and this device is registered for push, you will also get a push reminder—if both are on, you may receive both. Pick an hour with the dropdown, tap Add reminder, or Remove a slot you no longer want. These are your personal reminders to pause and pray; they are separate from community prayer update reminders (which admins configure for requesters).',
           },
@@ -658,7 +695,7 @@ export class HelpContentService {
             text: 'At the bottom of the settings panel you can delete your account. A verification dialog will ask you to choose: "Delete account but keep my prayers" so your prayers continue to be lifted up by others, or "Delete my account and all my prayers" to remove your account and all prayers you submitted. After either choice you will be signed out and would need to be re-approved to use the app again.',
           },
         ],
-        order: 12,
+        order: 13,
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),

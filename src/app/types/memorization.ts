@@ -1,11 +1,11 @@
 export const BIBLE_TRANSLATION_CODES = [
   'esv',
-  'kjv',
   'nasb',
   'lsb',
+  'csb',
+  'kjv',
   'niv',
   'nlt',
-  'csb',
 ] as const;
 
 export type BibleTranslation = (typeof BIBLE_TRANSLATION_CODES)[number];
@@ -20,6 +20,16 @@ export function isBibleTranslation(
 export function isMemorizationListenTranslation(translation: BibleTranslation): boolean {
   return translation === 'esv';
 }
+
+export const BIBLE_TRANSLATION_LABELS: Record<BibleTranslation, string> = {
+  esv: 'ESV — English Standard Version',
+  kjv: 'KJV — King James Version',
+  nasb: 'NASB — New American Standard Bible',
+  lsb: 'LSB — Legacy Standard Bible',
+  niv: 'NIV — New International Version',
+  nlt: 'NLT — New Living Translation',
+  csb: 'CSB — Christian Standard Bible',
+};
 
 export type MemorizationMasterLevel = 'learning' | 'practicing' | 'mastered';
 
@@ -47,6 +57,8 @@ export interface MemorizationInProgress {
   updatedAt: number;
   phase: MemorizationInProgressPhase;
   practiceMode?: MemorizationPracticeMode;
+  /** Per-round wrong attempts for strict mode resume (optional on legacy saves). */
+  wrongAttemptsInRound?: number;
 }
 
 export type MemorizationInProgressSavePayload = Omit<
@@ -88,16 +100,6 @@ export interface MemorizedItemRow {
   updated_at: string;
 }
 
-export const BIBLE_TRANSLATION_LABELS: Record<BibleTranslation, string> = {
-  esv: 'ESV',
-  kjv: 'KJV',
-  nasb: 'NASB',
-  lsb: 'LSB',
-  niv: 'NIV',
-  nlt: 'NLT',
-  csb: 'CSB',
-};
-
 /** Admin-curated category for Memorize recommendation verses (tenant-scoped). */
 export interface MemorizationRecommendationCategory {
   id: string;
@@ -117,12 +119,11 @@ export interface MemorizationRecommendationCategoryRow {
   updated_at: string;
 }
 
-/** Admin-curated verse shown on the Memorize tab as a recommendation. */
+/** Admin-curated verse shown on the Memorize tab as a recommendation (translation-agnostic). */
 export interface MemorizationRecommendation {
   id: string;
   tenantId: string;
   reference: string;
-  translation: BibleTranslation;
   categoryId: string;
   displayOrder: number;
   createdAt: string;
@@ -133,15 +134,27 @@ export interface MemorizationRecommendationRow {
   id: string;
   tenant_id: string;
   reference: string;
-  translation: string;
   category_id: string;
   display_order: number;
   created_at: string;
   updated_at: string;
 }
 
+/** User adds a recommended verse with their chosen translation. */
+export interface MemorizationRecommendationAddPayload {
+  recommendation: MemorizationRecommendation;
+  translation: BibleTranslation;
+}
+
 /** Category with its verses, ordered for the Recommended modal / admin UI. */
 export interface MemorizationRecommendationCategoryGroup {
   category: MemorizationRecommendationCategory;
   items: MemorizationRecommendation[];
+}
+
+/** IBCD catalog apply status for a tenant (from get_memorization_ibcd_catalog_status RPC). */
+export interface IbcdCatalogStatus {
+  applied: boolean;
+  ibcdCategoryCount: number;
+  ibcdVerseCount: number;
 }

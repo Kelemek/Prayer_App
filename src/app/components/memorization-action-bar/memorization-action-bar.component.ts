@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 @Component({
@@ -23,18 +23,22 @@ import { CommonModule } from '@angular/common';
         <span aria-hidden="true">+</span>
         Bible Books
       </button>
-      <button
-        type="button"
-        (click)="openRecommended.emit()"
-        class="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-blue-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-600 dark:hover:bg-gray-700 sm:flex-none"
-      >
-        <span aria-hidden="true">+</span>
-        Recommended
-      </button>
+      @if (showRecommended) {
+        <button
+          type="button"
+          (click)="openRecommended.emit()"
+          class="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-blue-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-600 dark:hover:bg-gray-700 sm:flex-none"
+        >
+          <span aria-hidden="true">+</span>
+          Recommended
+        </button>
+      }
     </div>
   `,
 })
 export class MemorizationActionBarComponent {
+  @Input() showRecommended = false;
+
   @Output() addVerses = new EventEmitter<void>();
   @Output() addBibleBooks = new EventEmitter<void>();
   @Output() openRecommended = new EventEmitter<void>();

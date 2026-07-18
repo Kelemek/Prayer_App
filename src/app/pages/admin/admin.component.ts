@@ -21,6 +21,7 @@ import { EmailSettingsComponent } from '../../components/email-settings/email-se
 import { EmailSubscribersComponent } from '../../components/email-subscribers/email-subscribers.component';
 import { AdminSubscriberEmailBroadcastComponent } from '../../components/admin-subscriber-email-broadcast/admin-subscriber-email-broadcast.component';
 import { EmailTemplatesManagerComponent } from '../../components/email-templates-manager/email-templates-manager.component';
+import { HourlyReminderTemplateSectionComponent } from '../../components/hourly-reminder-template-section/hourly-reminder-template-section.component';
 import { AdminUserManagementComponent } from '../../components/admin-user-management/admin-user-management.component';
 import { PrayerSearchComponent } from '../../components/prayer-search/prayer-search.component';
 import { PrayerArchiveTimelineComponent } from '../../components/prayer-archive-timeline/prayer-archive-timeline.component';
@@ -61,6 +62,7 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
     EmailSubscribersComponent,
     AdminSubscriberEmailBroadcastComponent,
     EmailTemplatesManagerComponent,
+    HourlyReminderTemplateSectionComponent,
     AdminUserManagementComponent,
     PrayerSearchComponent,
     PrayerArchiveTimelineComponent,
@@ -702,6 +704,33 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
                   <app-email-settings></app-email-settings>
                 </div>
                 <div class="mb-4">
+                  <app-hourly-reminder-template-section
+                    sectionTitle="Hourly user memorization reminder email"
+                    descriptionHtml="Users opt in under <strong class=&quot;text-gray-800 dark:text-gray-200&quot;>Settings → Memorization reminders</strong>. This controls which template the hourly job sends for this organization. The <strong class=&quot;text-gray-800 dark:text-gray-200&quot;>spotlight</strong> option highlights the item on the user's memorization list that needs the most practice (learning tier and least recently practiced first)."
+                    settingsColumn="user_hourly_memorization_reminder_template_key"
+                    [templateOptions]="hourlyMemorizationReminderTemplateOptions"
+                    [allowedKeys]="hourlyMemorizationAllowedKeys"
+                    defaultKey="user_hourly_memorization_reminder"
+                    helpText="Push notifications use the spotlight reference when that option is selected and the user has memorized items."
+                    loadingMessage="Loading memorization reminder template…"
+                    successMessage="Memorization reminder template saved."
+                    saveToastMessage="Hourly memorization reminder template saved."
+                    saveErrorToastMessage="Failed to save memorization reminder template"
+                    loadErrorPrefix="Failed to load memorization hourly reminder template"
+                    saveErrorPrefix="Failed to save memorization hourly reminder template"
+                    triggerId="email-hourly-memorization-reminder-settings-trigger"
+                    panelId="email-hourly-memorization-reminder-panel"
+                    templateLabelId="user-hourly-memorization-reminder-template-label"
+                    templateSelectId="user-hourly-memorization-reminder-template"
+                    helpTextId="userHourlyMemorizationReminderTemplateHelp"
+                  >
+                    <svg sectionIcon class="text-blue-600 dark:text-blue-400 shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                    </svg>
+                  </app-hourly-reminder-template-section>
+                </div>
+                <div class="mb-4">
                   <app-email-templates-manager></app-email-templates-manager>
                 </div>
               </div>
@@ -831,6 +860,19 @@ export class AdminComponent implements OnInit, OnDestroy {
   isSuperAdmin = false;
   githubFeedbackEnabled = false;
   tenantContextLoading = true;
+
+  readonly hourlyMemorizationReminderTemplateOptions = [
+    { value: 'user_hourly_memorization_reminder', label: 'Simple nudge (default)' },
+    {
+      value: 'user_hourly_memorization_reminder_with_spotlight',
+      label: 'Spotlight — item needing the most practice',
+    },
+  ] as const;
+
+  readonly hourlyMemorizationAllowedKeys = [
+    'user_hourly_memorization_reminder',
+    'user_hourly_memorization_reminder_with_spotlight',
+  ] as const;
 
   constructor(
     private router: Router,

@@ -386,6 +386,94 @@ describe('GitHubFeedbackFormComponent', () => {
     });
   });
 
+  describe('Feedback type tiles', () => {
+    it('exposes three feedback type options', () => {
+      expect(component.feedbackTypeOptions).toHaveLength(3);
+      expect(component.feedbackTypeOptions.map((option) => option.value)).toEqual([
+        'suggestion',
+        'feature',
+        'bug',
+      ]);
+    });
+
+    it('selectFeedbackType updates the model for each type', () => {
+      component.selectFeedbackType('feature');
+      expect(component.feedbackType).toBe('feature');
+
+      component.selectFeedbackType('bug');
+      expect(component.feedbackType).toBe('bug');
+
+      component.selectFeedbackType('suggestion');
+      expect(component.feedbackType).toBe('suggestion');
+    });
+
+    it('selectFeedbackType does not change type while loading', () => {
+      component.isLoading = true;
+
+      component.selectFeedbackType('bug');
+
+      expect(component.feedbackType).toBe('suggestion');
+    });
+
+    it('selectFeedbackType ignores selecting the active type', () => {
+      component.feedbackType = 'feature';
+
+      component.selectFeedbackType('feature');
+
+      expect(component.feedbackType).toBe('feature');
+    });
+
+    it('feedbackTypeTileClasses applies selected and unselected styles', () => {
+      const selected = component.feedbackTypeTileClasses(true);
+      const unselected = component.feedbackTypeTileClasses(false);
+
+      expect(
+        selected[
+          'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30'
+        ]
+      ).toBe(true);
+      expect(
+        unselected[
+          'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+        ]
+      ).toBe(true);
+    });
+
+    it('onFeedbackTypeKeydown cycles options with arrow keys', () => {
+      const preventDefault = vi.fn();
+
+      component.onFeedbackTypeKeydown({
+        key: 'ArrowRight',
+        preventDefault,
+      } as KeyboardEvent);
+      expect(component.feedbackType).toBe('feature');
+      expect(preventDefault).toHaveBeenCalled();
+
+      component.onFeedbackTypeKeydown({
+        key: 'ArrowRight',
+        preventDefault,
+      } as KeyboardEvent);
+      expect(component.feedbackType).toBe('bug');
+
+      component.onFeedbackTypeKeydown({
+        key: 'ArrowLeft',
+        preventDefault,
+      } as KeyboardEvent);
+      expect(component.feedbackType).toBe('feature');
+    });
+
+    it('onFeedbackTypeKeydown ignores navigation while loading', () => {
+      component.isLoading = true;
+
+      component.onFeedbackTypeKeydown({
+        key: 'ArrowRight',
+        preventDefault: vi.fn(),
+      } as KeyboardEvent);
+
+      expect(component.feedbackType).toBe('suggestion');
+    });
+  });
+
   describe('Component Cleanup', () => {
     it('should complete destroy subject on ngOnDestroy', () => {
       const destroySpy = vi.spyOn(component['destroy$'], 'complete');

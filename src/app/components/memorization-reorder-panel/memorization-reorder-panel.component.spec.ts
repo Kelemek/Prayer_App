@@ -205,6 +205,33 @@ describe('MemorizationReorderPanelComponent', () => {
     expect(slotsBecameCorrect).toHaveBeenCalled();
   });
 
+  it('emits wrongSwap when swap does not fix any slot', async () => {
+    const wrongSwap = vi.fn();
+    const slotsBecameCorrect = vi.fn();
+    const fourChunks = [
+      { id: 0, text: 'And we know' },
+      { id: 1, text: 'that for those' },
+      { id: 2, text: 'who love God' },
+      { id: 3, text: 'all things work' },
+    ];
+    const { fixture } = await render(MemorizationReorderPanelComponent, {
+      componentInputs: {
+        chunks: fourChunks,
+        slotChunkIds: [0, 3, 2, 1],
+        roundMovableIndices: new Set([1, 2, 3]),
+      },
+    });
+    fixture.componentInstance.wrongSwap.subscribe(wrongSwap);
+    fixture.componentInstance.slotsBecameCorrect.subscribe(slotsBecameCorrect);
+    fixture.componentInstance.usePointerPath = false;
+    fixture.componentInstance.draggedSlot = 2;
+
+    fixture.componentInstance.onDrop({ preventDefault: vi.fn() } as DragEvent, 3);
+
+    expect(wrongSwap).toHaveBeenCalled();
+    expect(slotsBecameCorrect).not.toHaveBeenCalled();
+  });
+
   it('onDragOver sets dragOverSlot', async () => {
     const { fixture } = await render(MemorizationReorderPanelComponent, {
       componentInputs: {

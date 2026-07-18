@@ -63,85 +63,105 @@
       [style.paddingBottom]="'env(safe-area-inset-bottom)'"
       role="dialog"
       aria-modal="true"
-      aria-label="Memorize practice"
+      [attr.aria-label]="phase === 'done' ? 'Finished' : 'Memorize practice'"
+      [attr.aria-labelledby]="phase === 'done' ? 'memorize-practice-dialog-title' : null"
     >
       <div
         data-tour="memorize-practice-dialog"
         class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden"
       >
         <div class="flex items-center justify-between gap-3 px-4 pt-4 pb-2 border-b border-gray-200 dark:border-gray-700 shrink-0">
-          <div class="flex min-w-0 shrink items-center gap-2">
-            @if (showListenOpeners) {
-              <button
-                type="button"
-                data-tour="memorize-listen-open"
-                data-testid="memorize-listen-open"
-                (click)="openListenPanel()"
-                [attr.aria-expanded]="listenPanelOpen"
-                [attr.aria-controls]="MEMORIZE_LISTEN_CONTROLS_DIALOG_ID"
-                aria-label="Open Listen controls for this verse"
-                class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-              >
-                Listen
-              </button>
-            }
-          </div>
-          <div class="flex items-center gap-2 shrink-0">
-            @if (showStartOver) {
-              <button
-                type="button"
-                data-testid="memorize-start-over"
-                (click)="handleStartOver()"
-                class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer"
-              >
-                Start over
-              </button>
-            }
-            @if (
-              phase === 'practicing' &&
-              !awaitingRoundAdvance &&
-              (practiceMode === 'type' ||
-                practiceMode === 'firstLetters' ||
-                practiceMode === 'word' ||
-                practiceMode === 'reorder')
-            ) {
-              <button
-                #hintButton
-                type="button"
-                data-testid="memorize-hint-button"
-                tabindex="-1"
-                class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors border border-blue-200 dark:border-blue-700 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-900/60 hover:border-blue-300 dark:hover:border-blue-600 active:bg-blue-200 dark:active:bg-blue-900/70 select-none touch-manipulation cursor-pointer"
-                [attr.aria-pressed]="hintActive"
-                [attr.aria-label]="
-                  practiceMode === 'reorder'
-                    ? 'Hold to peek at the correct phrase for the first section still out of order'
-                    : 'Hold to peek at hidden words; adds the next word every second'
-                "
-                [title]="
-                  practiceMode === 'reorder'
-                    ? 'Hold to peek at the first wrong section'
-                    : 'Hold to peek; next blank every 1s while held'
-                "
-                (pointerdown)="onHintPointerDown($event)"
-                (pointerup)="onHintPointerUp($event)"
-                (pointerleave)="onHintPointerLeave($event)"
-                (pointercancel)="onHintPointerUp($event)"
-              >
-                Hint
-              </button>
-            }
-            <button
-              type="button"
-              data-tour="memorize-practice-close"
-              (click)="handleClose()"
-              class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer"
-              aria-label="Close"
+          @if (phase === 'done') {
+            <h2
+              id="memorize-practice-dialog-title"
+              class="min-w-0 flex-1 text-lg font-semibold text-gray-900 dark:text-gray-100"
+              data-testid="memorize-done-title"
             >
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+              Finished
+            </h2>
+          } @else {
+            <div class="flex min-w-0 flex-1 items-center gap-2">
+              @if (showListenOpeners) {
+                <button
+                  type="button"
+                  data-tour="memorize-listen-open"
+                  data-testid="memorize-listen-open"
+                  (click)="openListenPanel()"
+                  [attr.aria-expanded]="listenPanelOpen"
+                  [attr.aria-controls]="MEMORIZE_LISTEN_CONTROLS_DIALOG_ID"
+                  aria-label="Open Listen controls for this verse"
+                  class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                >
+                  Listen
+                </button>
+              }
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              @if (phase === 'practicing' && wrongAttemptsInRound > 0) {
+                <span
+                  data-testid="memorize-error-count"
+                  class="text-sm text-red-600 dark:text-red-400 font-medium tabular-nums"
+                  aria-live="polite"
+                >
+                  Errors: {{ wrongAttemptsInRound }}
+                </span>
+              }
+              @if (showStartOver) {
+                <button
+                  type="button"
+                  data-testid="memorize-start-over"
+                  (click)="handleStartOver()"
+                  class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer"
+                >
+                  Start over
+                </button>
+              }
+              @if (
+                phase === 'practicing' &&
+                !awaitingRoundAdvance &&
+                (practiceMode === 'type' ||
+                  practiceMode === 'firstLetters' ||
+                  practiceMode === 'word' ||
+                  practiceMode === 'reorder')
+              ) {
+                <button
+                  #hintButton
+                  type="button"
+                  data-testid="memorize-hint-button"
+                  tabindex="-1"
+                  class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors border border-blue-200 dark:border-blue-700 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-900/60 hover:border-blue-300 dark:hover:border-blue-600 active:bg-blue-200 dark:active:bg-blue-900/70 select-none touch-manipulation cursor-pointer"
+                  [attr.aria-pressed]="hintActive"
+                  [attr.aria-label]="
+                    practiceMode === 'reorder'
+                      ? 'Hold to peek at the correct phrase for the first section still out of order'
+                      : 'Hold to peek at hidden words; adds the next word every second'
+                  "
+                  [title]="
+                    practiceMode === 'reorder'
+                      ? 'Hold to peek at the first wrong section'
+                      : 'Hold to peek; next blank every 1s while held'
+                  "
+                  (pointerdown)="onHintPointerDown($event)"
+                  (pointerup)="onHintPointerUp($event)"
+                  (pointerleave)="onHintPointerLeave($event)"
+                  (pointercancel)="onHintPointerUp($event)"
+                >
+                  Hint
+                </button>
+              }
+            </div>
+          }
+          <button
+            type="button"
+            data-tour="memorize-practice-close"
+            (click)="handleClose()"
+            class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer shrink-0"
+            aria-label="Close"
+          >
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -286,7 +306,7 @@
                   >
                     <p class="text-sm text-gray-600 dark:text-gray-400">
                       @if (awaitingRoundAdvance) {
-                        Round {{ roundIndex }} complete — repeat or continue to round {{ roundIndex + 1 }}.
+                        {{ roundAdvanceHeaderCopy }}
                       } @else if (practiceMode === 'reorder') {
                         Round {{ roundIndex }} of {{ MEMORIZATION_FULL_HIDE_ROUND }} — reorder about
                         {{ reorderMovableCountForRound(roundIndex, reorderChunks.length) }} of
@@ -391,6 +411,7 @@
                         (slotChunkIdsChange)="onReorderSlotChunkIdsChange($event)"
                         (invalidDrop)="onReorderInvalidDrop()"
                         (slotsBecameCorrect)="onReorderSlotsBecameCorrect($event)"
+                        (wrongSwap)="onReorderWrongSwap()"
                       />
                     } @else if (practiceMode === 'word') {
                       <div
@@ -513,36 +534,11 @@
             </div>
 
             @if (phase === 'practicing' && practiceMode === 'word' && !awaitingRoundAdvance && wordChoiceLabels.length > 0) {
-              <div
-                class="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/60"
-                data-testid="memorize-word-choices"
-              >
-                <div class="max-h-[min(42vh,360px)] overflow-y-auto overscroll-y-contain px-4 py-3 touch-pan-y">
-                  <div class="flex w-full max-w-2xl mx-auto flex-wrap justify-center gap-4">
-                    @for (label of wordChoiceLabels; track label; let choiceIdx = $index) {
-                      <button
-                        type="button"
-                        (click)="processWordGuess(label)"
-                        class="shrink-0 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 font-medium text-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
-                        [class.min-w-11]="currentTargetToken?.kind === 'digit'"
-                        [class.px-4]="currentTargetToken?.kind === 'digit'"
-                        [class.py-2.5]="currentTargetToken?.kind === 'digit'"
-                        [class.tabular-nums]="currentTargetToken?.kind === 'digit'"
-                        [class.whitespace-nowrap]="currentTargetToken?.kind === 'digit'"
-                        [class.max-w-full]="currentTargetToken?.kind !== 'digit'"
-                        [class.w-max]="currentTargetToken?.kind !== 'digit'"
-                        [class.px-4]="currentTargetToken?.kind !== 'digit'"
-                        [class.py-3]="currentTargetToken?.kind !== 'digit'"
-                        [class.text-sm]="currentTargetToken?.kind !== 'digit'"
-                        [class.leading-snug]="currentTargetToken?.kind !== 'digit'"
-                        [class.whitespace-normal]="currentTargetToken?.kind !== 'digit'"
-                      >
-                        {{ label }}
-                      </button>
-                    }
-                  </div>
-                </div>
-              </div>
+              <app-memorization-word-choices-footer
+                [labels]="wordChoiceLabels"
+                [targetKind]="currentTargetToken?.kind ?? null"
+                (guess)="processWordGuess($event)"
+              />
             }
 
             @if (phase === 'practicing' && awaitingRoundAdvance) {
@@ -564,13 +560,26 @@
                   >
                     Repeat this round
                   </button>
+                  @if (showNextRoundOption) {
                   <button
                     type="button"
+                    data-testid="memorize-next-round"
                     (click)="nextRound()"
                     class="w-full sm:w-auto px-4 py-3 rounded-lg font-medium transition-colors cursor-pointer bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700"
                   >
                     Next round
                   </button>
+                  }
+                  @if (showFinishPracticeOption) {
+                  <button
+                    type="button"
+                    data-testid="memorize-finish-practice"
+                    (click)="finishPracticeSession()"
+                    class="w-full sm:w-auto px-4 py-3 rounded-lg font-medium transition-colors cursor-pointer bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700"
+                  >
+                    Finish practice
+                  </button>
+                  }
                 </div>
               </div>
             }

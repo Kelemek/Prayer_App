@@ -20,6 +20,7 @@ export type PushNotificationEventType =
   | 'update_approved'
   | 'prayer_update'
   | 'reminder'
+  | 'memorization_reminder'
   | 'generic';
 
 export interface PushNotificationEvent {

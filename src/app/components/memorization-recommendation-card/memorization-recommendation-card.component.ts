@@ -1,6 +1,6 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import type { MemorizationRecommendation } from '../../types/memorization';
+import type { BibleTranslation, MemorizationRecommendation } from '../../types/memorization';
 import { ScriptureHoverPreviewComponent } from '../scripture-hover-preview/scripture-hover-preview.component';
 
 @Component({
@@ -10,7 +10,7 @@ import { ScriptureHoverPreviewComponent } from '../scripture-hover-preview/scrip
   template: `
     <app-scripture-hover-preview
       [reference]="recommendation.reference"
-      [translation]="recommendation.translation"
+      [translation]="translation"
     >
       <button
         type="button"
@@ -35,7 +35,7 @@ import { ScriptureHoverPreviewComponent } from '../scripture-hover-preview/scrip
           @if (alreadyAdded) {
             Already added
           } @else {
-            {{ recommendation.translation.toUpperCase() }} · Tap to add
+            {{ translation.toUpperCase() }} · Tap to add
           }
         </span>
       </button>
@@ -44,6 +44,7 @@ import { ScriptureHoverPreviewComponent } from '../scripture-hover-preview/scrip
 })
 export class MemorizationRecommendationCardComponent {
   @Input({ required: true }) recommendation!: MemorizationRecommendation;
+  @Input() translation: BibleTranslation = 'esv';
   @Input() alreadyAdded = false;
   @Input() busy = false;
   @Output() add = new EventEmitter<MemorizationRecommendation>();

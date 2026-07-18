@@ -22,7 +22,6 @@ function makeRow(overrides: Partial<Record<string, unknown>> = {}) {
     id: 'rec-1',
     tenant_id: TENANT_ID,
     reference: 'John 3:16',
-    translation: 'esv',
     category_id: CAT_ID,
     display_order: 0,
     created_at: '2026-01-01T00:00:00Z',
@@ -592,5 +591,97 @@ describe('MemorizationRecommendationsService', () => {
     const ok = await service.removeRecommendation('rec-1');
     expect(ok).toBe(true);
     expect(delEq).toHaveBeenCalledWith('tenant_id', TENANT_ID);
+  });
+
+  it('getIbcdCatalogStatus returns mapped status from RPC', async () => {
+    rpcMock.mockResolvedValue({
+      data: {
+        applied: true,
+        ibcd_category_count: 30,
+        ibcd_verse_count: 104,
+      },
+      error: null,
+    });
+
+    const status = await service.getIbcdCatalogStatus();
+    expect(status).toEqual({
+      applied: true,
+      ibcdCategoryCount: 30,
+      ibcdVerseCount: 104,
+    });
+    expect(rpcMock).toHaveBeenCalledWith('get_memorization_ibcd_catalog_status', {
+      p_tenant_id: TENANT_ID,
+    });
+  });
+
+  it('getIbcdCatalogStatus returns null without active tenant', async () => {
+    const tenantContext = {
+      getActiveTenant: vi.fn(() => null),
+      activeTenant$: { subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })) },
+    };
+    const localService = new MemorizationRecommendationsService(
+      { client: { from: fromMock, rpc: rpcMock } } as any,
+      cache as any,
+      tenantContext as any
+    );
+
+    const status = await localService.getIbcdCatalogStatus();
+    expect(status).toBeNull();
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it('applyIbcdCatalog calls RPC and reloads recommendations', async () => {
+    mockLoadTables([], []);
+    rpcMock.mockResolvedValue({
+      data: { applied: true, categories_added: 30, verses_added: 104 },
+      error: null,
+    });
+
+    const result = await service.applyIbcdCatalog();
+    expect(result).toEqual({ ok: true, categoriesAdded: 30, versesAdded: 104 });
+    expect(rpcMock).toHaveBeenCalledWith('apply_ibcd_memorization_recommendations', {
+      p_tenant_id: TENANT_ID,
+    });
+    expect(cache.invalidate).toHaveBeenCalled();
+  });
+
+  it('applyIbcdCatalog maps not authorized to not_admin', async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { message: 'Not authorized for tenant' },
+    });
+
+    const result = await service.applyIbcdCatalog();
+    expect(result).toEqual({ ok: false, reason: 'not_admin' });
+  });
+
+  it('removeIbcdCatalog calls RPC and reloads recommendations', async () => {
+    mockLoadTables([], []);
+    rpcMock.mockResolvedValue({
+      data: { removed_categories: 30, removed_verses: 104 },
+      error: null,
+    });
+
+    const result = await service.removeIbcdCatalog();
+    expect(result).toEqual({
+      ok: true,
+      removedCategories: 30,
+      removedVerses: 104,
+    });
+    expect(rpcMock).toHaveBeenCalledWith('remove_ibcd_memorization_recommendations', {
+      p_tenant_id: TENANT_ID,
+    });
+    expect(cache.invalidate).toHaveBeenCalled();
+  });
+
+  it('hasRecommendations$ reflects whether items exist', async () => {
+    const values: boolean[] = [];
+    const sub = service.hasRecommendations$.subscribe((v) => values.push(v));
+
+    mockLoadTables([makeCategoryRow()], [makeRow()]);
+    await service.load(true);
+
+    expect(values.at(-1)).toBe(true);
+    sub.unsubscribe();
   });
 });

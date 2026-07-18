@@ -131,10 +131,8 @@ describe('UserSettingsComponent', () => {
       showPushNotificationSetting: vi.fn(() => false)
     };
 
-    const mockUserPrayerReminderService = {
-      ensureLoaded: vi.fn(() => Promise.resolve([])),
-      addSlot: vi.fn(() => Promise.resolve([])),
-      removeSlot: vi.fn(() => Promise.resolve([]))
+    const mockGitHubFeedbackService = {
+      getGitHubConfig: vi.fn(() => Promise.resolve(null)),
     };
 
     const mockTenantContextService = {
@@ -161,10 +159,10 @@ describe('UserSettingsComponent', () => {
       mockPrayerService,
       mockEmailNotificationService,
       mockAdminAuthService,
+      mockGitHubFeedbackService as any,
       mockBadgeService as any,
       mockUserSessionService,
       mockCapacitorService as CapacitorService,
-      mockUserPrayerReminderService as any,
       mockTenantContextService as any,
       mockConnectivity as any,
       mockToast as any,
@@ -2455,6 +2453,47 @@ describe('UserSettingsComponent', () => {
 
       expect(component.error).toBeTruthy();
       expect(component.badgeFunctionalityEnabled).toBe(false); // Should revert
+    });
+  });
+
+  describe('preference setter shortcuts', () => {
+    beforeEach(() => {
+      component.email = 'test@example.com';
+      component.preferencesLoaded = true;
+      component.badgePreferencesLoaded = true;
+      component.prayerEncouragementUiLoaded = true;
+    });
+
+    it('setReceiveNotifications toggles and persists', async () => {
+      const toggleSpy = vi.spyOn(component, 'onNotificationToggle').mockResolvedValue();
+      component.receiveNotifications = true;
+      component.setReceiveNotifications(false);
+      expect(component.receiveNotifications).toBe(false);
+      expect(toggleSpy).toHaveBeenCalled();
+    });
+
+    it('setReceivePushNotifications toggles and persists', async () => {
+      const toggleSpy = vi.spyOn(component, 'onPushNotificationToggle').mockResolvedValue();
+      component.receivePushNotifications = false;
+      component.setReceivePushNotifications(true);
+      expect(component.receivePushNotifications).toBe(true);
+      expect(toggleSpy).toHaveBeenCalled();
+    });
+
+    it('setBadgeFunctionalityEnabled toggles badge preference', async () => {
+      const toggleSpy = vi.spyOn(component, 'onBadgeFunctionalityToggle').mockResolvedValue();
+      component.badgeFunctionalityEnabled = false;
+      component.setBadgeFunctionalityEnabled(true);
+      expect(component.badgeFunctionalityEnabled).toBe(true);
+      expect(toggleSpy).toHaveBeenCalled();
+    });
+
+    it('setShowPrayForButton toggles encouragement UI', async () => {
+      const toggleSpy = vi.spyOn(component, 'onShowPrayForButtonToggle').mockResolvedValue();
+      component.showPrayForButton = true;
+      component.setShowPrayForButton(false);
+      expect(component.showPrayForButton).toBe(false);
+      expect(toggleSpy).toHaveBeenCalled();
     });
   });
 

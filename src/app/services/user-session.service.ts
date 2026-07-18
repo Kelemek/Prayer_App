@@ -1,11 +1,13 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
+import { distinctUntilChanged, map } from 'rxjs/operators';
 import { SupabaseService } from './supabase.service';
 import { AdminAuthService } from './admin-auth.service';
 import { AuthIdentityService } from './auth-identity.service';
 import { TenantContextService } from './tenant-context.service';
 import { first } from 'rxjs/operators';
 import type { UserPrayerHourReminderSlot } from '../types/user-prayer-hour-reminder';
+import type { UserHourReminderSlot } from '../types/user-hour-reminder';
 
 export interface UserSessionData {
   email: string;
@@ -15,10 +17,15 @@ export interface UserSessionData {
   receiveAdminEmails?: boolean;
   receivePush?: boolean;
   badgeFunctionalityEnabled?: boolean;
+  showPrayForButton?: boolean;
+  showPrayingCount?: boolean;
   defaultPrayerView?: 'current' | 'personal';
+  memorizationStrictMode?: boolean;
   /** Cached hourly self-reminder slots; undefined = never fetched this session. */
   prayerHourReminders?: UserPrayerHourReminderSlot[];
   prayerHourRemindersFetchedAt?: number;
+  memorizationHourReminders?: UserHourReminderSlot[];
+  memorizationHourRemindersFetchedAt?: number;
 }
 
 /**
@@ -39,6 +46,9 @@ export class UserSessionService {
 
   private hasInitializedSubject = new BehaviorSubject<boolean>(false);
   private hasInitialized$ = this.hasInitializedSubject.asObservable();
+  readonly sessionInitialized$ = this.hasInitializedSubject
+    .asObservable()
+    .pipe(distinctUntilChanged());
 
   private hasBeenAuthenticated = false; // Track if user was ever authenticated
 
@@ -114,7 +124,7 @@ export class UserSessionService {
       const tenantId = this.tenantContext.getActiveTenant()?.id;
       let query = this.supabase.client
         .from('tenant_memberships')
-        .select('user_email, name, is_active, receive_push, badge_functionality_enabled, default_prayer_view')
+        .select('user_email, name, is_active, receive_push, badge_functionality_enabled, default_prayer_view, memorization_strict_mode, show_pray_for_button, show_praying_count')
         .eq('user_email', email.toLowerCase().trim());
       if (tenantId) {
         query = query.eq('tenant_id', tenantId);
@@ -131,6 +141,9 @@ export class UserSessionService {
         receive_push?: boolean;
         badge_functionality_enabled?: boolean;
         default_prayer_view?: string;
+        memorization_strict_mode?: boolean;
+        show_pray_for_button?: boolean;
+        show_praying_count?: boolean;
       } | null; error: unknown };
 
       if (error) {
@@ -147,7 +160,10 @@ export class UserSessionService {
           receiveAdminEmails: false,
           receivePush: data.receive_push ?? false,
           badgeFunctionalityEnabled: data.badge_functionality_enabled ?? false,
-          defaultPrayerView: this.parseDefaultPrayerView(data.default_prayer_view)
+          defaultPrayerView: this.parseDefaultPrayerView(data.default_prayer_view),
+          memorizationStrictMode: data.memorization_strict_mode ?? false,
+          showPrayForButton: data.show_pray_for_button ?? true,
+          showPrayingCount: data.show_praying_count ?? true,
         };
         this.userSessionSubject.next(sessionData);
         this.saveToCache(sessionData);
@@ -161,7 +177,10 @@ export class UserSessionService {
           receiveAdminEmails: false,
           receivePush: false,
           badgeFunctionalityEnabled: false,
-          defaultPrayerView: 'current'
+          defaultPrayerView: 'current',
+          memorizationStrictMode: false,
+          showPrayForButton: true,
+          showPrayingCount: true,
         };
         this.userSessionSubject.next(sessionData);
         this.saveToCache(sessionData);
@@ -177,7 +196,10 @@ export class UserSessionService {
         receiveAdminEmails: false,
         receivePush: false,
         badgeFunctionalityEnabled: false,
-        defaultPrayerView: 'current'
+        defaultPrayerView: 'current',
+        memorizationStrictMode: false,
+        showPrayForButton: true,
+        showPrayingCount: true,
       };
       this.userSessionSubject.next(sessionData);
       this.saveToCache(sessionData);
@@ -191,6 +213,10 @@ export class UserSessionService {
    */
   getCurrentSession(): UserSessionData | null {
     return this.userSessionSubject.value;
+  }
+
+  isSessionInitialized(): boolean {
+    return this.hasInitializedSubject.value;
   }
 
   /**
@@ -263,6 +289,20 @@ export class UserSessionService {
   getDefaultPrayerView(): 'current' | 'personal' {
     const session = this.userSessionSubject.value;
     return session?.defaultPrayerView || 'current';
+  }
+
+  getShowPrayForButton$(): Observable<boolean> {
+    return this.userSession$.pipe(
+      map((s) => s?.showPrayForButton ?? true),
+      distinctUntilChanged()
+    );
+  }
+
+  getShowPrayingCount$(): Observable<boolean> {
+    return this.userSession$.pipe(
+      map((s) => s?.showPrayingCount ?? true),
+      distinctUntilChanged()
+    );
   }
 
   /**

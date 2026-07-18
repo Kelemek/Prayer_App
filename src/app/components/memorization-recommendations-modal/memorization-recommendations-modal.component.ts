@@ -2,6 +2,7 @@ import {
   Component,
   ElementRef,
   EventEmitter,
+  inject,
   Input,
   OnChanges,
   OnDestroy,
@@ -10,16 +11,20 @@ import {
   ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { BibleTranslationPickerComponent } from '../bible-translation-picker/bible-translation-picker.component';
 import { MemorizationRecommendationCardComponent } from '../memorization-recommendation-card/memorization-recommendation-card.component';
+import { MemorizationService } from '../../services/memorization.service';
 import type {
+  BibleTranslation,
   MemorizationRecommendation,
+  MemorizationRecommendationAddPayload,
   MemorizationRecommendationCategoryGroup,
 } from '../../types/memorization';
 
 @Component({
   selector: 'app-memorization-recommendations-modal',
   standalone: true,
-  imports: [CommonModule, MemorizationRecommendationCardComponent],
+  imports: [CommonModule, MemorizationRecommendationCardComponent, BibleTranslationPickerComponent],
   template: `
     @if (isOpen) {
       <div
@@ -73,6 +78,11 @@ import type {
               <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">
                 Expand a category, then tap a verse to add it to your memorization list.
               </p>
+              <app-bible-translation-picker
+                [translation]="translation"
+                triggerAriaLabel="Bible translation for recommended verses"
+                (translationChange)="onTranslationChanged($event)"
+              />
               <div class="space-y-2">
                 @for (group of groupsWithVerses; track group.category.id) {
                   <div class="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -122,9 +132,10 @@ import type {
                         @for (rec of group.items; track rec.id) {
                           <app-memorization-recommendation-card
                             [recommendation]="rec"
+                            [translation]="translation"
                             [alreadyAdded]="isAlreadyAdded(rec)"
                             [busy]="busyId === rec.id"
-                            (add)="add.emit($event)"
+                            (add)="onAddRecommendation($event)"
                           />
                         }
                       </div>
@@ -140,6 +151,8 @@ import type {
   `,
 })
 export class MemorizationRecommendationsModalComponent implements OnChanges, OnDestroy {
+  private readonly memorization = inject(MemorizationService);
+
   private static readonly TOUCH_GUARD_OPTIONS: AddEventListenerOptions = {
     passive: false,
     capture: true,
@@ -161,17 +174,19 @@ export class MemorizationRecommendationsModalComponent implements OnChanges, OnD
   @Input() alreadyAddedReferences: ReadonlySet<string> = new Set();
   @Input() busyId: string | null = null;
   @Input() loading = false;
+  @Input() translation: BibleTranslation = 'esv';
   @Output() onClose = new EventEmitter<void>();
-  @Output() add = new EventEmitter<MemorizationRecommendation>();
+  @Output() add = new EventEmitter<MemorizationRecommendationAddPayload>();
+  @Output() translationChange = new EventEmitter<BibleTranslation>();
 
   @ViewChild('modalScroller') private modalScroller?: ElementRef<HTMLElement>;
 
-  /** Categories the user has expanded; empty = all collapsed. */
   private expandedCategoryIds = new Set<string>();
 
   ngOnChanges(changes: SimpleChanges): void {
     if ('isOpen' in changes) {
       if (this.isOpen) {
+        this.translation = this.memorization.getPreferredTranslation();
         this.lockBackgroundScroll();
         document.addEventListener(
           'touchmove',
@@ -220,7 +235,16 @@ export class MemorizationRecommendationsModalComponent implements OnChanges, OnD
   }
 
   isAlreadyAdded(rec: MemorizationRecommendation): boolean {
-    return this.alreadyAddedReferences.has(`${rec.translation}:${rec.reference}`);
+    return this.alreadyAddedReferences.has(`${this.translation}:${rec.reference}`);
+  }
+
+  onTranslationChanged(next: BibleTranslation): void {
+    this.translation = next;
+    this.translationChange.emit(next);
+  }
+
+  onAddRecommendation(rec: MemorizationRecommendation): void {
+    this.add.emit({ recommendation: rec, translation: this.translation });
   }
 
   private lockBackgroundScroll(): void {
@@ -254,10 +278,6 @@ export class MemorizationRecommendationsModalComponent implements OnChanges, OnD
     document.documentElement.style.overflow = this.htmlPreviousOverflow;
   }
 
-  /**
-   * Allow scroll inside the modal list or a body-portaled scripture hover preview
-   * (long-press popover lives outside `#modalScroller`).
-   */
   private isAllowedScrollTouch(event: TouchEvent): boolean {
     if (!(event.target instanceof Node)) return false;
     const scroller = this.modalScroller?.nativeElement;

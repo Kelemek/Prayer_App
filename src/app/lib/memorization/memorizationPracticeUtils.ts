@@ -450,3 +450,43 @@ export function buildMemorizationChoiceLabels(
   }
   return labels
 }
+
+/** Word-choice footer rows on narrow viewports (below Tailwind `sm`). */
+export const MEMORIZATION_WORD_CHOICE_ROW_COUNT_COMPACT = 3;
+
+/** Word-choice footer rows on `sm` and wider viewports. */
+export const MEMORIZATION_WORD_CHOICE_ROW_COUNT_COMFORTABLE = 2;
+
+/** Tailwind `sm` — word-choice footer switches to fewer rows at this width and above. */
+export const MEMORIZATION_WORD_CHOICE_SM_MIN_WIDTH_PX = 640;
+
+export const MEMORIZATION_WORD_CHOICE_COMFORTABLE_MEDIA_QUERY =
+  `(min-width: ${MEMORIZATION_WORD_CHOICE_SM_MIN_WIDTH_PX}px)` as const;
+
+export function memorizationWordChoiceRowCount(isComfortableWidth: boolean): number {
+  return isComfortableWidth
+    ? MEMORIZATION_WORD_CHOICE_ROW_COUNT_COMFORTABLE
+    : MEMORIZATION_WORD_CHOICE_ROW_COUNT_COMPACT;
+}
+
+/** Split word-mode choices into balanced rows for a stable footer layout. */
+export function splitMemorizationChoiceRows(
+  labels: readonly string[],
+  rowCount = MEMORIZATION_WORD_CHOICE_ROW_COUNT_COMPACT
+): readonly string[][] {
+  if (rowCount <= 0) return [];
+  if (labels.length === 0) {
+    return Array.from({ length: rowCount }, () => [] as string[]);
+  }
+  const base = Math.floor(labels.length / rowCount);
+  let remainder = labels.length % rowCount;
+  const rows: string[][] = [];
+  let offset = 0;
+  for (let i = 0; i < rowCount; i++) {
+    const size = base + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder -= 1;
+    rows.push(labels.slice(offset, offset + size));
+    offset += size;
+  }
+  return rows;
+}

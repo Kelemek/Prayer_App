@@ -1,15 +1,30 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { TestBed } from '@angular/core/testing';
 import { render } from '@testing-library/angular';
 import { MemorizationRecommendationsModalComponent } from './memorization-recommendations-modal.component';
+import { MemorizationService } from '../../services/memorization.service';
 import type {
   MemorizationRecommendation,
   MemorizationRecommendationCategoryGroup,
 } from '../../types/memorization';
 
+const mockMemorization = {
+  getPreferredTranslation: vi.fn(() => 'esv' as const),
+  setPreferredTranslation: vi.fn(),
+};
+
+function createModal(): MemorizationRecommendationsModalComponent {
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({
+    imports: [MemorizationRecommendationsModalComponent],
+    providers: [{ provide: MemorizationService, useValue: mockMemorization }],
+  });
+  return TestBed.createComponent(MemorizationRecommendationsModalComponent).componentInstance;
+}
+
 const sample: MemorizationRecommendation = {
   id: 'r1',
   reference: 'John 3:16',
-  translation: 'esv',
   categoryId: 'cat-1',
   displayOrder: 0,
   createdAt: '2026-01-01T00:00:00Z',
@@ -41,11 +56,14 @@ const groups: MemorizationRecommendationCategoryGroup[] = [
 
 describe('MemorizationRecommendationsModalComponent', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    mockMemorization.getPreferredTranslation.mockReturnValue('esv');
     document.body.style.overflow = '';
     document.documentElement.style.overflow = '';
   });
 
   afterEach(() => {
+    TestBed.resetTestingModule();
     document.body.style.overflow = '';
     document.documentElement.style.overflow = '';
     document.querySelectorAll('.safe-area-viewport').forEach((el) => {
@@ -55,24 +73,41 @@ describe('MemorizationRecommendationsModalComponent', () => {
     });
   });
 
-  it('isAlreadyAdded uses translation:reference keys', () => {
-    const modal = new MemorizationRecommendationsModalComponent();
-    modal.alreadyAddedReferences = new Set(['esv:John 3:16']);
+  it('isAlreadyAdded uses selected translation:reference keys', () => {
+    const modal = createModal();
+    modal.translation = 'niv';
+    modal.alreadyAddedReferences = new Set(['niv:John 3:16']);
     expect(modal.isAlreadyAdded(sample)).toBe(true);
     expect(
       modal.isAlreadyAdded({ ...sample, id: 'r2', reference: 'Romans 8:28' })
     ).toBe(false);
   });
 
+  it('onAddRecommendation emits recommendation with selected translation', () => {
+    const modal = createModal();
+    modal.translation = 'kjv';
+    const emit = vi.spyOn(modal.add, 'emit');
+    modal.onAddRecommendation(sample);
+    expect(emit).toHaveBeenCalledWith({ recommendation: sample, translation: 'kjv' });
+  });
+
+  it('onTranslationChanged updates translation and emits translationChange', () => {
+    const modal = createModal();
+    const changed = vi.spyOn(modal.translationChange, 'emit');
+    modal.onTranslationChanged('csb');
+    expect(modal.translation).toBe('csb');
+    expect(changed).toHaveBeenCalledWith('csb');
+  });
+
   it('groupsWithVerses hides empty categories', () => {
-    const modal = new MemorizationRecommendationsModalComponent();
+    const modal = createModal();
     modal.groups = groups;
     expect(modal.groupsWithVerses).toHaveLength(1);
     expect(modal.groupsWithVerses[0].category.name).toBe('Gospel');
   });
 
   it('starts with categories collapsed and toggles expansion', () => {
-    const modal = new MemorizationRecommendationsModalComponent();
+    const modal = createModal();
     expect(modal.isCategoryExpanded('cat-1')).toBe(false);
     modal.toggleCategory('cat-1');
     expect(modal.isCategoryExpanded('cat-1')).toBe(true);
@@ -81,7 +116,7 @@ describe('MemorizationRecommendationsModalComponent', () => {
   });
 
   it('clears expanded categories when the modal closes', () => {
-    const modal = new MemorizationRecommendationsModalComponent();
+    const modal = createModal();
     modal.isOpen = true;
     modal.toggleCategory('cat-1');
     expect(modal.isCategoryExpanded('cat-1')).toBe(true);
@@ -108,6 +143,7 @@ describe('MemorizationRecommendationsModalComponent', () => {
     const { fixture } = await render(MemorizationRecommendationsModalComponent, {
       componentInputs: { isOpen: true, groups },
       container: viewport,
+      providers: [{ provide: MemorizationService, useValue: mockMemorization }],
     });
 
     expect(viewport.style.overflow).toBe('hidden');
@@ -129,6 +165,7 @@ describe('MemorizationRecommendationsModalComponent', () => {
   it('allows touchmove inside the modal scroller and blocks it elsewhere', async () => {
     const { fixture } = await render(MemorizationRecommendationsModalComponent, {
       componentInputs: { isOpen: true, groups },
+      providers: [{ provide: MemorizationService, useValue: mockMemorization }],
     });
     const modal = fixture.componentInstance;
     const scroller = fixture.nativeElement.querySelector(
@@ -151,6 +188,7 @@ describe('MemorizationRecommendationsModalComponent', () => {
   it('allows touchmove inside a portaled scripture hover preview', async () => {
     const { fixture } = await render(MemorizationRecommendationsModalComponent, {
       componentInputs: { isOpen: true, groups },
+      providers: [{ provide: MemorizationService, useValue: mockMemorization }],
     });
     const modal = fixture.componentInstance;
 

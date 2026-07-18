@@ -8,7 +8,6 @@ import type { MemorizationRecommendation } from '../../types/memorization';
 const sample: MemorizationRecommendation = {
   id: 'r1',
   reference: 'John 3:16',
-  translation: 'esv',
   categoryId: 'cat-1',
   displayOrder: 0,
   createdAt: '2026-01-01T00:00:00Z',
@@ -58,7 +57,7 @@ describe('MemorizationRecommendationCardComponent', () => {
     const user = userEvent.setup();
     const add = vi.fn();
     const { fixture, container } = await render(MemorizationRecommendationCardComponent, {
-      componentInputs: { recommendation: sample, alreadyAdded: false },
+      componentInputs: { recommendation: sample, translation: 'esv', alreadyAdded: false },
       providers: [{ provide: ScriptureService, useValue: mockScriptureService }],
     });
     fixture.componentInstance.add.subscribe(add);

@@ -8,7 +8,7 @@ import {
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
-import { RouterModule, Router } from "@angular/router";
+import { RouterModule, Router, ActivatedRoute } from "@angular/router";
 import { ChangeDetectorRef } from "@angular/core";
 import {
   CdkDragDrop,
@@ -66,7 +66,7 @@ import type {
   MemorizationInProgressSavePayload,
   BibleTranslation,
   MemorizationRecommendation,
-  MemorizationRecommendationCategoryGroup,
+  MemorizationRecommendationAddPayload,
 } from "../../types/memorization";
 import {
   BRANDING_CACHE_KEYS,
@@ -951,6 +951,7 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
 
             @if (activeFilter === 'memorize') {
             <app-memorization-action-bar
+              [showRecommended]="!!(memorizationRecommendationsService.hasRecommendations$ | async)"
               (addVerses)="showAddMemorizedVerse = true"
               (addBibleBooks)="showAddMemorizedBibleBooks = true"
               (openRecommended)="openMemorizationRecommendations()"
@@ -964,7 +965,11 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
                 No memorized passages yet
               </h3>
               <p class="text-gray-500 dark:text-gray-400">
-                Add verses, Bible books, or pick from Recommended to start practicing.
+                @if (memorizationRecommendationsService.hasRecommendations$ | async) {
+                  Add verses, Bible books, or pick from Recommended to start practicing.
+                } @else {
+                  Add verses or Bible books to start practicing.
+                }
               </p>
             </div>
             } @if (memorizedLearning.length > 0) {
@@ -1101,10 +1106,12 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
       />
       <app-memorization-recommendations-modal
         [isOpen]="showMemorizationRecommendations"
-        [groups]="memorizationRecommendationGroups"
+        [groups]="(memorizationRecommendationsService.grouped$ | async) ?? []"
         [alreadyAddedReferences]="memorizationRecommendationOwnedKeys"
         [busyId]="addingRecommendationId"
         [loading]="!!(memorizationRecommendationsService.loading$ | async)"
+        [translation]="preferredBibleTranslation"
+        (translationChange)="preferredBibleTranslation = $event"
         (onClose)="showMemorizationRecommendations = false"
         (add)="addRecommendedVerse($event)"
       />
@@ -1166,7 +1173,6 @@ export class HomeComponent implements OnInit, OnDestroy {
   memorizedLearning: MemorizedItem[] = [];
   memorizedPracticing: MemorizedItem[] = [];
   memorizedMastered: MemorizedItem[] = [];
-  memorizationRecommendationGroups: MemorizationRecommendationCategoryGroup[] = [];
   memorizationRecommendationOwnedKeys = new Set<string>();
   addingRecommendationId: string | null = null;
   showAddMemorizedVerse = false;
@@ -1248,6 +1254,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     private analyticsService: AnalyticsService,
     private cdr: ChangeDetectorRef,
     private router: Router,
+    private route: ActivatedRoute,
     private supabaseService: SupabaseService,
     private tenantPermissionService: TenantPermissionService,
     private tenantContextService: TenantContextService,
@@ -1273,6 +1280,12 @@ export class HomeComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     // Track page view on home component load
     this.analyticsService.trackPageView();
+
+    this.route.queryParams
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((params) => {
+        this.applyMemorizeFilterFromQuery(params["filter"]);
+      });
 
     this.isOnline = this.connectivity.isOnline();
     this.connectivity.isOnline$
@@ -1447,14 +1460,6 @@ export class HomeComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       });
 
-    this.memorizationRecommendationsService.items$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        this.memorizationRecommendationGroups =
-          this.memorizationRecommendationsService.groupedSnapshot;
-        this.cdr.markForCheck();
-      });
-
     // Apply default view only after tenant context and user session have finished loading.
     // Otherwise canAccessShared stays false and setFilter forces personal prayers.
     combineLatest([
@@ -1612,6 +1617,14 @@ export class HomeComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (this.route.snapshot.queryParamMap.get("filter") === "memorize") {
+      this.setFilter("memorize");
+      this.viewReady = true;
+      this.clearMemorizeFilterQueryParam();
+      this.cdr.markForCheck();
+      return;
+    }
+
     this.canAccessShared = this.tenantPermissionService.canAccessShared();
     const preferred = session.defaultPrayerView ?? "current";
     const filter =
@@ -1621,6 +1634,26 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.setFilter(filter);
     this.viewReady = true;
     this.cdr.markForCheck();
+  }
+
+  private applyMemorizeFilterFromQuery(filter: string | undefined): void {
+    if (filter !== "memorize") {
+      return;
+    }
+    this.setFilter("memorize");
+    this.clearMemorizeFilterQueryParam();
+    this.cdr.markForCheck();
+  }
+
+  private clearMemorizeFilterQueryParam(): void {
+    if (this.route.snapshot.queryParamMap.get("filter") !== "memorize") {
+      return;
+    }
+    void this.router.navigate([], {
+      queryParams: { filter: null },
+      queryParamsHandling: "merge",
+      replaceUrl: true,
+    });
   }
 
   /**
@@ -2259,33 +2292,33 @@ export class HomeComponent implements OnInit, OnDestroy {
   openMemorizationRecommendations(): void {
     this.showMemorizationRecommendations = true;
     this.cdr.markForCheck();
-    void this.memorizationRecommendationsService.load(true).then(() => {
-      this.memorizationRecommendationGroups =
-        this.memorizationRecommendationsService.groupedSnapshot;
-      this.cdr.markForCheck();
-    });
+    void this.memorizationRecommendationsService.load(true);
   }
 
-  isRecommendationAlreadyAdded(rec: MemorizationRecommendation): boolean {
+  isRecommendationAlreadyAdded(
+    rec: MemorizationRecommendation,
+    translation: BibleTranslation
+  ): boolean {
     return this.memorizedItems.some(
       (item) =>
         (item.kind === "verse" || item.kind == null) &&
         item.reference === rec.reference &&
-        item.translation === rec.translation
+        item.translation === translation
     );
   }
 
-  async addRecommendedVerse(rec: MemorizationRecommendation): Promise<void> {
-    if (this.addingRecommendationId || this.isRecommendationAlreadyAdded(rec)) {
+  async addRecommendedVerse(payload: MemorizationRecommendationAddPayload): Promise<void> {
+    const rec = payload.recommendation;
+    const translation = payload.translation;
+    if (this.addingRecommendationId || this.isRecommendationAlreadyAdded(rec, translation)) {
       return;
     }
     this.addingRecommendationId = rec.id;
     this.cdr.markForCheck();
     try {
-      // Validate the passage resolves before saving a reference-only row.
       const passage = await this.scriptureService.getPassage(
         rec.reference,
-        rec.translation
+        translation
       );
       const text = passage.text?.trim();
       if (!text) {
@@ -2294,7 +2327,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       }
       const result = await this.memorizationService.addVerse(
         rec.reference,
-        rec.translation,
+        translation,
         text
       );
       if (result.ok) {

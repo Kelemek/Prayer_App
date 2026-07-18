@@ -16,10 +16,13 @@ import {
   inject,
 } from '@angular/core';
 import { CommonModule, DOCUMENT } from '@angular/common';
+import { Subscription, combineLatest } from 'rxjs';
 import { ScriptureService } from '../../services/scripture.service';
+import { UserSessionService } from '../../services/user-session.service';
 import type { PracticeSessionResult } from '../../services/memorization.service';
 import {
   isMemorizationListenTranslation,
+  type MemorizationInProgress,
   type MemorizationInProgressSavePayload,
   type MemorizationPracticeMode,
   type MemorizedItem,
@@ -74,6 +77,7 @@ import {
   type MemorizationToken,
 } from '../../lib/memorization/memorizationPracticeUtils';
 import { MemorizationReorderPanelComponent } from '../memorization-reorder-panel/memorization-reorder-panel.component';
+import { MemorizationWordChoicesFooterComponent } from '../memorization-word-choices-footer/memorization-word-choices-footer.component';
 import { MemorizeListenControlsDialogComponent } from '../memorize-listen-controls-dialog/memorize-listen-controls-dialog.component';
 import { BibleBooksMemorizationListComponent } from '../bible-books-memorization-list/bible-books-memorization-list.component';
 import { ScriptureAttributionComponent } from '../scripture-attribution/scripture-attribution.component';
@@ -84,7 +88,7 @@ type Phase = 'intro' | 'practicing' | 'done';
 
 const MAX_WRONG_BEFORE_REVEAL = 3;
 const MEMORIZATION_WORD_CHOICE_COUNT_WORD = 8;
-const MEMORIZATION_WORD_CHOICE_COUNT_DIGIT = 4;
+const MEMORIZATION_WORD_CHOICE_COUNT_DIGIT = 6;
 const MEMORIZE_EXTRA_GAP_ABOVE_KEYBOARD_PX = 48;
 const MEMORIZE_EXTRA_GAP_ABOVE_WORD_CHOICES_PX = 16;
 const MEMORIZE_HINT_EXTRA_PEEK_INTERVAL_MS = 1000;
@@ -114,6 +118,7 @@ function hiddenTypingTokenIndices(
   imports: [
     CommonModule,
     MemorizationReorderPanelComponent,
+    MemorizationWordChoicesFooterComponent,
     MemorizeListenControlsDialogComponent,
     BibleBooksMemorizationListComponent,
     ScriptureAttributionComponent,
@@ -172,6 +177,7 @@ export class MemorizationPracticeSessionComponent
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly ngZone = inject(NgZone);
   private readonly scripture = inject(ScriptureService);
+  private readonly userSessionService = inject(UserSessionService);
 
   @Input({ required: true }) item!: MemorizedItem;
   @Input() isOpen = false;
@@ -211,7 +217,11 @@ export class MemorizationPracticeSessionComponent
   reorderSlotChunkIds: number[] = [];
   reorderRoundMovableIndices = new Set<number>();
   wrongAttemptsTotal = 0;
+  wrongAttemptsInRound = 0;
   correctKeystrokesTotal = 0;
+  strictModeEnabled = false;
+  /** Set when a round ends; gates Next round in strict mode until repeat clears it. */
+  roundCompletedWithErrors = false;
   flashError = false;
   hintHeld = false;
   hintPeekCount = 1;
@@ -264,6 +274,7 @@ export class MemorizationPracticeSessionComponent
   private scrollBlankTimer: ReturnType<typeof setTimeout> | null = null;
   private hintIntervalId: ReturnType<typeof setInterval> | null = null;
   private flashErrorTimer: ReturnType<typeof setTimeout> | null = null;
+  private strictModeSessionSub: Subscription | null = null;
   private viewportListenersAttached = false;
   private androidScrollListener: (() => void) | null = null;
   private verseTouchMoved = false;
@@ -329,6 +340,41 @@ export class MemorizationPracticeSessionComponent
 
   get showStartOver(): boolean {
     return this.phase === 'practicing' || (this.phase === 'intro' && !!this.item.inProgressPractice);
+  }
+
+  /** Strict mode: advance only after a perfect round (no wrong attempts). */
+  get isFinalRound(): boolean {
+    return this.roundIndex >= MEMORIZATION_FULL_HIDE_ROUND;
+  }
+
+  get showNextRoundOption(): boolean {
+    if (this.isFinalRound) return false;
+    if (!this.roundCompletedWithErrors) return true;
+    return !this.mustRepeatDueToErrors();
+  }
+
+  /** Final round in standard mode: finish with errors after resume or strict-mode toggle. */
+  get showFinishPracticeOption(): boolean {
+    return (
+      this.awaitingRoundAdvance &&
+      this.isFinalRound &&
+      this.userSessionService.isSessionInitialized() &&
+      !this.strictModeEnabled
+    );
+  }
+
+  get roundAdvanceHeaderCopy(): string {
+    if (!this.awaitingRoundAdvance) return '';
+    if (this.isFinalRound) {
+      if (this.showFinishPracticeOption) {
+        return `Round ${this.roundIndex} complete — repeat this round or finish practice.`;
+      }
+      if (!this.userSessionService.isSessionInitialized()) {
+        return `Round ${this.roundIndex} complete — repeat this round or finish practice once settings load.`;
+      }
+      return `Round ${this.roundIndex} complete — repeat this round until you finish with no errors.`;
+    }
+    return `Round ${this.roundIndex} complete — repeat or continue to round ${this.roundIndex + 1}.`;
   }
 
   get listenButtonLabel(): string {
@@ -504,10 +550,12 @@ export class MemorizationPracticeSessionComponent
   }
 
   beginPracticeWithMode(mode: MemorizationPracticeMode): void {
+    this.syncStrictModeFromSession();
     this.stopPassageAudio();
     this.modePickerOpen = false;
     this.practiceCompleted = false;
     this.wrongAttemptsTotal = 0;
+    this.wrongAttemptsInRound = 0;
     this.correctKeystrokesTotal = 0;
     this.syncMetricRefs();
     this.sessionSeed = generateMemorizationSessionSeed();
@@ -541,13 +589,15 @@ export class MemorizationPracticeSessionComponent
   }
 
   repeatRound(): void {
-    this.persistPracticeSnapshot({ kind: 'inRound', roundIndex: this.roundIndex });
     this.startRoundAndFocusInput(this.roundIndex);
+    this.persistPracticeSnapshot({ kind: 'inRound', roundIndex: this.roundIndex });
   }
 
   nextRound(): void {
-    this.persistPracticeSnapshot({ kind: 'inRound', roundIndex: this.roundIndex + 1 });
-    this.startRoundAndFocusInput(this.roundIndex + 1);
+    if (!this.showNextRoundOption) return;
+    const nextIndex = this.roundIndex + 1;
+    this.startRoundAndFocusInput(nextIndex);
+    this.persistPracticeSnapshot({ kind: 'inRound', roundIndex: this.roundIndex });
   }
 
   onHintPointerDown(event: PointerEvent): void {
@@ -602,16 +652,9 @@ export class MemorizationPracticeSessionComponent
       this.correctKeystrokesTotal += 1;
       this.syncMetricRefs();
     } else {
-      this.wrongAttemptsTotal += 1;
+      this.recordWrongAttempt();
       this.consecutiveWrong += 1;
-      if (this.consecutiveWrong >= MAX_WRONG_BEFORE_REVEAL && this.currentTargetIndex !== null) {
-        const idx = this.currentTargetIndex;
-        const next = new Set(this.revealed);
-        next.add(idx);
-        this.revealed = next;
-        this.correctKeystrokesTotal += 1;
-        this.consecutiveWrong = 0;
-      }
+      this.tryAutoRevealAfterWrong();
       this.syncMetricRefs();
       this.flashErrorBriefly();
     }
@@ -663,7 +706,15 @@ export class MemorizationPracticeSessionComponent
   }
 
   onReorderInvalidDrop(): void {
-    this.wrongAttemptsTotal += 1;
+    this.recordWrongAttempt();
+    this.syncMetricRefs();
+    this.flashErrorBriefly();
+    this.cdr.markForCheck();
+  }
+
+  onReorderWrongSwap(): void {
+    if (!this.strictModeEnabled) return;
+    this.recordWrongAttempt();
     this.syncMetricRefs();
     this.flashErrorBriefly();
     this.cdr.markForCheck();
@@ -840,20 +891,13 @@ export class MemorizationPracticeSessionComponent
     // Allow hydrate + keyboard focus on every open (including resume of the same verse).
     this.openedLayoutOnceForVerseId = null;
     this.recomputeDerivedFromItem();
-    if (this.isBibleBooks) {
-      this.passageText = '';
-      this.passageLoading = false;
-      this.passageLoadError = null;
-    } else {
-      // Set loading before resume keyboard prime so detectChanges does not flash the
-      // empty “No passage text” branch while typableIndices is still zero.
-      this.passageLoading = true;
-      this.passageLoadError = null;
-    }
     // Mobile keyboards only open if focus happens in the same user-gesture turn as the tap
     // that opened the session — do this before any await (passage fetch).
     this.primeKeyboardFocusForResume();
     if (this.isBibleBooks) {
+      this.passageText = '';
+      this.passageLoading = false;
+      this.passageLoadError = null;
       this.hydrateInProgressOnce();
       this.passageHydratedForOpen = true;
     } else {
@@ -861,6 +905,7 @@ export class MemorizationPracticeSessionComponent
     }
     this.loadAudioUrl();
     this.attachViewportListeners();
+    this.attachStrictModeSessionSubscription();
     if (this.isBibleBooks) {
       this.schedulePracticeEffects();
     }
@@ -911,6 +956,7 @@ export class MemorizationPracticeSessionComponent
     this.document.body.style.overflow = 'unset';
     this.document.documentElement.style.overflow = 'unset';
     this.detachAllListeners();
+    this.detachStrictModeSessionSubscription();
     this.clearHintInterval();
   }
 
@@ -930,10 +976,6 @@ export class MemorizationPracticeSessionComponent
     this.typableIndices = getTypableTokenIndices(this.tokens);
   }
 
-  private cachedPassageText(): string {
-    return stripScriptureForMemorization(this.item.text ?? '');
-  }
-
   private async loadPassageText(): Promise<void> {
     const seq = ++this.passageLoadSeq;
     this.passageLoading = true;
@@ -946,26 +988,23 @@ export class MemorizationPracticeSessionComponent
       const result = await this.scripture.getPassage(this.item.reference, this.item.translation);
       if (seq !== this.passageLoadSeq) return;
       const plain = stripScriptureForMemorization(result.text ?? '');
-      if (plain) {
-        this.passageText = plain;
+      if (!plain) {
+        this.passageLoadError = 'No text returned for this passage.';
       } else {
-        const cached = this.cachedPassageText();
-        if (cached) {
-          this.passageText = cached;
-        } else {
-          this.passageLoadError = 'No text returned for this passage.';
-        }
+        this.passageText = plain;
       }
     } catch (e) {
       if (seq !== this.passageLoadSeq) return;
-      const cached = this.cachedPassageText();
-      if (cached) {
-        this.passageText = cached;
-      } else {
-        this.passageLoadError = e instanceof Error ? e.message : 'Failed to load passage.';
-      }
+      this.passageLoadError = e instanceof Error ? e.message : 'Failed to load passage.';
     } finally {
       if (seq === this.passageLoadSeq) {
+        if (!this.passageText && !this.isBibleBooks) {
+          const cached = stripScriptureForMemorization(this.item.text ?? '');
+          if (cached) {
+            this.passageText = cached;
+            this.passageLoadError = null;
+          }
+        }
         this.passageLoading = false;
         this.recomputeDerivedFromItem();
         if (this.isOpen && !this.passageHydratedForOpen) {
@@ -1039,6 +1078,7 @@ export class MemorizationPracticeSessionComponent
     this.reorderSlotChunkIds = [];
     this.reorderRoundMovableIndices = new Set();
     this.wrongAttemptsTotal = 0;
+    this.wrongAttemptsInRound = 0;
     this.correctKeystrokesTotal = 0;
     this.consecutiveWrong = 0;
     this.practiceMode = null;
@@ -1061,6 +1101,16 @@ export class MemorizationPracticeSessionComponent
     this.sessionSeed = ip.sessionSeed;
     this.practiceCompleted = false;
     this.wrongAttemptsTotal = ip.wrongAttempts;
+    const hydratedRoundErrors = this.resolveHydratedWrongAttemptsInRound(ip);
+    if (ip.phase.kind === 'betweenRounds') {
+      this.roundCompletedWithErrors = hydratedRoundErrors > 0;
+      this.pendingBetweenRoundsErrors = hydratedRoundErrors;
+      this.wrongAttemptsInRound = hydratedRoundErrors;
+    } else {
+      this.wrongAttemptsInRound = hydratedRoundErrors;
+      this.roundCompletedWithErrors = false;
+      this.pendingBetweenRoundsErrors = 0;
+    }
     this.correctKeystrokesTotal = ip.correctKeystrokes;
     this.syncMetricRefs();
 
@@ -1126,6 +1176,7 @@ export class MemorizationPracticeSessionComponent
       this.phase = 'practicing';
     }
 
+    this.syncStrictModeFromSession();
     this.resumeKeyboardPrimeActive = false;
 
     // Prefer sync focus when the input is already in the DOM (resume after primeKeyboardFocusForResume).
@@ -1145,6 +1196,10 @@ export class MemorizationPracticeSessionComponent
   private startRound(r: number): void {
     this.roundAdvanceHandled = null;
     this.consecutiveWrong = 0;
+    this.wrongAttemptsInRound = 0;
+    this.roundCompletedWithErrors = false;
+    this.pendingBetweenRoundsErrors = 0;
+    this.deferFinalRoundUntilSessionInit = false;
     const seed = this.sessionSeed || this.item.id;
     if (this.practiceModeRef === 'reorder') {
       const n = this.reorderChunks.length;
@@ -1240,19 +1295,109 @@ export class MemorizationPracticeSessionComponent
   private consecutiveWrong = 0;
 
   private handleWrongKeystroke(): void {
-    this.wrongAttemptsTotal += 1;
+    this.recordWrongAttempt();
     this.consecutiveWrong += 1;
-    if (this.consecutiveWrong >= MAX_WRONG_BEFORE_REVEAL && this.currentTargetIndex !== null) {
-      const idx = this.currentTargetIndex;
-      this.revealFirstLetterCueForToken(idx);
-      const next = new Set(this.revealed);
-      next.add(idx);
-      this.revealed = next;
-      this.correctKeystrokesTotal += 1;
-      this.consecutiveWrong = 0;
-    }
+    this.tryAutoRevealAfterWrong(true);
     this.syncMetricRefs();
     this.flashErrorBriefly();
+  }
+
+  private recordWrongAttempt(): void {
+    this.wrongAttemptsTotal += 1;
+    this.wrongAttemptsInRound += 1;
+  }
+
+  private syncStrictModeFromSession(): void {
+    this.refreshStrictModeFromSession();
+  }
+
+  private refreshStrictModeFromSession(): void {
+    if (!this.userSessionService.isSessionInitialized()) return;
+    const strict = this.userSessionService.getCurrentSession()?.memorizationStrictMode ?? false;
+    this.applyStrictModeFromSession(strict);
+    this.reconcileFinalRoundAfterSessionLoad();
+    // Session init can change showNextRoundOption even when strict mode stays false.
+    this.cdr.markForCheck();
+  }
+
+  private attachStrictModeSessionSubscription(): void {
+    this.detachStrictModeSessionSubscription();
+    this.strictModeSessionSub = combineLatest([
+      this.userSessionService.userSession$,
+      this.userSessionService.sessionInitialized$,
+    ]).subscribe(() => {
+      this.refreshStrictModeFromSession();
+    });
+  }
+
+  private detachStrictModeSessionSubscription(): void {
+    this.strictModeSessionSub?.unsubscribe();
+    this.strictModeSessionSub = null;
+  }
+
+  private applyStrictModeFromSession(strict: boolean): void {
+    if (this.strictModeEnabled === strict) return;
+    this.strictModeEnabled = strict;
+    if (strict && this.awaitingRoundAdvance && this.wrongAttemptsInRound > 0) {
+      this.roundCompletedWithErrors = true;
+    }
+    this.cdr.markForCheck();
+  }
+
+  /** Block auto-reveal until session bootstrap resolves strict vs standard. */
+  private isAutoRevealBlocked(): boolean {
+    return this.strictModeEnabled || !this.userSessionService.isSessionInitialized();
+  }
+
+  /**
+   * Legacy in-progress saves may omit per-round error counts; treat missing as zero
+   * so session totals do not inflate the current round after resume.
+   */
+  private resolveHydratedWrongAttemptsInRound(ip: MemorizationInProgress): number {
+    return ip.wrongAttemptsInRound ?? 0;
+  }
+
+  /** Strict mode (or pending session) requires repeating after errors before advancing mid-run. */
+  private mustRepeatDueToErrors(): boolean {
+    if (this.wrongAttemptsInRound <= 0) return false;
+    if (!this.userSessionService.isSessionInitialized()) return true;
+    return this.strictModeEnabled;
+  }
+
+  /** Final round: defer until session loads, then repeat only in strict mode. */
+  private mustRepeatFinalRound(): boolean {
+    if (!this.isFinalRound || this.wrongAttemptsInRound <= 0) return false;
+    if (!this.userSessionService.isSessionInitialized()) return true;
+    return this.strictModeEnabled;
+  }
+
+  /** Standard mode on final round: auto-finish with errors once session bootstrap resolves. */
+  private reconcileFinalRoundAfterSessionLoad(): void {
+    if (!this.deferFinalRoundUntilSessionInit) return;
+    this.deferFinalRoundUntilSessionInit = false;
+    if (
+      !this.awaitingRoundAdvance ||
+      !this.isFinalRound ||
+      this.wrongAttemptsInRound <= 0 ||
+      this.strictModeEnabled
+    ) {
+      return;
+    }
+    this.finishPracticeSession();
+  }
+
+  private tryAutoRevealAfterWrong(revealFirstLetterCue = false): void {
+    if (this.isAutoRevealBlocked() || this.currentTargetIndex === null) return;
+    if (this.consecutiveWrong < MAX_WRONG_BEFORE_REVEAL) return;
+    const idx = this.currentTargetIndex;
+    if (revealFirstLetterCue) {
+      this.revealFirstLetterCueForToken(idx);
+    }
+    const next = new Set(this.revealed);
+    next.add(idx);
+    this.revealed = next;
+    this.correctKeystrokesTotal += 1;
+    this.consecutiveWrong = 0;
   }
 
   private checkRoundCompletion(): void {
@@ -1274,30 +1419,52 @@ export class MemorizationPracticeSessionComponent
 
   private onRoundComplete(): void {
     this.syncMetricRefs();
-    if (this.roundIndex >= MEMORIZATION_FULL_HIDE_ROUND) {
-      if (this.practiceCompleted) return;
-      this.practiceCompleted = true;
-      this.completed.emit({
-        wrongAttempts: this.wrongAttemptsRef,
-        correctKeystrokes: this.correctKeystrokesRef,
-        completed: true,
-      });
-      this.completionMessage = pickRandomAllDoneMessage();
-      this.phase = 'done';
-      requestAnimationFrame(() => {
-        if (this.practiceScrollRef?.nativeElement) {
-          this.practiceScrollRef.nativeElement.scrollTop = 0;
-        }
-      });
+    const mustRepeatFinalRound = this.mustRepeatFinalRound();
+
+    if (this.isFinalRound && !mustRepeatFinalRound) {
+      this.finishPracticeSession();
       return;
     }
+
     if (this.roundAdvanceHandled === this.roundIndex) return;
     this.roundAdvanceHandled = this.roundIndex;
+    this.pendingBetweenRoundsErrors = this.wrongAttemptsInRound;
+    this.roundCompletedWithErrors = this.wrongAttemptsInRound > 0;
+    if (
+      this.isFinalRound &&
+      this.wrongAttemptsInRound > 0 &&
+      !this.userSessionService.isSessionInitialized()
+    ) {
+      this.deferFinalRoundUntilSessionInit = true;
+    }
     this.persistPracticeSnapshot({ kind: 'betweenRounds', completedRoundIndex: this.roundIndex });
     this.roundAffirmation = pickRandomRoundAffirmation();
     this.awaitingRoundAdvance = true;
     this.awaitingRoundAdvanceRef = true;
     this.stopPassageAudio();
+  }
+
+  private pendingBetweenRoundsErrors = 0;
+  /** Set when final round completes with errors before session bootstrap; cleared after reconcile. */
+  private deferFinalRoundUntilSessionInit = false;
+
+  finishPracticeSession(): void {
+    if (this.awaitingRoundAdvance && !this.showFinishPracticeOption) return;
+    if (this.practiceCompleted) return;
+    this.practiceCompleted = true;
+    this.completed.emit({
+      wrongAttempts: this.wrongAttemptsRef,
+      correctKeystrokes: this.correctKeystrokesRef,
+      completed: true,
+    });
+    this.completionMessage = pickRandomAllDoneMessage();
+    this.phase = 'done';
+    this.cdr.markForCheck();
+    requestAnimationFrame(() => {
+      if (this.practiceScrollRef?.nativeElement) {
+        this.practiceScrollRef.nativeElement.scrollTop = 0;
+      }
+    });
   }
 
   private persistPracticeSnapshot(phasePayload: MemorizationInProgressSavePayload['phase']): void {
@@ -1310,6 +1477,10 @@ export class MemorizationPracticeSessionComponent
       correctKeystrokes: this.correctKeystrokesRef,
       phase: phasePayload,
       practiceMode: mode,
+      wrongAttemptsInRound:
+        phasePayload.kind === 'betweenRounds'
+          ? this.pendingBetweenRoundsErrors
+          : this.wrongAttemptsInRound,
     });
   }
 

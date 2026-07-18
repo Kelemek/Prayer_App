@@ -3,9 +3,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
 import { render } from '@testing-library/angular';
+import { BehaviorSubject } from 'rxjs';
 import { ElementRef, SimpleChange, ɵresolveComponentResources as resolveComponentResources } from '@angular/core';
 import { MemorizationPracticeSessionComponent } from './memorization-practice-session.component';
 import { ScriptureService } from '../../services/scripture.service';
+import { UserSessionService } from '../../services/user-session.service';
 import type { MemorizedItem } from '../../types/memorization';
 import { MEMORIZATION_FULL_HIDE_ROUND } from '../../lib/memorization/memorizationPracticeUtils';
 import { MEMORIZE_LISTEN_REPEAT_GAP_MS } from '../../lib/memorization/memorizeListenSpeedStorage';
@@ -31,6 +33,34 @@ const mockScriptureService = {
     useSpeechSynthesis: false,
   }),
 };
+
+function createMockUserSessionService(
+  memorizationStrictMode = false,
+  options: { deferSessionLoad?: boolean } = {}
+) {
+  const session = {
+    email: 'test@example.com',
+    fullName: 'Test User',
+    memorizationStrictMode,
+  };
+  const deferSessionLoad = options.deferSessionLoad ?? false;
+  const subject = new BehaviorSubject(deferSessionLoad ? null : session);
+  const initializedSubject = new BehaviorSubject(!deferSessionLoad);
+  return {
+    getCurrentSession: vi.fn(() => subject.value),
+    userSession$: subject.asObservable(),
+    sessionInitialized$: initializedSubject.asObservable(),
+    isSessionInitialized: vi.fn(() => initializedSubject.value),
+    setMemorizationStrictMode(strict: boolean): void {
+      subject.next({ ...session, memorizationStrictMode: strict });
+      initializedSubject.next(true);
+    },
+    finishSessionLoad(strict: boolean = memorizationStrictMode): void {
+      subject.next({ ...session, memorizationStrictMode: strict });
+      initializedSubject.next(true);
+    },
+  };
+}
 
 function makeKeyEvent(key: string, overrides: Partial<KeyboardEvent> = {}): KeyboardEvent {
   return {
@@ -63,19 +93,31 @@ async function renderSession(
   options: {
     item?: MemorizedItem;
     isOpen?: boolean;
+    memorizationStrictMode?: boolean;
+    deferSessionLoad?: boolean;
   } = {}
 ) {
   const closed = vi.fn();
   const completed = vi.fn();
   const persistInProgress = vi.fn();
   const clearInProgress = vi.fn();
+  const strictMode = options.memorizationStrictMode ?? false;
+  const sessionService = createMockUserSessionService(strictMode, {
+    deferSessionLoad: options.deferSessionLoad,
+  });
 
   const result = await render(MemorizationPracticeSessionComponent, {
     componentInputs: {
       item: options.item ?? verseItem,
       isOpen: options.isOpen ?? true,
     },
-    providers: [{ provide: ScriptureService, useValue: mockScriptureService }],
+    providers: [
+      { provide: ScriptureService, useValue: mockScriptureService },
+      {
+        provide: UserSessionService,
+        useValue: sessionService,
+      },
+    ],
   });
 
   const { fixture } = result;
@@ -90,7 +132,16 @@ async function renderSession(
   await fixture.whenStable();
   cdr.detectChanges();
 
-  return { ...result, component, cdr, closed, completed, persistInProgress, clearInProgress };
+  return {
+    ...result,
+    component,
+    cdr,
+    closed,
+    completed,
+    persistInProgress,
+    clearInProgress,
+    sessionService,
+  };
 }
 
 function revealAllHiddenViaTyping(component: MemorizationPracticeSessionComponent): void {

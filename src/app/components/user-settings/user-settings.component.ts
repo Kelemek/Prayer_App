@@ -19,16 +19,18 @@ import { PrintService } from "../../services/print.service";
 import { PrayerService } from "../../services/prayer.service";
 import { EmailNotificationService } from "../../services/email-notification.service";
 import { AdminAuthService } from "../../services/admin-auth.service";
+import { GitHubFeedbackService } from "../../services/github-feedback.service";
 import { UserSessionService } from "../../services/user-session.service";
 import { BadgeService } from "../../services/badge.service";
 import { CapacitorService } from "../../services/capacitor.service";
 import { Subject, takeUntil, debounceTime, distinctUntilChanged } from "rxjs";
 import { getUserInfo } from "../../../utils/userInfoStorage";
-import { UserPrayerReminderService } from "../../services/user-prayer-reminder.service";
+import { GitHubFeedbackFormComponent } from "../github-feedback-form/github-feedback-form.component";
+import { HourReminderSettingsSectionComponent } from "../hour-reminder-settings-section/hour-reminder-settings-section.component";
+import { EnabledDisabledToggleComponent } from "../enabled-disabled-toggle/enabled-disabled-toggle.component";
 import { TenantContextService } from "../../services/tenant-context.service";
 import { ConnectivityService } from "../../services/connectivity.service";
 import { ToastService } from "../../services/toast.service";
-import type { UserPrayerHourReminderSlot } from "../../types/user-prayer-hour-reminder";
 
 type ThemeOption = "light" | "dark" | "system";
 type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
@@ -36,7 +38,13 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
 @Component({
   selector: "app-user-settings",
   standalone: true,
-  imports: [NgClass, FormsModule],
+  imports: [
+    NgClass,
+    FormsModule,
+    GitHubFeedbackFormComponent,
+    HourReminderSettingsSectionComponent,
+    EnabledDisabledToggleComponent,
+  ],
   template: `
     <!-- Modal Overlay -->
     @if (isOpen) {
@@ -46,12 +54,12 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
       (click)="onClose.emit()"
     >
       <div
-        class="settings-modal-panel bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg lg:max-w-2xl max-h-[90dvh] sm:max-h-[85dvh] overflow-y-auto"
+        class="settings-modal-panel flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg lg:max-w-2xl max-h-[90dvh] sm:max-h-[85dvh] overflow-hidden"
         (click)="$event.stopPropagation()"
       >
         <!-- Header -->
         <div
-          class="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700"
+          class="settings-modal-header flex shrink-0 items-center justify-between p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
         >
           <div class="flex items-center gap-2">
             <svg
@@ -96,7 +104,7 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
         </div>
 
         <!-- Content -->
-        <div class="p-4 sm:p-6 space-y-4">
+        <div class="settings-modal-body flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4">
           <!-- Print -->
           <div
             class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4"
@@ -108,7 +116,10 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                 >
                   Print
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-1.5 sm:gap-2">
+                <div
+                  id="tour-settings-print-buttons"
+                  class="grid grid-cols-3 gap-1.5 sm:gap-2"
+                >
             <!-- Print Prayer List -->
             <div class="relative flex-1 min-w-0">
               <div
@@ -121,10 +132,11 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                 class="flex w-full min-w-0 rounded-lg border-2 transition-all overflow-hidden"
               >
                 <button
+                  id="tour-settings-print-prayers"
                   (click)="handlePrint()"
                   title="Print prayers for the selected time period"
                   [disabled]="isPrinting"
-                  class="flex-1 flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="flex-1 flex flex-col items-center justify-center gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   @if (!isPrinting) {
                   <svg
@@ -245,10 +257,11 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                 class="flex w-full min-w-0 rounded-lg border-2 transition-all overflow-hidden"
               >
                 <button
+                  id="tour-settings-print-prompts"
                   (click)="handlePrintPrompts()"
                   [disabled]="isPrintingPrompts"
                   title="Print prayer prompts for the selected time period"
-                  class="flex-1 flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="flex-1 flex flex-col items-center justify-center gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   @if (!isPrintingPrompts) {
                   <svg
@@ -381,10 +394,11 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                 class="flex w-full min-w-0 rounded-lg border-2 transition-all overflow-hidden"
               >
                 <button
+                  id="tour-settings-print-personal"
                   (click)="handlePrintPersonalPrayers()"
                   title="Print personal prayers for the selected categories"
                   [disabled]="isPrintingPersonal"
-                  class="flex-1 flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="flex-1 flex flex-col items-center justify-center gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   @if (!isPrintingPersonal) {
                   <svg
@@ -517,6 +531,7 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
 
           <!-- Theme Selector -->
           <div
+            id="tour-settings-theme"
             class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4"
           >
             <div class="flex items-start gap-2 sm:gap-3">
@@ -645,6 +660,7 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
 
           <!-- Text size -->
           <div
+            id="tour-settings-text-size"
             class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4"
           >
             <div class="flex items-start gap-2 sm:gap-3">
@@ -715,6 +731,7 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
 
           <!-- Email Subscription Toggle -->
           <div
+            id="tour-settings-email-subscription"
             class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-2"
           >
             <div class="flex items-start gap-2 sm:gap-3">
@@ -748,55 +765,14 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                   </svg>
                   }
                 </div>
-                @if (preferencesLoaded) {
-                <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
-                  <button
-                    type="button"
-                    (click)="setReceiveNotifications(true)"
-                    [disabled]="savingNotification"
-                    [ngClass]="{
-                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
-                        receiveNotifications === true,
-                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-                        receiveNotifications !== true
-                    }"
-                    title="Enable email notifications"
-                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span
-                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
-                      >Enabled</span
-                    >
-                  </button>
-                  <button
-                    type="button"
-                    (click)="setReceiveNotifications(false)"
-                    [disabled]="savingNotification"
-                    [ngClass]="{
-                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
-                        receiveNotifications === false,
-                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-                        receiveNotifications !== false
-                    }"
-                    title="Disable email notifications"
-                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span
-                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
-                      >Disabled</span
-                    >
-                  </button>
-                </div>
-                } @else {
-                <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
-                  <div
-                    class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
-                  ></div>
-                  <div
-                    class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
-                  ></div>
-                </div>
-                }
+                <app-enabled-disabled-toggle
+                  [loaded]="preferencesLoaded"
+                  [saving]="savingNotification"
+                  [value]="receiveNotifications"
+                  enabledTitle="Enable email notifications"
+                  disabledTitle="Disable email notifications"
+                  (valueChange)="setReceiveNotifications($event)"
+                />
               </div>
             </div>
             <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
@@ -849,6 +825,7 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
           @if (capacitorService.showPushNotificationSetting() &&
           (capacitorService.isNative() || preferencesLoaded)) {
           <div
+            id="tour-settings-push-notifications"
             class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-2"
           >
             <div class="flex items-start gap-2 sm:gap-3">
@@ -882,55 +859,14 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                   </svg>
                   }
                 </div>
-                @if (preferencesLoaded) {
-                <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
-                  <button
-                    type="button"
-                    (click)="setReceivePushNotifications(true)"
-                    [disabled]="savingPushNotification"
-                    [ngClass]="{
-                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
-                        receivePushNotifications === true,
-                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-                        receivePushNotifications !== true
-                    }"
-                    title="Subscribe to push notifications"
-                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span
-                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
-                      >On</span
-                    >
-                  </button>
-                  <button
-                    type="button"
-                    (click)="setReceivePushNotifications(false)"
-                    [disabled]="savingPushNotification"
-                    [ngClass]="{
-                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
-                        receivePushNotifications === false,
-                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-                        receivePushNotifications !== false
-                    }"
-                    title="Unsubscribe from push notifications"
-                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span
-                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
-                      >Off</span
-                    >
-                  </button>
-                </div>
-                } @else {
-                <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
-                  <div
-                    class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
-                  ></div>
-                  <div
-                    class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
-                  ></div>
-                </div>
-                }
+                <app-enabled-disabled-toggle
+                  [loaded]="preferencesLoaded"
+                  [saving]="savingPushNotification"
+                  [value]="receivePushNotifications"
+                  enabledTitle="Enable push notifications"
+                  disabledTitle="Disable push notifications"
+                  (valueChange)="setReceivePushNotifications($event)"
+                />
               </div>
             </div>
             <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
@@ -982,6 +918,7 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
 
           <!-- Badge Functionality Toggle -->
           <div
+            id="tour-settings-badges"
             class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-2"
           >
             <div class="flex items-start gap-2 sm:gap-3">
@@ -1015,55 +952,14 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
                   </svg>
                   }
                 </div>
-                @if (badgePreferencesLoaded) {
-                <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
-                  <button
-                    type="button"
-                    (click)="setBadgeFunctionalityEnabled(true)"
-                    [disabled]="savingBadge"
-                    [ngClass]="{
-                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
-                        badgeFunctionalityEnabled === true,
-                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-                        badgeFunctionalityEnabled !== true
-                    }"
-                    title="Enable notification badges"
-                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span
-                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
-                      >Enabled</span
-                    >
-                  </button>
-                  <button
-                    type="button"
-                    (click)="setBadgeFunctionalityEnabled(false)"
-                    [disabled]="savingBadge"
-                    [ngClass]="{
-                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
-                        badgeFunctionalityEnabled === false,
-                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-                        badgeFunctionalityEnabled !== false
-                    }"
-                    title="Disable notification badges"
-                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span
-                      class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
-                      >Disabled</span
-                    >
-                  </button>
-                </div>
-                } @else {
-                <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
-                  <div
-                    class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
-                  ></div>
-                  <div
-                    class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
-                  ></div>
-                </div>
-                }
+                <app-enabled-disabled-toggle
+                  [loaded]="badgePreferencesLoaded"
+                  [saving]="savingBadge"
+                  [value]="badgeFunctionalityEnabled"
+                  enabledTitle="Enable notification badges"
+                  disabledTitle="Disable notification badges"
+                  (valueChange)="setBadgeFunctionalityEnabled($event)"
+                />
               </div>
             </div>
             <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
@@ -1113,8 +1009,266 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
             }
           </div>
 
+          <!-- Prayer encouragement on cards (viewer-only) -->
+          <div
+            id="tour-settings-prayer-encouragement"
+            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-3"
+          >
+            <div
+              class="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base"
+            >
+              @if (prayerEncouragementUiLoaded) { Prayer encouragement on cards
+              } @else {
+              <span
+                class="inline-block h-5 w-56 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"
+              ></span>
+              }
+            </div>
+
+            <div class="space-y-2">
+              <div class="flex items-center gap-2">
+                <div
+                  class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                >
+                  @if (prayerEncouragementUiLoaded) { Show &quot;Pray For&quot;
+                  button } @else {
+                  <span
+                    class="inline-block h-4 w-40 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"
+                  ></span>
+                  }
+                </div>
+                @if (savingShowPrayForButton) {
+                <svg
+                  class="animate-spin h-4 w-4 text-blue-600"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  ></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                }
+              </div>
+              @if (prayerEncouragementUiLoaded) {
+              <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  (click)="setShowPrayForButton(true)"
+                  [disabled]="
+                    savingShowPrayForButton || savingShowPrayingCount
+                  "
+                  [ngClass]="{
+                    'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+                      showPrayForButton === true,
+                    'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                      showPrayForButton !== true
+                  }"
+                  title="Show Pray For button on prayer cards"
+                  class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span
+                    class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                    >Show</span
+                  >
+                </button>
+                <button
+                  type="button"
+                  (click)="setShowPrayForButton(false)"
+                  [disabled]="
+                    savingShowPrayForButton || savingShowPrayingCount
+                  "
+                  [ngClass]="{
+                    'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+                      showPrayForButton === false,
+                    'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                      showPrayForButton !== false
+                  }"
+                  title="Hide Pray For button on prayer cards"
+                  class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span
+                    class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                    >Hide</span
+                  >
+                </button>
+              </div>
+              } @else {
+              <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
+                <div
+                  class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
+                ></div>
+                <div
+                  class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
+                ></div>
+              </div>
+              }
+              <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                @if (prayerEncouragementUiLoaded && showPrayForButton !== null)
+                {
+                {{
+                  savingShowPrayForButton
+                    ? "Saving..."
+                    : showPrayForButton
+                    ? "You can record that you prayed for community requests."
+                    : "The Pray For button is hidden on cards for you."
+                }}
+                } @else if (prayerEncouragementUiLoaded) {
+                <span
+                  class="inline-block h-4 w-64 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"
+                ></span>
+                }
+              </p>
+            </div>
+
+            <div class="space-y-2">
+              <div class="flex items-center gap-2">
+                <div
+                  class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                >
+                  @if (prayerEncouragementUiLoaded) { Show &quot;Praying
+                  #&quot; button } @else {
+                  <span
+                    class="inline-block h-4 w-36 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"
+                  ></span>
+                  }
+                </div>
+                @if (savingShowPrayingCount) {
+                <svg
+                  class="animate-spin h-4 w-4 text-blue-600"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  ></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                }
+              </div>
+              @if (prayerEncouragementUiLoaded) {
+              <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  (click)="setShowPrayingCount(true)"
+                  [disabled]="
+                    savingShowPrayForButton || savingShowPrayingCount
+                  "
+                  [ngClass]="{
+                    'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+                      showPrayingCount === true,
+                    'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                      showPrayingCount !== true
+                  }"
+                  title="Show Praying # button on prayer cards"
+                  class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span
+                    class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                    >Show</span
+                  >
+                </button>
+                <button
+                  type="button"
+                  (click)="setShowPrayingCount(false)"
+                  [disabled]="
+                    savingShowPrayForButton || savingShowPrayingCount
+                  "
+                  [ngClass]="{
+                    'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+                      showPrayingCount === false,
+                    'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
+                      showPrayingCount !== false
+                  }"
+                  title="Hide Praying # button on prayer cards"
+                  class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span
+                    class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+                    >Hide</span
+                  >
+                </button>
+              </div>
+              } @else {
+              <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
+                <div
+                  class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
+                ></div>
+                <div
+                  class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
+                ></div>
+              </div>
+              }
+              <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                @if (prayerEncouragementUiLoaded && showPrayingCount !== null) {
+                {{
+                  savingShowPrayingCount
+                    ? "Saving..."
+                    : showPrayingCount
+                    ? "When you may see it, the number of people praying is shown."
+                    : "The Praying count button is hidden on cards for you."
+                }}
+                } @else if (prayerEncouragementUiLoaded) {
+                <span
+                  class="inline-block h-4 w-64 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"
+                ></span>
+                }
+              </p>
+            </div>
+            @if (successPrayerEncouragementUi) {
+            <div
+              class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-2"
+              role="alert"
+              aria-live="assertive"
+              aria-atomic="true"
+            >
+              <div class="flex items-start gap-2">
+                <svg
+                  class="text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <p
+                  class="text-xs sm:text-sm text-green-800 dark:text-green-200"
+                >
+                  {{ successPrayerEncouragementUi }}
+                </p>
+              </div>
+            </div>
+            }
+          </div>
+
           <!-- Default View Preference Control -->
           <div
+            id="tour-settings-default-view"
             class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-2"
           >
             <div class="flex items-start gap-2 sm:gap-3">
@@ -1250,6 +1404,61 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
             }
           </div>
 
+          <!-- Memorization strict mode -->
+          <div
+            id="tour-settings-memorization-strict-mode"
+            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-2"
+          >
+            <div class="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base">
+              @if (memorizationStrictModeLoaded) { Memorization practice } @else {
+              <span class="inline-block h-5 w-48 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></span>
+              }
+            </div>
+            @if (memorizationStrictModeLoaded) {
+            <app-enabled-disabled-toggle
+              [loaded]="memorizationStrictModeLoaded"
+              [saving]="savingMemorizationStrictMode"
+              [value]="!memorizationStrictMode"
+              enabledLabel="Standard"
+              disabledLabel="Strict"
+              (valueChange)="setMemorizationStrictMode(!$event)"
+            />
+            <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+              {{
+                memorizationStrictMode
+                  ? 'Wrong answers are not auto-solved; keep trying until you get each blank right.'
+                  : 'After three wrong attempts on a blank, the answer is revealed automatically.'
+              }}
+            </p>
+            }
+          </div>
+
+          <app-hour-reminder-settings-section
+            kind="memorization"
+            title="Memorization reminders"
+            description="Choose times to get a short reminder to practice memorization for this organization. We email you when email notifications are on, and send a push when push is on and this device is registered. Times use your device time zone (top of each hour)."
+            [email]="email"
+            [isOpen]="isOpen"
+            tourSectionId="tour-settings-memorization-reminders"
+            tourControlsId="tour-settings-memorization-reminder-controls"
+            hourSelectId="memorization-reminder-hour-select"
+            hourSelectLabel="Memorization reminder hour"
+            addButtonTitle="Add a memorization reminder for the selected hour"
+          />
+
+          <app-hour-reminder-settings-section
+            kind="prayer"
+            title="Prayer reminders"
+            description="Choose times to get a short reminder to pray. We email you when email notifications are on, and send a push when push is on and this device is registered—if both are on, you get both. Times use your device time zone (top of each hour)."
+            [email]="email"
+            [isOpen]="isOpen"
+            tourSectionId="tour-settings-prayer-reminders"
+            tourControlsId="tour-settings-prayer-reminder-controls"
+            hourSelectId="reminder-hour-select"
+            hourSelectLabel="Reminder hour"
+            addButtonTitle="Add a prayer reminder for the selected hour"
+          />
+
           <!-- Error Message -->
           @if (error) {
           <div
@@ -1281,182 +1490,18 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
           </div>
           }
 
-          <!-- Prayer reminders (hourly self nudges) -->
+          <!-- Feedback (stable tour anchor; form when GitHub feedback is enabled) -->
           <div
-            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-2"
+            id="tour-settings-feedback-section"
+            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4"
           >
-            <div
-              class="font-medium text-gray-900 dark:text-gray-100 text-sm sm:text-base"
-            >
-              Prayer reminders
-            </div>
-            <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-              Choose times to get a short reminder to pray. We email you when
-              email notifications are on, and send a push when push is on and
-              this device is registered—if both are on, you get both. Times use
-              your device time zone (top of each hour).
-            </p>
-            @if (loadingPrayerReminders) {
-            <div
-              class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400"
-              role="status"
-            >
-              <svg
-                class="animate-spin h-4 w-4"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <circle
-                  class="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  stroke-width="4"
-                ></circle>
-                <path
-                  class="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              Loading reminders…
-            </div>
-            } @else if (prayerReminderSlots.length === 0) {
-            <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-              No reminder hours saved yet.
-            </p>
+            @if (githubFeedbackEnabled) {
+            <app-github-feedback-form></app-github-feedback-form>
             } @else {
-            <ul class="flex flex-col gap-1.5 sm:gap-2" role="list">
-              @for (slot of prayerReminderSlots; track slot.id) {
-              <li
-                class="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all overflow-hidden"
-              >
-                <span
-                  class="flex-1 p-2 sm:p-3 text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
-                  >{{ formatPrayerReminderSlotLabel(slot) }}</span
-                >
-                <button
-                  type="button"
-                  (click)="removePrayerReminderSlot(slot.id)"
-                  [disabled]="savingPrayerReminder"
-                  class="self-stretch flex items-center justify-center px-3 border-l border-gray-200 dark:border-gray-700 text-xs sm:text-sm font-medium text-red-600 dark:text-red-400 hover:bg-blue-100/60 dark:hover:bg-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
-                  [attr.aria-label]="
-                    'Remove reminder ' + formatPrayerReminderSlotLabel(slot)
-                  "
-                >
-                  Remove
-                </button>
-              </li>
-              }
-            </ul>
-            }
-            <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
-              <div class="relative min-w-0">
-                <div
-                  [ngClass]="{
-                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
-                        showReminderHourDropdown,
-                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-                        !showReminderHourDropdown
-                    }"
-                    class="flex w-full min-w-0 rounded-lg border-2 transition-all overflow-hidden"
-                  >
-                    <button
-                      type="button"
-                      id="reminder-hour-select"
-                      (click)="
-                        showReminderHourDropdown = !showReminderHourDropdown
-                      "
-                      [disabled]="savingPrayerReminder"
-                      [attr.aria-expanded]="showReminderHourDropdown"
-                      aria-haspopup="listbox"
-                      aria-label="Reminder hour"
-                      title="Select reminder hour"
-                      class="w-full flex items-center justify-between gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <span
-                        class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
-                        >{{ formatHour12(selectedReminderHour) }}</span
-                      >
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        class="text-gray-600 dark:text-gray-400 transition-transform shrink-0"
-                        [class.rotate-180]="showReminderHourDropdown"
-                        aria-hidden="true"
-                      >
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                      </svg>
-                    </button>
-                  </div>
-
-                  @if (showReminderHourDropdown) {
-                  <div>
-                    <div
-                      class="fixed inset-0 z-10"
-                      (click)="showReminderHourDropdown = false"
-                    ></div>
-                    <div
-                      role="listbox"
-                      aria-label="Reminder hour"
-                      class="absolute left-0 right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20 max-h-60 overflow-y-auto"
-                    >
-                      @for (opt of reminderHourOptions; track opt.value) {
-                      <button
-                        type="button"
-                        role="option"
-                        [attr.aria-selected]="selectedReminderHour === opt.value"
-                        (click)="setReminderHour(opt.value)"
-                        class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer"
-                        [title]="'Set reminder hour to ' + opt.label"
-                      >
-                        <span>{{ opt.label }}</span>
-                        @if (selectedReminderHour === opt.value) {
-                        <span class="text-blue-600 dark:text-blue-400">✓</span>
-                        }
-                      </button>
-                      }
-                    </div>
-                  </div>
-                  }
-              </div>
-              <button
-                type="button"
-                (click)="addPrayerReminderSlot()"
-                [disabled]="savingPrayerReminder || !email.trim()"
-                title="Add a prayer reminder for the selected hour"
-                class="w-full min-w-0 flex flex-col items-center justify-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span
-                  class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
-                  >{{
-                    savingPrayerReminder ? "Saving…" : "Add reminder"
-                  }}</span
-                >
-              </button>
-            </div>
-            @if (prayerReminderError) {
-            <p
-              class="text-xs sm:text-sm text-red-600 dark:text-red-400"
-              role="alert"
-            >
-              {{ prayerReminderError }}
-            </p>
-            } @if (prayerReminderSuccess) {
-            <p
-              class="text-xs sm:text-sm text-green-600 dark:text-green-400"
-              role="status"
-            >
-              {{ prayerReminderSuccess }}
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              In-app feedback isn’t turned on for this app. Your church can
+              enable it in admin configuration if they want suggestions and bug
+              reports here.
             </p>
             }
           </div>
@@ -1598,6 +1643,15 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
       .settings-modal-panel::-webkit-scrollbar {
         display: none;
       }
+
+      .settings-modal-body {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+
+      .settings-modal-body::-webkit-scrollbar {
+        display: none;
+      }
     `,
   ],
 })
@@ -1610,23 +1664,32 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
   receiveNotifications: boolean | null = null;
   receivePushNotifications: boolean | null = null;
   badgeFunctionalityEnabled: boolean | null = null;
+  showPrayForButton: boolean | null = null;
+  showPrayingCount: boolean | null = null;
   theme: ThemeOption = "system";
   textSize: TextSize = "normal";
   saving = false;
   savingNotification = false;
   savingPushNotification = false;
   savingBadge = false;
+  savingShowPrayForButton = false;
+  savingShowPrayingCount = false;
   successPushNotification: string | null = null;
   savingDefaultView = false;
   error: string | null = null;
   success: string | null = null;
   successNotification: string | null = null;
   successBadge: string | null = null;
+  successPrayerEncouragementUi: string | null = null;
   successDefaultView: string | null = null;
   preferencesLoaded = false;
   badgePreferencesLoaded = false;
+  prayerEncouragementUiLoaded = false;
   defaultViewPreferencesLoaded = false;
+  memorizationStrictModeLoaded = false;
   defaultPrayerView: "current" | "personal" | null = null;
+  memorizationStrictMode = false;
+  savingMemorizationStrictMode = false;
 
   isPrinting = false;
   isPrintingPrompts = false;
@@ -1635,22 +1698,14 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
   showPrintDropdown = false;
   showPromptTypesDropdown = false;
   showPrintPersonalDropdown = false;
-  showReminderHourDropdown = false;
   promptTypes: string[] = [];
   selectedPromptTypes: string[] = [];
   personalCategories: string[] = [];
   selectedPersonalCategories: string[] = [];
+  githubFeedbackEnabled = false;
   showDeleteAccountVerification = false;
   deletingAccount = false;
 
-  /** Hourly self prayer reminders */
-  prayerReminderSlots: UserPrayerHourReminderSlot[] = [];
-  loadingPrayerReminders = false;
-  savingPrayerReminder = false;
-  prayerReminderError: string | null = null;
-  prayerReminderSuccess: string | null = null;
-  selectedReminderHour = 9;
-  reminderHourOptions: { value: number; label: string }[] = [];
 
   private destroy$ = new Subject<void>();
   private emailChange$ = new Subject<string>();
@@ -1690,10 +1745,10 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     private prayerService: PrayerService,
     private emailNotification: EmailNotificationService,
     private adminAuthService: AdminAuthService,
+    private githubFeedbackService: GitHubFeedbackService,
     private badgeService: BadgeService,
     public userSessionService: UserSessionService,
     public capacitorService: CapacitorService,
-    private userPrayerReminderService: UserPrayerReminderService,
     private tenantContext: TenantContextService,
     private connectivity: ConnectivityService,
     private toast: ToastService,
@@ -1729,11 +1784,6 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
   }
 
   ngOnInit(): void {
-    this.reminderHourOptions = Array.from({ length: 24 }, (_, h) => ({
-      value: h,
-      label: this.formatHour12(h),
-    }));
-
     // Load current theme and text size from services
     this.theme = this.themeService.getTheme() as ThemeOption;
     this.textSize = this.textSizeService.getTextSize();
@@ -1744,6 +1794,8 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
       this.name = `${userInfo.firstName} ${userInfo.lastName}`;
     }
     this.email = userInfo.email;
+
+    void this.loadGitHubFeedbackStatus();
 
     // Set up email change debounce listener
     this.emailChange$
@@ -1767,6 +1819,8 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
       this.preferencesLoaded = false;
       this.badgePreferencesLoaded = false;
       this.defaultViewPreferencesLoaded = false;
+      this.memorizationStrictModeLoaded = false;
+      this.prayerEncouragementUiLoaded = false;
 
       // Get user info and preferences from UserSessionService cache
       const userSession = this.userSessionService.getCurrentSession();
@@ -1787,6 +1841,11 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
         // Get default prayer view preference from cached session
         this.defaultPrayerView = userSession.defaultPrayerView || "current";
         this.defaultViewPreferencesLoaded = true;
+        this.memorizationStrictMode = userSession.memorizationStrictMode ?? false;
+        this.memorizationStrictModeLoaded = true;
+        this.showPrayForButton = userSession.showPrayForButton ?? true;
+        this.showPrayingCount = userSession.showPrayingCount ?? true;
+        this.prayerEncouragementUiLoaded = true;
       } else {
         // Fall back to localStorage if session not available
         const userInfo = this.getUserInfo();
@@ -1804,6 +1863,11 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
           // Default prayer view defaults to 'current' when no session
           this.defaultPrayerView = "current";
           this.defaultViewPreferencesLoaded = true;
+          this.memorizationStrictMode = false;
+          this.memorizationStrictModeLoaded = true;
+          this.showPrayForButton = true;
+          this.showPrayingCount = true;
+          this.prayerEncouragementUiLoaded = true;
         } else {
           this.receiveNotifications = true;
           this.receivePushNotifications = false;
@@ -1812,6 +1876,11 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
           this.badgePreferencesLoaded = true;
           this.defaultPrayerView = "current";
           this.defaultViewPreferencesLoaded = true;
+          this.memorizationStrictMode = false;
+          this.memorizationStrictModeLoaded = true;
+          this.showPrayForButton = true;
+          this.showPrayingCount = true;
+          this.prayerEncouragementUiLoaded = true;
         }
       }
 
@@ -1820,10 +1889,7 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
       this.successNotification = null;
       this.successPushNotification = null;
       this.successBadge = null;
-
-      this.prayerReminderError = null;
-      this.prayerReminderSuccess = null;
-      this.loadPrayerRemindersForModal();
+      this.successPrayerEncouragementUi = null;
 
       // Reset flag after a short delay
       setTimeout(() => {
@@ -1848,138 +1914,23 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     }
   }
 
+  async loadGitHubFeedbackStatus(): Promise<void> {
+    try {
+      const config = await this.githubFeedbackService.getGitHubConfig();
+      this.githubFeedbackEnabled = config?.enabled || false;
+      this.cdr.markForCheck();
+    } catch (err) {
+      console.error("Error loading GitHub feedback status:", err);
+      this.githubFeedbackEnabled = false;
+    }
+  }
+
   async loadPersonalCategories(): Promise<void> {
     try {
       this.personalCategories =
         await this.prayerService.getUniqueCategoriesForUser();
     } catch (err) {
       console.error("Error loading personal categories:", err);
-    }
-  }
-
-  formatHour12(h: number): string {
-    const d = new Date();
-    d.setHours(h, 0, 0, 0);
-    return d.toLocaleTimeString(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  }
-
-  /** IANA zone from the device (used when saving new reminder hours). */
-  get deviceIanaTimezone(): string {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC";
-  }
-
-  formatPrayerReminderSlotLabel(slot: UserPrayerHourReminderSlot): string {
-    const hour = this.formatHour12(slot.local_hour);
-    if (slot.iana_timezone === this.deviceIanaTimezone) {
-      return hour;
-    }
-    return `${hour} · ${slot.iana_timezone}`;
-  }
-
-  private loadPrayerRemindersForModal(): void {
-    this.prayerReminderError = null;
-    const session = this.userSessionService.getCurrentSession();
-    if (session?.prayerHourReminders !== undefined) {
-      this.prayerReminderSlots = [...session.prayerHourReminders];
-    }
-    if (!this.email?.trim()) {
-      this.prayerReminderSlots = [];
-      this.loadingPrayerReminders = false;
-      this.cdr.markForCheck();
-      return;
-    }
-    const needsBlockingLoad = session?.prayerHourReminders === undefined;
-    this.loadingPrayerReminders = needsBlockingLoad;
-    this.cdr.markForCheck();
-    this.userPrayerReminderService
-      .ensureLoaded(false)
-      .then((slots) => {
-        this.prayerReminderSlots = [...slots];
-        this.loadingPrayerReminders = false;
-        this.cdr.markForCheck();
-      })
-      .catch((err: unknown) => {
-        console.error("Prayer reminders load failed:", err);
-        this.prayerReminderError =
-          err && typeof err === "object" && "message" in err
-            ? String((err as { message: string }).message)
-            : "Failed to load prayer reminders";
-        this.loadingPrayerReminders = false;
-        this.cdr.markForCheck();
-      });
-  }
-
-  async addPrayerReminderSlot(): Promise<void> {
-    if (!this.email?.trim()) {
-      return;
-    }
-    this.savingPrayerReminder = true;
-    this.prayerReminderError = null;
-    this.prayerReminderSuccess = null;
-    this.cdr.markForCheck();
-    try {
-      const slots = await this.userPrayerReminderService.addSlot(
-        this.email.trim(),
-        this.deviceIanaTimezone,
-        this.selectedReminderHour
-      );
-      this.prayerReminderSlots = [...slots];
-      this.prayerReminderSuccess = "Reminder saved.";
-      setTimeout(() => {
-        this.prayerReminderSuccess = null;
-        this.cdr.markForCheck();
-      }, 2500);
-    } catch (err: unknown) {
-      const code =
-        err && typeof err === "object" && "code" in err
-          ? String((err as { code: string }).code)
-          : "";
-      if (code === "23505") {
-        this.prayerReminderError =
-          "You already have a reminder for that hour and time zone.";
-      } else {
-        this.prayerReminderError =
-          err && typeof err === "object" && "message" in err
-            ? String((err as { message: string }).message)
-            : "Could not save reminder.";
-      }
-    } finally {
-      this.savingPrayerReminder = false;
-      this.cdr.markForCheck();
-    }
-  }
-
-  async removePrayerReminderSlot(id: string): Promise<void> {
-    if (!this.email?.trim()) {
-      return;
-    }
-    this.savingPrayerReminder = true;
-    this.prayerReminderError = null;
-    this.prayerReminderSuccess = null;
-    this.cdr.markForCheck();
-    try {
-      const slots = await this.userPrayerReminderService.removeSlot(
-        this.email.trim(),
-        id
-      );
-      this.prayerReminderSlots = [...slots];
-      this.prayerReminderSuccess = "Reminder removed.";
-      setTimeout(() => {
-        this.prayerReminderSuccess = null;
-        this.cdr.markForCheck();
-      }, 2500);
-    } catch (err: unknown) {
-      this.prayerReminderError =
-        err && typeof err === "object" && "message" in err
-          ? String((err as { message: string }).message)
-          : "Could not remove reminder.";
-    } finally {
-      this.savingPrayerReminder = false;
-      this.cdr.markForCheck();
     }
   }
 
@@ -2159,6 +2110,9 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
         }
         this.receiveNotifications = subscriberData.is_active;
         this.receivePushNotifications = subscriberData.receive_push ?? false;
+        this.showPrayForButton = subscriberData.show_pray_for_button ?? true;
+        this.showPrayingCount = subscriberData.show_praying_count ?? true;
+        this.prayerEncouragementUiLoaded = true;
       } else {
         // New user - set defaults (receive_push only becomes true when app installs and registers device token)
         this.receiveNotifications = true;
@@ -2224,6 +2178,38 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     void this.onBadgeFunctionalityToggle();
   }
 
+  setShowPrayForButton(enabled: boolean): void {
+    if (
+      !this.prayerEncouragementUiLoaded ||
+      this.savingShowPrayForButton ||
+      this.savingShowPrayingCount ||
+      this.showPrayForButton === enabled
+    ) {
+      return;
+    }
+    if (!this.connectivity.requireOnline('save settings')) {
+      return;
+    }
+    this.showPrayForButton = enabled;
+    void this.onShowPrayForButtonToggle();
+  }
+
+  setShowPrayingCount(enabled: boolean): void {
+    if (
+      !this.prayerEncouragementUiLoaded ||
+      this.savingShowPrayForButton ||
+      this.savingShowPrayingCount ||
+      this.showPrayingCount === enabled
+    ) {
+      return;
+    }
+    if (!this.connectivity.requireOnline('save settings')) {
+      return;
+    }
+    this.showPrayingCount = enabled;
+    void this.onShowPrayingCountToggle();
+  }
+
   selectDefaultPrayerView(view: "current" | "personal"): void {
     if (
       !this.defaultViewPreferencesLoaded ||
@@ -2235,9 +2221,59 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     void this.onDefaultViewChange(view);
   }
 
-  setReminderHour(hour: number): void {
-    this.selectedReminderHour = hour;
-    this.showReminderHourDropdown = false;
+
+  setMemorizationStrictMode(enabled: boolean): void {
+    if (
+      !this.memorizationStrictModeLoaded ||
+      this.savingMemorizationStrictMode ||
+      this.memorizationStrictMode === enabled
+    ) {
+      return;
+    }
+    this.memorizationStrictMode = enabled;
+    void this.onMemorizationStrictModeToggle();
+  }
+
+  async onMemorizationStrictModeToggle(): Promise<void> {
+    const email = this.email.toLowerCase().trim();
+    if (!email) {
+      this.error = "Email not found. Please log in again.";
+      return;
+    }
+    const tenantId = this.tenantContext.getActiveTenant()?.id;
+    if (!tenantId) {
+      this.error = "Select an organization first.";
+      this.memorizationStrictMode = !this.memorizationStrictMode;
+      return;
+    }
+
+    this.savingMemorizationStrictMode = true;
+    this.error = null;
+
+    try {
+      const { error: updateError } = await this.supabase.client
+        .from("tenant_memberships")
+        .update({ memorization_strict_mode: this.memorizationStrictMode })
+        .match(this.membershipMatchFilter(email));
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      await this.userSessionService.updateUserSession({
+        memorizationStrictMode: this.memorizationStrictMode,
+      });
+    } catch (err) {
+      console.error("Error updating memorization strict mode:", err);
+      this.error =
+        err instanceof Error
+          ? err.message
+          : "Failed to update memorization practice preference";
+      this.memorizationStrictMode = !this.memorizationStrictMode;
+    } finally {
+      this.savingMemorizationStrictMode = false;
+      this.cdr.markForCheck();
+    }
   }
 
   async onNotificationToggle(): Promise<void> {
@@ -2254,13 +2290,6 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     this.success = null;
 
     try {
-      console.log(
-        "Toggling notification for email:",
-        email,
-        "to:",
-        this.receiveNotifications
-      );
-
       // Check if membership exists
       const { data: existingSubscriber, error: fetchError } =
         await this.supabase.client
@@ -2274,11 +2303,8 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
         throw fetchError;
       }
 
-      console.log("Existing subscriber:", existingSubscriber);
-
       if (existingSubscriber) {
         // Update existing subscriber
-        console.log("Updating existing subscriber...");
         const { error: updateError } = await this.supabase.client
           .from("tenant_memberships")
           .update({ is_active: this.receiveNotifications })
@@ -2288,10 +2314,8 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
           console.error("Update error:", updateError);
           throw updateError;
         }
-        console.log("Successfully updated subscriber");
       } else {
         // Create new subscriber
-        console.log("Creating new subscriber...");
         const { error: insertError } = await this.supabase.client
           .from("tenant_memberships")
           .insert(
@@ -2305,7 +2329,6 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
           console.error("Insert error:", insertError);
           throw insertError;
         }
-        console.log("Successfully created subscriber");
       }
 
       this.success = `✅ Notifications ${
@@ -2333,8 +2356,6 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
       this.receiveNotifications = !this.receiveNotifications; // Revert toggle on error
       this.savingNotification = false;
       this.cdr.markForCheck();
-    } finally {
-      console.log("Setting saving to false");
     }
   }
 
@@ -2489,7 +2510,143 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     }
   }
 
-  async onDefaultViewChange(newView: "current" | "personal"): Promise<void> {
+  async onShowPrayForButtonToggle(): Promise<void> {
+    const email = this.email.toLowerCase().trim();
+    if (!email) {
+      this.error = "Email not found. Please log in again.";
+      return;
+    }
+    const next = this.showPrayForButton ?? true;
+    this.savingShowPrayForButton = true;
+    this.error = null;
+    this.successPrayerEncouragementUi = null;
+
+    try {
+      const { data: existingRecord, error: fetchError } =
+        await this.supabase.client
+          .from("tenant_memberships")
+          .select("id")
+          .match(this.membershipMatchFilter(email))
+          .maybeSingle();
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      if (existingRecord) {
+        const { error: updateError } = await this.supabase.client
+          .from("tenant_memberships")
+          .update({ show_pray_for_button: next })
+          .match(this.membershipMatchFilter(email));
+
+        if (updateError) {
+          throw updateError;
+        }
+      } else {
+        const { error: insertError } = await this.supabase.client
+          .from("tenant_memberships")
+          .insert(
+            this.membershipInsertPayload(email, {
+              name: this.name || "",
+              show_pray_for_button: next,
+            })
+          );
+
+        if (insertError) {
+          throw insertError;
+        }
+      }
+
+      await this.userSessionService.updateUserSession({
+        showPrayForButton: next,
+      });
+      this.successPrayerEncouragementUi = next
+        ? "Pray For button shown on cards"
+        : "Pray For button hidden on cards";
+      setTimeout(() => {
+        this.successPrayerEncouragementUi = null;
+        this.cdr.markForCheck();
+      }, 3000);
+    } catch (err) {
+      console.error("Error updating show Pray For preference:", err);
+      this.error =
+        err instanceof Error ? err.message : "Failed to update preference";
+      this.showPrayForButton = !next;
+    } finally {
+      this.savingShowPrayForButton = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  async onShowPrayingCountToggle(): Promise<void> {
+    const email = this.email.toLowerCase().trim();
+    if (!email) {
+      this.error = "Email not found. Please log in again.";
+      return;
+    }
+    const next = this.showPrayingCount ?? true;
+    this.savingShowPrayingCount = true;
+    this.error = null;
+    this.successPrayerEncouragementUi = null;
+
+    try {
+      const { data: existingRecord, error: fetchError } =
+        await this.supabase.client
+          .from("tenant_memberships")
+          .select("id")
+          .match(this.membershipMatchFilter(email))
+          .maybeSingle();
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      if (existingRecord) {
+        const { error: updateError } = await this.supabase.client
+          .from("tenant_memberships")
+          .update({ show_praying_count: next })
+          .match(this.membershipMatchFilter(email));
+
+        if (updateError) {
+          throw updateError;
+        }
+      } else {
+        const { error: insertError } = await this.supabase.client
+          .from("tenant_memberships")
+          .insert(
+            this.membershipInsertPayload(email, {
+              name: this.name || "",
+              show_praying_count: next,
+            })
+          );
+
+        if (insertError) {
+          throw insertError;
+        }
+      }
+
+      await this.userSessionService.updateUserSession({
+        showPrayingCount: next,
+      });
+      this.successPrayerEncouragementUi = next
+        ? "Praying count shown when available"
+        : "Praying count hidden on cards";
+      setTimeout(() => {
+        this.successPrayerEncouragementUi = null;
+        this.cdr.markForCheck();
+      }, 3000);
+    } catch (err) {
+      console.error("Error updating show praying count preference:", err);
+      this.error =
+        err instanceof Error ? err.message : "Failed to update preference";
+      this.showPrayingCount = !next;
+    } finally {
+      this.savingShowPrayingCount = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+    async onDefaultViewChange(newView: "current" | "personal"): Promise<void> {
     const email = this.email.toLowerCase().trim();
 
     if (!email) {

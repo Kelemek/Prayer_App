@@ -2044,4 +2044,37 @@ describe('UserSessionService', () => {
       expect(service.isBadgeFunctionalityEnabled()).toBe(false);
     });
   });
+
+  describe('prayer encouragement viewer preferences', () => {
+    it('getShowPrayForButton$ defaults to true when session missing', async () => {
+      const values: boolean[] = [];
+      const sub = service.getShowPrayForButton$().subscribe((v) => values.push(v));
+      expect(values).toEqual([true]);
+      sub.unsubscribe();
+    });
+
+    it('loads show_pray_for_button and show_praying_count from tenant_memberships', async () => {
+      mockSupabaseService.client.from = vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: {
+                user_email: 'test@example.com',
+                name: 'John Doe',
+                is_active: true,
+                show_pray_for_button: false,
+                show_praying_count: false,
+              },
+              error: null,
+            }),
+          }),
+        }),
+      });
+
+      await service.loadUserSession('test@example.com');
+      const session = service.getCurrentSession();
+      expect(session?.showPrayForButton).toBe(false);
+      expect(session?.showPrayingCount).toBe(false);
+    });
+  });
 });
