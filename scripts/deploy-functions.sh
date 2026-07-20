@@ -59,6 +59,14 @@ case $FUNCTION_NAME in
         deploy_function "send-user-hourly-memorization-reminders" ""
         echo "💡 Hourly invoke: Supabase pg_cron + Vault (project_url + service_role_key); set APP_URL on the function. See docs/SETUP.md."
         ;;
+    "transcribe-audio")
+        deploy_function "transcribe-audio" ""
+        echo "📋 Required secret: OPENAI_API_KEY"
+        ;;
+    "get-openai-org-usage")
+        deploy_function "get-openai-org-usage" ""
+        echo "📋 Optional secret: OPENAI_ADMIN_KEY (org-wide spend in admin UI)"
+        ;;
     "cleanup-device-tokens")
         deploy_function "cleanup-device-tokens" ""
         echo "💡 Daily invoke: Supabase pg_cron (invoke-cleanup-device-tokens, 03:00 UTC) + Vault. See docs/SETUP.md."
@@ -102,6 +110,8 @@ case $FUNCTION_NAME in
         deploy_function "send-prayer-reminders" ""
         deploy_function "send-user-hourly-prayer-reminders" ""
         deploy_function "send-user-hourly-memorization-reminders" ""
+        deploy_function "transcribe-audio" ""
+        deploy_function "get-openai-org-usage" ""
         deploy_function "cleanup-device-tokens" ""
         echo "🎉 All functions deployed successfully!"
         ;;
@@ -119,6 +129,8 @@ case $FUNCTION_NAME in
         echo "  send-prayer-reminders    - Automated prayer reminders"
         echo "  send-user-hourly-prayer-reminders - User hourly self-reminders (cron)"
         echo "  send-user-hourly-memorization-reminders - User hourly memorization reminders (cron)"
+        echo "  transcribe-audio              - Memorization Recite Whisper STT (JWT)"
+        echo "  get-openai-org-usage          - OpenAI org spend for admin UI"
         echo "  cleanup-device-tokens    - Stale device tokens + push log cleanup (cron)"
         echo "  all                      - Deploy all functions (default)"
         echo ""

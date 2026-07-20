@@ -33,6 +33,7 @@ import { GitHubFeedbackFormComponent } from '../../components/github-feedback-fo
 import { GitHubFeedbackService } from '../../services/github-feedback.service';
 import { PrayerEncouragementSettingsComponent } from '../../components/prayer-encouragement-settings/prayer-encouragement-settings.component';
 import { MemorizationRecommendationsManagerComponent } from '../../components/memorization-recommendations-manager/memorization-recommendations-manager.component';
+import { MemorizationReciteSettingsComponent } from '../../components/memorization-recite-settings/memorization-recite-settings.component';
 import { ConfirmationDialogComponent } from '../../components/confirmation-dialog/confirmation-dialog.component';
 import { TenantManagementComponent } from '../../components/tenant-management/tenant-management.component';
 import { SiteAnalyticsActivityChartComponent } from '../../components/site-analytics-activity-chart/site-analytics-activity-chart.component';
@@ -73,6 +74,7 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
     GitHubFeedbackFormComponent,
     PrayerEncouragementSettingsComponent,
     MemorizationRecommendationsManagerComponent,
+    MemorizationReciteSettingsComponent,
     TenantManagementComponent,
     SiteAnalyticsActivityChartComponent,
     ConfirmationDialogComponent
@@ -688,6 +690,9 @@ type SettingsTab = 'analytics' | 'email' | 'content' | 'tools' | 'security' | 't
                 </div>
                 <div class="mb-4">
                   <app-memorization-recommendations-manager></app-memorization-recommendations-manager>
+                </div>
+                <div class="mb-4">
+                  <app-memorization-recite-settings></app-memorization-recite-settings>
                 </div>
               </div>
             }

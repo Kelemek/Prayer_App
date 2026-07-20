@@ -36,6 +36,13 @@ export function isChapterOnlyScriptureReference(reference: string): boolean {
   return parsed !== null && parsed.verseStart === null
 }
 
+/** True when the reference is exactly one verse (e.g. John 3:16, not a range or chapter-only). */
+export function isSingleVerseScriptureReference(reference: string): boolean {
+  const parsed = parseReference(reference.trim())
+  if (!parsed || parsed.verseStart === null) return false
+  return parsed.verseEnd === null || parsed.verseEnd === parsed.verseStart
+}
+
 /** Build a verse reference from a chapter-level reference and verse number (`Genesis 1` + `16` → `Genesis 1:16`). */
 export function buildVerseReferenceFromChapter(
   chapterReference: string,

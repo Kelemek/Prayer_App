@@ -17,8 +17,12 @@ import {
 } from '@angular/core';
 import { CommonModule, DOCUMENT } from '@angular/common';
 import { Subscription, combineLatest } from 'rxjs';
+import { distinctUntilChanged } from 'rxjs/operators';
 import { ScriptureService } from '../../services/scripture.service';
 import { UserSessionService } from '../../services/user-session.service';
+import { MemorizationReciteService } from '../../services/memorization-recite.service';
+import { MemorizationReciteSettingsService } from '../../services/memorization-recite-settings.service';
+import { TenantContextService } from '../../services/tenant-context.service';
 import type { PracticeSessionResult } from '../../services/memorization.service';
 import {
   isMemorizationListenTranslation,
@@ -45,6 +49,18 @@ import {
   isBibleBooksMemorizationItem,
 } from '../../lib/memorization/bibleBooksMemorization';
 import { isKeyboardPracticeMode } from '../../lib/memorization/memorizationKeyboardPractice';
+import { isSingleVerseScriptureReference } from '../../lib/memorization/parse-scripture-reference';
+import {
+  alignRecitation,
+  buildReciteDisplaySegments,
+  reciteScorePercent,
+  type ReciteAlignmentResult,
+  type ReciteAlignmentSummary,
+  type ReciteAlignedColumnDisplay,
+  type ReciteDisplaySegment,
+  type ReciteSpokenWordDisplay,
+} from '../../lib/memorization/memorizationReciteAlignment';
+import type { MemorizationReciteSttProvider, MemorizationReciteWhisperModel } from '../../types/memorization';
 import {
   type MemorizationStrictModeSessionContext,
   hydratedRoundCompletedWithErrors,
@@ -97,6 +113,7 @@ import { ScriptureAttributionComponent } from '../scripture-attribution/scriptur
 export type { PracticeSessionResult };
 
 type Phase = 'intro' | 'practicing' | 'done';
+type RecitePhase = 'ready' | 'recording' | 'transcribing' | 'results';
 
 const MEMORIZATION_WORD_CHOICE_COUNT_WORD = 8;
 const MEMORIZATION_WORD_CHOICE_COUNT_DIGIT = 6;
@@ -189,6 +206,9 @@ export class MemorizationPracticeSessionComponent
   private readonly ngZone = inject(NgZone);
   private readonly scripture = inject(ScriptureService);
   private readonly userSessionService = inject(UserSessionService);
+  private readonly reciteService = inject(MemorizationReciteService);
+  private readonly reciteSettingsService = inject(MemorizationReciteSettingsService);
+  private readonly tenantContext = inject(TenantContextService);
 
   @Input({ required: true }) item!: MemorizedItem;
   @Input() isOpen = false;
@@ -260,6 +280,23 @@ export class MemorizationPracticeSessionComponent
   passageLoading = false;
   passageLoadError: string | null = null;
 
+  recitePhase: RecitePhase = 'ready';
+  reciteError = '';
+  reciteRecordingMs = 0;
+  private reciteAttemptMetricsApplied = false;
+  reciteAlignment: ReciteAlignmentSummary | null = null;
+  reciteAlignmentByToken = new Map<number, ReciteAlignmentResult>();
+  reciteSettingsLoaded = false;
+  reciteTenantEnabled = false;
+  reciteSttProvider: MemorizationReciteSttProvider = 'browser';
+  reciteWhisperModel: MemorizationReciteWhisperModel = 'whisper-1';
+  private reciteStopGeneration = 0;
+  private reciteStartGeneration = 0;
+  private reciteRecordingTenantId: string | null = null;
+  private reciteRecordingSttProvider: MemorizationReciteSttProvider | null = null;
+  private inFlightReciteStop: Promise<void> | null = null;
+  reciteStarting = false;
+
   private passageText = '';
   private passageHydratedForOpen = false;
   private passageLoadSeq = 0;
@@ -286,6 +323,7 @@ export class MemorizationPracticeSessionComponent
   private hintIntervalId: ReturnType<typeof setInterval> | null = null;
   private flashErrorTimer: ReturnType<typeof setTimeout> | null = null;
   private strictModeSessionSub: Subscription | null = null;
+  private reciteTenantSub: Subscription | null = null;
   private viewportListenersAttached = false;
   private androidScrollListener: (() => void) | null = null;
   private verseTouchMoved = false;
@@ -356,6 +394,26 @@ export class MemorizationPracticeSessionComponent
   /** Strict mode: advance only after a perfect round (no wrong attempts). */
   get isFinalRound(): boolean {
     return this.roundIndex >= MEMORIZATION_FULL_HIDE_ROUND;
+  }
+
+  get recitePendingAttemptErrors(): number {
+    if (!this.reciteAlignment) return 0;
+    return this.reciteAlignment.wrongCount + this.reciteAlignment.missingCount;
+  }
+
+  /** Round errors including an unaccepted recite attempt still on screen. */
+  get reciteEffectiveRoundErrors(): number {
+    if (this.reciteAttemptMetricsApplied) {
+      return this.wrongAttemptsInRound;
+    }
+    return this.wrongAttemptsInRound + this.recitePendingAttemptErrors;
+  }
+
+  get displayPracticeErrors(): number {
+    if (this.practiceMode === 'recite' && this.recitePhase === 'results') {
+      return this.reciteEffectiveRoundErrors;
+    }
+    return this.wrongAttemptsInRound;
   }
 
   get showNextRoundOption(): boolean {
@@ -464,6 +522,49 @@ export class MemorizationPracticeSessionComponent
     return this.modePickerTitleId;
   }
 
+  get reciteModeAvailable(): boolean {
+    return (
+      this.reciteSettingsLoaded &&
+      this.reciteTenantEnabled &&
+      !this.isBibleBooks &&
+      isSingleVerseScriptureReference(this.item.reference) &&
+      (this.reciteSttProvider !== 'browser' || this.reciteService.isBrowserSttSupported())
+    );
+  }
+
+  get reciteScoreSummary(): string {
+    if (!this.reciteAlignment) return '';
+    const pct = reciteScorePercent(this.reciteAlignment);
+    const base = `${this.reciteAlignment.correctCount} of ${this.reciteAlignment.totalTypable} words correct (${pct}%)`;
+    const { missingCount } = this.reciteAlignment;
+    if (missingCount > 0) {
+      return `${base} · ${missingCount} skipped`;
+    }
+    return base;
+  }
+
+  get reciteSpokenWords(): ReciteSpokenWordDisplay[] {
+    return this.reciteAlignment?.spokenWords ?? [];
+  }
+
+  get reciteSkippedWordsLabel(): string | null {
+    if (!this.reciteAlignment || this.reciteAlignment.missingCount === 0) return null;
+    const words = this.reciteAlignment.results
+      .filter((r) => r.status === 'missing')
+      .map((r) => this.tokens[r.tokenIndex]?.text ?? '')
+      .filter(Boolean);
+    if (words.length === 0) return null;
+    return words.join(', ');
+  }
+
+  get reciteAlignedColumns(): ReciteAlignedColumnDisplay[] {
+    return this.reciteAlignment?.alignedColumns ?? [];
+  }
+
+  get reciteDisplaySegments(): ReciteDisplaySegment[] {
+    return buildReciteDisplaySegments(this.tokens);
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['item']) {
       const prev = changes['item'].previousValue as MemorizedItem | undefined;
@@ -525,9 +626,21 @@ export class MemorizationPracticeSessionComponent
     // Fullscreen modal — close only via explicit buttons / Escape.
   }
 
-  handleClose(): void {
+  async handleClose(): Promise<void> {
     this.listenPanelOpen = false;
     this.stopPassageAudio();
+    if (this.practiceMode === 'recite') {
+      if (this.recitePhase === 'transcribing' && this.inFlightReciteStop) {
+        try {
+          await this.inFlightReciteStop;
+        } catch {
+          // stop errors are already reflected in reciteError
+        }
+      }
+      if (this.recitePhase === 'results') {
+        this.applyReciteAttemptMetrics();
+      }
+    }
     if (this.sessionSeed && this.phase === 'practicing') {
       this.syncMetricRefs();
       if (this.awaitingRoundAdvance) {
@@ -542,6 +655,8 @@ export class MemorizationPracticeSessionComponent
   handleStartOver(): void {
     this.listenPanelOpen = false;
     this.stopPassageAudio();
+    this.invalidateReciteStop();
+    void this.reciteService.cancelRecording();
     this.clearInProgress.emit();
     this.sessionSeed = '';
     this.practiceCompleted = false;
@@ -563,6 +678,10 @@ export class MemorizationPracticeSessionComponent
   }
 
   beginPracticeWithMode(mode: MemorizationPracticeMode): void {
+    if (mode === 'recite') {
+      this.beginRecitePractice();
+      return;
+    }
     this.syncStrictModeFromSession();
     this.stopPassageAudio();
     this.modePickerOpen = false;
@@ -588,6 +707,377 @@ export class MemorizationPracticeSessionComponent
       phase: { kind: 'inRound', roundIndex: r },
       practiceMode: mode,
     });
+    this.cdr.markForCheck();
+  }
+
+  async startReciteRecording(): Promise<void> {
+    if (this.reciteStarting || this.recitePhase === 'recording') return;
+    if (this.practiceMode !== 'recite' || this.phase !== 'practicing') return;
+
+    const startGeneration = ++this.reciteStartGeneration;
+    this.reciteError = '';
+    this.reciteStarting = true;
+    this.hintHeld = false;
+    this.hintPeekCount = 0;
+    this.clearHintInterval();
+    this.cdr.markForCheck();
+
+    try {
+      await this.refreshReciteSettings();
+      if (!this.isReciteStartCurrent(startGeneration)) {
+        await this.reciteService.cancelRecording();
+        return;
+      }
+      if (!this.reciteTenantEnabled || !this.reciteModeAvailable) {
+        this.reciteError = 'Recite mode is not available for this organization.';
+        return;
+      }
+      if (
+        this.reciteSttProvider === 'browser' &&
+        !this.reciteService.isBrowserSttSupported()
+      ) {
+        this.reciteError =
+          'Speech recognition is not supported in this browser. Try Chrome or Safari, or ask your admin to enable Whisper.';
+        return;
+      }
+
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+      if (!tenantId) {
+        this.reciteError = 'No active organization.';
+        return;
+      }
+      this.reciteRecordingTenantId = tenantId;
+      this.reciteRecordingSttProvider = this.reciteSttProvider;
+      await this.reciteService.startRecording(this.reciteRecordingSttProvider, {
+        onDurationMs: (ms) => {
+          this.reciteRecordingMs = ms;
+          this.cdr.markForCheck();
+        },
+        onMaxDurationReached: () => {
+          if (this.recitePhase === 'recording') {
+            void this.stopReciteRecording();
+          }
+        },
+      });
+      if (!this.isReciteStartCurrent(startGeneration)) {
+        await this.reciteService.cancelRecording();
+        return;
+      }
+      this.recitePhase = 'recording';
+      this.reciteRecordingMs = 0;
+    } catch (err) {
+      if (!this.isReciteStartCurrent(startGeneration)) {
+        await this.reciteService.cancelRecording();
+        return;
+      }
+      this.reciteRecordingTenantId = null;
+      this.reciteRecordingSttProvider = null;
+      this.recitePhase = 'ready';
+      this.reciteError = err instanceof Error ? err.message : 'Could not start recording.';
+    } finally {
+      if (startGeneration === this.reciteStartGeneration) {
+        this.reciteStarting = false;
+      }
+      this.cdr.markForCheck();
+    }
+  }
+
+  async stopReciteRecording(): Promise<void> {
+    if (this.recitePhase !== 'recording') return;
+
+    const stopRun = this.runReciteStop();
+    this.inFlightReciteStop = stopRun;
+    try {
+      await stopRun;
+    } finally {
+      if (this.inFlightReciteStop === stopRun) {
+        this.inFlightReciteStop = null;
+      }
+    }
+  }
+
+  private async runReciteStop(): Promise<void> {
+    const tenantId = this.reciteRecordingTenantId;
+    const sttProvider = this.reciteRecordingSttProvider;
+    this.reciteRecordingTenantId = null;
+    this.reciteRecordingSttProvider = null;
+    if (!tenantId || !sttProvider) {
+      await this.reciteService.cancelRecording();
+      this.reciteError = 'No active organization.';
+      this.recitePhase = 'ready';
+      this.cdr.markForCheck();
+      return;
+    }
+    const stopGeneration = this.reciteStopGeneration;
+    this.recitePhase = 'transcribing';
+    this.reciteError = '';
+    this.cdr.markForCheck();
+    try {
+      const prompt = formatMemorizationTokensPlain(this.tokens);
+      const transcript = await this.reciteService.stopAndTranscribe({
+        sttProvider,
+        tenantId,
+        memorizedItemId: this.item.id,
+        prompt,
+      });
+      if (!this.isReciteStopCurrent(stopGeneration)) return;
+
+      this.reciteAlignment = alignRecitation(
+        this.tokens,
+        this.typableIndices,
+        transcript,
+        this.item.reference
+      );
+      this.reciteAlignmentByToken = new Map(
+        this.reciteAlignment.results.map((r) => [r.tokenIndex, r])
+      );
+      this.recitePhase = 'results';
+    } catch (err) {
+      if (!this.isReciteStopCurrent(stopGeneration)) return;
+      await this.reciteService.cancelRecording();
+      this.recitePhase = 'ready';
+      this.reciteError = err instanceof Error ? err.message : 'Could not check recitation.';
+    }
+    this.cdr.markForCheck();
+  }
+
+  retryRecite(): void {
+    if (this.practiceMode !== 'recite' || this.recitePhase !== 'results') return;
+    this.repeatRound();
+  }
+
+  nextReciteRound(): void {
+    if (this.practiceMode !== 'recite' || this.recitePhase !== 'results') return;
+    this.applyReciteAttemptMetrics();
+    this.onRoundComplete();
+    if (this.practiceCompleted) return;
+    if (this.showNextRoundOption) {
+      this.nextRound();
+    }
+    this.cdr.markForCheck();
+  }
+
+  finishReciteAfterResults(): void {
+    if (this.practiceMode !== 'recite' || this.recitePhase !== 'results') return;
+    this.applyReciteAttemptMetrics();
+    this.onRoundComplete();
+    if (!this.practiceCompleted) {
+      this.finishPracticeSession();
+    }
+    this.cdr.markForCheck();
+  }
+
+  get showReciteNextRoundOption(): boolean {
+    if (this.practiceMode !== 'recite' || this.recitePhase !== 'results') return false;
+    return showNextRoundOption({
+      isFinalRound: this.isFinalRound,
+      roundCompletedWithErrors:
+        this.roundCompletedWithErrors || this.recitePendingAttemptErrors > 0,
+      wrongAttemptsInRound: this.reciteEffectiveRoundErrors,
+      ctx: this.strictModeContext(),
+    });
+  }
+
+  get showReciteFinishOption(): boolean {
+    if (this.practiceMode !== 'recite' || this.recitePhase !== 'results') return false;
+    if (!this.isFinalRound) return false;
+    return !mustRepeatFinalRound(
+      this.isFinalRound,
+      this.reciteEffectiveRoundErrors,
+      this.strictModeContext()
+    );
+  }
+
+  reciteTokenStatus(i: number): ReciteAlignmentResult['status'] | null {
+    return this.reciteAlignmentByToken.get(i)?.status ?? null;
+  }
+
+  reciteTokenSpokenText(i: number): string | null {
+    if (this.recitePhase !== 'results') return null;
+    return this.reciteAlignmentByToken.get(i)?.spokenText ?? null;
+  }
+
+  reciteResultsShowsBlank(i: number): boolean {
+    return this.recitePhase === 'results' && this.reciteTokenStatus(i) === 'missing';
+  }
+
+  reciteTokenDisplayText(i: number): string {
+    const token = this.tokens[i];
+    if (!token) return '';
+    if (token.kind === 'punct') return token.text;
+    if (this.recitePhase === 'results') {
+      return this.reciteTokenSpokenText(i) ?? token.text;
+    }
+    return token.text;
+  }
+
+  reciteTokenShowsBlank(i: number): boolean {
+    const token = this.tokens[i];
+    if (!token || token.kind === 'punct') return false;
+    if (this.reciteResultsShowsBlank(i)) return true;
+    if (this.recitePhase === 'results') return false;
+    if (this.showViaHint(i)) return false;
+    return this.isTokenHidden(i) && !this.isTokenRevealed(i);
+  }
+
+  reciteTokenShowsText(i: number): boolean {
+    const token = this.tokens[i];
+    if (!token || token.kind === 'punct') return true;
+    if (this.recitePhase === 'results') {
+      return !this.reciteResultsShowsBlank(i);
+    }
+    return !this.isTokenHidden(i) || this.isTokenRevealed(i) || this.showViaHint(i);
+  }
+
+  reciteSegmentHasHiddenBlank(segment: ReciteDisplaySegment): boolean {
+    if (segment.kind === 'punct') return false;
+    if (segment.kind === 'digits') {
+      return segment.text
+        .split('')
+        .some((_, charIndex) => this.reciteDigitCharShowsBlank(segment, charIndex));
+    }
+    return segment.tokenIndices.some((i) => this.reciteTokenShowsBlank(i));
+  }
+
+  private reciteDigitSegmentHasUnrevealedHidden(segment: ReciteDisplaySegment): boolean {
+    return segment.tokenIndices.some(
+      (i) => this.isTokenHidden(i) && !this.isTokenRevealed(i)
+    );
+  }
+
+  /** Grouped verse digits hide/show together in recite practice (e.g. 28 not 2 + 8). */
+  reciteDigitCharShowsBlank(segment: ReciteDisplaySegment, charIndex: number): boolean {
+    const tokenIndex = segment.tokenIndices[charIndex]!;
+    if (this.showViaHint(tokenIndex)) return false;
+    if (this.reciteDigitSegmentHasUnrevealedHidden(segment)) {
+      return true;
+    }
+    return this.reciteTokenShowsBlank(tokenIndex);
+  }
+
+  reciteDigitCharShowsText(segment: ReciteDisplaySegment, charIndex: number): boolean {
+    return !this.reciteDigitCharShowsBlank(segment, charIndex);
+  }
+
+  reciteDigitCharShowHint(segment: ReciteDisplaySegment, charIndex: number): boolean {
+    return this.showViaHint(segment.tokenIndices[charIndex]!);
+  }
+
+  reciteSegmentFullyBlank(segment: ReciteDisplaySegment): boolean {
+    if (segment.kind === 'punct') return false;
+    return segment.tokenIndices.every((i) => this.reciteTokenShowsBlank(i));
+  }
+
+  reciteSegmentShowsText(segment: ReciteDisplaySegment): boolean {
+    if (segment.kind === 'punct') return true;
+    return segment.tokenIndices.some((i) => this.reciteTokenShowsText(i));
+  }
+
+  reciteSegmentShowHint(segment: ReciteDisplaySegment): boolean {
+    if (segment.kind === 'punct') return false;
+    return segment.tokenIndices.some((i) => this.showViaHint(i));
+  }
+
+  reciteSegmentDisplayText(segment: ReciteDisplaySegment): string {
+    if (segment.kind === 'punct') return segment.text;
+    if (this.reciteSegmentFullyBlank(segment)) {
+      return segment.text;
+    }
+    return this.reciteTokenDisplayText(segment.tokenIndices[0]!);
+  }
+
+  formatReciteDuration(ms: number): string {
+    const totalSec = Math.floor(ms / 1000);
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  private beginRecitePractice(): void {
+    this.syncStrictModeFromSession();
+    this.stopPassageAudio();
+    this.modePickerOpen = false;
+    this.practiceCompleted = false;
+    this.wrongAttemptsTotal = 0;
+    this.wrongAttemptsInRound = 0;
+    this.correctKeystrokesTotal = 0;
+    this.syncMetricRefs();
+    this.sessionSeed = generateMemorizationSessionSeed();
+    this.practiceModeRef = 'recite';
+    this.practiceMode = 'recite';
+    const r = Math.min(MEMORIZATION_FULL_HIDE_ROUND, Math.max(1, Math.floor(this.startRoundChoice)));
+    this.startRound(r);
+    if (this.practiceScrollRef?.nativeElement) {
+      this.practiceScrollRef.nativeElement.scrollTop = 0;
+    }
+    this.persistInProgress.emit({
+      sessionSeed: this.sessionSeed,
+      wrongAttempts: this.wrongAttemptsRef,
+      correctKeystrokes: this.correctKeystrokesRef,
+      phase: { kind: 'inRound', roundIndex: r },
+      practiceMode: 'recite',
+    });
+    this.cdr.markForCheck();
+  }
+
+  private resetReciteAttemptState(): void {
+    this.invalidateReciteStop();
+    this.reciteRecordingTenantId = null;
+    this.reciteRecordingSttProvider = null;
+    this.recitePhase = 'ready';
+    this.reciteError = '';
+    this.reciteAlignment = null;
+    this.reciteAlignmentByToken = new Map();
+    this.reciteRecordingMs = 0;
+    this.reciteAttemptMetricsApplied = false;
+  }
+
+  private applyReciteAttemptMetrics(): void {
+    if (!this.reciteAlignment || this.reciteAttemptMetricsApplied) return;
+    this.reciteAttemptMetricsApplied = true;
+    const wrong = this.reciteAlignment.wrongCount + this.reciteAlignment.missingCount;
+    this.wrongAttemptsInRound += wrong;
+    this.wrongAttemptsTotal += wrong;
+    this.correctKeystrokesTotal += this.reciteAlignment.correctCount;
+    this.roundCompletedWithErrors = wrong > 0;
+    this.hasTypedInRound = true;
+    this.syncMetricRefs();
+  }
+
+  private invalidateReciteStop(): void {
+    this.reciteStopGeneration += 1;
+    this.reciteStartGeneration += 1;
+    this.reciteStarting = false;
+  }
+
+  private isReciteStartCurrent(startGeneration: number): boolean {
+    return (
+      startGeneration === this.reciteStartGeneration &&
+      this.practiceMode === 'recite' &&
+      this.phase === 'practicing'
+    );
+  }
+
+  private isReciteStopCurrent(stopGeneration: number): boolean {
+    return stopGeneration === this.reciteStopGeneration && this.recitePhase === 'transcribing';
+  }
+
+  private async loadReciteSettings(): Promise<void> {
+    this.reciteSettingsLoaded = false;
+    this.cdr.markForCheck();
+    await this.fetchReciteSettingsFromServer();
+  }
+
+  private async refreshReciteSettings(): Promise<void> {
+    await this.fetchReciteSettingsFromServer();
+  }
+
+  private async fetchReciteSettingsFromServer(): Promise<void> {
+    const settings = await this.reciteSettingsService.getSettingsForActiveTenant();
+    this.reciteTenantEnabled = settings.enabled;
+    this.reciteSttProvider = settings.sttProvider;
+    this.reciteWhisperModel = settings.whisperModel;
+    this.reciteSettingsLoaded = true;
     this.cdr.markForCheck();
   }
 
@@ -917,6 +1407,9 @@ export class MemorizationPracticeSessionComponent
       void this.loadPassageText();
     }
     this.loadAudioUrl();
+    this.reciteSettingsLoaded = false;
+    void this.loadReciteSettings();
+    this.attachReciteTenantSubscription();
     this.attachViewportListeners();
     this.attachStrictModeSessionSubscription();
     if (this.isBibleBooks) {
@@ -970,7 +1463,13 @@ export class MemorizationPracticeSessionComponent
     this.document.documentElement.style.overflow = 'unset';
     this.detachAllListeners();
     this.detachStrictModeSessionSubscription();
+    this.detachReciteTenantSubscription();
     this.clearHintInterval();
+    this.invalidateReciteStop();
+    void this.reciteService.cancelRecording();
+    this.recitePhase = 'ready';
+    this.reciteAlignment = null;
+    this.reciteAlignmentByToken = new Map();
   }
 
   private recomputeDerivedFromItem(): void {
@@ -1097,6 +1596,13 @@ export class MemorizationPracticeSessionComponent
     this.practiceMode = null;
     this.practiceModeRef = null;
     this.modePickerOpen = false;
+    this.recitePhase = 'ready';
+    this.reciteError = '';
+    this.reciteAlignment = null;
+    this.reciteAlignmentByToken = new Map();
+    this.reciteAttemptMetricsApplied = false;
+    this.reciteRecordingTenantId = null;
+    this.reciteRecordingSttProvider = null;
     this.syncMetricRefs();
   }
 
@@ -1156,6 +1662,9 @@ export class MemorizationPracticeSessionComponent
       this.awaitingRoundAdvance = true;
       this.roundAffirmation = pickRandomRoundAffirmation();
       this.phase = 'practicing';
+      if (modeRaw === 'recite') {
+        this.resetReciteAttemptState();
+      }
     } else {
       this.roundAdvanceHandled = null;
       const r = ip.phase.roundIndex;
@@ -1190,6 +1699,9 @@ export class MemorizationPracticeSessionComponent
         }
       }
       this.phase = 'practicing';
+      if (modeRaw === 'recite') {
+        this.resetReciteAttemptState();
+      }
     }
 
     this.syncStrictModeFromSession();
@@ -1249,6 +1761,9 @@ export class MemorizationPracticeSessionComponent
     this.awaitingRoundAdvance = false;
     this.roundAffirmation = '';
     this.phase = 'practicing';
+    if (this.practiceModeRef === 'recite') {
+      this.resetReciteAttemptState();
+    }
   }
 
   private revealFirstLetterCueForToken(tokenIndex: number): void {
@@ -1349,6 +1864,23 @@ export class MemorizationPracticeSessionComponent
   private detachStrictModeSessionSubscription(): void {
     this.strictModeSessionSub?.unsubscribe();
     this.strictModeSessionSub = null;
+  }
+
+  private attachReciteTenantSubscription(): void {
+    this.detachReciteTenantSubscription();
+    this.reciteTenantSub = this.tenantContext.activeTenant$
+      .pipe(distinctUntilChanged((a, b) => a?.id === b?.id))
+      .subscribe(() => {
+        if (this.recitePhase === 'recording' || this.recitePhase === 'transcribing') {
+          return;
+        }
+        void this.refreshReciteSettings();
+      });
+  }
+
+  private detachReciteTenantSubscription(): void {
+    this.reciteTenantSub?.unsubscribe();
+    this.reciteTenantSub = null;
   }
 
   private applyStrictModeFromSession(strict: boolean): void {

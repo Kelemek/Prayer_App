@@ -4,6 +4,7 @@ import {
   buildVerseReferenceFromChapter,
   isChapterOnlyScriptureReference,
   isSingleChapterBookChapterOneReference,
+  isSingleVerseScriptureReference,
   parseReference,
   scriptureChapterReferenceKey,
   scriptureReferenceForPassageQuery,
@@ -38,6 +39,12 @@ describe('parse-scripture-reference', () => {
   it('isChapterOnlyScriptureReference', () => {
     expect(isChapterOnlyScriptureReference('Genesis 1')).toBe(true);
     expect(isChapterOnlyScriptureReference('Genesis 1:1')).toBe(false);
+  });
+
+  it('isSingleVerseScriptureReference', () => {
+    expect(isSingleVerseScriptureReference('John 3:16')).toBe(true);
+    expect(isSingleVerseScriptureReference('John 3:16-18')).toBe(false);
+    expect(isSingleVerseScriptureReference('Psalm 23')).toBe(false);
   });
 
   it('builds verse references from chapter refs', () => {

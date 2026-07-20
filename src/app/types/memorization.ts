@@ -48,7 +48,63 @@ export type MemorizationPracticeMode =
   | 'type'
   | 'word'
   | 'reorder'
-  | 'firstLetters';
+  | 'firstLetters'
+  | 'recite';
+
+export type MemorizationReciteSttProvider = 'browser' | 'whisper';
+
+export const MEMORIZATION_RECITE_WHISPER_MODELS = [
+  'whisper-1',
+  'gpt-4o-mini-transcribe',
+] as const;
+
+export type MemorizationReciteWhisperModel = (typeof MEMORIZATION_RECITE_WHISPER_MODELS)[number];
+
+export const MEMORIZATION_RECITE_WHISPER_MODEL_RATES_USD_PER_MINUTE: Record<
+  MemorizationReciteWhisperModel,
+  number
+> = {
+  'whisper-1': 0.006,
+  'gpt-4o-mini-transcribe': 0.003,
+};
+
+export const MEMORIZATION_RECITE_WHISPER_MODEL_LABELS: Record<
+  MemorizationReciteWhisperModel,
+  string
+> = {
+  'whisper-1': 'Whisper (higher accuracy)',
+  'gpt-4o-mini-transcribe': 'GPT-4o mini transcribe (lower cost)',
+};
+
+export function isMemorizationReciteSttProvider(
+  value: string | null | undefined
+): value is MemorizationReciteSttProvider {
+  return value === 'browser' || value === 'whisper';
+}
+
+export function isMemorizationReciteWhisperModel(
+  value: string | null | undefined
+): value is MemorizationReciteWhisperModel {
+  return (
+    !!value &&
+    (MEMORIZATION_RECITE_WHISPER_MODELS as readonly string[]).includes(value)
+  );
+}
+
+export interface MemorizationReciteSettings {
+  enabled: boolean;
+  sttProvider: MemorizationReciteSttProvider;
+  whisperModel: MemorizationReciteWhisperModel;
+}
+
+export interface MemorizationReciteUsageSummary {
+  attemptCount: number;
+  whisperAttemptCount: number;
+  browserAttemptCount: number;
+  totalAudioSeconds: number;
+  billableAudioSeconds: number;
+  estimatedCostUsd: number;
+}
 
 export interface MemorizationInProgress {
   sessionSeed: string;

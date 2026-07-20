@@ -8,6 +8,9 @@ import { ElementRef, SimpleChange, ɵresolveComponentResources as resolveCompone
 import { MemorizationPracticeSessionComponent } from './memorization-practice-session.component';
 import { ScriptureService } from '../../services/scripture.service';
 import { UserSessionService } from '../../services/user-session.service';
+import { MemorizationReciteService } from '../../services/memorization-recite.service';
+import { MemorizationReciteSettingsService } from '../../services/memorization-recite-settings.service';
+import { TenantContextService } from '../../services/tenant-context.service';
 import type { MemorizedItem } from '../../types/memorization';
 import { MEMORIZATION_FULL_HIDE_ROUND } from '../../lib/memorization/memorizationPracticeUtils';
 import { MEMORIZE_LISTEN_REPEAT_GAP_MS } from '../../lib/memorization/memorizeListenSpeedStorage';
@@ -32,6 +35,26 @@ const mockScriptureService = {
     audioUrl: 'https://audio.test/x.mp3',
     useSpeechSynthesis: false,
   }),
+};
+
+const mockReciteService = {
+  isBrowserSttSupported: vi.fn().mockReturnValue(true),
+  startRecording: vi.fn().mockResolvedValue(undefined),
+  stopAndTranscribe: vi.fn().mockResolvedValue('For God so loved the world'),
+  cancelRecording: vi.fn().mockResolvedValue(undefined),
+};
+
+const mockReciteSettingsService = {
+  getSettingsForActiveTenant: vi.fn().mockResolvedValue({
+    enabled: false,
+    sttProvider: 'browser' as const,
+    whisperModel: 'whisper-1' as const,
+  }),
+};
+
+const mockTenantContext = {
+  getActiveTenant: vi.fn().mockReturnValue({ id: 'tenant-1', name: 'Test Church' }),
+  activeTenant$: new BehaviorSubject({ id: 'tenant-1', name: 'Test Church' }),
 };
 
 function createMockUserSessionService(
@@ -95,6 +118,9 @@ async function renderSession(
     isOpen?: boolean;
     memorizationStrictMode?: boolean;
     deferSessionLoad?: boolean;
+    reciteEnabled?: boolean;
+    reciteSttProvider?: 'browser' | 'whisper';
+    reciteTranscript?: string;
   } = {}
 ) {
   const closed = vi.fn();
@@ -105,6 +131,15 @@ async function renderSession(
   const sessionService = createMockUserSessionService(strictMode, {
     deferSessionLoad: options.deferSessionLoad,
   });
+
+  mockReciteSettingsService.getSettingsForActiveTenant.mockResolvedValue({
+    enabled: options.reciteEnabled ?? false,
+    sttProvider: options.reciteSttProvider ?? 'browser',
+    whisperModel: 'whisper-1',
+  });
+  mockReciteService.stopAndTranscribe.mockResolvedValue(
+    options.reciteTranscript ?? 'For God so loved the world'
+  );
 
   const result = await render(MemorizationPracticeSessionComponent, {
     componentInputs: {
@@ -117,6 +152,9 @@ async function renderSession(
         provide: UserSessionService,
         useValue: sessionService,
       },
+      { provide: MemorizationReciteService, useValue: mockReciteService },
+      { provide: MemorizationReciteSettingsService, useValue: mockReciteSettingsService },
+      { provide: TenantContextService, useValue: mockTenantContext },
     ],
   });
 
@@ -547,7 +585,7 @@ describe('MemorizationPracticeSessionComponent', () => {
       const { component, closed, persistInProgress } = await renderSession();
       component.beginPracticeWithMode('type');
 
-      component.handleClose();
+      await component.handleClose();
 
       expect(closed).toHaveBeenCalled();
       expect(persistInProgress).toHaveBeenCalledWith(
@@ -561,7 +599,7 @@ describe('MemorizationPracticeSessionComponent', () => {
       component.beginPracticeWithMode('type');
       revealAllHiddenViaTyping(component);
 
-      component.handleClose();
+      await component.handleClose();
 
       expect(closed).toHaveBeenCalled();
       expect(persistInProgress).toHaveBeenCalledWith(
@@ -578,7 +616,7 @@ describe('MemorizationPracticeSessionComponent', () => {
       (component as unknown as { correctKeystrokesRef: number }).correctKeystrokesRef = 0;
 
       persistInProgress.mockClear();
-      component.handleClose();
+      await component.handleClose();
 
       expect(persistInProgress).toHaveBeenCalledWith(
         expect.objectContaining({ wrongAttempts: 2, correctKeystrokes: 4 })
@@ -592,7 +630,7 @@ describe('MemorizationPracticeSessionComponent', () => {
 
       component.beginPracticeWithMode('type');
       persistInProgress.mockClear();
-      component.handleClose();
+      await component.handleClose();
 
       expect(persistInProgress).toHaveBeenCalledWith(
         expect.objectContaining({ wrongAttempts: 0, correctKeystrokes: 0 })
@@ -702,6 +740,25 @@ describe('MemorizationPracticeSessionComponent', () => {
       expect(component.sessionSeed).toBe('saved-seed');
       expect(component.roundIndex).toBe(1);
       expect(component.roundAffirmation).toBeTruthy();
+    });
+
+    it('shows round-advance footer when recite resumes between rounds', async () => {
+      const item: MemorizedItem = {
+        ...verseItem,
+        inProgressPractice: {
+          sessionSeed: 'recite-between',
+          wrongAttempts: 0,
+          correctKeystrokes: 5,
+          updatedAt: Date.now(),
+          phase: { kind: 'betweenRounds', completedRoundIndex: 1 },
+          practiceMode: 'recite',
+        },
+      };
+      const { component, getByTestId } = await renderSession({ item, reciteEnabled: true });
+
+      expect(component.practiceMode).toBe('recite');
+      expect(component.awaitingRoundAdvance).toBe(true);
+      expect(getByTestId('memorize-round-advance-footer')).toBeTruthy();
     });
 
     it('hydrates inRound reorder state on open', async () => {
@@ -1188,7 +1245,7 @@ describe('MemorizationPracticeSessionComponent', () => {
     it('handleClose does not persist when still in intro', async () => {
       const { component, closed, persistInProgress } = await renderSession();
       const callsBefore = persistInProgress.mock.calls.length;
-      component.handleClose();
+      await component.handleClose();
       expect(closed).toHaveBeenCalled();
       expect(persistInProgress.mock.calls.length).toBe(callsBefore);
     });
@@ -1572,6 +1629,411 @@ describe('MemorizationPracticeSessionComponent', () => {
         component.processWordGuess('__wrong__');
       }
       expect(component.correctKeystrokesTotal).toBeGreaterThan(0);
+    });
+  });
+
+  describe('recite mode', () => {
+    async function waitForReciteSettings(component: MemorizationPracticeSessionComponent): Promise<void> {
+      await vi.waitFor(() => expect(component.reciteSettingsLoaded).toBe(true));
+    }
+
+    it('exposes recite in mode picker for enabled single-verse items', async () => {
+      const { component, getByTestId, cdr } = await renderSession({ reciteEnabled: true });
+      await waitForReciteSettings(component);
+      expect(component.reciteModeAvailable).toBe(true);
+
+      component.openModePicker();
+      cdr.detectChanges();
+      expect(getByTestId('memorize-practice-mode-recite')).toBeTruthy();
+    });
+
+    it('hides recite for multi-verse references', async () => {
+      const { component } = await renderSession({
+        reciteEnabled: true,
+        item: { ...verseItem, reference: 'John 3:16-18' },
+      });
+      await waitForReciteSettings(component);
+      expect(component.reciteModeAvailable).toBe(false);
+    });
+
+    it('starts recite practice at round 1 with partial blanks', async () => {
+      const { component, persistInProgress } = await renderSession({
+        reciteEnabled: true,
+        item: {
+          ...verseItem,
+          reference: 'Romans 8:28',
+          text: 'And we know that all things work together for good, for those who are called according to his purpose.',
+        },
+      });
+      await waitForReciteSettings(component);
+      component.beginPracticeWithMode('recite');
+
+      expect(component.phase).toBe('practicing');
+      expect(component.practiceMode).toBe('recite');
+      expect(component.roundIndex).toBe(1);
+      expect(component.recitePhase).toBe('ready');
+      expect(component.awaitingRoundAdvance).toBe(false);
+      expect(component.hiddenIndices.size).toBeGreaterThan(0);
+      expect(component.hiddenIndices.size).toBeLessThan(component.typableIndices.length);
+
+      const verse28 = component.reciteDisplaySegments.find(
+        (s) => s.kind === 'digits' && s.text === '28'
+      );
+      expect(verse28).toBeDefined();
+      if (verse28) {
+        const hiddenDigit = verse28.tokenIndices.find((i) => component.isTokenHidden(i));
+        if (hiddenDigit !== undefined) {
+          for (let charIndex = 0; charIndex < verse28.text.length; charIndex++) {
+            expect(component.reciteDigitCharShowsBlank(verse28, charIndex)).toBe(true);
+          }
+        }
+      }
+
+      expect(persistInProgress).toHaveBeenCalledWith(
+        expect.objectContaining({ practiceMode: 'recite', phase: { kind: 'inRound', roundIndex: 1 } })
+      );
+    });
+
+    it('hides every digit in a grouped verse number when any digit is hidden', async () => {
+      const { component } = await renderSession({
+        reciteEnabled: true,
+        item: {
+          ...verseItem,
+          reference: 'Romans 8:28',
+          text: 'And we know that all things work together for good, for those who are called according to his purpose.',
+        },
+      });
+      await waitForReciteSettings(component);
+      component.beginPracticeWithMode('recite');
+
+      const verse28 = component.reciteDisplaySegments.find(
+        (s) => s.kind === 'digits' && s.text === '28'
+      )!;
+      component.hiddenIndices = new Set([verse28.tokenIndices[0]!]);
+      component.revealed = new Set();
+
+      expect(component.reciteDigitCharShowsBlank(verse28, 0)).toBe(true);
+      expect(component.reciteDigitCharShowsBlank(verse28, 1)).toBe(true);
+    });
+
+    it('advances recite rounds after results', async () => {
+      const { component } = await renderSession({
+        reciteEnabled: true,
+        reciteTranscript: 'For God so loved the world John 3 1 6',
+      });
+      await waitForReciteSettings(component);
+      component.beginPracticeWithMode('recite');
+      await component.startReciteRecording();
+      await component.stopReciteRecording();
+      expect(component.recitePhase).toBe('results');
+
+      component.nextReciteRound();
+      expect(component.roundIndex).toBe(2);
+      expect(component.recitePhase).toBe('ready');
+      expect(component.reciteAlignment).toBeNull();
+    });
+
+    it('shows checking button with spinner while transcribing', async () => {
+      let resolveTranscribe!: (value: string) => void;
+      const transcribePromise = new Promise<string>((resolve) => {
+        resolveTranscribe = resolve;
+      });
+      mockReciteService.stopAndTranscribe.mockReturnValueOnce(transcribePromise);
+
+      const { component, getByTestId, queryByTestId, cdr } = await renderSession({
+        reciteEnabled: true,
+      });
+      await waitForReciteSettings(component);
+      component.beginPracticeWithMode('recite');
+      await component.startReciteRecording();
+      cdr.detectChanges();
+      expect(getByTestId('memorize-recite-stop')).toBeTruthy();
+
+      const stopPromise = component.stopReciteRecording();
+      cdr.detectChanges();
+      expect(component.recitePhase).toBe('transcribing');
+      expect(getByTestId('memorize-recite-checking')).toBeTruthy();
+      expect(queryByTestId('memorize-recite-stop')).toBeNull();
+      const checkingBtn = getByTestId('memorize-recite-checking') as HTMLButtonElement;
+      expect(checkingBtn.disabled).toBe(true);
+      expect(checkingBtn.textContent).toContain('Checking');
+
+      resolveTranscribe('For God so loved the world John 3 16');
+      await stopPromise;
+      cdr.detectChanges();
+      expect(component.recitePhase).toBe('results');
+    });
+
+    it('records, transcribes, scores, and finishes with alignment stats', async () => {
+      const { component, completed, cdr } = await renderSession({
+        reciteEnabled: true,
+        reciteTranscript: 'For God so loved the world John 3 1 6',
+      });
+      await waitForReciteSettings(component);
+      component.startRoundChoice = MEMORIZATION_FULL_HIDE_ROUND;
+      component.beginPracticeWithMode('recite');
+
+      await component.startReciteRecording();
+      expect(component.recitePhase).toBe('recording');
+      expect(mockReciteService.startRecording).toHaveBeenCalledWith(
+        'browser',
+        expect.objectContaining({ onDurationMs: expect.any(Function) })
+      );
+
+      await component.stopReciteRecording();
+      expect(component.recitePhase).toBe('results');
+      expect(component.reciteAlignment).not.toBeNull();
+      expect(component.reciteAlignment!.correctCount).toBeGreaterThan(0);
+
+      cdr.detectChanges();
+      component.finishReciteAfterResults();
+      expect(component.phase).toBe('done');
+      expect(completed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          completed: true,
+          wrongAttempts: expect.any(Number),
+          correctKeystrokes: expect.any(Number),
+        })
+      );
+    });
+
+    it('retry resets recite results to ready without changing round blanks', async () => {
+      const { component } = await renderSession({
+        reciteEnabled: true,
+        reciteTranscript: 'For so loved the world',
+      });
+      await waitForReciteSettings(component);
+      component.beginPracticeWithMode('recite');
+      const hiddenAfterRoundStart = component.hiddenIndices.size;
+      await component.startReciteRecording();
+      await component.stopReciteRecording();
+      expect(component.recitePhase).toBe('results');
+      expect(component.displayPracticeErrors).toBeGreaterThan(0);
+      expect(component.wrongAttemptsInRound).toBe(0);
+
+      component.retryRecite();
+      expect(component.recitePhase).toBe('ready');
+      expect(component.reciteAlignment).toBeNull();
+      expect(component.displayPracticeErrors).toBe(0);
+      expect(component.wrongAttemptsInRound).toBe(0);
+      expect(component.hiddenIndices.size).toBe(hiddenAfterRoundStart);
+      expect(component.roundIndex).toBe(1);
+    });
+
+    it('counts recite errors only after accepting the round', async () => {
+      const { component } = await renderSession({
+        reciteEnabled: true,
+        reciteTranscript: 'For so loved the world',
+      });
+      await waitForReciteSettings(component);
+      component.beginPracticeWithMode('recite');
+      await component.startReciteRecording();
+      await component.stopReciteRecording();
+      expect(component.wrongAttemptsInRound).toBe(0);
+
+      component.finishReciteAfterResults();
+      const wrongAfterAccept = component.wrongAttemptsInRound;
+      expect(wrongAfterAccept).toBeGreaterThan(0);
+
+      component.finishReciteAfterResults();
+      expect(component.wrongAttemptsInRound).toBe(wrongAfterAccept);
+    });
+
+    it('handleStartOver cancels an active recite recording', async () => {
+      const { component } = await renderSession({ reciteEnabled: true });
+      await waitForReciteSettings(component);
+      component.beginPracticeWithMode('recite');
+      await component.startReciteRecording();
+
+      component.handleStartOver();
+
+      expect(mockReciteService.cancelRecording).toHaveBeenCalled();
+    });
+
+    it('does not apply stale recite results after start over during transcribing', async () => {
+      let resolveTranscribe!: (value: string) => void;
+      mockReciteService.stopAndTranscribe.mockReturnValueOnce(
+        new Promise<string>((resolve) => {
+          resolveTranscribe = resolve;
+        })
+      );
+
+      const { component } = await renderSession({ reciteEnabled: true });
+      await waitForReciteSettings(component);
+      component.beginPracticeWithMode('recite');
+      await component.startReciteRecording();
+      const stopPromise = component.stopReciteRecording();
+      expect(component.recitePhase).toBe('transcribing');
+
+      component.handleStartOver();
+      resolveTranscribe('For God so loved the world');
+      await stopPromise;
+
+      expect(component.phase).toBe('intro');
+      expect(component.reciteAlignment).toBeNull();
+      expect(component.recitePhase).toBe('ready');
+    });
+
+    it('shows spoken words on results with incorrect words in red', async () => {
+      const { component } = await renderSession({
+        reciteEnabled: true,
+        reciteTranscript: 'For God so loved the world John 3 1 9',
+      });
+      await waitForReciteSettings(component);
+      component.beginPracticeWithMode('recite');
+      await component.startReciteRecording();
+      await component.stopReciteRecording();
+      expect(component.recitePhase).toBe('results');
+
+      const refSixIndex = component.tokens.findIndex((t) => t.text === '6');
+      expect(component.reciteTokenStatus(refSixIndex)).toBe('wrong');
+      expect(component.reciteTokenDisplayText(refSixIndex)).toBe('9');
+      expect(component.reciteResultsShowsBlank(refSixIndex)).toBe(false);
+
+      const godIndex = component.tokens.findIndex((t) => t.text === 'God');
+      expect(component.reciteTokenDisplayText(godIndex)).toBe('god');
+      expect(component.reciteTokenStatus(godIndex)).toBe('correct');
+    });
+
+    it('shows spoken transcript on results without blanks for skipped words', async () => {
+      const { component, fixture } = await renderSession({
+        reciteEnabled: true,
+        reciteTranscript: 'For so loved the world',
+      });
+      await waitForReciteSettings(component);
+      component.beginPracticeWithMode('recite');
+      await component.startReciteRecording();
+      await component.stopReciteRecording();
+      expect(component.recitePhase).toBe('results');
+
+      expect(component.reciteSpokenWords.map((w) => w.text)).toEqual([
+        'for',
+        'so',
+        'loved',
+        'the',
+        'world',
+      ]);
+      expect(
+        component.reciteAlignedColumns.find((c) => c.expected?.text === 'God')?.spokenChars
+      ).toEqual([{ char: '—', status: 'missing' }]);
+      expect(component.reciteSkippedWordsLabel).toContain('God');
+      expect(component.reciteScoreSummary).toContain('skipped');
+
+      const godIndex = component.tokens.findIndex((t) => t.text === 'God');
+      expect(component.reciteTokenStatus(godIndex)).toBe('missing');
+
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('[data-testid="memorize-recite-aligned-words"]')).toBeTruthy();
+      expect(fixture.nativeElement.querySelector('[data-testid="memorize-recite-words"]')).toBeFalsy();
+    });
+
+    it('waits for recite settings before starting whisper recording', async () => {
+      let resolveSettings!: (value: {
+        enabled: boolean;
+        sttProvider: 'browser' | 'whisper';
+        whisperModel: 'whisper-1';
+      }) => void;
+      const pendingSettings = new Promise<{
+        enabled: boolean;
+        sttProvider: 'browser' | 'whisper';
+        whisperModel: 'whisper-1';
+      }>((resolve) => {
+        resolveSettings = resolve;
+      });
+
+      const { component } = await renderSession({
+        reciteEnabled: true,
+        reciteSttProvider: 'whisper',
+      });
+      await waitForReciteSettings(component);
+
+      component.reciteSettingsLoaded = false;
+      component.reciteSttProvider = 'browser';
+      mockReciteSettingsService.getSettingsForActiveTenant.mockReturnValueOnce(pendingSettings);
+
+      component.beginPracticeWithMode('recite');
+      const recordPromise = component.startReciteRecording();
+      expect(mockReciteService.startRecording).not.toHaveBeenCalled();
+
+      resolveSettings({
+        enabled: true,
+        sttProvider: 'whisper',
+        whisperModel: 'whisper-1',
+      });
+      await recordPromise;
+
+      expect(component.reciteSttProvider).toBe('whisper');
+      expect(mockReciteService.startRecording).toHaveBeenCalledWith(
+        'whisper',
+        expect.any(Object)
+      );
+    });
+
+    it('blocks recording when recite is disabled for tenant', async () => {
+      const { component } = await renderSession({ reciteEnabled: true });
+      await waitForReciteSettings(component);
+      component.beginPracticeWithMode('recite');
+      mockReciteSettingsService.getSettingsForActiveTenant.mockResolvedValue({
+        enabled: false,
+        sttProvider: 'browser',
+        whisperModel: 'whisper-1',
+      });
+
+      await component.startReciteRecording();
+
+      expect(mockReciteService.startRecording).not.toHaveBeenCalled();
+      expect(component.reciteError).toContain('not available');
+    });
+
+    it('handleClose persists recite errors from unaccepted results', async () => {
+      const { component, persistInProgress } = await renderSession({
+        reciteEnabled: true,
+        reciteTranscript: 'For God so loved the world John 3 1 9',
+      });
+      await waitForReciteSettings(component);
+      component.beginPracticeWithMode('recite');
+      await component.startReciteRecording();
+      await component.stopReciteRecording();
+      expect(component.recitePhase).toBe('results');
+      expect(component.wrongAttemptsRef).toBe(0);
+
+      persistInProgress.mockClear();
+      await component.handleClose();
+
+      expect(component.wrongAttemptsRef).toBeGreaterThan(0);
+      expect(persistInProgress).toHaveBeenCalledWith(
+        expect.objectContaining({ wrongAttempts: expect.any(Number) })
+      );
+    });
+
+    it('handleClose awaits transcribing and persists recite errors', async () => {
+      let resolveTranscribe!: (value: string) => void;
+      mockReciteService.stopAndTranscribe.mockReturnValueOnce(
+        new Promise<string>((resolve) => {
+          resolveTranscribe = resolve;
+        })
+      );
+
+      const { component, persistInProgress } = await renderSession({
+        reciteEnabled: true,
+        reciteTranscript: 'For God so loved the world John 3 1 9',
+      });
+      await waitForReciteSettings(component);
+      component.beginPracticeWithMode('recite');
+      await component.startReciteRecording();
+      const stopPromise = component.stopReciteRecording();
+      expect(component.recitePhase).toBe('transcribing');
+
+      persistInProgress.mockClear();
+      const closePromise = component.handleClose();
+      resolveTranscribe('For God so loved the world John 3 1 9');
+      await stopPromise;
+      await closePromise;
+
+      expect(component.wrongAttemptsRef).toBeGreaterThan(0);
+      expect(persistInProgress).toHaveBeenCalledWith(
+        expect.objectContaining({ wrongAttempts: expect.any(Number) })
+      );
     });
   });
 });

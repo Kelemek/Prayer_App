@@ -97,13 +97,13 @@
               }
             </div>
             <div class="flex items-center gap-2 shrink-0">
-              @if (phase === 'practicing' && wrongAttemptsInRound > 0) {
+              @if (phase === 'practicing' && displayPracticeErrors > 0) {
                 <span
                   data-testid="memorize-error-count"
                   class="text-sm text-red-600 dark:text-red-400 font-medium tabular-nums"
                   aria-live="polite"
                 >
-                  Errors: {{ wrongAttemptsInRound }}
+                  Errors: {{ displayPracticeErrors }}
                 </span>
               }
               @if (showStartOver) {
@@ -122,7 +122,8 @@
                 (practiceMode === 'type' ||
                   practiceMode === 'firstLetters' ||
                   practiceMode === 'word' ||
-                  practiceMode === 'reorder')
+                  practiceMode === 'reorder' ||
+                  (practiceMode === 'recite' && recitePhase === 'ready'))
               ) {
                 <button
                   #hintButton
@@ -295,6 +296,152 @@
               [style.paddingBottom]="keyboardInsetPx > 0 ? 'calc(' + keyboardInsetPx + 'px + 0.5rem)' : null"
             >
               @if (phase === 'practicing') {
+                @if (practiceMode === 'recite') {
+                  <div class="pt-4" data-testid="memorize-recite-panel">
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2" data-testid="memorize-recite-round-header">
+                      @if (awaitingRoundAdvance) {
+                        {{ roundAdvanceHeaderCopy }}
+                      } @else {
+                        Round {{ roundIndex }} of {{ MEMORIZATION_FULL_HIDE_ROUND }} — about
+                        {{ Math.round(hiddenFractionForRound(roundIndex) * 100) }}% hidden
+                      }
+                    </p>
+                    @if (recitePhase === 'ready') {
+                      <p class="text-sm text-gray-700 dark:text-gray-300 mb-4">
+                        Say the <strong>entire</strong> verse and reference from memory. Shown words are cues only.
+                        Hold Hint to peek at blanks.
+                      </p>
+                    } @else if (recitePhase === 'recording') {
+                      <p class="text-sm text-red-600 dark:text-red-400 font-medium mb-4 animate-pulse">
+                        Recording… {{ formatReciteDuration(reciteRecordingMs) }}
+                      </p>
+                    } @else if (recitePhase === 'transcribing') {
+                      <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Checking your recitation…</p>
+                    } @else if (recitePhase === 'results' && reciteAlignment) {
+                      <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mb-1" data-testid="memorize-recite-score">
+                        {{ reciteScoreSummary }}
+                      </p>
+                      @if (reciteSkippedWordsLabel) {
+                        <p
+                          class="text-sm text-amber-700 dark:text-amber-400 mb-4"
+                          data-testid="memorize-recite-skipped"
+                        >
+                          Skipped: {{ reciteSkippedWordsLabel }}
+                        </p>
+                      } @else {
+                        <div class="mb-4"></div>
+                      }
+                    }
+                    @if (reciteError) {
+                      <p class="text-sm text-red-600 dark:text-red-400 mb-3" data-testid="memorize-recite-error">
+                        {{ reciteError }}
+                      </p>
+                    }
+                    @if (recitePhase === 'results' && reciteAlignment) {
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                        Top: what you said (red = wrong, amber — = skipped). Bottom: correct verse.
+                      </p>
+                      <div
+                        class="touch-manipulation text-base leading-relaxed font-serif flex flex-wrap gap-x-2 gap-y-3 items-end rounded-md p-1"
+                        data-testid="memorize-recite-aligned-words"
+                      >
+                        @for (col of reciteAlignedColumns; track $index) {
+                          <div class="inline-flex flex-col items-center gap-0.5 max-w-[8rem]">
+                            <span class="inline text-center break-words">
+                              @if (col.spokenChars) {
+                                @for (sc of col.spokenChars; track $index) {
+                                  <span
+                                    [class.text-green-700]="sc.status === 'correct'"
+                                    [class.dark:text-green-400]="sc.status === 'correct'"
+                                    [class.text-red-600]="sc.status === 'wrong'"
+                                    [class.dark:text-red-400]="sc.status === 'wrong'"
+                                    [class.text-amber-600]="sc.status === 'missing'"
+                                    [class.dark:text-amber-400]="sc.status === 'missing'"
+                                  >
+                                    {{ sc.char }}
+                                  </span>
+                                }
+                              } @else {
+                                <span
+                                  [class.text-green-700]="col.spoken?.status === 'correct'"
+                                  [class.dark:text-green-400]="col.spoken?.status === 'correct'"
+                                  [class.text-red-600]="col.spoken?.status === 'wrong'"
+                                  [class.dark:text-red-400]="col.spoken?.status === 'wrong'"
+                                >
+                                  {{ col.spoken?.text }}
+                                </span>
+                              }
+                            </span>
+                            @if (col.expected) {
+                              <span
+                                class="inline text-center break-words text-sm border-t border-gray-200 dark:border-gray-600 pt-0.5 w-full text-gray-800 dark:text-gray-100"
+                                [class.text-amber-700]="col.expected.status === 'missing'"
+                                [class.dark:text-amber-400]="col.expected.status === 'missing'"
+                              >
+                                {{ col.expected.text }}
+                              </span>
+                            }
+                          </div>
+                        }
+                      </div>
+                    } @else {
+                      <div
+                        class="touch-manipulation text-base leading-relaxed font-serif flex flex-wrap gap-x-0 gap-y-1.5 sm:gap-y-1 items-baseline rounded-md p-1"
+                        data-testid="memorize-recite-words"
+                      >
+                        @for (segment of reciteDisplaySegments; track $index) {
+                          @if (segment.kind === 'punct') {
+                            <span class="inline text-gray-800 dark:text-gray-100 whitespace-pre">{{ segment.text }}</span>
+                          } @else if (segment.kind === 'digits') {
+                            <span
+                              class="inline-flex items-baseline border-b-2 box-border px-0.5 sm:px-0 min-h-[1.5em] justify-center"
+                              [class.border-gray-400]="reciteSegmentHasHiddenBlank(segment)"
+                              [class.dark:border-gray-500]="reciteSegmentHasHiddenBlank(segment)"
+                              [class.border-transparent]="!reciteSegmentHasHiddenBlank(segment)"
+                            >
+                              @for (char of segment.text; track $index; let charIndex = $index) {
+                                <span
+                                  [class.text-gray-800]="reciteDigitCharShowsText(segment, charIndex)"
+                                  [class.dark:text-gray-100]="reciteDigitCharShowsText(segment, charIndex)"
+                                  [class.text-blue-800]="reciteDigitCharShowHint(segment, charIndex)"
+                                  [class.dark:text-blue-200]="reciteDigitCharShowHint(segment, charIndex)"
+                                  [class.italic]="reciteDigitCharShowHint(segment, charIndex)"
+                                  [class.text-transparent]="reciteDigitCharShowsBlank(segment, charIndex)"
+                                  [class.select-none]="reciteDigitCharShowsBlank(segment, charIndex)"
+                                  [class.pointer-events-none]="reciteDigitCharShowsBlank(segment, charIndex)"
+                                  [attr.aria-hidden]="reciteDigitCharShowsBlank(segment, charIndex)"
+                                >
+                                  {{ char }}
+                                </span>
+                              }
+                            </span>
+                          } @else {
+                            <span
+                              class="inline-flex items-baseline border-b-2 box-border px-0.5 sm:px-0 min-h-[1.5em] min-w-[0.6em] justify-center"
+                              [class.border-gray-400]="reciteSegmentHasHiddenBlank(segment)"
+                              [class.dark:border-gray-500]="reciteSegmentHasHiddenBlank(segment)"
+                              [class.border-transparent]="!reciteSegmentHasHiddenBlank(segment)"
+                            >
+                              <span
+                                [class.text-gray-800]="reciteSegmentShowsText(segment)"
+                                [class.dark:text-gray-100]="reciteSegmentShowsText(segment)"
+                                [class.text-blue-800]="reciteSegmentShowHint(segment)"
+                                [class.dark:text-blue-200]="reciteSegmentShowHint(segment)"
+                                [class.italic]="reciteSegmentShowHint(segment)"
+                                [class.text-transparent]="reciteSegmentFullyBlank(segment)"
+                                [class.select-none]="reciteSegmentFullyBlank(segment)"
+                                [class.pointer-events-none]="reciteSegmentFullyBlank(segment)"
+                                [attr.aria-hidden]="reciteSegmentFullyBlank(segment)"
+                              >
+                                {{ reciteSegmentDisplayText(segment) }}
+                              </span>
+                            </span>
+                          }
+                        }
+                      </div>
+                    }
+                  </div>
+                } @else {
                 <div>
                   <div
                     data-testid="memorize-practice-round-header"
@@ -506,6 +653,7 @@
                     }
                   </div>
                 </div>
+                }
               }
 
               @if (phase === 'practicing' && !isBibleBooks) {
@@ -532,6 +680,91 @@
                 </div>
               }
             </div>
+
+            @if (phase === 'practicing' && practiceMode === 'recite' && !awaitingRoundAdvance) {
+              <div
+                class="shrink-0 border-t border-gray-200 dark:border-gray-700 px-4 py-3 bg-gray-50 dark:bg-gray-900/60"
+                data-testid="memorize-recite-footer"
+              >
+                <div class="flex flex-col sm:flex-row gap-3 sm:justify-end">
+                  @if (recitePhase === 'ready') {
+                    <button
+                      type="button"
+                      data-testid="memorize-recite-record"
+                      (click)="startReciteRecording()"
+                      [disabled]="!reciteSettingsLoaded || reciteStarting"
+                      [attr.aria-busy]="!reciteSettingsLoaded || reciteStarting"
+                      class="w-full sm:w-auto px-4 py-3 rounded-lg font-medium transition-colors bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-700"
+                      [class.cursor-pointer]="reciteSettingsLoaded && !reciteStarting"
+                      [class.hover:bg-red-200]="reciteSettingsLoaded && !reciteStarting"
+                      [class.dark:hover:bg-red-900/60]="reciteSettingsLoaded && !reciteStarting"
+                      [class.cursor-not-allowed]="!reciteSettingsLoaded || reciteStarting"
+                      [class.opacity-80]="!reciteSettingsLoaded || reciteStarting"
+                    >
+                      {{
+                        reciteStarting
+                          ? 'Starting…'
+                          : reciteSettingsLoaded
+                            ? 'Record'
+                            : 'Loading…'
+                      }}
+                    </button>
+                  } @else if (recitePhase === 'recording') {
+                    <button
+                      type="button"
+                      data-testid="memorize-recite-stop"
+                      (click)="stopReciteRecording()"
+                      class="w-full sm:w-auto px-4 py-3 rounded-lg font-medium transition-colors cursor-pointer bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-900/60 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-700"
+                    >
+                      Stop
+                    </button>
+                  } @else if (recitePhase === 'transcribing') {
+                    <button
+                      type="button"
+                      data-testid="memorize-recite-checking"
+                      disabled
+                      aria-busy="true"
+                      class="w-full sm:w-auto px-4 py-3 rounded-lg font-medium transition-colors cursor-not-allowed bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-700 inline-flex items-center justify-center gap-2 opacity-80"
+                    >
+                      <span
+                        class="animate-spin rounded-full h-4 w-4 border-2 border-red-800 border-t-transparent dark:border-red-200 dark:border-t-transparent"
+                        aria-hidden="true"
+                      ></span>
+                      Checking…
+                    </button>
+                  } @else if (recitePhase === 'results') {
+                    <button
+                      type="button"
+                      data-testid="memorize-recite-retry"
+                      (click)="retryRecite()"
+                      class="w-full sm:w-auto px-4 py-3 rounded-lg font-medium border-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer"
+                    >
+                      Repeat this round
+                    </button>
+                    @if (showReciteNextRoundOption) {
+                      <button
+                        type="button"
+                        data-testid="memorize-recite-next-round"
+                        (click)="nextReciteRound()"
+                        class="w-full sm:w-auto px-4 py-3 rounded-lg font-medium transition-colors cursor-pointer bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700"
+                      >
+                        Next round
+                      </button>
+                    }
+                    @if (showReciteFinishOption) {
+                      <button
+                        type="button"
+                        data-testid="memorize-recite-finish"
+                        (click)="finishReciteAfterResults()"
+                        class="w-full sm:w-auto px-4 py-3 rounded-lg font-medium transition-colors cursor-pointer bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700"
+                      >
+                        Finish practice
+                      </button>
+                    }
+                  }
+                </div>
+              </div>
+            }
 
             @if (phase === 'practicing' && practiceMode === 'word' && !awaitingRoundAdvance && wordChoiceLabels.length > 0) {
               <app-memorization-word-choices-footer
@@ -608,6 +841,9 @@
           <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
             <strong>Type mode:</strong> keyboard — first letter of each blank. <strong>Initials mode:</strong> same typing
             with cue row. <strong>Word mode:</strong> tap choices. <strong>Reorder mode:</strong> drag chunks into order.
+            @if (reciteModeAvailable) {
+              <strong> Recite mode (beta):</strong> record the verse, then see word-by-word accuracy.
+            }
           </p>
           <div class="flex flex-col gap-3">
             <button type="button" data-testid="memorize-practice-mode-type" (click)="beginPracticeWithMode('type')" class="w-full px-4 py-3 rounded-lg font-medium cursor-pointer bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700">
@@ -622,6 +858,23 @@
             <button type="button" data-testid="memorize-practice-mode-reorder" (click)="beginPracticeWithMode('reorder')" class="w-full px-4 py-3 rounded-lg font-medium cursor-pointer bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700">
               Reorder mode
             </button>
+            @if (reciteModeAvailable) {
+              <button
+                type="button"
+                data-testid="memorize-practice-mode-recite"
+                (click)="beginPracticeWithMode('recite')"
+                class="w-full px-4 py-3 rounded-lg font-medium cursor-pointer bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700"
+              >
+                <span class="inline-flex items-center justify-center gap-2">
+                  Recite mode
+                  <span
+                    class="text-[0.65rem] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 border border-amber-200 dark:border-amber-700"
+                  >
+                    Beta
+                  </span>
+                </span>
+              </button>
+            }
             <button type="button" data-testid="memorize-practice-mode-cancel" (click)="closeModePicker()" class="w-full px-4 py-3 rounded-lg font-medium border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer">
               Cancel
             </button>
