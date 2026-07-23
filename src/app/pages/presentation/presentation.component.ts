@@ -104,7 +104,7 @@ type TimeFilter = "week" | "twoweeks" | "month" | "year" | "all";
         "
       >
         <div class="w-full max-w-6xl mx-auto h-full">
-          <div class="h-full overflow-y-auto flex items-center px-2">
+          <div class="presentation-scroll-area hide-scrollbar h-full overflow-y-auto flex items-center px-2">
             <app-prayer-display-card
               [prayer]="isPrayer(currentItem) ? currentItem : undefined"
               [prompt]="isPrompt(currentItem) ? currentItem : undefined"

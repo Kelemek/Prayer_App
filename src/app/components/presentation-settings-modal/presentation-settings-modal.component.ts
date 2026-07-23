@@ -52,7 +52,7 @@ type TimeFilter = "week" | "twoweeks" | "month" | "year" | "all";
         </div>
 
         <div
-          class="space-y-4 sm:space-y-5 lg:space-y-6 px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6 lg:pb-8 overflow-y-auto"
+          class="presentation-settings-modal-body hide-scrollbar space-y-4 sm:space-y-5 lg:space-y-6 px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6 lg:pb-8 overflow-y-auto"
         >
           <!-- Theme Selection -->
           <div

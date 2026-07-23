@@ -401,6 +401,16 @@ html, body {
   display: none;
 }
 
+/* Hide scrollbars while preserving scroll (settings modals, presentation, etc.) */
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Safe area padding for notch/camera cutout - Capacitor only */
 @supports (padding: env(safe-area-inset-top)) {
   html {
