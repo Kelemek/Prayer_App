@@ -9,8 +9,24 @@ describe('VerificationService', () => {
   let supabaseService: SupabaseService;
   let mockTenantContext: { getActiveTenant: ReturnType<typeof vi.fn> };
   let mockConnectivity: any;
+  let checkIfEnabledSpy: ReturnType<typeof vi.spyOn>;
+
+  const createAdminSettingsQuery = (
+    data: Record<string, unknown> | null = { require_email_verification: false },
+    error: unknown = null
+  ) => ({
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({
+        maybeSingle: vi.fn(() => Promise.resolve({ data, error })),
+      })),
+    })),
+  });
 
   beforeEach(() => {
+    checkIfEnabledSpy = vi
+      .spyOn(VerificationService.prototype as any, 'checkIfEnabled')
+      .mockResolvedValue(undefined);
+
     mockTenantContext = {
       getActiveTenant: vi.fn(() => ({ id: 'tenant-1' })),
     };
@@ -22,7 +38,7 @@ describe('VerificationService', () => {
     // Mock SupabaseService
     supabaseService = {
       client: {
-        from: vi.fn()
+        from: vi.fn(() => createAdminSettingsQuery()),
       },
       describeFunctionInvokeFailure,
       isNetworkError: vi.fn(() => false),
@@ -32,42 +48,37 @@ describe('VerificationService', () => {
     service = new VerificationService(supabaseService, mockTenantContext as any, mockConnectivity);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     localStorage.clear();
     vi.clearAllTimers();
+    vi.useRealTimers();
+    checkIfEnabledSpy.mockRestore();
+    vi.restoreAllMocks();
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 
   describe('constructor', () => {
     it('should call checkIfEnabled after timeout', async () => {
+      checkIfEnabledSpy.mockRestore();
+      const localCheckSpy = vi
+        .spyOn(VerificationService.prototype as any, 'checkIfEnabled')
+        .mockResolvedValue(undefined);
+
       vi.useFakeTimers();
-      
-      const fromMock = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ 
-              data: { require_email_verification: false }, 
-              error: null 
-            }))
-          }))
-        }))
-      }));
 
       const mockSupabase = {
         client: {
-          from: fromMock
-        }
+          from: vi.fn(() => createAdminSettingsQuery()),
+        },
       } as any;
 
-      const testService = new VerificationService(mockSupabase, mockTenantContext as any, mockConnectivity);
+      new VerificationService(mockSupabase, mockTenantContext as any, mockConnectivity);
 
-      // Fast-forward time
-      vi.advanceTimersByTime(100);
-      
-      // Wait for async operations to complete
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(100);
 
-      expect(fromMock).toHaveBeenCalledWith('admin_settings');
-      
+      expect(localCheckSpy).toHaveBeenCalledTimes(1);
+
+      localCheckSpy.mockRestore();
       vi.useRealTimers();
     });
   });
@@ -187,25 +198,21 @@ describe('VerificationService', () => {
     });
 
     it('should replace existing session for the same email', () => {
+      vi.useFakeTimers();
       const email = 'test@example.com';
-      
-      // Save first session
+
       service.saveVerifiedSession(email);
-      const firstSessionData = localStorage.getItem('prayer_app_verified_sessions');
-      const firstSessions = JSON.parse(firstSessionData!);
+      const firstSessions = JSON.parse(localStorage.getItem('prayer_app_verified_sessions')!);
       const firstVerifiedAt = firstSessions[0].verifiedAt;
 
-      // Wait a bit and save again
-      setTimeout(() => {
-        service.saveVerifiedSession(email);
-        const secondSessionData = localStorage.getItem('prayer_app_verified_sessions');
-        const secondSessions = JSON.parse(secondSessionData!);
-        
-        // Should still be one session
-        expect(secondSessions).toHaveLength(1);
-        // But with a different timestamp
-        expect(secondSessions[0].verifiedAt).toBeGreaterThanOrEqual(firstVerifiedAt);
-      }, 10);
+      vi.setSystemTime(firstSessions[0].verifiedAt + 10);
+      service.saveVerifiedSession(email);
+
+      const secondSessions = JSON.parse(localStorage.getItem('prayer_app_verified_sessions')!);
+      expect(secondSessions).toHaveLength(1);
+      expect(secondSessions[0].verifiedAt).toBeGreaterThanOrEqual(firstVerifiedAt);
+
+      vi.useRealTimers();
     });
 
     it('should handle multiple different emails', () => {
@@ -242,16 +249,8 @@ describe('VerificationService', () => {
 
   describe('refreshStatus', () => {
     it('should call checkIfEnabled', async () => {
-      const fromMock = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ 
-              data: { require_email_verification: true }, 
-              error: null 
-            }))
-          }))
-        }))
-      }));
+      checkIfEnabledSpy.mockRestore();
+      const fromMock = vi.fn(() => createAdminSettingsQuery({ require_email_verification: true }));
 
       Object.defineProperty(supabaseService.client, 'from', {
         value: fromMock,
@@ -264,16 +263,13 @@ describe('VerificationService', () => {
     });
 
     it('should update isEnabled$ when settings change', async () => {
-      const fromMock = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ 
-              data: { require_email_verification: true, verification_code_expiry_minutes: 30 }, 
-              error: null 
-            }))
-          }))
-        }))
-      }));
+      checkIfEnabledSpy.mockRestore();
+      const fromMock = vi.fn(() =>
+        createAdminSettingsQuery({
+          require_email_verification: true,
+          verification_code_expiry_minutes: 30,
+        })
+      );
 
       Object.defineProperty(supabaseService.client, 'from', {
         value: fromMock,
@@ -290,6 +286,7 @@ describe('VerificationService', () => {
     });
 
     it('should handle errors during refresh', async () => {
+      checkIfEnabledSpy.mockRestore();
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
       const fromMock = vi.fn(() => ({
@@ -312,18 +309,12 @@ describe('VerificationService', () => {
     });
 
     it('should handle error response from database', async () => {
+      checkIfEnabledSpy.mockRestore();
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
-      const fromMock = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ 
-              data: null, 
-              error: { message: 'Database error', code: 'PGRST116' }
-            }))
-          }))
-        }))
-      }));
+      const fromMock = vi.fn(() =>
+        createAdminSettingsQuery(null, { message: 'Database error', code: 'PGRST116' })
+      );
 
       Object.defineProperty(supabaseService.client, 'from', {
         value: fromMock,
@@ -597,16 +588,9 @@ describe('VerificationService', () => {
 
   describe('getCodeLength', () => {
     it('should return code length from settings', async () => {
-      const fromMock = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ 
-              data: { verification_code_length: 8 }, 
-              error: null 
-            }))
-          }))
-        }))
-      }));
+      const fromMock = vi.fn(() =>
+        createAdminSettingsQuery({ verification_code_length: 8 })
+      );
 
       Object.defineProperty(supabaseService.client, 'from', {
         value: fromMock,
@@ -618,16 +602,7 @@ describe('VerificationService', () => {
     });
 
     it('should return default length of 6 when no data', async () => {
-      const fromMock = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ 
-              data: null, 
-              error: null 
-            }))
-          }))
-        }))
-      }));
+      const fromMock = vi.fn(() => createAdminSettingsQuery(null));
 
       Object.defineProperty(supabaseService.client, 'from', {
         value: fromMock,
