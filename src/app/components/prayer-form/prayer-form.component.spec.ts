@@ -470,7 +470,7 @@ describe('PrayerFormComponent', () => {
       );
     });
 
-    it('should handle empty name gracefully', async () => {
+    it('should derive requester from email when name is empty', async () => {
       localStorage.removeItem('prayerapp_user_first_name');
       localStorage.removeItem('prayerapp_user_last_name');
       mockUserSessionService.getCurrentSession.mockReturnValue(null);
@@ -484,7 +484,7 @@ describe('PrayerFormComponent', () => {
 
       expect(mockPrayerService.addPrayer).toHaveBeenCalledWith(
         expect.objectContaining({
-          requester: ''
+          requester: 'Test'
         })
       );
     });
