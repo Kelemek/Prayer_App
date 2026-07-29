@@ -6,10 +6,21 @@ import { SupabaseService } from './supabase.service';
 import { BehaviorSubject, firstValueFrom, skip, take } from 'rxjs';
 import { Injector } from '@angular/core';
 
+const TEST_EMAIL = 'test@example.com';
+const TEST_TENANT_ID = '33333333-3333-4333-8333-333333333333';
+
 const defaultTenantContextMock = () => ({
-  getActiveTenant: vi.fn(() => null),
+  getActiveTenant: vi.fn(() => ({
+    id: TEST_TENANT_ID,
+    name: 'Test Tenant',
+    slug: 'test',
+  })),
   getIsSuperAdmin: vi.fn(() => false),
-  activeTenant$: new BehaviorSubject(null)
+  activeTenant$: new BehaviorSubject({
+    id: TEST_TENANT_ID,
+    name: 'Test Tenant',
+    slug: 'test',
+  })
 });
 
 const createBadgeInjector = (
@@ -27,6 +38,34 @@ const createBadgeInjector = (
   })
 });
 
+const scopedBadgeKey = (tenantId = TEST_TENANT_ID, email = TEST_EMAIL) =>
+  `badge_read:${tenantId}:${email}`;
+
+const seedScopedReadState = (
+  state: {
+    prayers?: string[];
+    prayerUpdates?: string[];
+    prompts?: string[];
+    promptUpdates?: string[];
+  },
+  service?: BadgeService
+) => {
+  localStorage.setItem(
+    scopedBadgeKey(),
+    JSON.stringify({
+      prayers: state.prayers ?? [],
+      prayerUpdates: state.prayerUpdates ?? state['updates' as never] ?? [],
+      prompts: state.prompts ?? [],
+      promptUpdates: state.promptUpdates ?? [],
+    })
+  );
+  if (service) {
+    (service as any).currentUserEmail = TEST_EMAIL;
+    (service as any).applyLocalCacheToMemory();
+  }
+};
+
+
 describe('BadgeService', () => {
   let service: BadgeService;
   let mockUserSessionService: any;
@@ -41,17 +80,26 @@ describe('BadgeService', () => {
     // Mock UserSessionService
     mockUserSessionService = {
       userSession$: new BehaviorSubject({
-        email: 'test@example.com',
+        email: TEST_EMAIL,
         fullName: 'Test User',
         isActive: true,
         badgeFunctionalityEnabled: true
-      })
+      }),
+      getUserEmail: vi.fn(() => TEST_EMAIL)
     };
 
     mockTenantContextService = {
-      getActiveTenant: vi.fn(() => null),
+      getActiveTenant: vi.fn(() => ({
+        id: '33333333-3333-4333-8333-333333333333',
+        name: 'Test Tenant',
+        slug: 'test',
+      })),
       getIsSuperAdmin: vi.fn(() => false),
-      activeTenant$: new BehaviorSubject(null)
+      activeTenant$: new BehaviorSubject({
+        id: '33333333-3333-4333-8333-333333333333',
+        name: 'Test Tenant',
+        slug: 'test',
+      })
     };
 
     // Mock SupabaseService
@@ -60,10 +108,19 @@ describe('BadgeService', () => {
         auth: {
           onAuthStateChange: vi.fn((callback) => {
             // Simulate immediate signed-in state
-            callback('SIGNED_IN', { user: { email: 'test@example.com' } });
+            callback('SIGNED_IN', { user: { email: TEST_EMAIL } });
             return { data: { subscription: { unsubscribe: vi.fn() } } };
           })
-        }
+        },
+        rpc: vi.fn(async (fn: string) => {
+          if (fn === 'get_badge_read_receipts') {
+            return { data: [], error: null };
+          }
+          if (fn === 'upsert_badge_read_receipts') {
+            return { data: 0, error: null };
+          }
+          return { data: null, error: null };
+        })
       }
     };
 
@@ -72,6 +129,7 @@ describe('BadgeService', () => {
 
     // Create service with mocked dependencies
     service = new BadgeService(mockSupabaseService, mockInjector);
+    (service as any).currentUserEmail = TEST_EMAIL;
   });
 
   afterEach(() => {
@@ -126,7 +184,7 @@ describe('BadgeService', () => {
   describe('markPrayerAsRead', () => {
     beforeEach(() => {
       // Set up some prayers in cache
-      localStorage.setItem('prayers_cache', JSON.stringify({
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({
         data: [
           { id: 'prayer-1', status: 'current', updated_at: '2024-01-01' },
           { id: 'prayer-2', status: 'answered', updated_at: '2024-01-01' }
@@ -137,7 +195,8 @@ describe('BadgeService', () => {
     it('should mark prayer as read and add to read list', () => {
       service.markPrayerAsRead('prayer-1');
 
-      const readData = JSON.parse(localStorage.getItem('read_prayers_data') || '{}');
+      expect(service.isPrayerUnread('prayer-1')).toBe(false);
+      const readData = JSON.parse(localStorage.getItem(scopedBadgeKey()) || '{}');
       expect(readData.prayers).toContain('prayer-1');
     });
 
@@ -145,7 +204,7 @@ describe('BadgeService', () => {
       service.markPrayerAsRead('prayer-1');
       service.markPrayerAsRead('prayer-1');
 
-      const readData = JSON.parse(localStorage.getItem('read_prayers_data') || '{}');
+      const readData = JSON.parse(localStorage.getItem(scopedBadgeKey()) || '{}');
       const count = readData.prayers.filter((id: string) => id === 'prayer-1').length;
       expect(count).toBe(1);
     });
@@ -159,10 +218,136 @@ describe('BadgeService', () => {
     });
   });
 
+  describe('database sync', () => {
+    const prayerUuid = '11111111-1111-4111-8111-111111111111';
+    const tenantId = '22222222-2222-4222-8222-222222222222';
+
+    beforeEach(() => {
+      mockTenantContextService.getActiveTenant.mockReturnValue({
+        id: tenantId,
+        name: 'Test',
+        slug: 'test',
+      });
+      localStorage.setItem(
+        `tenant_${tenantId}_prayers`,
+        JSON.stringify({
+          data: [{ id: prayerUuid, status: 'current', updated_at: '2024-01-01' }],
+        })
+      );
+    });
+
+    it('should upsert UUID receipts when marking a prayer read', async () => {
+      service.markPrayerAsRead(prayerUuid);
+      await Promise.resolve();
+      await (service as any).syncInFlight;
+
+      expect(mockSupabaseService.client.rpc).toHaveBeenCalledWith(
+        'upsert_badge_read_receipts',
+        expect.objectContaining({
+          p_tenant_id: tenantId,
+          p_user_email: TEST_EMAIL,
+          p_item_kinds: expect.arrayContaining(['prayer']),
+          p_item_ids: expect.arrayContaining([prayerUuid]),
+        })
+      );
+    });
+
+    it('should load receipts from the database into memory', async () => {
+      mockSupabaseService.client.rpc.mockImplementation(async (fn: string) => {
+        if (fn === 'get_badge_read_receipts') {
+          return {
+            data: [{ item_kind: 'prayer', item_id: prayerUuid }],
+            error: null,
+          };
+        }
+        return { data: [], error: null };
+      });
+
+      await (service as any).loadReceiptsFromDatabase();
+
+      expect(service.isPrayerUnread(prayerUuid)).toBe(false);
+      const scoped = JSON.parse(
+        localStorage.getItem(scopedBadgeKey(tenantId)) || '{}'
+      );
+      expect(scoped.prayers).toContain(prayerUuid);
+    });
+
+    it('should skip non-UUID ids when upserting to the database', async () => {
+      mockSupabaseService.client.rpc.mockClear();
+      service.markPrayerAsRead('not-a-uuid');
+      await Promise.resolve();
+      await (service as any).syncInFlight;
+
+      const upsertCalls = mockSupabaseService.client.rpc.mock.calls.filter(
+        (c: any[]) => c[0] === 'upsert_badge_read_receipts'
+      );
+      expect(upsertCalls).toHaveLength(0);
+      expect(service.isPrayerUnread('not-a-uuid')).toBe(false);
+    });
+
+    it('should defer legacy migration until a tenant is available', async () => {
+      mockTenantContextService.getActiveTenant.mockReturnValue(null);
+      localStorage.setItem('read_prayers', JSON.stringify(['prayer-legacy']));
+
+      await (service as any).migrateLegacyLocalStorageIfNeeded();
+
+      expect(localStorage.getItem('read_prayers')).toBeTruthy();
+      expect(service.isPrayerUnread('prayer-legacy')).toBe(true);
+
+      mockTenantContextService.getActiveTenant.mockReturnValue({
+        id: tenantId,
+        name: 'Test',
+        slug: 'test',
+      });
+      await (service as any).migrateLegacyLocalStorageIfNeeded();
+
+      expect(localStorage.getItem('read_prayers')).toBeNull();
+      expect(service.isPrayerUnread('prayer-legacy')).toBe(false);
+    });
+
+    it('should merge orphan _none_ cache into tenant-scoped key', async () => {
+      localStorage.setItem(
+        `badge_read:_none_:${TEST_EMAIL}`,
+        JSON.stringify({
+          prayers: [prayerUuid],
+          prayerUpdates: [],
+          prompts: [],
+          promptUpdates: [],
+        })
+      );
+
+      await (service as any).migrateLegacyLocalStorageIfNeeded();
+
+      expect(localStorage.getItem(`badge_read:_none_:${TEST_EMAIL}`)).toBeNull();
+      expect(service.isPrayerUnread(prayerUuid)).toBe(false);
+      const scoped = JSON.parse(
+        localStorage.getItem(scopedBadgeKey(tenantId)) || '{}'
+      );
+      expect(scoped.prayers).toContain(prayerUuid);
+    });
+
+    it('should seed mark-all when caches load after enable', () => {
+      localStorage.removeItem(`tenant_${tenantId}_prayers`);
+      service.markAllCachedItemsAsRead();
+      expect((service as any).pendingSeedAllAsRead).toBe(true);
+
+      localStorage.setItem(
+        `tenant_${tenantId}_prayers`,
+        JSON.stringify({
+          data: [{ id: prayerUuid, status: 'current', updated_at: '2024-01-01' }],
+        })
+      );
+      service.refreshBadgeCounts();
+
+      expect(service.isPrayerUnread(prayerUuid)).toBe(false);
+      expect((service as any).pendingSeedAllAsRead).toBe(false);
+    });
+  });
+
   describe('markPromptAsRead', () => {
     beforeEach(() => {
       // Set up some prompts in cache
-      localStorage.setItem('prompts_cache', JSON.stringify({
+      localStorage.setItem(`prompts:${TEST_TENANT_ID}`, JSON.stringify({
         data: [
           { id: 'prompt-1', updated_at: '2024-01-01' },
           { id: 'prompt-2', updated_at: '2024-01-01' }
@@ -173,7 +358,8 @@ describe('BadgeService', () => {
     it('should mark prompt as read', () => {
       service.markPromptAsRead('prompt-1');
 
-      const readData = JSON.parse(localStorage.getItem('read_prompts_data') || '{}');
+      expect(service.isPromptUnread('prompt-1')).toBe(false);
+      const readData = JSON.parse(localStorage.getItem(scopedBadgeKey()) || '{}');
       expect(readData.prompts).toContain('prompt-1');
     });
 
@@ -193,7 +379,7 @@ describe('BadgeService', () => {
     });
 
     it('should return false for read prayer', () => {
-      localStorage.setItem('read_prayers_data', JSON.stringify({ prayers: ['prayer-1'] }));
+      seedScopedReadState({ prayers: ['prayer-1'] }, service);
       expect(service.isPrayerUnread('prayer-1')).toBe(false);
     });
 
@@ -210,24 +396,21 @@ describe('BadgeService', () => {
     });
 
     it('should return false for read prompt', () => {
-      localStorage.setItem('read_prompts_data', JSON.stringify({ prompts: ['prompt-1'] }));
+      seedScopedReadState({ prompts: ['prompt-1'] }, service);
       expect(service.isPromptUnread('prompt-1')).toBe(false);
     });
   });
 
   describe('getBadgeCount$', () => {
     beforeEach(() => {
-      localStorage.setItem('prayers_cache', JSON.stringify({
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({
         data: [
           { id: 'prayer-1', status: 'current', updated_at: '2024-01-01' },
           { id: 'prayer-2', status: 'current', updated_at: '2024-01-01' },
           { id: 'prayer-3', status: 'answered', updated_at: '2024-01-01' }
         ]
       }));
-      localStorage.setItem('read_prayers_data', JSON.stringify({
-        prayers: ['prayer-1'],
-        updates: []
-      }));
+      seedScopedReadState({ prayers: ['prayer-1'], prayerUpdates: [] }, service);
     });
 
     it('should return observable with badge count for prayers', async () => {
@@ -237,10 +420,10 @@ describe('BadgeService', () => {
     });
 
     it('should return 0 when all items are read', async () => {
-      localStorage.setItem('read_prayers_data', JSON.stringify({
+      seedScopedReadState({
         prayers: ['prayer-1', 'prayer-2', 'prayer-3'],
-        updates: []
-      }));
+        prayerUpdates: []
+      }, service);
 
       const count = await firstValueFrom(service.getBadgeCount$('prayers'));
       expect(count).toBe(0);
@@ -249,7 +432,7 @@ describe('BadgeService', () => {
 
   describe('refreshBadgeCounts', () => {
     beforeEach(() => {
-      localStorage.setItem('prayers_cache', JSON.stringify({
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({
         data: [
           { id: 'prayer-1', status: 'current', updated_at: '2024-01-01' }
         ]
@@ -285,22 +468,21 @@ describe('BadgeService', () => {
 
   describe('markAllAsRead', () => {
     beforeEach(() => {
-      localStorage.setItem('prayers_cache', JSON.stringify({
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({
         data: [
           { id: 'prayer-1', status: 'current', updated_at: '2024-01-01', updates: [] },
           { id: 'prayer-2', status: 'current', updated_at: '2024-01-01', updates: [] }
         ]
       }));
-      localStorage.setItem('read_prayers_data', JSON.stringify({
-        prayers: [],
-        updates: []
-      }));
+      seedScopedReadState({ prayers: [], prayerUpdates: [] }, service);
     });
 
     it('should mark all items of type as read', () => {
       service.markAllAsRead('prayers');
 
-      const readData = JSON.parse(localStorage.getItem('read_prayers_data') || '{}');
+      expect(service.isPrayerUnread('prayer-1')).toBe(false);
+      expect(service.isPrayerUnread('prayer-2')).toBe(false);
+      const readData = JSON.parse(localStorage.getItem(scopedBadgeKey()) || '{}');
       expect(readData.prayers).toContain('prayer-1');
       expect(readData.prayers).toContain('prayer-2');
     });
@@ -316,38 +498,35 @@ describe('BadgeService', () => {
 
   describe('markAllAsReadByStatus and unread helpers', () => {
     beforeEach(() => {
-      localStorage.setItem('prayers_cache', JSON.stringify({
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({
         data: [
           { id: 'prayer-1', status: 'current', updated_at: '2024-01-01', updates: [{ id: 'u1', created_at: '2024-01-01' }] },
           { id: 'prayer-2', status: 'answered', updated_at: '2024-01-01', updates: [{ id: 'u2', created_at: '2024-01-01' }] },
           { id: 'prayer-3', status: 'current', updated_at: '2024-01-01', updates: [] }
         ]
       }));
-      localStorage.setItem('prompts_cache', JSON.stringify({
+      localStorage.setItem(`prompts:${TEST_TENANT_ID}`, JSON.stringify({
         data: [
           { id: 'prompt-1', status: 'current', updated_at: '2024-01-01', updates: [] },
           { id: 'prompt-2', status: 'answered', updated_at: '2024-01-01', updates: [{ id: 'pu1', created_at: '2024-01-01' }] }
         ]
       }));
-      localStorage.setItem('read_prayers_data', JSON.stringify({ prayers: ['prayer-3'], updates: [] }));
-      localStorage.setItem('read_prompts_data', JSON.stringify({ prompts: [], updates: [] }));
+      seedScopedReadState({ prayers: ['prayer-3'], prayerUpdates: [], prompts: [], promptUpdates: [] }, service);
     });
 
     it('should mark only prayers with the requested status as read', () => {
       service.markAllAsReadByStatus('prayers', 'current');
 
-      const readData = JSON.parse(localStorage.getItem('read_prayers_data') || '{}');
-      expect(readData.prayers).toContain('prayer-1');
-      expect(readData.prayers).not.toContain('prayer-2');
-      expect(readData.prayers).toContain('prayer-3');
+      expect(service.isPrayerUnread('prayer-1')).toBe(false);
+      expect(service.isPrayerUnread('prayer-2')).toBe(true);
+      expect(service.isPrayerUnread('prayer-3')).toBe(false);
     });
 
     it('should mark only prompts with the requested status as read', () => {
       service.markAllAsReadByStatus('prompts', 'answered');
 
-      const readData = JSON.parse(localStorage.getItem('read_prompts_data') || '{}');
-      expect(readData.prompts).toContain('prompt-2');
-      expect(readData.prompts).not.toContain('prompt-1');
+      expect(service.isPromptUnread('prompt-2')).toBe(false);
+      expect(service.isPromptUnread('prompt-1')).toBe(true);
     });
 
     it('should return unread ids for prayers and prompts', () => {
@@ -364,23 +543,23 @@ describe('BadgeService', () => {
     });
 
     it('should return false for missing or malformed cached items in checkIndividualBadge', () => {
-      localStorage.setItem('prayers_cache', JSON.stringify({ data: [{ id: 'prayer-1', status: 'current' }] }));
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({ data: [{ id: 'prayer-1', status: 'current' }] }));
       expect(service.checkIndividualBadge('prayers', 'missing')).toBe(false);
 
-      localStorage.setItem('prayers_cache', 'not-json');
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, 'not-json');
       expect(service.checkIndividualBadge('prayers', 'prayer-1')).toBe(false);
     });
 
     it('should return empty unread ids for malformed cache data', () => {
-      localStorage.setItem('prayers_cache', JSON.stringify({ data: { bad: true } }));
-      localStorage.setItem('prompts_cache', JSON.stringify({ data: { bad: true } }));
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({ data: { bad: true } }));
+      localStorage.setItem(`prompts:${TEST_TENANT_ID}`, JSON.stringify({ data: { bad: true } }));
 
       expect(service.getUnreadIds('prayers')).toEqual([]);
       expect(service.getUnreadIds('prompts')).toEqual([]);
     });
 
     it('should warn when markAllUpdatesAsRead fails', () => {
-      localStorage.setItem('prayers_cache', JSON.stringify({
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({
         data: [{ id: 'prayer-1', updates: [{ id: 'u1' }] }]
       }));
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -388,8 +567,8 @@ describe('BadgeService', () => {
         throw new Error('read failed');
       });
 
-      (service as any).markAllUpdatesAsRead([{ id: 'prayer-1', updates: [{ id: 'u1' }] }], 'prayers');
-
+      // collectUpdateIds is used by mark-all paths; force a storage failure path
+      expect(() => service.markAllAsRead('prayers')).not.toThrow();
       expect(warnSpy).toHaveBeenCalled();
       expect(getSpy).toHaveBeenCalled();
       warnSpy.mockRestore();
@@ -409,7 +588,7 @@ describe('BadgeService', () => {
 
   describe('storage listener', () => {
     it('should handle storage events', () => {
-      localStorage.setItem('prayers_cache', JSON.stringify({
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({
         data: [{ id: 'prayer-1', status: 'current', updated_at: '2024-01-01' }]
       }));
 
@@ -461,6 +640,7 @@ describe('BadgeService', () => {
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
     afterEach(() => {
@@ -548,6 +728,7 @@ describe('BadgeService', () => {
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
     it('should calculate unread count for new items', () => {
@@ -648,6 +829,7 @@ describe('BadgeService', () => {
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
     afterEach(() => {
@@ -726,6 +908,7 @@ describe('BadgeService', () => {
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
     it('should detect new updates for item', () => {
@@ -803,6 +986,7 @@ describe('BadgeService', () => {
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
     it('should expose badge count as observable', () => {
@@ -846,6 +1030,7 @@ describe('BadgeService', () => {
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
     it('should handle missing badge type gracefully', () => {
@@ -910,6 +1095,7 @@ describe('BadgeService', () => {
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
     afterEach(() => {
@@ -1347,6 +1533,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
     it('should return observable for individual prayer badge', () => {
@@ -1398,6 +1585,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
     it('should return empty array when no cached prayers exist', () => {
@@ -1413,10 +1601,10 @@ describe('BadgeService - Additional Coverage Tests', () => {
     });
 
     it('should mark item updates as read for prayers and prompts', () => {
-      localStorage.setItem('prayers_cache', JSON.stringify({
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({
         data: [{ id: 'prayer-1', status: 'current', updates: [{ id: 'u1' }, { id: 'u2' }] }]
       }));
-      localStorage.setItem('prompts_cache', JSON.stringify({
+      localStorage.setItem(`prompts:${TEST_TENANT_ID}`, JSON.stringify({
         data: [{ id: 'prompt-1', status: 'current', updates: [{ id: 'pu1' }, { id: 'pu2' }] }]
       }));
 
@@ -1427,13 +1615,14 @@ describe('BadgeService - Additional Coverage Tests', () => {
       expect(service.getUnreadIds('prompts')).toEqual(['prompt-1']);
     });
 
-    it('should warn when read prayers data cannot be written', () => {
+    it('should warn when scoped read cache cannot be written', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const setItemSpy = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
         throw new Error('write failed');
       });
 
-      (service as any).setReadPrayersData({ prayers: ['prayer-1'], updates: ['u1'] });
+      (service as any).currentUserEmail = TEST_EMAIL;
+      (service as any).persistReadStateLocally();
 
       expect(warnSpy).toHaveBeenCalled();
       expect(setItemSpy).toHaveBeenCalled();
@@ -1441,13 +1630,14 @@ describe('BadgeService - Additional Coverage Tests', () => {
       setItemSpy.mockRestore();
     });
 
-    it('should warn when read prompts data cannot be written', () => {
+    it('should warn when scoped read cache cannot be written for prompts path', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const setItemSpy = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
         throw new Error('write failed');
       });
 
-      (service as any).setReadPromptsData({ prompts: ['prompt-1'], updates: ['pu1'] });
+      (service as any).currentUserEmail = TEST_EMAIL;
+      service.markPromptAsRead('prompt-1');
 
       expect(warnSpy).toHaveBeenCalled();
       expect(setItemSpy).toHaveBeenCalled();
@@ -1461,7 +1651,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
         { id: 'prayer-2', updated_at: '2024-01-02' },
         { id: 'prayer-3', updated_at: '2024-01-03' }
       ];
-      localStorage.setItem('prayers_cache', JSON.stringify({ data: cachedPrayers }));
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({ data: cachedPrayers }));
 
       const unreadIds = service.getUnreadIds('prayers');
       expect(unreadIds.length).toBe(3);
@@ -1476,7 +1666,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
         { id: 'prayer-2', updated_at: '2024-01-02' },
         { id: 'prayer-3', updated_at: '2024-01-03' }
       ];
-      localStorage.setItem('prayers_cache', JSON.stringify({ data: cachedPrayers }));
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({ data: cachedPrayers }));
 
       service.markPrayerAsRead('prayer-1');
       service.markPrayerAsRead('prayer-2');
@@ -1491,14 +1681,14 @@ describe('BadgeService - Additional Coverage Tests', () => {
         { id: 'prompt-1', updated_at: '2024-01-01' },
         { id: 'prompt-2', updated_at: '2024-01-02' }
       ];
-      localStorage.setItem('prompts_cache', JSON.stringify({ data: cachedPrompts }));
+      localStorage.setItem(`prompts:${TEST_TENANT_ID}`, JSON.stringify({ data: cachedPrompts }));
 
       const unreadIds = service.getUnreadIds('prompts');
       expect(unreadIds.length).toBe(2);
     });
 
     it('should handle invalid JSON in cache gracefully', () => {
-      localStorage.setItem('prayers_cache', 'invalid-json');
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, 'invalid-json');
       const unreadIds = service.getUnreadIds('prayers');
       expect(Array.isArray(unreadIds)).toBe(true);
       expect(unreadIds.length).toBe(0);
@@ -1508,7 +1698,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
       const cachedPrayers = [
         { id: 'prayer-1', updated_at: '2024-01-01' }
       ];
-      localStorage.setItem('prayers_cache', JSON.stringify(cachedPrayers));
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify(cachedPrayers));
 
       const unreadIds = service.getUnreadIds('prayers');
       expect(Array.isArray(unreadIds)).toBe(true);
@@ -1516,7 +1706,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
     });
 
     it('should handle non-array cache gracefully', () => {
-      localStorage.setItem('prayers_cache', JSON.stringify({ notArray: true }));
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({ notArray: true }));
       const unreadIds = service.getUnreadIds('prayers');
       expect(Array.isArray(unreadIds)).toBe(true);
       expect(unreadIds.length).toBe(0);
@@ -1525,83 +1715,101 @@ describe('BadgeService - Additional Coverage Tests', () => {
 
   describe('Data Migration', () => {
     let service: BadgeService;
+    let mockRpc: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
       localStorage.clear();
-      const mockSupabaseService = { client: {} };
+      mockRpc = vi.fn(async (fn: string) => {
+        if (fn === 'get_badge_read_receipts') return { data: [], error: null };
+        if (fn === 'upsert_badge_read_receipts') return { data: 0, error: null };
+        return { data: null, error: null };
+      });
+      const mockSupabaseService = { client: { rpc: mockRpc } };
       const mockUserSessionService = {
-        userSession$: {
-          pipe: vi.fn().mockReturnValue({
-            subscribe: vi.fn().mockReturnValue({ unsubscribe: vi.fn() })
-          })
-        }
+        userSession$: new BehaviorSubject({
+          email: TEST_EMAIL,
+          fullName: 'Test User',
+          isActive: true,
+          badgeFunctionalityEnabled: true
+        }),
+        getUserEmail: vi.fn(() => TEST_EMAIL)
       };
-      const mockInjector = createBadgeInjector(mockUserSessionService);
+      const mockTenant = {
+        getActiveTenant: vi.fn(() => ({ id: TEST_TENANT_ID, name: 'T', slug: 't' })),
+        getIsSuperAdmin: vi.fn(() => false),
+        activeTenant$: new BehaviorSubject({ id: TEST_TENANT_ID, name: 'T', slug: 't' })
+      };
+      const mockInjector = createBadgeInjector(mockUserSessionService, mockTenant);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
-    it('should migrate old prayers data to new format', () => {
-      // Set old data
+    it('should migrate old prayers data to scoped cache', async () => {
       localStorage.setItem('read_prayers', JSON.stringify(['prayer-1', 'prayer-2']));
       localStorage.setItem('read_prayer_updates', JSON.stringify(['update-1']));
 
-      // Access read prayers data (triggers migration)
-      const readData = (service as any).getReadPrayersData();
+      await (service as any).migrateLegacyLocalStorageIfNeeded();
 
-      expect(readData.prayers).toContain('prayer-1');
-      expect(readData.prayers).toContain('prayer-2');
-      expect(readData.updates).toContain('update-1');
-
-      // Old keys should be cleaned up
+      expect(service.isPrayerUnread('prayer-1')).toBe(false);
+      expect(service.isPrayerUnread('prayer-2')).toBe(false);
+      const scoped = JSON.parse(localStorage.getItem(scopedBadgeKey()) || '{}');
+      expect(scoped.prayerUpdates).toContain('update-1');
       expect(localStorage.getItem('read_prayers')).toBeNull();
       expect(localStorage.getItem('read_prayer_updates')).toBeNull();
     });
 
-    it('should migrate old prompts data to new format', () => {
-      // Set old data
+    it('should migrate old prompts data to scoped cache', async () => {
       localStorage.setItem('read_prompts', JSON.stringify(['prompt-1', 'prompt-2']));
       localStorage.setItem('read_prompt_updates', JSON.stringify(['update-1']));
 
-      // Access read prompts data (triggers migration)
-      const readData = (service as any).getReadPromptsData();
+      await (service as any).migrateLegacyLocalStorageIfNeeded();
 
-      expect(readData.prompts).toContain('prompt-1');
-      expect(readData.prompts).toContain('prompt-2');
-      expect(readData.updates).toContain('update-1');
-
-      // Old keys should be cleaned up
+      expect(service.isPromptUnread('prompt-1')).toBe(false);
+      expect(service.isPromptUnread('prompt-2')).toBe(false);
+      const scoped = JSON.parse(localStorage.getItem(scopedBadgeKey()) || '{}');
+      expect(scoped.promptUpdates).toContain('update-1');
       expect(localStorage.getItem('read_prompts')).toBeNull();
       expect(localStorage.getItem('read_prompt_updates')).toBeNull();
     });
 
-    it('should handle missing old prayers data', () => {
-      const readData = (service as any).getReadPrayersData();
-      expect(readData.prayers).toBeDefined();
-      expect(Array.isArray(readData.prayers)).toBe(true);
+    it('should migrate legacy read_prayers_data key', async () => {
+      localStorage.setItem('read_prayers_data', JSON.stringify({
+        prayers: ['prayer-9'],
+        updates: ['update-9']
+      }));
+
+      await (service as any).migrateLegacyLocalStorageIfNeeded();
+
+      expect(service.isPrayerUnread('prayer-9')).toBe(false);
+      expect(localStorage.getItem('read_prayers_data')).toBeNull();
     });
 
-    it('should handle missing old prompts data', () => {
-      const readData = (service as any).getReadPromptsData();
-      expect(readData.prompts).toBeDefined();
-      expect(Array.isArray(readData.prompts)).toBe(true);
+    it('should handle missing old prayers data', async () => {
+      await (service as any).migrateLegacyLocalStorageIfNeeded();
+      expect(service.isPrayerUnread('prayer-1')).toBe(true);
     });
 
-    it('should handle corrupted JSON in old prayers migration', () => {
+    it('should handle missing old prompts data', async () => {
+      await (service as any).migrateLegacyLocalStorageIfNeeded();
+      expect(service.isPromptUnread('prompt-1')).toBe(true);
+    });
+
+    it('should handle corrupted JSON in old prayers migration', async () => {
       localStorage.setItem('read_prayers', 'invalid-json');
-      const readData = (service as any).getReadPrayersData();
-      expect(readData.prayers).toEqual([]);
+      await (service as any).migrateLegacyLocalStorageIfNeeded();
+      expect(service.isPrayerUnread('prayer-1')).toBe(true);
     });
 
-    it('should handle corrupted JSON in old prompts migration', () => {
+    it('should handle corrupted JSON in old prompts migration', async () => {
       localStorage.setItem('read_prompts', 'invalid-json');
-      const readData = (service as any).getReadPromptsData();
-      expect(readData.prompts).toEqual([]);
+      await (service as any).migrateLegacyLocalStorageIfNeeded();
+      expect(service.isPromptUnread('prompt-1')).toBe(true);
     });
 
-    it('should preserve non-array old data as empty arrays', () => {
+    it('should preserve non-array old data as empty arrays', async () => {
       localStorage.setItem('read_prayers', JSON.stringify({ not: 'array' }));
-      const readData = (service as any).getReadPrayersData();
-      expect(readData.prayers).toEqual([]);
+      await (service as any).migrateLegacyLocalStorageIfNeeded();
+      expect(service.isPrayerUnread('prayer-1')).toBe(true);
     });
   });
 
@@ -1610,29 +1818,41 @@ describe('BadgeService - Additional Coverage Tests', () => {
 
     beforeEach(() => {
       localStorage.clear();
-      const mockSupabaseService = { client: {} };
-      const mockUserSessionService = {
-        userSession$: {
-          pipe: vi.fn().mockReturnValue({
-            subscribe: vi.fn().mockReturnValue({ unsubscribe: vi.fn() })
-          })
+      const mockSupabaseService = {
+        client: {
+          rpc: vi.fn(async () => ({ data: [], error: null }))
         }
       };
-      const mockInjector = createBadgeInjector(mockUserSessionService);
+      const mockUserSessionService = {
+        userSession$: new BehaviorSubject({
+          email: TEST_EMAIL,
+          fullName: 'Test',
+          isActive: true,
+          badgeFunctionalityEnabled: true
+        }),
+        getUserEmail: vi.fn(() => TEST_EMAIL)
+      };
+      const mockTenant = {
+        getActiveTenant: vi.fn(() => ({ id: TEST_TENANT_ID, name: 'T', slug: 't' })),
+        getIsSuperAdmin: vi.fn(() => false),
+        activeTenant$: new BehaviorSubject({ id: TEST_TENANT_ID, name: 'T', slug: 't' })
+      };
+      const mockInjector = createBadgeInjector(mockUserSessionService, mockTenant);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
-    it('should persist read prayer data to localStorage', () => {
+    it('should persist read prayer data to scoped localStorage', () => {
       service.markPrayerAsRead('prayer-1');
-      const stored = localStorage.getItem('read_prayers_data');
+      const stored = localStorage.getItem(scopedBadgeKey());
       expect(stored).toBeTruthy();
       const parsed = JSON.parse(stored!);
       expect(parsed.prayers).toContain('prayer-1');
     });
 
-    it('should persist read prompt data to localStorage', () => {
+    it('should persist read prompt data to scoped localStorage', () => {
       service.markPromptAsRead('prompt-1');
-      const stored = localStorage.getItem('read_prompts_data');
+      const stored = localStorage.getItem(scopedBadgeKey());
       expect(stored).toBeTruthy();
       const parsed = JSON.parse(stored!);
       expect(parsed.prompts).toContain('prompt-1');
@@ -1676,6 +1896,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
     it('should expose badge functionality enabled observable', () => {
@@ -1713,6 +1934,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
     it('should expose update badges changed observable', () => {
@@ -1750,6 +1972,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
     it('should get badge count for current status', () => {
@@ -1762,7 +1985,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
         { id: 'prayer-1', updated_at: '2024-01-01' },
         { id: 'prayer-2', updated_at: '2024-01-02' }
       ];
-      localStorage.setItem('prayers_cache', JSON.stringify({ data: cachedPrayers }));
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({ data: cachedPrayers }));
 
       service.markAllAsRead('prayers');
       
@@ -1776,7 +1999,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
         { id: 'prompt-1', updated_at: '2024-01-01' },
         { id: 'prompt-2', updated_at: '2024-01-02' }
       ];
-      localStorage.setItem('prompts_cache', JSON.stringify({ data: cachedPrompts }));
+      localStorage.setItem(`prompts:${TEST_TENANT_ID}`, JSON.stringify({ data: cachedPrompts }));
 
       service.markAllAsRead('prompts');
       
@@ -1791,7 +2014,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
         { id: 'prayer-2', status: 'answered', updated_at: '2024-01-02' },
         { id: 'prayer-3', status: 'current', updated_at: '2024-01-03' }
       ];
-      localStorage.setItem('prayers_cache', JSON.stringify({ data: cachedPrayers }));
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({ data: cachedPrayers }));
 
       service.markAllAsReadByStatus('prayers', 'current');
       
@@ -1805,7 +2028,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
         { id: 'prompt-1', status: 'current', updated_at: '2024-01-01' },
         { id: 'prompt-2', status: 'answered', updated_at: '2024-01-02' }
       ];
-      localStorage.setItem('prompts_cache', JSON.stringify({ data: cachedPrompts }));
+      localStorage.setItem(`prompts:${TEST_TENANT_ID}`, JSON.stringify({ data: cachedPrompts }));
 
       service.markAllAsReadByStatus('prompts', 'answered');
       
@@ -1826,16 +2049,28 @@ describe('BadgeService - Additional Coverage Tests', () => {
 
     beforeEach(() => {
       localStorage.clear();
-      const mockSupabaseService = { client: {} };
-      const mockUserSessionService = {
-        userSession$: {
-          pipe: vi.fn().mockReturnValue({
-            subscribe: vi.fn().mockReturnValue({ unsubscribe: vi.fn() })
-          })
+      const mockSupabaseService = {
+        client: {
+          rpc: vi.fn(async () => ({ data: [], error: null }))
         }
       };
-      const mockInjector = createBadgeInjector(mockUserSessionService);
+      const mockUserSessionService = {
+        userSession$: new BehaviorSubject({
+          email: TEST_EMAIL,
+          fullName: 'Test',
+          isActive: true,
+          badgeFunctionalityEnabled: true
+        }),
+        getUserEmail: vi.fn(() => TEST_EMAIL)
+      };
+      const mockTenant = {
+        getActiveTenant: vi.fn(() => ({ id: TEST_TENANT_ID, name: 'T', slug: 't' })),
+        getIsSuperAdmin: vi.fn(() => false),
+        activeTenant$: new BehaviorSubject({ id: TEST_TENANT_ID, name: 'T', slug: 't' })
+      };
+      const mockInjector = createBadgeInjector(mockUserSessionService, mockTenant);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
     it('should check if update is unread', () => {
@@ -1848,7 +2083,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
         id: 'prayer-1',
         updates: [{ id: 'update-1', created_at: '2024-01-01' }]
       };
-      localStorage.setItem('prayers_cache', JSON.stringify({ data: [cachedPrayer] }));
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({ data: [cachedPrayer] }));
 
       service.markUpdateAsRead('update-1', 'prayer-1', 'prayers');
       expect(service.isUpdateUnread('update-1')).toBe(false);
@@ -1863,7 +2098,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
           { id: 'update-3', created_at: '2024-01-03' }
         ]
       };
-      localStorage.setItem('prayers_cache', JSON.stringify({ data: [cachedPrayer] }));
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({ data: [cachedPrayer] }));
 
       service.markUpdateAsRead('update-1', 'prayer-1', 'prayers');
       service.markUpdateAsRead('update-2', 'prayer-1', 'prayers');
@@ -1876,11 +2111,11 @@ describe('BadgeService - Additional Coverage Tests', () => {
         id: 'prompt-1',
         updates: [{ id: 'update-1', created_at: '2024-01-01' }]
       };
-      localStorage.setItem('prompts_cache', JSON.stringify({ data: [cachedPrompt] }));
+      localStorage.setItem(`prompts:${TEST_TENANT_ID}`, JSON.stringify({ data: [cachedPrompt] }));
 
       service.markUpdateAsRead('update-1', 'prompt-1', 'prompts');
       // Update tracking works but may not immediately reflect in isUpdateUnread
-      expect(localStorage.getItem('read_prompts_data')).toBeTruthy();
+      expect(localStorage.getItem(scopedBadgeKey())).toBeTruthy();
     });
 
     it('should handle marking non-existent updates as read', () => {
@@ -1903,6 +2138,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
     it('should check if prayer is unread', () => {
@@ -1957,6 +2193,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
       service = new BadgeService(mockSupabaseService as any, mockInjector as any);
+      (service as any).currentUserEmail = TEST_EMAIL;
     });
 
     it('should refresh badge counts', () => {
@@ -1964,11 +2201,11 @@ describe('BadgeService - Additional Coverage Tests', () => {
         { id: 'prayer-1', updated_at: '2024-01-01' },
         { id: 'prayer-2', updated_at: '2024-01-02' }
       ];
-      localStorage.setItem('prayers_cache', JSON.stringify({ data: cachedPrayers }));
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({ data: cachedPrayers }));
 
       service.refreshBadgeCounts();
       // Should not throw and cache should still be available
-      expect(localStorage.getItem('prayers_cache')).toBeTruthy();
+      expect(localStorage.getItem(`tenant_${TEST_TENANT_ID}_prayers`)).toBeTruthy();
     });
 
     it('should refresh badge counts with empty cache', () => {
@@ -1978,12 +2215,12 @@ describe('BadgeService - Additional Coverage Tests', () => {
     it('should handle refresh with mixed prayer and prompt caches', () => {
       const cachedPrayers = [{ id: 'prayer-1', updated_at: '2024-01-01' }];
       const cachedPrompts = [{ id: 'prompt-1', updated_at: '2024-01-01' }];
-      localStorage.setItem('prayers_cache', JSON.stringify({ data: cachedPrayers }));
-      localStorage.setItem('prompts_cache', JSON.stringify({ data: cachedPrompts }));
+      localStorage.setItem(`tenant_${TEST_TENANT_ID}_prayers`, JSON.stringify({ data: cachedPrayers }));
+      localStorage.setItem(`prompts:${TEST_TENANT_ID}`, JSON.stringify({ data: cachedPrompts }));
 
       service.refreshBadgeCounts();
-      expect(localStorage.getItem('prayers_cache')).toBeTruthy();
-      expect(localStorage.getItem('prompts_cache')).toBeTruthy();
+      expect(localStorage.getItem(`tenant_${TEST_TENANT_ID}_prayers`)).toBeTruthy();
+      expect(localStorage.getItem(`prompts:${TEST_TENANT_ID}`)).toBeTruthy();
     });
   });
 });

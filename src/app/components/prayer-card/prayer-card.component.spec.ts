@@ -427,43 +427,44 @@ describe('PrayerCardComponent', () => {
     expect(component.updateConfirmationTitle).toBe('Delete Update');
   });
 
-  it('confirmPrayFor skips increment when encouragement service blocks it', async () => {
-    const localPrayerService = {
-      incrementPrayedFor: vi.fn()
-    };
-    const localPrayerEncouragementService = {
-      getPrayerEncouragementEnabled$: vi.fn().mockReturnValue(of(true)),
-      canPrayFor: vi.fn().mockReturnValue(false),
-      recordPrayedFor: vi.fn()
-    };
-    const localCdr = { markForCheck: vi.fn() };
+    it('confirmPrayFor skips increment when encouragement service blocks it', async () => {
+      const localPrayerService = {
+        incrementPrayedFor: vi.fn()
+      };
+      const localPrayerEncouragementService = {
+        getPrayerEncouragementEnabled$: vi.fn().mockReturnValue(of(true)),
+        getCanPrayFor$: vi.fn().mockReturnValue(of(false)),
+        canPrayFor: vi.fn().mockReturnValue(false),
+        recordPrayedFor: vi.fn()
+      };
+      const localCdr = { markForCheck: vi.fn() };
 
-    const localComponent = new PrayerCardComponent(
-      mockSupabaseService as any,
-      mockUserSessionService as any,
-      { getBadgeFunctionalityEnabled$: () => of(false) } as any,
-      localPrayerService as any,
-      localPrayerEncouragementService as any,
-      localCdr as any
-    );
-    localComponent.prayer = {
-      id: 'prayer-2',
-      prayer_for: 'Community',
-      description: 'Please pray',
-      requester: 'Jane Doe',
-      email: 'test@example.com',
-      is_anonymous: false,
-      status: 'current',
-      created_at: new Date().toISOString(),
-      updates: [],
-      prayed_for_count: 0
-    } as any;
+      const localComponent = new PrayerCardComponent(
+        mockSupabaseService as any,
+        mockUserSessionService as any,
+        { getBadgeFunctionalityEnabled$: () => of(false) } as any,
+        localPrayerService as any,
+        localPrayerEncouragementService as any,
+        localCdr as any
+      );
+      localComponent.prayer = {
+        id: 'prayer-2',
+        prayer_for: 'Community',
+        description: 'Please pray',
+        requester: 'Jane Doe',
+        email: 'test@example.com',
+        is_anonymous: false,
+        status: 'current',
+        created_at: new Date().toISOString(),
+        updates: [],
+        prayed_for_count: 0
+      } as any;
 
-    await localComponent.confirmPrayFor();
+      await localComponent.confirmPrayFor();
 
-    expect(localPrayerEncouragementService.recordPrayedFor).not.toHaveBeenCalled();
-    expect(localPrayerService.incrementPrayedFor).not.toHaveBeenCalled();
-  });
+      expect(localPrayerEncouragementService.recordPrayedFor).not.toHaveBeenCalled();
+      expect(localPrayerService.incrementPrayedFor).not.toHaveBeenCalled();
+    });
 
   describe('Badge functionality', () => {
     it('should support badge display when badgeService is available', () => {
@@ -500,13 +501,17 @@ describe('PrayerCardComponent', () => {
 
     beforeEach(() => {
       mockPrayerService = {
-        incrementPrayedFor: vi.fn().mockResolvedValue(5)
+        incrementPrayedFor: vi.fn().mockResolvedValue(5),
+        incrementPersonalPrayedFor: vi.fn().mockResolvedValue(3)
       };
       mockPrayerEncouragementService = {
         getPrayerEncouragementEnabled$: vi.fn().mockReturnValue(of(true)),
         getCountVisibleToAll$: vi.fn().mockReturnValue(of(false)),
+        getCanPrayFor$: vi.fn().mockReturnValue(of(true)),
+        getCooldownHoursForPrayer$: vi.fn().mockReturnValue(of(4)),
         canPrayFor: vi.fn().mockReturnValue(true),
-        recordPrayedFor: vi.fn()
+        recordPrayedFor: vi.fn(),
+        clearPrayedForCooldown: vi.fn()
       };
       mockCdr = { markForCheck: vi.fn() };
 
@@ -549,6 +554,14 @@ describe('PrayerCardComponent', () => {
       expect(prayForComponent.showPrayedForBadge()).toBe(true);
     });
 
+    it('showPrayedForBadge returns true for personal prayers with count > 0', () => {
+      prayForComponent.prayer.prayed_for_count = 2;
+      prayForComponent.isPersonal = true;
+      prayForComponent.isAdmin = false;
+      mockUserSessionService.getCurrentSession.mockReturnValue({ email: 'other@example.com' });
+      expect(prayForComponent.showPrayedForBadge()).toBe(true);
+    });
+
     it('showPrayedForBadge returns false for non-requester non-admin', () => {
       prayForComponent.prayer.prayed_for_count = 2;
       prayForComponent.isAdmin = false;
@@ -556,15 +569,36 @@ describe('PrayerCardComponent', () => {
       expect(prayForComponent.showPrayedForBadge()).toBe(false);
     });
 
-    it('confirmPrayFor calls recordPrayedFor, incrementPrayedFor, and updates local prayer', async () => {
+    it('confirmPrayFor calls recordPrayedFor, incrementPrayedFor, and updates local prayer for community', async () => {
       mockPrayerEncouragementService.canPrayFor.mockReturnValue(true);
+      prayForComponent.isPersonal = false;
       prayForComponent.showPrayForModal = true;
       await prayForComponent.confirmPrayFor();
       expect(prayForComponent.showPrayForModal).toBe(false);
-      expect(mockPrayerEncouragementService.recordPrayedFor).toHaveBeenCalledWith('prayer-1');
+      expect(mockPrayerEncouragementService.recordPrayedFor).toHaveBeenCalledWith('prayer-1', false);
       expect(mockPrayerService.incrementPrayedFor).toHaveBeenCalledWith('prayer-1');
       expect(prayForComponent.prayer.prayed_for_count).toBe(5);
       expect(mockCdr.markForCheck).toHaveBeenCalled();
+    });
+
+    it('confirmPrayFor uses incrementPersonalPrayedFor for personal prayers', async () => {
+      mockPrayerEncouragementService.canPrayFor.mockReturnValue(true);
+      prayForComponent.isPersonal = true;
+      prayForComponent.showPrayForModal = true;
+      await prayForComponent.confirmPrayFor();
+      expect(prayForComponent.showPrayForModal).toBe(false);
+      expect(mockPrayerEncouragementService.recordPrayedFor).toHaveBeenCalledWith('prayer-1', true);
+      expect(mockPrayerService.incrementPersonalPrayedFor).toHaveBeenCalledWith('prayer-1');
+      expect(prayForComponent.prayer.prayed_for_count).toBe(3);
+      expect(mockCdr.markForCheck).toHaveBeenCalled();
+    });
+
+    it('confirmPrayFor clears cooldown on failure (null newCount)', async () => {
+      mockPrayerEncouragementService.canPrayFor.mockReturnValue(true);
+      mockPrayerService.incrementPrayedFor.mockResolvedValue(null);
+      prayForComponent.isPersonal = false;
+      await prayForComponent.confirmPrayFor();
+      expect(mockPrayerEncouragementService.clearPrayedForCooldown).toHaveBeenCalledWith('prayer-1', false);
     });
 
     it('confirmPrayFor does nothing when canPrayFor is false', async () => {

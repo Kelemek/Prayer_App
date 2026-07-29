@@ -11,11 +11,24 @@ describe('PrayerEncouragementService', () => {
     getActiveTenant: vi.fn().mockReturnValue(null),
     activeTenant$: new BehaviorSubject(null)
   };
+  const mockUserSession = {
+    sessionInitialized$: new BehaviorSubject(true),
+    isSessionInitialized: vi.fn().mockReturnValue(true),
+    getCurrentSession: vi.fn().mockReturnValue({ personalPrayerCooldownHours: 4 }),
+    getPersonalPrayerCooldownHours: vi.fn().mockReturnValue(4),
+    getPersonalPrayerCooldownHours$: vi.fn().mockReturnValue(new BehaviorSubject(4).asObservable()),
+    getUserEmail: vi.fn().mockReturnValue('test@example.com')
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
     mockTenantContext.getActiveTenant.mockReturnValue(null);
+    mockUserSession.sessionInitialized$ = new BehaviorSubject(true);
+    mockUserSession.isSessionInitialized.mockReturnValue(true);
+    mockUserSession.getCurrentSession.mockReturnValue({ personalPrayerCooldownHours: 4 });
+    mockUserSession.getPersonalPrayerCooldownHours.mockReturnValue(4);
+    mockUserSession.getPersonalPrayerCooldownHours$.mockReturnValue(new BehaviorSubject(4).asObservable());
 
     mockSupabase = {
       client: {
@@ -44,7 +57,7 @@ describe('PrayerEncouragementService', () => {
       }
     };
 
-    service = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
+    service = new PrayerEncouragementService(mockSupabase, mockTenantContext as any, mockUserSession as any);
   });
 
   afterEach(() => {
@@ -58,21 +71,39 @@ describe('PrayerEncouragementService', () => {
     });
   });
 
+  describe('getPersonalCooldownKey', () => {
+    it('returns personal prefix and prayer id', () => {
+      expect(service.getPersonalCooldownKey('abc-123')).toBe('prayed_for_personal_abc-123');
+    });
+  });
+
   describe('canPrayFor', () => {
     it('returns true when no key in localStorage', () => {
       expect(service.canPrayFor('p1')).toBe(true);
     });
 
-    it('returns false when key exists and is within 4h', () => {
-      service.recordPrayedFor('p1');
-      expect(service.canPrayFor('p1')).toBe(false);
+    it('returns false when community key exists and is within 4h', () => {
+      service.recordPrayedFor('p1', false);
+      expect(service.canPrayFor('p1', false)).toBe(false);
     });
 
-    it('returns true and removes key when cooldown expired', () => {
+    it('returns false when personal key exists and is within personal cooldown', () => {
+      service.recordPrayedFor('p1', true);
+      expect(service.canPrayFor('p1', true)).toBe(false);
+    });
+
+    it('returns true and removes community key when cooldown expired', () => {
       const over4hAgo = new Date(Date.now() - (5 * 60 * 60 * 1000)).toISOString();
       localStorage.setItem('prayed_for_p1', over4hAgo);
-      expect(service.canPrayFor('p1')).toBe(true);
+      expect(service.canPrayFor('p1', false)).toBe(true);
       expect(localStorage.getItem('prayed_for_p1')).toBeNull();
+    });
+
+    it('returns true and removes personal key when personal cooldown expired', () => {
+      const over4hAgo = new Date(Date.now() - (5 * 60 * 60 * 1000)).toISOString();
+      localStorage.setItem('prayed_for_personal_p1', over4hAgo);
+      expect(service.canPrayFor('p1', true)).toBe(true);
+      expect(localStorage.getItem('prayed_for_personal_p1')).toBeNull();
     });
 
     it('returns true and removes key when value is invalid', () => {
@@ -92,12 +123,30 @@ describe('PrayerEncouragementService', () => {
   });
 
   describe('recordPrayedFor', () => {
-    it('sets localStorage key with ISO timestamp', () => {
-      service.recordPrayedFor('p2');
+    it('sets community cooldown key with ISO timestamp', () => {
+      service.recordPrayedFor('p2', false);
       const raw = localStorage.getItem('prayed_for_p2');
       expect(raw).toBeTruthy();
       expect(new Date(raw!).getTime()).toBeLessThanOrEqual(Date.now());
-      expect(service.canPrayFor('p2')).toBe(false);
+      expect(service.canPrayFor('p2', false)).toBe(false);
+    });
+
+    it('sets personal cooldown key with ISO timestamp', () => {
+      service.recordPrayedFor('p2', true);
+      const raw = localStorage.getItem('prayed_for_personal_p2');
+      expect(raw).toBeTruthy();
+      expect(new Date(raw!).getTime()).toBeLessThanOrEqual(Date.now());
+      expect(service.canPrayFor('p2', true)).toBe(false);
+    });
+
+    it('bumps cooldown revision when recording', () => {
+      const initRevision = firstValueFrom(service.cooldownRevision$);
+      service.recordPrayedFor('p3', false);
+      return initRevision.then((r) => {
+        return firstValueFrom(service.cooldownRevision$).then((newR) => {
+          expect(newR).toBe(r + 1);
+        });
+      });
     });
 
     it('catches when localStorage.setItem throws and does not throw', () => {
@@ -105,24 +154,40 @@ describe('PrayerEncouragementService', () => {
       localStorage.setItem = vi.fn().mockImplementation(() => {
         throw new Error('Quota exceeded');
       });
-      service.recordPrayedFor('p3');
+      service.recordPrayedFor('p3', false);
       expect(localStorage.getItem('prayed_for_p3')).toBeNull();
       localStorage.setItem = originalSetItem;
     });
   });
 
+  describe('clearPrayedForCooldown', () => {
+    it('removes community cooldown and bumps revision', () => {
+      service.recordPrayedFor('p1', false);
+      expect(service.canPrayFor('p1', false)).toBe(false);
+      service.clearPrayedForCooldown('p1', false);
+      expect(service.canPrayFor('p1', false)).toBe(true);
+    });
+
+    it('removes personal cooldown and bumps revision', () => {
+      service.recordPrayedFor('p1', true);
+      expect(service.canPrayFor('p1', true)).toBe(false);
+      service.clearPrayedForCooldown('p1', true);
+      expect(service.canPrayFor('p1', true)).toBe(true);
+    });
+  });
+
   describe('clearCooldownKeys', () => {
-    it('removes all prayed_for_ keys from localStorage', () => {
-      service.recordPrayedFor('a');
-      service.recordPrayedFor('b');
+    it('removes all prayed_for_ and prayed_for_personal_ keys from localStorage', () => {
+      service.recordPrayedFor('a', false);
+      service.recordPrayedFor('b', true);
       localStorage.setItem('other_key', 'value');
       service.clearCooldownKeys();
       expect(localStorage.getItem('prayed_for_a')).toBeNull();
-      expect(localStorage.getItem('prayed_for_b')).toBeNull();
+      expect(localStorage.getItem('prayed_for_personal_b')).toBeNull();
       expect(localStorage.getItem('other_key')).toBe('value');
     });
 
-    it('does nothing when no prayed_for_ keys exist', () => {
+    it('does nothing when no cooldown keys exist', () => {
       localStorage.setItem('other', 'x');
       service.clearCooldownKeys();
       expect(localStorage.getItem('other')).toBe('x');
@@ -142,7 +207,7 @@ describe('PrayerEncouragementService', () => {
 
     it('fetches from public tenant RPC when active tenant is set', async () => {
       mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-1' });
-      const tenantService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
+      const tenantService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any, mockUserSession as any);
       await firstValueFrom(tenantService.getPrayerEncouragementEnabled$());
       expect(mockSupabase.client.rpc).toHaveBeenCalledWith(
         'get_public_tenant_prayer_encouragement',
@@ -171,10 +236,30 @@ describe('PrayerEncouragementService', () => {
           })
         })
       });
-      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any, mockUserSession as any);
       await firstValueFrom(newService.getCooldownHours$());
       await new Promise((resolve) => setTimeout(resolve, 0));
       expect(await firstValueFrom(newService.getCooldownHours$())).toBe(8);
+      newService.ngOnDestroy();
+    });
+  });
+
+  describe('getCooldownHoursForPrayer$', () => {
+    it('returns community cooldown for community prayers', async () => {
+      const hours = await firstValueFrom(service.getCooldownHoursForPrayer$(false));
+      expect(hours).toBe(4);
+    });
+
+    it('returns personal cooldown for personal prayers', async () => {
+      const hours = await firstValueFrom(service.getCooldownHoursForPrayer$(true));
+      expect(hours).toBe(4);
+    });
+
+    it('uses user session cooldown for personal prayers', async () => {
+      mockUserSession.getPersonalPrayerCooldownHours$.mockReturnValue(new BehaviorSubject(6).asObservable());
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any, mockUserSession as any);
+      const hours = await firstValueFrom(newService.getCooldownHoursForPrayer$(true));
+      expect(hours).toBe(6);
       newService.ngOnDestroy();
     });
   });
@@ -187,7 +272,7 @@ describe('PrayerEncouragementService', () => {
 
     it('emits true when tenant RPC returns count visible to all', async () => {
       mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-1' });
-      const tenantService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
+      const tenantService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any, mockUserSession as any);
       const visible = await firstValueFrom(
         tenantService.getCountVisibleToAll$().pipe(skip(1), take(1))
       );
@@ -206,11 +291,42 @@ describe('PrayerEncouragementService', () => {
           timestamp: Date.now(),
         })
       );
-      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any, mockUserSession as any);
       return firstValueFrom(newService.getCountVisibleToAll$()).then((visible) => {
         expect(visible).toBe(true);
         newService.ngOnDestroy();
       });
+    });
+  });
+
+  describe('getCanPrayFor$', () => {
+    it('returns observable with community can-pray status', async () => {
+      const canPray = await firstValueFrom(service.getCanPrayFor$('p1', false));
+      expect(typeof canPray).toBe('boolean');
+    });
+
+    it('returns observable with personal can-pray status', async () => {
+      const canPray = await firstValueFrom(service.getCanPrayFor$('p1', true));
+      expect(typeof canPray).toBe('boolean');
+    });
+
+    it('emits false when personal cooldown is active', async () => {
+      service.recordPrayedFor('p1', true);
+      const canPray = await firstValueFrom(service.getCanPrayFor$('p1', true));
+      expect(canPray).toBe(false);
+    });
+  });
+
+  describe('cooldownRevision$', () => {
+    it('bumps on record and clear operations', async () => {
+      const initial = await firstValueFrom(service.cooldownRevision$);
+      service.recordPrayedFor('p1', false);
+      const afterRecord = await firstValueFrom(service.cooldownRevision$);
+      expect(afterRecord).toBe(initial + 1);
+
+      service.clearPrayedForCooldown('p1', false);
+      const afterClear = await firstValueFrom(service.cooldownRevision$);
+      expect(afterClear).toBe(afterRecord + 1);
     });
   });
 
@@ -227,7 +343,7 @@ describe('PrayerEncouragementService', () => {
           })
         })
       });
-      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any, mockUserSession as any);
       const hours = await firstValueFrom(newService.getCooldownHours$().pipe(skip(1), take(1)));
       expect(hours).toBe(4);
     });
@@ -244,7 +360,7 @@ describe('PrayerEncouragementService', () => {
           })
         })
       });
-      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any, mockUserSession as any);
       const hours = await firstValueFrom(newService.getCooldownHours$().pipe(skip(1), take(1)));
       expect(hours).toBe(4);
     });
@@ -262,7 +378,7 @@ describe('PrayerEncouragementService', () => {
           })
         })
       });
-      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any, mockUserSession as any);
       await firstValueFrom(newService.getCooldownHours$());
       await new Promise((resolve) => setTimeout(resolve, 0));
       expect(warn).toHaveBeenCalledWith('[PrayerEncouragement] Failed to load flag', { message: 'db error' });
@@ -280,7 +396,7 @@ describe('PrayerEncouragementService', () => {
           })
         })
       });
-      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any, mockUserSession as any);
       await firstValueFrom(newService.getCooldownHours$());
       await new Promise((resolve) => setTimeout(resolve, 0));
       expect(warn).toHaveBeenCalledWith('[PrayerEncouragement] Error loading flag', expect.any(Error));
@@ -303,7 +419,7 @@ describe('PrayerEncouragementService', () => {
           })
         })
       });
-      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any, mockUserSession as any);
       const hours = await firstValueFrom(newService.getCooldownHours$().pipe(skip(1), take(1)));
       expect(hours).toBe(4);
       setItem.mockRestore();
@@ -316,7 +432,7 @@ describe('PrayerEncouragementService', () => {
         'prayer_encouragement_enabled',
         JSON.stringify({ value: true, cooldownHours: 0, timestamp: Date.now() })
       );
-      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any, mockUserSession as any);
       const hours = firstValueFrom(newService.getCooldownHours$());
       return hours.then((h) => expect(h).toBe(4));
     });
@@ -327,7 +443,7 @@ describe('PrayerEncouragementService', () => {
         'prayer_encouragement_enabled',
         JSON.stringify({ value: true, cooldownHours: 6, timestamp: oneHourAgo })
       );
-      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
+      const newService = new PrayerEncouragementService(mockSupabase, mockTenantContext as any, mockUserSession as any);
       return firstValueFrom(newService.getCooldownHours$().pipe(skip(1), take(1))).then((h) => {
         expect(h).toBe(4);
       });
@@ -363,8 +479,18 @@ describe('PrayerEncouragementService', () => {
     it('removes expired prayed_for_ keys when service is constructed', () => {
       const over4hAgo = new Date(Date.now() - (5 * 60 * 60 * 1000)).toISOString();
       localStorage.setItem('prayed_for_old', over4hAgo);
-      const s2 = new PrayerEncouragementService(mockSupabase, mockTenantContext as any);
+      const s2 = new PrayerEncouragementService(mockSupabase, mockTenantContext as any, mockUserSession as any);
       expect(localStorage.getItem('prayed_for_old')).toBeNull();
+      s2.ngOnDestroy();
+    });
+
+    it('removes expired prayed_for_personal_ keys when service is constructed', () => {
+      const over4hAgo = new Date(Date.now() - (5 * 60 * 60 * 1000)).toISOString();
+      localStorage.setItem('prayed_for_personal_old', over4hAgo);
+      mockUserSession.getPersonalPrayerCooldownHours.mockReturnValue(4);
+      const s2 = new PrayerEncouragementService(mockSupabase, mockTenantContext as any, mockUserSession as any);
+      expect(localStorage.getItem('prayed_for_personal_old')).toBeNull();
+      s2.ngOnDestroy();
     });
   });
 });

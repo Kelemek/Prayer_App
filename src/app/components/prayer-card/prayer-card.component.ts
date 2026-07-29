@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, OnChanges, SimpleChanges, TemplateRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Observable, BehaviorSubject, Subject } from 'rxjs';
+import { Observable, BehaviorSubject, Subject, of } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { PrayerRequest, PrayerService } from '../../services/prayer.service';
 import { SupabaseService } from '../../services/supabase.service';
@@ -128,8 +128,8 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
         >
           Add Update
         </button>
-        @if ((userSessionService.getShowPrayForButton$() | async) && (prayerEncouragementService.getPrayerEncouragementEnabled$() | async) && !isPersonal && !prayer.id.startsWith('pc-member-')) {
-          @if (prayerEncouragementService.canPrayFor(prayer.id)) {
+        @if ((userSessionService.getShowPrayForButton$() | async) && (prayerEncouragementService.getPrayerEncouragementEnabled$() | async) && !prayer.id.startsWith('pc-member-')) {
+          @if (canPrayFor$ | async) {
             <button
               (click)="onPrayForClick()"
               title="Record that you prayed for this request"
@@ -140,7 +140,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
           } @else {
             <button
               disabled
-              [title]="'You can pray for this again in ' + ((prayerEncouragementService.getCooldownHours$() | async) ?? 4) + ' hours'"
+              [title]="'You can pray for this again in ' + ((prayerEncouragementService.getCooldownHoursForPrayer$(isPersonal) | async) ?? 4) + ' hours'"
               class="flex-shrink-0 px-2 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-md border border-gray-300 dark:border-gray-600 cursor-not-allowed whitespace-nowrap"
             >
               Prayed For
@@ -152,7 +152,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
             class="flex-shrink-0 px-1.5 py-1 text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md border border-blue-600 dark:border-blue-500 whitespace-nowrap"
             title="Number praying for this request"
           >
-            {{ (prayer.prayed_for_count ?? 0) }} Praying
+            {{ (prayer.prayed_for_count ?? 0) }} {{ isPersonal ? 'Prayers' : 'Praying' }}
           </span>
         }
       </div>
@@ -431,11 +431,19 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
           </div>
           <div class="px-6 py-4">
             <p class="text-gray-600 dark:text-gray-300 mb-4">
+              @if (isPersonal) {
+              When you click Pray For, your personal prayer count increases so you can track how often you have prayed for this request.
+              } @else {
               When you click Pray For, the person who submitted this prayer request will see that others have prayed for them. Only the total count is shown—your click is anonymous.
+              }
             </p>
             <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
               <p class="text-sm text-blue-700 dark:text-blue-300">
-                This encourages the requester by showing how many times their prayer has been lifted up. You can pray for the same request again in {{ (prayerEncouragementService.getCooldownHours$() | async) ?? 4 }} hours.
+                @if (isPersonal) {
+                You can pray for the same personal request again in {{ (prayerEncouragementService.getCooldownHoursForPrayer$(true) | async) ?? 4 }} hours. Change this cooldown in Settings under Prayer encouragement on cards.
+                } @else {
+                This encourages the requester by showing how many times their prayer has been lifted up. You can pray for the same request again in {{ (prayerEncouragementService.getCooldownHoursForPrayer$(false) | async) ?? 4 }} hours.
+                }
               </p>
             </div>
             <label class="flex items-center gap-2 cursor-pointer">
@@ -491,6 +499,7 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
 
   prayerBadge$: Observable<boolean> | null = null;
   updateBadges$: Map<string, BehaviorSubject<boolean>> = new Map();
+  canPrayFor$: Observable<boolean> = of(true);
   private destroy$ = new Subject<void>();
   private storageListener: ((event: StorageEvent) => void) | null = null;
   private prayerBadgeSubject$ = new BehaviorSubject<boolean>(false);
@@ -534,6 +543,9 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
     this.initializePrayerBadge();
     this.prayerBadge$ = this.prayerBadgeSubject$.asObservable();
 
+    // Initialize canPrayFor$ observable
+    this.refreshCanPrayFor$();
+
     // Initialize badges for updates with local BehaviorSubjects
     if (this.prayer.updates && Array.isArray(this.prayer.updates)) {
       this.prayer.updates.forEach(update => {
@@ -570,6 +582,10 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    // Refresh canPrayFor$ when prayer or isPersonal changes
+    if (changes['prayer'] || changes['isPersonal']) {
+      this.refreshCanPrayFor$();
+    }
     // Check if updates array has changed
     if (changes['prayer'] && !changes['prayer'].firstChange) {
       const previousPrayer = changes['prayer'].previousValue as PrayerRequest;
@@ -599,6 +615,20 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
         }
       }
     }
+  }
+
+  /**
+   * Refresh the canPrayFor$ observable based on current prayer and isPersonal status
+   */
+  private refreshCanPrayFor$(): void {
+    if (!this.prayer?.id || !this.prayerEncouragementService?.getCanPrayFor$) {
+      this.canPrayFor$ = of(true);
+      return;
+    }
+    this.canPrayFor$ = this.prayerEncouragementService.getCanPrayFor$(
+      this.prayer.id,
+      this.isPersonal
+    );
   }
 
   /**
@@ -725,6 +755,8 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
   showPrayedForBadge(): boolean {
     const count = this.prayer.prayed_for_count ?? 0;
     if (count <= 0) return false;
+    // Personal prayers are private to the owner; they always see their count.
+    if (this.isPersonal) return true;
     if (this.isAdmin) return true;
     return this.isCurrentUserTheRequester();
   }
@@ -754,11 +786,21 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
 
   async confirmPrayFor(): Promise<void> {
     this.showPrayForModal = false;
-    if (!this.prayerEncouragementService.canPrayFor(this.prayer.id)) return;
-    this.prayerEncouragementService.recordPrayedFor(this.prayer.id);
-    const newCount = await this.prayerService.incrementPrayedFor(this.prayer.id);
+    const prayedForPrayer = this.prayer;
+    const prayerId = prayedForPrayer.id;
+    const isPersonal = this.isPersonal;
+    if (!this.prayerEncouragementService.canPrayFor(prayerId, isPersonal)) return;
+    this.prayerEncouragementService.recordPrayedFor(prayerId, isPersonal);
+    const newCount = isPersonal
+      ? await this.prayerService.incrementPersonalPrayedFor(prayerId)
+      : await this.prayerService.incrementPrayedFor(prayerId);
     if (newCount !== null) {
-      this.prayer = { ...this.prayer, prayed_for_count: newCount };
+      prayedForPrayer.prayed_for_count = newCount;
+      if (this.prayer?.id === prayerId) {
+        this.prayer = { ...this.prayer, prayed_for_count: newCount };
+      }
+    } else {
+      this.prayerEncouragementService.clearPrayedForCooldown(prayerId, isPersonal);
     }
     this.cdr.markForCheck();
   }

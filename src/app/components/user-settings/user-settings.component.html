@@ -90,8 +90,11 @@
         [showPrayingCount]="showPrayingCount"
         [savingShowPrayingCount]="savingShowPrayingCount"
         [successPrayerEncouragementUi]="successPrayerEncouragementUi"
+        [personalPrayerCooldownHours]="personalPrayerCooldownHours"
+        [savingPersonalPrayerCooldown]="savingPersonalPrayerCooldown"
         (showPrayForButtonChange)="setShowPrayForButton($event)"
         (showPrayingCountChange)="setShowPrayingCount($event)"
+        (personalPrayerCooldownHoursChange)="savePersonalPrayerCooldownHours($event)"
       />
 
       <app-user-settings-default-view-section

@@ -9,6 +9,28 @@ import { first } from 'rxjs/operators';
 import type { UserPrayerHourReminderSlot } from '../types/user-prayer-hour-reminder';
 import type { UserHourReminderSlot } from '../types/user-hour-reminder';
 
+export const PRAYER_COOLDOWN_MIN_HOURS = 1;
+export const PRAYER_COOLDOWN_MAX_HOURS = 168;
+export const DEFAULT_PERSONAL_PRAYER_COOLDOWN_HOURS = 4;
+
+export function clampPrayerCooldownHours(
+  hours: number | string | null | undefined
+): number {
+  const numeric =
+    typeof hours === 'number'
+      ? hours
+      : typeof hours === 'string' && hours.trim() !== ''
+        ? Number(hours)
+        : Number.NaN;
+  if (!Number.isFinite(numeric)) {
+    return DEFAULT_PERSONAL_PRAYER_COOLDOWN_HOURS;
+  }
+  return Math.min(
+    PRAYER_COOLDOWN_MAX_HOURS,
+    Math.max(PRAYER_COOLDOWN_MIN_HOURS, Math.round(numeric))
+  );
+}
+
 export interface UserSessionData {
   email: string;
   fullName: string;
@@ -21,6 +43,8 @@ export interface UserSessionData {
   showPrayingCount?: boolean;
   defaultPrayerView?: 'current' | 'personal';
   memorizationStrictMode?: boolean;
+  /** Hours before Pray For is available again on the same personal prayer (1–168). */
+  personalPrayerCooldownHours?: number;
   /** Cached hourly self-reminder slots; undefined = never fetched this session. */
   prayerHourReminders?: UserPrayerHourReminderSlot[];
   prayerHourRemindersFetchedAt?: number;
@@ -124,7 +148,7 @@ export class UserSessionService {
       const tenantId = this.tenantContext.getActiveTenant()?.id;
       let query = this.supabase.client
         .from('tenant_memberships')
-        .select('user_email, name, is_active, receive_push, badge_functionality_enabled, default_prayer_view, memorization_strict_mode, show_pray_for_button, show_praying_count')
+        .select('user_email, name, is_active, receive_push, badge_functionality_enabled, default_prayer_view, memorization_strict_mode, show_pray_for_button, show_praying_count, personal_prayer_cooldown_hours')
         .eq('user_email', email.toLowerCase().trim());
       if (tenantId) {
         query = query.eq('tenant_id', tenantId);
@@ -144,6 +168,7 @@ export class UserSessionService {
         memorization_strict_mode?: boolean;
         show_pray_for_button?: boolean;
         show_praying_count?: boolean;
+        personal_prayer_cooldown_hours?: number;
       } | null; error: unknown };
 
       if (error) {
@@ -164,6 +189,9 @@ export class UserSessionService {
           memorizationStrictMode: data.memorization_strict_mode ?? false,
           showPrayForButton: data.show_pray_for_button ?? true,
           showPrayingCount: data.show_praying_count ?? true,
+          personalPrayerCooldownHours: clampPrayerCooldownHours(
+            data.personal_prayer_cooldown_hours
+          ),
         };
         this.userSessionSubject.next(sessionData);
         this.saveToCache(sessionData);
@@ -181,6 +209,7 @@ export class UserSessionService {
           memorizationStrictMode: false,
           showPrayForButton: true,
           showPrayingCount: true,
+          personalPrayerCooldownHours: DEFAULT_PERSONAL_PRAYER_COOLDOWN_HOURS,
         };
         this.userSessionSubject.next(sessionData);
         this.saveToCache(sessionData);
@@ -200,6 +229,7 @@ export class UserSessionService {
         memorizationStrictMode: false,
         showPrayForButton: true,
         showPrayingCount: true,
+        personalPrayerCooldownHours: DEFAULT_PERSONAL_PRAYER_COOLDOWN_HOURS,
       };
       this.userSessionSubject.next(sessionData);
       this.saveToCache(sessionData);
@@ -438,5 +468,19 @@ export class UserSessionService {
       default:
         return 'current';
     }
+  }
+
+  /** Personal-prayer Pray For cooldown in hours (default 4). */
+  getPersonalPrayerCooldownHours$(): Observable<number> {
+    return this.userSession$.pipe(
+      map((s) => clampPrayerCooldownHours(s?.personalPrayerCooldownHours)),
+      distinctUntilChanged()
+    );
+  }
+
+  getPersonalPrayerCooldownHours(): number {
+    return clampPrayerCooldownHours(
+      this.userSessionSubject.value?.personalPrayerCooldownHours
+    );
   }
 }

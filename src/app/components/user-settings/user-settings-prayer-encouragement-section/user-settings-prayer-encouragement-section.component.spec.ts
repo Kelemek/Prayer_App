@@ -49,4 +49,34 @@ describe('UserSettingsPrayerEncouragementSectionComponent', () => {
     fixture.nativeElement.querySelector('[title="Hide Praying # button on prayer cards"]').click();
     expect(showPrayingCountChange).toHaveBeenCalledWith(false);
   });
+
+  it('emits personalPrayerCooldownHoursChange on blur of cooldown input', () => {
+    const personalPrayerCooldownHoursChange = vi.fn();
+    component.personalPrayerCooldownHoursChange.subscribe(personalPrayerCooldownHoursChange);
+    fixture.componentRef.setInput('prayerEncouragementUiLoaded', true);
+    fixture.componentRef.setInput('personalPrayerCooldownHours', 4);
+    fixture.detectChanges();
+
+    const input = fixture.nativeElement.querySelector(
+      'input[name="personalPrayerCooldownHours"]'
+    ) as HTMLInputElement;
+    input.value = '8';
+    input.dispatchEvent(new Event('input'));
+    input.dispatchEvent(new Event('blur'));
+    fixture.detectChanges();
+
+    expect(personalPrayerCooldownHoursChange).toHaveBeenCalledWith(8);
+  });
+
+  it('shows personal cooldown disabled state when saving', () => {
+    fixture.componentRef.setInput('prayerEncouragementUiLoaded', true);
+    fixture.componentRef.setInput('savingPersonalPrayerCooldown', true);
+    fixture.detectChanges();
+
+    const input = fixture.nativeElement.querySelector(
+      'input[name="personalPrayerCooldownHours"]'
+    ) as HTMLInputElement;
+    expect(input).toBeTruthy();
+    expect(input.disabled).toBe(true);
+  });
 });

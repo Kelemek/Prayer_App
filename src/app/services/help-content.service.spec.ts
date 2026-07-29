@@ -205,6 +205,11 @@ describe('HelpContentService', () => {
       // Should have the hardcoded sections (like "Creating Prayers", "Managing Prayers", etc.)
       const sectionIds = sections.map(s => s.id);
       expect(sectionIds).toContain('help_prayers');
+      expect(sectionIds).toContain('help_prayer_encouragement');
+      const encouragement = sections.find((s) => s.id === 'help_prayer_encouragement');
+      expect(encouragement?.content.some((c) => c.subtitle === 'Personal prayers')).toBe(true);
+      expect(encouragement?.content.some((c) => c.subtitle === 'Prayer prompts')).toBe(true);
+      expect(encouragement?.content.some((c) => c.subtitle === 'Presentation mode')).toBe(true);
     });
   });
 

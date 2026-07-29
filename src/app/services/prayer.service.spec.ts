@@ -162,6 +162,56 @@ describe('PrayerService', () => {
     });
   });
 
+  describe('incrementPersonalPrayedFor', () => {
+    it('calls rpc with email and updates personal prayers with returned count', async () => {
+      const p1 = { id: 'personal-1', prayed_for_count: 2 };
+      (service as any).allPersonalPrayersSubject.next([p1]);
+      userSessionService.getUserEmail = vi.fn().mockReturnValue('user@example.com');
+      connectivity.requireOnline.mockReturnValue(true);
+
+      supabase.client.rpc.mockResolvedValue({ data: 4, error: null });
+
+      const result = await service.incrementPersonalPrayedFor('personal-1');
+
+      expect(result).toBe(4);
+      expect(supabase.client.rpc).toHaveBeenCalledWith('increment_personal_prayed_for_count', {
+        personal_prayer_id: 'personal-1',
+        p_user_email: 'user@example.com',
+      });
+      expect((service as any).allPersonalPrayersSubject.value[0].prayed_for_count).toBe(4);
+    });
+
+    it('returns null when offline', async () => {
+      connectivity.requireOnline.mockReturnValue(false);
+      const result = await service.incrementPersonalPrayedFor('personal-1');
+      expect(result).toBeNull();
+      expect(supabase.client.rpc).not.toHaveBeenCalled();
+    });
+
+    it('returns null when no user email', async () => {
+      connectivity.requireOnline.mockReturnValue(true);
+      userSessionService.getUserEmail = vi.fn().mockReturnValue(null);
+
+      const result = await service.incrementPersonalPrayedFor('personal-1');
+
+      expect(result).toBeNull();
+      expect(supabase.client.rpc).not.toHaveBeenCalled();
+    });
+
+    it('returns null when rpc errors', async () => {
+      const p1 = { id: 'personal-1', prayed_for_count: 1 };
+      (service as any).allPersonalPrayersSubject.next([p1]);
+      userSessionService.getUserEmail = vi.fn().mockReturnValue('user@example.com');
+      connectivity.requireOnline.mockReturnValue(true);
+      supabase.client.rpc.mockResolvedValue({ data: null, error: new Error('db error') });
+
+      const result = await service.incrementPersonalPrayedFor('personal-1');
+
+      expect(result).toBeNull();
+      expect((service as any).allPersonalPrayersSubject.value[0].prayed_for_count).toBe(1);
+    });
+  });
+
   it('applyFilters filters by status, type, and search', () => {
     const p1 = makePrayer({ id: 'a', title: 'Hello World', description: 'desc', requester: 'Bob', type: 'prayer', status: 'current' });
     const p2 = makePrayer({ id: 'b', title: 'Prompt One', description: 'other', requester: 'Alice', type: 'prompt', status: 'answered' });

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { firstValueFrom } from 'rxjs';
+import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { PromptService } from './prompt.service';
 import { SupabaseService } from './supabase.service';
 import { ToastService } from './toast.service';
@@ -13,6 +13,8 @@ describe('PromptService', () => {
   let mockCacheService: any;
   let mockBadgeService: any;
   let mockConnectivity: any;
+  let mockUserSessionService: any;
+  let userSessionSubject: BehaviorSubject<{ email: string } | null>;
   let consoleErrorSpy: any;
 
   beforeEach(() => {
@@ -35,6 +37,13 @@ describe('PromptService', () => {
     mockConnectivity = {
       isOnline: vi.fn(() => true),
       requireOnline: vi.fn(() => true),
+    };
+
+    userSessionSubject = new BehaviorSubject<{ email: string } | null>(null);
+    mockUserSessionService = {
+      userSession$: userSessionSubject.asObservable(),
+      getUserEmail: vi.fn(() => userSessionSubject.value?.email ?? null),
+      getCurrentSession: vi.fn(() => userSessionSubject.value),
     };
 
     // Mock BadgeService
@@ -96,7 +105,14 @@ describe('PromptService', () => {
       }
     };
 
-    service = new PromptService(mockSupabaseService, mockToastService, mockCacheService, mockBadgeService, mockConnectivity);
+    service = new PromptService(
+      mockSupabaseService,
+      mockToastService,
+      mockCacheService,
+      mockBadgeService,
+      mockConnectivity,
+      mockUserSessionService
+    );
   });
 
   afterEach(() => {
@@ -135,7 +151,9 @@ describe('PromptService', () => {
 
       await service.loadPrompts();
 
-      expect(await firstValueFrom(service.prompts$)).toEqual(stale);
+      expect(await firstValueFrom(service.prompts$)).toEqual([
+        { id: '1', type: 'Healing', title: 'Cached Prompt', prayed_for_count: 0 },
+      ]);
       expect(mockToastService.error).not.toHaveBeenCalled();
     });
 

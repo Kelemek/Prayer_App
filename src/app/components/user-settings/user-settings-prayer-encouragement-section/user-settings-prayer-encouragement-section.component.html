@@ -253,5 +253,82 @@
           </div>
         </div>
         }
-      </div>
+
+        <div class="space-y-2">
+          <div class="flex items-center gap-2">
+            <div
+              class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
+            >
+              @if (prayerEncouragementUiLoaded) { Personal / prompt cooldown
+              } @else {
+              <span
+                class="inline-block h-4 w-40 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"
+              ></span>
+              }
+            </div>
+            @if (savingPersonalPrayerCooldown) {
+            <svg
+              class="animate-spin h-4 w-4 text-blue-600"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            }
+          </div>
+          @if (prayerEncouragementUiLoaded) {
+          <div class="flex items-center gap-2">
+            <input
+              type="number"
+              [value]="personalPrayerCooldownHours"
+              (input)="
+                personalPrayerCooldownHours = +$any($event.target).value;
+                onPersonalPrayerCooldownChange()
+              "
+              (blur)="savePersonalPrayerCooldownHours()"
+              (keydown.enter)="$any($event.target).blur()"
+              name="personalPrayerCooldownHours"
+              min="1"
+              max="168"
+              step="1"
+              [disabled]="
+                savingPersonalPrayerCooldown ||
+                savingShowPrayForButton ||
+                savingShowPrayingCount
+              "
+              class="h-12 w-24 px-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+          </div>
+          } @else {
+          <div
+            class="h-12 w-24 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
+          ></div>
+          }
+          <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+            @if (prayerEncouragementUiLoaded) {
+            {{
+              savingPersonalPrayerCooldown
+                ? "Saving..."
+                : "How long before you can tap Pray For again on the same personal prayer or prompt (1–168 hours). Community prayers still use the church cooldown set by admins."
+            }}
+            } @else {
+            <span
+              class="inline-block h-4 w-64 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"
+            ></span>
+            }
+          </p>
+        </div>
 

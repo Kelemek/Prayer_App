@@ -112,7 +112,9 @@ describe('UserSettingsComponent', () => {
     };
 
     mockBadgeService = {
-      refreshBadgeCounts: vi.fn()
+      refreshBadgeCounts: vi.fn(),
+      markAllCachedItemsAsRead: vi.fn(),
+      markAllAsRead: vi.fn(),
     };
 
     mockUserSessionService = {
@@ -1927,29 +1929,14 @@ describe('UserSettingsComponent', () => {
   });
 
   it('should mark all items from cache as read', () => {
-    const prayersCache = JSON.stringify({
-      data: [
-        { id: 'prayer-1', updates: [{ id: 'update-1' }] },
-        { id: 'prayer-2', updates: [{ id: 'update-2' }, { id: 'update-3' }] }
-      ]
-    });
-    localStorage.setItem('prayers_cache', prayersCache);
-
     (component as any).markAllItemsAsRead();
 
-    const readData = JSON.parse(localStorage.getItem('read_prayers_data') || '{}');
-    expect(readData.prayers).toContain('prayer-1');
-    expect(readData.prayers).toContain('prayer-2');
-    expect(readData.updates).toContain('update-1');
-    expect(readData.updates).toContain('update-2');
-    expect(readData.updates).toContain('update-3');
+    expect(mockBadgeService.markAllCachedItemsAsRead).toHaveBeenCalled();
   });
 
   it('should handle mark all items with empty cache', () => {
-    localStorage.setItem('prayers_cache', JSON.stringify({ data: [] }));
-    localStorage.setItem('prompts_cache', JSON.stringify({ data: [] }));
-
     expect(() => (component as any).markAllItemsAsRead()).not.toThrow();
+    expect(mockBadgeService.markAllCachedItemsAsRead).toHaveBeenCalled();
   });
 
   it('should emit email change via subject', async () => {
@@ -1999,27 +1986,15 @@ describe('UserSettingsComponent', () => {
   });
 
   it('should deduplicate items when marking all as read', () => {
-    localStorage.setItem('read_prayers_data', JSON.stringify({
-      prayers: ['prayer-1'],
-      updates: ['update-1']
-    }));
-
-    const prayersCache = JSON.stringify({
-      data: [
-        { id: 'prayer-1', updates: [{ id: 'update-1' }, { id: 'update-2' }] }
-      ]
-    });
-    localStorage.setItem('prayers_cache', prayersCache);
-
     (component as any).markAllItemsAsRead();
 
-    const readData = JSON.parse(localStorage.getItem('read_prayers_data') || '{}');
-    const uniquePrayers = [...new Set(readData.prayers)];
-    expect(uniquePrayers.length).toBe(1);
+    expect(mockBadgeService.markAllCachedItemsAsRead).toHaveBeenCalled();
   });
 
   it('should handle corrupted cache JSON gracefully', () => {
-    localStorage.setItem('prayers_cache', 'not-valid-json');
+    mockBadgeService.markAllCachedItemsAsRead.mockImplementationOnce(() => {
+      // BadgeService swallows cache parse errors internally.
+    });
 
     expect(() => (component as any).markAllItemsAsRead()).not.toThrow();
   });
@@ -2041,19 +2016,9 @@ describe('UserSettingsComponent', () => {
   });
 
   it('should handle prompts cache in mark all items', () => {
-    const promptsCache = JSON.stringify({
-      data: [
-        { id: 'prompt-1', updates: [{ id: 'p-update-1' }] },
-        { id: 'prompt-2', updates: [] }
-      ]
-    });
-    localStorage.setItem('prompts_cache', promptsCache);
-
     (component as any).markAllItemsAsRead();
 
-    const readData = JSON.parse(localStorage.getItem('read_prompts_data') || '{}');
-    expect(readData.prompts).toContain('prompt-1');
-    expect(readData.prompts).toContain('prompt-2');
+    expect(mockBadgeService.markAllCachedItemsAsRead).toHaveBeenCalled();
   });
 
   it('should handle whitespace-only names', () => {
@@ -2087,20 +2052,9 @@ describe('UserSettingsComponent', () => {
   });
 
   it('should mark prompts and prayers separately', () => {
-    localStorage.setItem('prayers_cache', JSON.stringify({
-      data: [{ id: 'prayer-1', updates: [{ id: 'p-update-1' }] }]
-    }));
-    localStorage.setItem('prompts_cache', JSON.stringify({
-      data: [{ id: 'prompt-1', updates: [{ id: 'pr-update-1' }] }]
-    }));
-
     (component as any).markAllItemsAsRead();
 
-    const prayerData = JSON.parse(localStorage.getItem('read_prayers_data') || '{}');
-    const promptData = JSON.parse(localStorage.getItem('read_prompts_data') || '{}');
-
-    expect(prayerData.prayers).toContain('prayer-1');
-    expect(promptData.prompts).toContain('prompt-1');
+    expect(mockBadgeService.markAllCachedItemsAsRead).toHaveBeenCalled();
   });
 
   describe('onDefaultViewChange', () => {

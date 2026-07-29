@@ -73,6 +73,16 @@ import {
   getBrandingCacheKey,
 } from "../../utils/branding-cache-keys";
 import type { Tenant, TenantMembership } from "../../types/tenant";
+import {
+  buildPresentationHomeHandoff,
+  PRESENTATION_HOME_HANDOFF_STATE_KEY,
+  HOME_RETURN_CONTEXT_STATE_KEY,
+  parseHomeReturnContextFromState,
+  serializePresentationHomeHandoffQueryParams,
+  type HomePresentationFilter,
+  type SelectablePresentationContentType,
+  type HomeReturnContext,
+} from "../../types/presentation";
 @Component({
   selector: "app-home",
   standalone: true,
@@ -274,13 +284,15 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
                   <circle cx="12" cy="12" r="3"></circle>
                 </svg>
               </button>
-              <button
+              <a
                 routerLink="/presentation"
+                [queryParams]="presentationHandoffQueryParams"
+                (click)="onPresentationLinkClick($event)"
                 class="flex items-center gap-1 bg-[#2F5F54] dark:bg-[#2F5F54] text-white px-3 py-2 rounded-lg hover:bg-[#1a3a2e] dark:hover:bg-[#1a3a2e] focus:outline-none focus:ring-2 focus:ring-[#2F5F54] transition-colors text-sm cursor-pointer"
                 title="Prayer Mode"
               >
                 <span>Pray</span>
-              </button>
+              </a>
               <button
                 (click)="openPrayerRequest()"
                 class="flex items-center gap-1 bg-blue-600 dark:bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-sm cursor-pointer"
@@ -393,13 +405,15 @@ import type { Tenant, TenantMembership } from "../../types/tenant";
                       <circle cx="12" cy="12" r="3"></circle>
                     </svg>
                   </button>
-                  <button
+                  <a
                     routerLink="/presentation"
+                    [queryParams]="presentationHandoffQueryParams"
+                    (click)="onPresentationLinkClick($event)"
                     class="flex items-center justify-center h-12 gap-1 bg-[#2F5F54] dark:bg-[#2F5F54] text-white px-3 rounded-lg hover:bg-[#1a3a2e] dark:hover:bg-[#1a3a2e] focus:outline-none focus:ring-2 focus:ring-[#2F5F54] transition-colors text-sm cursor-pointer"
                     title="Prayer Mode"
                   >
                     <span>Pray</span>
-                  </button>
+                  </a>
                   <button
                     (click)="openPrayerRequest()"
                     class="flex items-center justify-center h-12 gap-1 bg-blue-600 dark:bg-blue-600 text-white px-3 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-sm cursor-pointer"
@@ -1280,6 +1294,8 @@ export class HomeComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     // Track page view on home component load
     this.analyticsService.trackPageView();
+
+    this.consumeHomeReturnContext();
 
     this.route.queryParams
       .pipe(takeUntil(this.destroy$))
@@ -2426,5 +2442,102 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.editingUpdatePrayerId = "";
     this.cdr.markForCheck();
     // Personal prayers will be refreshed via service observable subscription
+  }
+
+  get presentationHandoffQueryParams(): Record<string, string> | null {
+    const params = serializePresentationHomeHandoffQueryParams(
+      this.getPresentationHomeHandoff()
+    );
+    return Object.keys(params).length > 0 ? params : null;
+  }
+
+  onPresentationLinkClick(event: MouseEvent): void {
+    if (this.shouldUseNativePresentationNavigation(event)) {
+      return;
+    }
+    event.preventDefault();
+    void this.router.navigate(["/presentation"], {
+      state: {
+        [PRESENTATION_HOME_HANDOFF_STATE_KEY]: this.getPresentationHomeHandoff(),
+      },
+    });
+  }
+
+  private shouldUseNativePresentationNavigation(event: MouseEvent): boolean {
+    return (
+      event.button !== 0 ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      event.altKey
+    );
+  }
+
+  private getPresentationHomeHandoff() {
+    const contentTypes: SelectablePresentationContentType[] = [
+      this.mapHomeFilterToContentType(
+        this.activeFilter as HomePresentationFilter
+      ),
+    ];
+    return buildPresentationHomeHandoff({
+      contentTypes,
+      activeFilter: this.activeFilter as HomePresentationFilter,
+      selectedPromptTypes: this.selectedPromptTypes,
+      selectedPersonalCategories: this.selectedPersonalCategories,
+    });
+  }
+
+  private mapHomeFilterToContentType(
+    filter: HomePresentationFilter
+  ): SelectablePresentationContentType {
+    switch (filter) {
+      case 'current':
+      case 'answered':
+      case 'total':
+        return 'prayers';
+      case 'prompts':
+        return 'prompts';
+      case 'personal':
+        return 'personal';
+      case 'memorize':
+        return 'prayers';
+      default: {
+        const _exhaustive: never = filter;
+        return _exhaustive;
+      }
+    }
+  }
+
+  private consumeHomeReturnContext(): HomeReturnContext | null {
+    const state = history.state as Record<string, unknown> | null;
+    const returnContext = parseHomeReturnContextFromState(state);
+    if (!returnContext) {
+      return null;
+    }
+
+    history.replaceState(
+      { ...state, [HOME_RETURN_CONTEXT_STATE_KEY]: undefined },
+      ""
+    );
+
+    this.applyHomeReturnContext(returnContext);
+    return returnContext;
+  }
+
+  private applyHomeReturnContext(context: HomeReturnContext): void {
+    this.setFilter(context.activeFilter);
+    if (
+      context.activeFilter === "prompts" &&
+      context.selectedPromptTypes?.length
+    ) {
+      this.selectedPromptTypes = [...context.selectedPromptTypes];
+    }
+    if (
+      context.activeFilter === "personal" &&
+      context.selectedPersonalCategories?.length
+    ) {
+      this.selectedPersonalCategories = [...context.selectedPersonalCategories];
+    }
+    this.cdr.markForCheck();
   }
 }

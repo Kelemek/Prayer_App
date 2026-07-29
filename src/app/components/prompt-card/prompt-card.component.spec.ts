@@ -1,5 +1,58 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { TestBed } from '@angular/core/testing';
+import { ChangeDetectorRef } from '@angular/core';
+import { of } from 'rxjs';
 import { PromptCardComponent } from './prompt-card.component';
+import { BadgeService } from '../../services/badge.service';
+import { UserSessionService } from '../../services/user-session.service';
+import { PrayerEncouragementService } from '../../services/prayer-encouragement.service';
+import { PromptService } from '../../services/prompt.service';
+
+function createPromptCard(
+  badgeService: any,
+  extras?: {
+    prayerEncouragementService?: Record<string, unknown>;
+    promptService?: Record<string, unknown>;
+  }
+): PromptCardComponent {
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({
+    providers: [
+      { provide: BadgeService, useValue: badgeService },
+      { provide: ChangeDetectorRef, useValue: { markForCheck: vi.fn(), detectChanges: vi.fn() } },
+      {
+        provide: UserSessionService,
+        useValue: {
+          getShowPrayForButton$: vi.fn().mockReturnValue(of(true)),
+          getShowPrayingCount$: vi.fn().mockReturnValue(of(true)),
+          getCurrentSession: vi.fn().mockReturnValue({ email: 'me@test.com' }),
+        },
+      },
+      {
+        provide: PrayerEncouragementService,
+        useValue: {
+          getPrayerEncouragementEnabled$: vi.fn().mockReturnValue(of(true)),
+          getCooldownHoursForPrayer$: vi.fn().mockReturnValue(of(4)),
+          canPrayFor: vi.fn().mockReturnValue(true),
+          getCanPrayFor$: vi.fn().mockReturnValue(of(true)),
+          recordPrayedFor: vi.fn(),
+          clearPrayedForCooldown: vi.fn(),
+          ...extras?.prayerEncouragementService,
+        },
+      },
+      {
+        provide: PromptService,
+        useValue: {
+          incrementPromptPrayedFor: vi.fn().mockResolvedValue(5),
+          ...extras?.promptService,
+        },
+      },
+    ],
+  });
+  return TestBed.runInInjectionContext(
+    () => new PromptCardComponent(TestBed.inject(BadgeService))
+  );
+}
 
 describe('PromptCardComponent - Definition', () => {
   it('should be defined', () => {
@@ -647,7 +700,7 @@ describe('PromptCardComponent - Core Logic', () => {
       };
 
       // Create component instance
-      component = new PromptCardComponent(badgeService);
+      component = createPromptCard(badgeService);
       component.prompt = {
         id: 'prompt-1',
         title: 'Test Prompt',
@@ -998,7 +1051,7 @@ describe('PromptCardComponent - Core Logic', () => {
       };
 
       badgeService = mockBadgeService;
-      component = new PromptCardComponent(badgeService);
+      component = createPromptCard(badgeService);
       component.prompt = {
         id: 'prompt-1',
         title: 'Test Prompt',

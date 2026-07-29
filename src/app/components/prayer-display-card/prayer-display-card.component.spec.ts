@@ -1,7 +1,100 @@
-import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/angular';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/angular';
 import { userEvent } from '@testing-library/user-event';
+import { of } from 'rxjs';
 import { PrayerDisplayCardComponent } from './prayer-display-card.component';
+import { UserSessionService } from '../../services/user-session.service';
+import { PrayerEncouragementService } from '../../services/prayer-encouragement.service';
+import { PrayerService } from '../../services/prayer.service';
+import { PromptService } from '../../services/prompt.service';
+import { AdminAuthService } from '../../services/admin-auth.service';
+import { SupabaseService } from '../../services/supabase.service';
+
+function createDisplayCardProviders(overrides?: {
+  userSessionService?: Record<string, unknown>;
+  prayerEncouragementService?: Record<string, unknown>;
+  prayerService?: Record<string, unknown>;
+  promptService?: Record<string, unknown>;
+  adminAuthService?: Record<string, unknown>;
+  supabaseService?: Record<string, unknown>;
+}) {
+  const mockUserSessionService = {
+    getShowPrayForButton$: vi.fn().mockReturnValue(of(false)),
+    getShowPrayingCount$: vi.fn().mockReturnValue(of(false)),
+    getCurrentSession: vi.fn().mockReturnValue(null),
+    ...overrides?.userSessionService
+  };
+  const mockPrayerEncouragementService = {
+    getPrayerEncouragementEnabled$: vi.fn().mockReturnValue(of(false)),
+    getCooldownHours$: vi.fn().mockReturnValue(of(4)),
+    getCooldownHoursForPrayer$: vi.fn().mockReturnValue(of(4)),
+    getCooldownHours: vi.fn().mockReturnValue(4),
+    canPrayFor: vi.fn().mockReturnValue(false),
+    getCanPrayFor$: vi.fn().mockReturnValue(of(false)),
+    recordPrayedFor: vi.fn(),
+    clearPrayedForCooldown: vi.fn(),
+    ...overrides?.prayerEncouragementService
+  };
+  const mockPrayerService = {
+    incrementPrayedFor: vi.fn().mockResolvedValue(null),
+    incrementPersonalPrayedFor: vi.fn().mockResolvedValue(null),
+    incrementMemberPrayedFor: vi.fn().mockResolvedValue(null),
+    ...overrides?.prayerService
+  };
+  const mockPromptService = {
+    incrementPromptPrayedFor: vi.fn().mockResolvedValue(null),
+    ...overrides?.promptService
+  };
+  const mockAdminAuthService = {
+    getIsAdmin: vi.fn().mockReturnValue(false),
+    ...overrides?.adminAuthService
+  };
+  const mockSupabaseService = {
+    client: {
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { updates_allowed: 'everyone' },
+              error: null
+            })
+          })
+        })
+      })
+    },
+    ...overrides?.supabaseService
+  };
+
+  return {
+    providers: [
+      { provide: UserSessionService, useValue: mockUserSessionService },
+      { provide: PrayerEncouragementService, useValue: mockPrayerEncouragementService },
+      { provide: PrayerService, useValue: mockPrayerService },
+      { provide: PromptService, useValue: mockPromptService },
+      { provide: AdminAuthService, useValue: mockAdminAuthService },
+      { provide: SupabaseService, useValue: mockSupabaseService }
+    ],
+    mocks: {
+      mockUserSessionService,
+      mockPrayerEncouragementService,
+      mockPrayerService,
+      mockPromptService,
+      mockAdminAuthService,
+      mockSupabaseService
+    }
+  };
+}
+
+async function renderDisplayCard(
+  options: Parameters<typeof render<typeof PrayerDisplayCardComponent>>[1] = {}
+) {
+  const { providers: extraProviders = [], ...rest } = options;
+  const { providers } = createDisplayCardProviders();
+  return render(PrayerDisplayCardComponent, {
+    ...rest,
+    providers: [...providers, ...extraProviders]
+  });
+}
 
 describe('PrayerDisplayCardComponent', () => {
   const mockPrayer = {
@@ -37,26 +130,26 @@ describe('PrayerDisplayCardComponent', () => {
   };
 
   it('should create', async () => {
-    const { fixture } = await render(PrayerDisplayCardComponent);
+    const { fixture } = await renderDisplayCard();
     
     expect(fixture.componentInstance).toBeTruthy();
   });
 
   describe('default properties', () => {
     it('should have prayer undefined by default', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent);
+      const { fixture } = await renderDisplayCard();
       
       expect(fixture.componentInstance.prayer).toBeUndefined();
     });
 
     it('should have prompt undefined by default', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent);
+      const { fixture } = await renderDisplayCard();
       
       expect(fixture.componentInstance.prompt).toBeUndefined();
     });
 
     it('should have showAllUpdates as false', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent);
+      const { fixture } = await renderDisplayCard();
       
       expect(fixture.componentInstance.showAllUpdates).toBe(false);
     });
@@ -64,7 +157,7 @@ describe('PrayerDisplayCardComponent', () => {
 
   describe('prayer display', () => {
     it('should display prayer_for', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -72,7 +165,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should display description', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -80,7 +173,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should display requester', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -90,7 +183,7 @@ describe('PrayerDisplayCardComponent', () => {
 
     it('should display Anonymous for missing requester', async () => {
       const prayerWithoutRequester = { ...mockPrayer, requester: '' };
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: prayerWithoutRequester }
       });
       
@@ -99,7 +192,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should display status', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -108,7 +201,7 @@ describe('PrayerDisplayCardComponent', () => {
 
     it('should capitalize first letter of status', async () => {
       const answeredPrayer = { ...mockPrayer, status: 'answered' };
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: answeredPrayer }
       });
       
@@ -118,7 +211,7 @@ describe('PrayerDisplayCardComponent', () => {
 
   describe('prompt display', () => {
     it('should display prompt title', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prompt: mockPrompt }
       });
       
@@ -126,7 +219,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should display prompt type', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prompt: mockPrompt }
       });
       
@@ -134,7 +227,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should display prompt description', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prompt: mockPrompt }
       });
       
@@ -142,7 +235,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should display prompt card when prompt is provided', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prompt: mockPrompt }
       });
       
@@ -153,7 +246,7 @@ describe('PrayerDisplayCardComponent', () => {
 
   describe('getStatusBadgeClasses', () => {
     it('should return current status classes', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent);
+      const { fixture } = await renderDisplayCard();
       
       const classes = fixture.componentInstance.getStatusBadgeClasses('current');
       expect(classes).toContain('bg-blue-50');
@@ -162,7 +255,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should return answered status classes', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent);
+      const { fixture } = await renderDisplayCard();
       
       const classes = fixture.componentInstance.getStatusBadgeClasses('answered');
       expect(classes).toContain('bg-green-50');
@@ -171,7 +264,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should return default classes for unknown status', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent);
+      const { fixture } = await renderDisplayCard();
       
       const classes = fixture.componentInstance.getStatusBadgeClasses('unknown');
       expect(classes).toContain('bg-gray-100');
@@ -181,7 +274,7 @@ describe('PrayerDisplayCardComponent', () => {
 
   describe('formatDate', () => {
     it('should format date correctly', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent);
+      const { fixture } = await renderDisplayCard();
       
       const formatted = fixture.componentInstance.formatDate('2024-01-15T10:30:00Z');
       expect(formatted).toContain('2024');
@@ -190,7 +283,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should include time in formatted date', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent);
+      const { fixture } = await renderDisplayCard();
       
       const formatted = fixture.componentInstance.formatDate('2024-01-15T14:30:00Z');
       expect(formatted).toContain('at');
@@ -199,7 +292,7 @@ describe('PrayerDisplayCardComponent', () => {
 
   describe('prayer updates', () => {
     it('should display updates section when updates exist', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -208,7 +301,7 @@ describe('PrayerDisplayCardComponent', () => {
 
     it('should not display updates section when no updates', async () => {
       const prayerWithoutUpdates = { ...mockPrayer, prayer_updates: [] };
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: prayerWithoutUpdates }
       });
       
@@ -216,7 +309,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should display update content', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -224,7 +317,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should display update author', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -234,14 +327,14 @@ describe('PrayerDisplayCardComponent', () => {
 
   describe('getRecentUpdates', () => {
     it('should return empty array when no prayer', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent);
+      const { fixture } = await renderDisplayCard();
       
       const updates = fixture.componentInstance.getRecentUpdates();
       expect(updates).toEqual([]);
     });
 
     it('should return empty array when no updates', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent, {
+      const { fixture } = await renderDisplayCard({
         componentProperties: { prayer: { ...mockPrayer, prayer_updates: [] } }
       });
       
@@ -250,7 +343,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should sort updates by date descending', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent, {
+      const { fixture } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -259,7 +352,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should return all updates when showAllUpdates is true', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent, {
+      const { fixture } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -269,7 +362,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should filter updates by one week when showAllUpdates is false', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent, {
+      const { fixture } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -299,7 +392,7 @@ describe('PrayerDisplayCardComponent', () => {
         ]
       };
       
-      const { fixture } = await render(PrayerDisplayCardComponent, {
+      const { fixture } = await renderDisplayCard({
         componentProperties: { prayer: oldPrayer }
       });
       
@@ -321,7 +414,7 @@ describe('PrayerDisplayCardComponent', () => {
         ]
       };
       
-      const { fixture } = await render(PrayerDisplayCardComponent, {
+      const { fixture } = await renderDisplayCard({
         componentProperties: { prayer: singleOldUpdatePrayer }
       });
       
@@ -352,7 +445,7 @@ describe('PrayerDisplayCardComponent', () => {
         ]
       };
       
-      const { fixture } = await render(PrayerDisplayCardComponent, {
+      const { fixture } = await renderDisplayCard({
         componentProperties: { prayer: recentPrayer }
       });
       
@@ -382,7 +475,7 @@ describe('PrayerDisplayCardComponent', () => {
         ]
       };
       
-      const { fixture } = await render(PrayerDisplayCardComponent, {
+      const { fixture } = await renderDisplayCard({
         componentProperties: { prayer: oldPrayer }
       });
       
@@ -397,14 +490,14 @@ describe('PrayerDisplayCardComponent', () => {
 
   describe('shouldShowToggleButton', () => {
     it('should return false when no prayer', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent);
+      const { fixture } = await renderDisplayCard();
       
       const shouldShow = fixture.componentInstance.shouldShowToggleButton();
       expect(shouldShow).toBe(false);
     });
 
     it('should return false when no updates', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent, {
+      const { fixture } = await renderDisplayCard({
         componentProperties: { prayer: { ...mockPrayer, prayer_updates: [] } }
       });
       
@@ -413,7 +506,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should return true when there are hidden updates', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent, {
+      const { fixture } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -422,7 +515,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should return true when showAllUpdates is true', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent, {
+      const { fixture } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -434,7 +527,7 @@ describe('PrayerDisplayCardComponent', () => {
 
   describe('toggle updates button', () => {
     it('should display toggle button when there are hidden updates', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -447,7 +540,7 @@ describe('PrayerDisplayCardComponent', () => {
 
     it('should toggle showAllUpdates when clicked', async () => {
       const user = userEvent.setup();
-      const { fixture, container } = await render(PrayerDisplayCardComponent, {
+      const { fixture, container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -465,7 +558,7 @@ describe('PrayerDisplayCardComponent', () => {
 
     it('should change button text when expanded', async () => {
       const user = userEvent.setup();
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -484,7 +577,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should rotate arrow icon when expanded', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: {
           prayer: mockPrayer
         }
@@ -498,7 +591,7 @@ describe('PrayerDisplayCardComponent', () => {
 
   describe('responsive styling', () => {
     it('should have responsive text sizes', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -507,7 +600,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should have rounded card', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -516,7 +609,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should have shadow and border', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -527,7 +620,7 @@ describe('PrayerDisplayCardComponent', () => {
 
   describe('dark mode support', () => {
     it('should have dark mode classes', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -536,7 +629,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should have dark mode text classes', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -547,7 +640,7 @@ describe('PrayerDisplayCardComponent', () => {
 
   describe('input acceptance', () => {
     it('should accept prayer input', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent, {
+      const { fixture } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -555,7 +648,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should accept prompt input', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent, {
+      const { fixture } = await renderDisplayCard({
         componentProperties: { prompt: mockPrompt }
       });
       
@@ -563,7 +656,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should handle both prayer and prompt undefined', async () => {
-      const { container } = await render(PrayerDisplayCardComponent);
+      const { container } = await renderDisplayCard();
       
       // Component should render without errors
       expect(container).toBeTruthy();
@@ -591,7 +684,7 @@ describe('PrayerDisplayCardComponent', () => {
     };
 
     it('should identify personal prayers', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent, {
+      const { fixture } = await renderDisplayCard({
         componentProperties: { prayer: personalPrayer }
       });
       
@@ -599,7 +692,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should not identify regular prayers as personal', async () => {
-      const { fixture } = await render(PrayerDisplayCardComponent, {
+      const { fixture } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -607,7 +700,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should hide requester field for personal prayers', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: personalPrayer }
       });
       
@@ -616,7 +709,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should show requester field for regular prayers', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       
@@ -625,7 +718,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should show updates section for personal prayers', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: personalPrayer }
       });
       
@@ -634,7 +727,7 @@ describe('PrayerDisplayCardComponent', () => {
     });
 
     it('should show updates section for regular prayers', async () => {
-      const { container } = await render(PrayerDisplayCardComponent, {
+      const { container } = await renderDisplayCard({
         componentProperties: { prayer: mockPrayer }
       });
       

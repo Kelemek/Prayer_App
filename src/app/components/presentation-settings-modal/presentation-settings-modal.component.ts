@@ -5,14 +5,19 @@ import {
   EventEmitter,
   OnInit,
   OnChanges,
+  SimpleChanges,
   ChangeDetectionStrategy,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
+import {
+  PresentationTimeFilter,
+  SelectablePresentationContentType,
+  includesPresentationContentType,
+  showsPrayerTimeStatusFilters,
+} from "../../types/presentation";
 
-type ContentType = "prayers" | "prompts" | "personal" | "all";
 type ThemeOption = "light" | "dark" | "system";
-type TimeFilter = "week" | "twoweeks" | "month" | "year" | "all";
 
 @Component({
   selector: "app-presentation-settings-modal",
@@ -24,18 +29,19 @@ type TimeFilter = "week" | "twoweeks" | "month" | "year" | "all";
       class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 safe-area-overlay"
     >
       <div
-        class="bg-white dark:bg-gray-900 rounded-xl sm:rounded-2xl max-w-md w-full shadow-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col"
+        id="tour-presentation-settings-modal"
+        class="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl max-w-md sm:max-w-lg w-full shadow-xl max-h-[90dvh] sm:max-h-[85dvh] flex flex-col overflow-hidden"
       >
         <div
-          class="flex items-center justify-between p-4 sm:p-6 lg:p-8 pb-3 sm:pb-4 border-b border-gray-200 dark:border-gray-700"
+          class="flex shrink-0 items-center justify-between p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
         >
           <h2
-            class="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100"
+            class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100"
           >
-            Settings
+            Presentation Settings
           </h2>
           <button
-            (click)="close.emit()"
+            (click)="closeModal()"
             class="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg transition-colors cursor-pointer"
           >
             <svg
@@ -52,16 +58,19 @@ type TimeFilter = "week" | "twoweeks" | "month" | "year" | "all";
         </div>
 
         <div
-          class="presentation-settings-modal-body hide-scrollbar space-y-4 sm:space-y-5 lg:space-y-6 px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6 lg:pb-8 overflow-y-auto"
+          class="presentation-settings-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4"
+          (mousedown)="onSettingsBodyPointerDown($event)"
         >
-          <!-- Theme Selection -->
+
+          <!-- Theme -->
           <div
-            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 mt-3 sm:mt-4"
+            id="tour-presentation-setting-theme"
+            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4"
           >
             <div class="flex items-start gap-2 sm:gap-3">
               <div class="flex-1">
                 <div
-                  class="font-medium text-gray-800 dark:text-gray-100 mb-2 sm:mb-3 text-sm sm:text-base"
+                  class="font-medium text-gray-800 dark:text-gray-100 mb-3 text-sm sm:text-base"
                 >
                   Theme Preference
                 </div>
@@ -169,39 +178,417 @@ type TimeFilter = "week" | "twoweeks" | "month" | "year" | "all";
                     >
                   </button>
                 </div>
-                <p class="text-sm text-gray-700 dark:text-gray-300 mt-2">
+                <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-2">
                   Choose your preferred color theme or use your system settings
                 </p>
               </div>
             </div>
           </div>
 
-          <!-- Smart Mode -->
-          <div>
-            <label
-              class="flex items-center gap-2 sm:gap-3 cursor-pointer mb-4 sm:mb-6"
-            >
-              <input
-                type="checkbox"
-                [(ngModel)]="localSmartMode"
-                (ngModelChange)="smartModeChange.emit($event)"
-                class="w-4 h-4 sm:w-5 sm:h-5 rounded border-gray-900 dark:border-white focus:ring-2 focus:ring-[#39704D] flex-shrink-0"
-              />
-              <span
-                class="text-base sm:text-lg lg:text-xl text-gray-900 dark:text-gray-100"
+          <!-- Filters -->
+          <div
+            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-4"
+          >
+            <div>
+              <div class="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base">
+                Filters
+              </div>
+              <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Choose what to show and narrow which items appear in this session
+              </p>
+            </div>
+
+            <div id="tour-presentation-setting-content-type">
+              <label
+                class="block text-sm sm:text-base mb-2 text-gray-900 dark:text-gray-100"
+                >Content type</label
               >
-                Smart Mode (adjust time based on content length)
-              </span>
-            </label>
+            <div class="relative">
+              <div class="flex">
+                <div
+                  class="flex-1 flex items-center px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-l-lg text-base sm:text-lg border border-r-0 border-gray-300 dark:border-gray-600"
+                >
+                  <span>{{ getContentTypeDisplay() }}</span>
+                </div>
+                <button
+                  type="button"
+                  data-settings-dropdown-trigger="content-type"
+                  (click)="toggleContentTypeDropdown()"
+                  class="flex items-center justify-center px-2.5 sm:px-3 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-r-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                >
+                  <svg
+                    class="w-5 h-5 sm:w-6 sm:h-6 transition-transform"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    [class.rotate-180]="showContentTypeDropdown"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+              </div>
+              @if (showContentTypeDropdown) {
+              <div
+                class="absolute left-0 right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-[70]"
+                data-settings-dropdown-panel="content-type"
+              >
+                  @for (option of contentTypeOptions; track option.value) {
+                  <div
+                    (mousedown)="
+                      togglePendingContentType(option.value);
+                      $event.preventDefault()
+                    "
+                    class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer"
+                  >
+                    <span>{{ option.label }}</span>
+                    @if (isPendingContentTypeSelected(option.value)) {
+                    <span class="text-green-600 dark:text-green-400">✓</span>
+                    }
+                  </div>
+                  }
+                  <div
+                    (mousedown)="
+                      selectAllPendingContentTypes(); $event.preventDefault()
+                    "
+                    class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer border-t border-gray-200 dark:border-gray-700"
+                  >
+                    <span>All Content Types</span>
+                    @if (isAllPendingContentTypesSelected()) {
+                    <span class="text-green-600 dark:text-green-400">✓</span>
+                    }
+                  </div>
+              </div>
+              }
+            </div>
+            </div>
+
+            @if (
+              includesPresentationContentType(localContentTypes, 'personal') &&
+              availableCategories.length > 0
+            ) {
+            <div id="tour-presentation-setting-categories">
+              <label
+                class="block text-sm sm:text-base mb-2 text-gray-900 dark:text-gray-100"
+                >Personal categories</label
+              >
+            <div class="relative">
+              <div class="flex">
+                <div
+                  class="flex-1 flex items-center px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-l-lg text-base sm:text-lg border border-r-0 border-gray-300 dark:border-gray-600"
+                >
+                  <span>{{ getCategoriesDisplay() }}</span>
+                </div>
+                <button
+                  type="button"
+                  data-settings-dropdown-trigger="categories"
+                  (click)="toggleCategoriesDropdown()"
+                  class="flex items-center justify-center px-2.5 sm:px-3 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-r-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                >
+                  <svg
+                    class="w-5 h-5 sm:w-6 sm:h-6 transition-transform"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    [class.rotate-180]="showCategoriesDropdown"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+              </div>
+              @if (showCategoriesDropdown) {
+              <div
+                class="absolute left-0 right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-[70]"
+                data-settings-dropdown-panel="categories"
+              >
+                  @for (category of availableCategories; track category) {
+                  <div
+                    (mousedown)="
+                      togglePendingCategory(category); $event.preventDefault()
+                    "
+                    class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer"
+                  >
+                    <span>{{ category }}</span>
+                    @if (isPendingCategorySelected(category)) {
+                    <span class="text-green-600 dark:text-green-400">✓</span>
+                    }
+                  </div>
+                  }
+                  <div
+                    (mousedown)="
+                      selectAllPendingCategories(); $event.preventDefault()
+                    "
+                    class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer border-t border-gray-200 dark:border-gray-700"
+                  >
+                    <span>All Categories</span>
+                    @if (isAllPendingCategoriesSelected()) {
+                    <span class="text-green-600 dark:text-green-400">✓</span>
+                    }
+                  </div>
+              </div>
+              }
+            </div>
+            </div>
+            }
+
+            @if (
+              includesPresentationContentType(localContentTypes, 'prompts') &&
+              availablePromptCategories.length > 0
+            ) {
+            <div id="tour-presentation-setting-prompt-categories">
+              <label
+                class="block text-sm sm:text-base mb-2 text-gray-900 dark:text-gray-100"
+                >Prompt categories</label
+              >
+            <div class="relative">
+              <div class="flex">
+                <div
+                  class="flex-1 flex items-center px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-l-lg text-base sm:text-lg border border-r-0 border-gray-300 dark:border-gray-600"
+                >
+                  <span>{{ getPromptCategoriesDisplay() }}</span>
+                </div>
+                <button
+                  type="button"
+                  data-settings-dropdown-trigger="prompt-categories"
+                  (click)="togglePromptCategoriesDropdown()"
+                  class="flex items-center justify-center px-2.5 sm:px-3 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-r-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                >
+                  <svg
+                    class="w-5 h-5 sm:w-6 sm:h-6 transition-transform"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    [class.rotate-180]="showPromptCategoriesDropdown"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+              </div>
+              @if (showPromptCategoriesDropdown) {
+              <div
+                class="absolute left-0 right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-[70]"
+                data-settings-dropdown-panel="prompt-categories"
+              >
+                  @for (category of availablePromptCategories; track category) {
+                  <div
+                    (mousedown)="
+                      togglePendingPromptCategory(category); $event.preventDefault()
+                    "
+                    class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer"
+                  >
+                    <span>{{ category }}</span>
+                    @if (isPendingPromptCategorySelected(category)) {
+                    <span class="text-green-600 dark:text-green-400">✓</span>
+                    }
+                  </div>
+                  }
+                  <div
+                    (mousedown)="
+                      selectAllPendingPromptCategories(); $event.preventDefault()
+                    "
+                    class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer border-t border-gray-200 dark:border-gray-700"
+                  >
+                    <span>All Categories</span>
+                    @if (isAllPendingPromptCategoriesSelected()) {
+                    <span class="text-green-600 dark:text-green-400">✓</span>
+                    }
+                  </div>
+              </div>
+              }
+            </div>
+            </div>
+            }
+
+            @if (showsPrayerTimeStatusFilters(localContentTypes)) {
+            <div id="tour-presentation-setting-status">
+              <label
+                class="block text-sm sm:text-base mb-2 text-gray-900 dark:text-gray-100"
+                >Prayer status</label
+              >
+            <div class="relative">
+              <div class="flex">
+                <div
+                  class="flex-1 flex items-center px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-l-lg text-base sm:text-lg border border-r-0 border-gray-300 dark:border-gray-600"
+                >
+                  <span>{{ getStatusFilterDisplay() }}</span>
+                </div>
+                <button
+                  type="button"
+                  data-settings-dropdown-trigger="status"
+                  (click)="toggleStatusDropdown()"
+                  class="flex items-center justify-center px-2.5 sm:px-3 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-r-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                >
+                  <svg
+                    class="w-5 h-5 sm:w-6 sm:h-6 transition-transform"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    [class.rotate-180]="showStatusDropdown"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+              </div>
+              @if (showStatusDropdown) {
+              <div
+                class="absolute left-0 right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-[70]"
+                data-settings-dropdown-panel="status"
+              >
+                  @for (status of statusFilterOptions; track status) {
+                  <div
+                    (mousedown)="
+                      togglePendingStatus(status); $event.preventDefault()
+                    "
+                    class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between capitalize cursor-pointer"
+                  >
+                    <span>{{ status }}</span>
+                    @if (isPendingStatusSelected(status)) {
+                    <span class="text-green-600 dark:text-green-400">✓</span>
+                    }
+                  </div>
+                  }
+                  <div
+                    (mousedown)="
+                      selectAllPendingStatus(); $event.preventDefault()
+                    "
+                    class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer border-t border-gray-200 dark:border-gray-700"
+                  >
+                    <span>All Statuses</span>
+                    @if (isAllPendingStatusSelected()) {
+                    <span class="text-green-600 dark:text-green-400">✓</span>
+                    }
+                  </div>
+              </div>
+              }
+            </div>
+            </div>
+
+            <div id="tour-presentation-setting-time-filter">
+              <label
+                class="block text-sm sm:text-base mb-2 text-gray-900 dark:text-gray-100"
+                >Time period</label
+              >
+            <div class="relative">
+              <div class="flex">
+                <div
+                  class="flex-1 flex items-center px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-l-lg text-base sm:text-lg border border-r-0 border-gray-300 dark:border-gray-600"
+                >
+                  <span>{{ getTimeFilterDisplay() }}</span>
+                </div>
+                <button
+                  type="button"
+                  data-settings-dropdown-trigger="time-filter"
+                  (click)="toggleTimeFilterDropdown()"
+                  class="flex items-center justify-center px-2.5 sm:px-3 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-r-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                >
+                  <svg
+                    class="w-5 h-5 sm:w-6 sm:h-6 transition-transform"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    [class.rotate-180]="showTimeFilterDropdown"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+              </div>
+              @if (showTimeFilterDropdown) {
+              <div
+                class="absolute left-0 right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-[70]"
+                data-settings-dropdown-panel="time-filter"
+              >
+                  @for (option of timeFilterOptions; track option.value) {
+                  <div
+                    (mousedown)="
+                      selectTimeFilter(option.value); $event.preventDefault()
+                    "
+                    class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer"
+                  >
+                    <span>{{ option.label }}</span>
+                    @if (localTimeFilter === option.value) {
+                    <span class="text-green-600 dark:text-green-400">✓</span>
+                    }
+                  </div>
+                  }
+                </div>
+              }
+            </div>
+            </div>
+            }
+
+            <div id="tour-presentation-setting-randomize">
+              <label class="flex items-center justify-between cursor-pointer">
+                <span
+                  class="text-sm sm:text-base text-gray-900 dark:text-gray-100"
+                  >Randomize order</span
+                >
+                <div class="relative">
+                  <input
+                    type="checkbox"
+                    [(ngModel)]="localRandomize"
+                    (ngModelChange)="randomizeChange.emit($event)"
+                    class="sr-only peer"
+                  />
+                  <div
+                    class="w-14 h-8 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"
+                  ></div>
+                </div>
+              </label>
+              <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-2">
+                Shuffle the display order randomly
+              </p>
+            </div>
           </div>
 
-          <!-- Duration Slider and Quick Buttons (when not smart mode) -->
-          @if (!localSmartMode) {
-          <div>
-            <label
-              class="block text-base sm:text-lg lg:text-xl mb-2 sm:mb-3 text-gray-900 dark:text-gray-100"
-              >Auto-advance interval (seconds)</label
-            >
+          <!-- Display & Timing -->
+          <div
+            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4"
+          >
+            <div class="font-medium text-gray-800 dark:text-gray-100 mb-3 text-sm sm:text-base">
+              Display &amp; Timing
+            </div>
+
+            <div id="tour-presentation-setting-smart">
+              <label class="flex items-center justify-between cursor-pointer">
+                <span
+                  class="text-sm sm:text-base text-gray-900 dark:text-gray-100"
+                >
+                  Smart mode
+                </span>
+                <div class="relative">
+                  <input
+                    type="checkbox"
+                    [(ngModel)]="localSmartMode"
+                    (ngModelChange)="smartModeChange.emit($event)"
+                    class="sr-only peer"
+                  />
+                  <div
+                    class="w-14 h-8 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"
+                  ></div>
+                </div>
+              </label>
+            </div>
+
+            @if (!localSmartMode) {
+            <div id="tour-presentation-setting-duration" class="mt-4">
+              <label
+                class="block text-sm sm:text-base mb-2 text-gray-900 dark:text-gray-100"
+                >Auto-advance interval (seconds)</label
+              >
             <input
               type="range"
               min="5"
@@ -212,8 +599,8 @@ type TimeFilter = "week" | "twoweeks" | "month" | "year" | "all";
               [style.--value-percent]="
                 ((localDisplayDuration - 5) / 55) * 100 + '%'
               "
-              style="--fill-color: #2563eb"
-              class="presentation-range w-full h-2.5 sm:h-3 bg-gray-300 dark:bg-gray-700 rounded-lg cursor-pointer accent-blue-600"
+              style="--fill-color: #2F5F54"
+              class="presentation-range w-full h-2.5 sm:h-3 bg-gray-300 dark:bg-gray-700 rounded-lg cursor-pointer accent-[#2F5F54]"
             />
             <div
               class="text-center text-xl sm:text-2xl mt-2 font-semibold text-gray-900 dark:text-gray-100"
@@ -242,244 +629,75 @@ type TimeFilter = "week" | "twoweeks" | "month" | "year" | "all";
                 30s
               </button>
             </div>
-          </div>
-          }
-
-          <!-- Smart Mode Info Box -->
-          @if (localSmartMode) {
-          <div
-            class="bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded-lg p-4"
-          >
-            <p class="text-lg text-gray-800 dark:text-gray-100 mb-2">
-              Smart mode automatically adjusts display time based on prayer
-              length, giving you more time to read longer prayers and updates.
-            </p>
-            <button
-              (click)="showSmartModeDetails = !showSmartModeDetails"
-              class="text-blue-600 dark:text-blue-400 hover:underline text-base font-medium flex items-center gap-1 cursor-pointer"
-            >
-              {{ showSmartModeDetails ? "− Hide details" : "+ Show details" }}
-            </button>
-            @if (showSmartModeDetails) {
-            <div
-              class="mt-3 pt-3 border-t border-blue-300 dark:border-blue-700 text-base text-gray-700 dark:text-gray-300 space-y-2"
-            >
-              <p><strong>How it works:</strong></p>
-              <ul class="list-disc list-inside space-y-1 ml-2">
-                <li>
-                  Counts characters in prayer description and up to 3 recent
-                  updates
-                </li>
-                <li>Reading pace: ~120 characters per 10 seconds</li>
-                <li>Minimum time: 10 seconds per prayer</li>
-                <li>Maximum time: 120 seconds (2 minutes) per prayer</li>
-              </ul>
-              <p class="text-sm italic mt-2">
-                Example: A prayer with 240 characters will display for about 20
-                seconds
-              </p>
             </div>
             }
-          </div>
-          }
 
-          <!-- Content Type -->
-          <div>
-            <label
-              class="block text-base sm:text-lg lg:text-xl mb-2 sm:mb-3 text-gray-900 dark:text-gray-100"
-              >Content Type</label
+            @if (localSmartMode) {
+            <div
+              id="tour-presentation-setting-smart-info"
+              class="mt-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 sm:p-4"
             >
-            <div class="relative">
-              <select
-                [(ngModel)]="localContentType"
-                (ngModelChange)="contentTypeChange.emit($event)"
-                class="w-full appearance-none px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-base sm:text-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#0047AB] focus:border-transparent pr-10 sm:pr-12"
+              <p class="text-sm text-gray-800 dark:text-gray-100 mb-2">
+                Smart mode automatically adjusts display time based on prayer
+                length, giving you more time to read longer prayers and updates.
+              </p>
+              <button
+                (click)="showSmartModeDetails = !showSmartModeDetails"
+                class="text-blue-600 dark:text-blue-400 hover:underline text-sm font-medium flex items-center gap-1 cursor-pointer"
               >
-                <option value="prayers">Prayers</option>
-                <option value="prompts">Prompts</option>
-                <option value="personal">Personal</option>
-                <option value="all">All</option>
-              </select>
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-700 dark:text-gray-300 z-10"
+                {{ showSmartModeDetails ? "− Hide details" : "+ Show details" }}
+              </button>
+              @if (showSmartModeDetails) {
+              <div
+                class="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800 text-sm text-gray-700 dark:text-gray-300 space-y-2"
               >
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-            </div>
-          </div>
-
-          <!-- Randomize Toggle -->
-          <div>
-            <label class="flex items-center justify-between cursor-pointer">
-              <span
-                class="text-base sm:text-lg lg:text-xl text-gray-900 dark:text-gray-100"
-                >Randomize Order</span
-              >
-              <div class="relative">
-                <input
-                  type="checkbox"
-                  [(ngModel)]="localRandomize"
-                  (ngModelChange)="randomizeChange.emit($event)"
-                  class="sr-only peer"
-                />
-                <div
-                  class="w-14 h-8 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"
-                ></div>
+                <p><strong>How it works:</strong></p>
+                <ul class="list-disc list-inside space-y-1 ml-2">
+                  <li>
+                    Counts characters in prayer description and up to 3 recent
+                    updates
+                  </li>
+                  <li>Reading pace: ~120 characters per 10 seconds</li>
+                  <li>Minimum time: 10 seconds per prayer</li>
+                  <li>Maximum time: 120 seconds (2 minutes) per prayer</li>
+                </ul>
+                <p class="text-xs italic mt-2">
+                  Example: A prayer with 240 characters will display for about 20
+                  seconds
+                </p>
               </div>
-            </label>
-            <p class="text-sm text-gray-700 dark:text-gray-300 mt-2">
-              Shuffle the display order randomly
-            </p>
-          </div>
-
-          <!-- Time Filter (for prayers and personal prayers) -->
-          @if (localContentType === 'prayers' || localContentType ===
-          'personal') {
-          <div>
-            <label
-              class="block text-base sm:text-lg lg:text-xl mb-2 sm:mb-3 text-gray-900 dark:text-gray-100"
-              >Time Period</label
-            >
-            <div class="relative">
-              <select
-                [(ngModel)]="localTimeFilter"
-                (ngModelChange)="timeFilterChange.emit($event)"
-                class="w-full appearance-none px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-base sm:text-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#0047AB] focus:border-transparent pr-10 sm:pr-12"
-              >
-                <option value="week">Last Week</option>
-                <option value="twoweeks">Last 2 Weeks</option>
-                <option value="month">Last Month</option>
-                <option value="year">Last Year</option>
-                <option value="all">All Time</option>
-              </select>
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-700 dark:text-gray-300 z-10"
-              >
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
+              }
             </div>
-          </div>
-          }
+            }
 
-          <!-- Personal Prayer Categories (only for personal content) -->
-          @if (localContentType === 'personal' && availableCategories &&
-          availableCategories.length > 0) {
-          <div>
-            <label
-              class="block text-base sm:text-lg lg:text-xl mb-2 sm:mb-3 text-gray-900 dark:text-gray-100"
-              >Categories</label
-            >
-            <div class="space-y-2">
-              @for (category of availableCategories; track category) {
-              <label
-                class="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
-              >
-                <input
-                  type="checkbox"
-                  [checked]="isCategorySelected(category)"
-                  (change)="toggleCategory($event, category)"
-                  class="w-4 h-4 sm:w-5 sm:h-5 rounded text-blue-600"
-                />
+            <div id="tour-presentation-setting-loop" class="mt-4">
+              <label class="flex items-center justify-between cursor-pointer">
                 <span
-                  class="text-base sm:text-lg text-gray-900 dark:text-gray-100"
-                  >{{ category }}</span
+                  class="text-sm sm:text-base text-gray-900 dark:text-gray-100"
                 >
+                  Loop
+                </span>
+                <div class="relative">
+                  <input
+                    type="checkbox"
+                    [(ngModel)]="localLoop"
+                    (ngModelChange)="loopChange.emit($event)"
+                    class="sr-only peer"
+                  />
+                  <div
+                    class="w-14 h-8 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"
+                  ></div>
+                </div>
               </label>
-              }
+              <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-2">
+                When off, playback runs through the list once and stops
+              </p>
             </div>
           </div>
-          }
-
-          <!-- Prayer Status (for prayers and personal prayers) -->
-          @if (localContentType === 'prayers' || localContentType ===
-          'personal') {
-          <div>
-            <label
-              class="block text-base sm:text-lg lg:text-xl mb-2 sm:mb-3 text-gray-900 dark:text-gray-100"
-              >Prayer Status</label
-            >
-            <div class="relative">
-              <div class="flex">
-                <div
-                  class="flex-1 flex items-center px-3 sm:px-4 py-2.5 sm:py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-l-lg text-base sm:text-lg border border-r-0 border-gray-300 dark:border-gray-600"
-                >
-                  <span>{{ getStatusFilterDisplay() }}</span>
-                </div>
-                <button
-                  (click)="toggleStatusDropdown()"
-                  class="flex items-center justify-center px-2.5 sm:px-3 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-r-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
-                >
-                  <svg
-                    class="w-5 h-5 sm:w-6 sm:h-6 transition-transform"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    [class.rotate-180]="showStatusDropdown"
-                  >
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </button>
-              </div>
-              @if (showStatusDropdown) {
-              <div>
-                <div
-                  class="fixed inset-0 z-[60]"
-                  (click)="applyStatusFilter()"
-                ></div>
-                <div
-                  class="absolute left-0 right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-[70]"
-                >
-                  @for (status of ['current', 'answered', 'archived']; track
-                  status) {
-                  <div
-                    (mousedown)="
-                      togglePendingStatus(status); $event.preventDefault()
-                    "
-                    class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between capitalize cursor-pointer"
-                  >
-                    <span>{{ status }}</span>
-                    @if (isPendingStatusSelected(status)) {
-                    <span class="text-green-600 dark:text-green-400">✓</span>
-                    }
-                  </div>
-                  }
-                  <div
-                    (mousedown)="clearPendingStatus(); $event.preventDefault()"
-                    class="w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer border-t border-gray-200 dark:border-gray-700"
-                  >
-                    <span>All Statuses</span>
-                    @if (pendingStatusFilter.length === 0) {
-                    <span class="text-green-600 dark:text-green-400">✓</span>
-                    }
-                  </div>
-                </div>
-              </div>
-              }
-            </div>
-          </div>
-          }
 
           <!-- Prayer Timer -->
           <div
+            id="tour-presentation-setting-timer"
             class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4"
           >
             <div class="flex items-start gap-2 sm:gap-3 mb-3 sm:mb-4">
@@ -487,7 +705,7 @@ type TimeFilter = "week" | "twoweeks" | "month" | "year" | "all";
                 <div
                   class="font-medium text-gray-800 dark:text-gray-100 mb-1 sm:mb-2 text-sm sm:text-base"
                 >
-                  Prayer Timer
+                  Prayer timer
                 </div>
                 <p class="text-xs sm:text-sm text-gray-700 dark:text-gray-300">
                   Set a dedicated time for focused prayer
@@ -496,7 +714,7 @@ type TimeFilter = "week" | "twoweeks" | "month" | "year" | "all";
             </div>
 
             <label
-              class="block text-base sm:text-lg mb-2 sm:mb-3 text-gray-900 dark:text-gray-100"
+              class="block text-sm sm:text-base mb-2 text-gray-900 dark:text-gray-100"
               >Duration (minutes)</label
             >
             <input
@@ -525,14 +743,6 @@ type TimeFilter = "week" | "twoweeks" | "month" | "year" | "all";
               Start Prayer Timer
             </button>
           </div>
-
-          <!-- Refresh Button -->
-          <button
-            (click)="refresh.emit()"
-            class="w-full px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 text-gray-100 rounded-lg text-base sm:text-lg font-semibold transition-colors cursor-pointer"
-          >
-            Refresh Prayers
-          </button>
         </div>
       </div>
     </div>
@@ -543,6 +753,16 @@ type TimeFilter = "week" | "twoweeks" | "month" | "year" | "all";
     `
       :host {
         display: contents;
+      }
+      :host .presentation-settings-scroll {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        touch-action: pan-y;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+      :host .presentation-settings-scroll::-webkit-scrollbar {
+        display: none;
       }
       :host .presentation-range {
         -webkit-appearance: none;
@@ -575,9 +795,6 @@ type TimeFilter = "week" | "twoweeks" | "month" | "year" | "all";
         border: 2px solid white;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
       }
-      :host .presentation-range.accent-blue-600::-webkit-slider-thumb {
-        background: #2563eb;
-      }
       :host .presentation-range::-moz-range-track {
         width: 100%;
         height: 12px;
@@ -601,9 +818,6 @@ type TimeFilter = "week" | "twoweeks" | "month" | "year" | "all";
         border: 2px solid white;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
       }
-      :host .presentation-range.accent-blue-600::-moz-range-thumb {
-        background: #2563eb;
-      }
     `,
   ],
 })
@@ -612,65 +826,127 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
   @Input() theme: ThemeOption = "system";
   @Input() smartMode = true;
   @Input() displayDuration = 10;
-  @Input() contentType: ContentType = "prayers";
+  @Input() contentTypes: SelectablePresentationContentType[] = ["prayers"];
   @Input() randomize = false;
-  @Input() timeFilter: TimeFilter = "month";
+  @Input() loop = true;
+  @Input() timeFilter: PresentationTimeFilter = "all";
   @Input() statusFiltersCurrent = true;
   @Input() statusFiltersAnswered = true;
   @Input() prayerTimerMinutes = 10;
   @Input() availableCategories: string[] = [];
   @Input() selectedCategories: string[] = [];
+  @Input() availablePromptCategories: string[] = [];
+  @Input() selectedPromptCategories: string[] = [];
 
   @Output() close = new EventEmitter<void>();
   @Output() themeChange = new EventEmitter<ThemeOption>();
   @Output() smartModeChange = new EventEmitter<boolean>();
   @Output() displayDurationChange = new EventEmitter<number>();
-  @Output() contentTypeChange = new EventEmitter<ContentType>();
+  @Output() contentTypesChange = new EventEmitter<
+    SelectablePresentationContentType[]
+  >();
   @Output() randomizeChange = new EventEmitter<boolean>();
-  @Output() timeFilterChange = new EventEmitter<TimeFilter>();
+  @Output() loopChange = new EventEmitter<boolean>();
+  @Output() timeFilterChange = new EventEmitter<PresentationTimeFilter>();
   @Output() statusFiltersChange = new EventEmitter<{
     current: boolean;
     answered: boolean;
   }>();
   @Output() prayerTimerMinutesChange = new EventEmitter<number>();
   @Output() startPrayerTimer = new EventEmitter<void>();
-  @Output() refresh = new EventEmitter<void>();
   @Output() categoriesChange = new EventEmitter<string[]>();
+  @Output() promptCategoriesChange = new EventEmitter<string[]>();
 
   // Local state for two-way binding
   localSmartMode = true;
   localDisplayDuration = 10;
-  localContentType: ContentType = "prayers";
+  localContentTypes: SelectablePresentationContentType[] = ["prayers"];
   localRandomize = false;
-  localTimeFilter: TimeFilter = "month";
+  localLoop = true;
+  localTimeFilter: PresentationTimeFilter = "all";
   localPrayerTimerMinutes = 10;
   localSelectedCategories: string[] = [];
+  localSelectedPromptCategories: string[] = [];
 
   showSmartModeDetails = false;
+  showContentTypeDropdown = false;
+  showTimeFilterDropdown = false;
   showStatusDropdown = false;
+  showCategoriesDropdown = false;
+  showPromptCategoriesDropdown = false;
+  pendingContentTypes: SelectablePresentationContentType[] = [];
   pendingStatusFilter: string[] = [];
+  pendingCategories: string[] = [];
+  pendingPromptCategories: string[] = [];
+
+  readonly contentTypeOptions: {
+    value: SelectablePresentationContentType;
+    label: string;
+  }[] = [
+    { value: "prayers", label: "Prayers" },
+    { value: "prompts", label: "Prompts" },
+    { value: "personal", label: "Personal" },
+  ];
+
+  readonly statusFilterOptions = ["current", "answered", "archived"] as const;
+
+  readonly timeFilterOptions: {
+    value: PresentationTimeFilter;
+    label: string;
+  }[] = [
+    { value: "week", label: "Last Week" },
+    { value: "twoweeks", label: "Last 2 Weeks" },
+    { value: "month", label: "Last Month" },
+    { value: "year", label: "Last Year" },
+    { value: "all", label: "All Time" },
+  ];
 
   ngOnInit() {
     this.syncLocalState();
     this.initPendingStatusFilter();
+    this.initPendingContentTypes();
   }
 
-  ngOnChanges() {
-    this.syncLocalState();
-    this.initPendingStatusFilter();
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes["visible"]?.previousValue === true && !this.visible) {
+      this.applyOpenDropdowns();
+      this.resetDropdownState();
+      return;
+    }
+
+    if (changes["visible"]?.currentValue === true) {
+      this.syncLocalState();
+      this.initPendingStatusFilter();
+      this.initPendingContentTypes();
+      this.resetDropdownState();
+    }
   }
 
   syncLocalState() {
     this.localSmartMode = this.smartMode;
     this.localDisplayDuration = this.displayDuration;
-    this.localContentType = this.contentType;
+    this.localContentTypes = [...this.contentTypes];
     this.localRandomize = this.randomize;
+    this.localLoop = this.loop;
     this.localTimeFilter = this.timeFilter;
     this.localPrayerTimerMinutes = this.prayerTimerMinutes;
     this.localSelectedCategories = [...this.selectedCategories];
+    this.localSelectedPromptCategories = [...this.selectedPromptCategories];
+  }
+
+  initPendingContentTypes() {
+    if (this.localContentTypes.length === 0) {
+      this.pendingContentTypes = this.getAvailableContentTypes();
+      return;
+    }
+    this.pendingContentTypes = [...this.localContentTypes];
   }
 
   initPendingStatusFilter() {
+    if (!this.statusFiltersCurrent && !this.statusFiltersAnswered) {
+      this.pendingStatusFilter = [...this.getAvailableStatusFilters()];
+      return;
+    }
     const filters: string[] = [];
     if (this.statusFiltersCurrent) filters.push("current");
     if (this.statusFiltersAnswered) filters.push("answered");
@@ -682,18 +958,382 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
     this.displayDurationChange.emit(seconds);
   }
 
+  toggleContentTypeDropdown() {
+    if (this.showContentTypeDropdown) {
+      this.applyContentTypeFilter();
+    } else {
+      this.closeOtherDropdowns("contentType");
+      this.initPendingContentTypes();
+      this.showContentTypeDropdown = true;
+    }
+  }
+
+  togglePendingContentType(type: SelectablePresentationContentType) {
+    const index = this.pendingContentTypes.indexOf(type);
+    if (index > -1) {
+      if (this.pendingContentTypes.length === 1) {
+        return;
+      }
+      this.pendingContentTypes = this.pendingContentTypes.filter(
+        (value) => value !== type
+      );
+    } else {
+      this.pendingContentTypes = [...this.pendingContentTypes, type];
+    }
+  }
+
+  selectAllPendingContentTypes() {
+    this.pendingContentTypes = this.getAvailableContentTypes();
+  }
+
+  isAllPendingContentTypesSelected(): boolean {
+    const available = this.getAvailableContentTypes();
+    return (
+      available.length > 0 &&
+      available.every((type) => this.pendingContentTypes.includes(type))
+    );
+  }
+
+  isPendingContentTypeSelected(
+    type: SelectablePresentationContentType
+  ): boolean {
+    return this.pendingContentTypes.includes(type);
+  }
+
+  applyContentTypeFilter() {
+    const applied = this.resolveAppliedContentTypes();
+    if (applied === null) {
+      this.initPendingContentTypes();
+      this.showContentTypeDropdown = false;
+      return;
+    }
+    if (this.contentTypesEqual(this.localContentTypes, applied)) {
+      this.showContentTypeDropdown = false;
+      return;
+    }
+    this.localContentTypes = [...applied];
+    this.contentTypesChange.emit([...this.localContentTypes]);
+    this.showContentTypeDropdown = false;
+  }
+
+  private getAvailableContentTypes(): SelectablePresentationContentType[] {
+    return this.contentTypeOptions.map((option) => option.value);
+  }
+
+  private resolveAppliedContentTypes():
+    | SelectablePresentationContentType[]
+    | null {
+    if (this.pendingContentTypes.length === 0) {
+      return null;
+    }
+    if (this.isAllPendingContentTypesSelected()) {
+      return [];
+    }
+    return [...this.pendingContentTypes];
+  }
+
+  private contentTypesEqual(
+    current: SelectablePresentationContentType[],
+    applied: SelectablePresentationContentType[]
+  ): boolean {
+    const normalizedCurrent = this.normalizeContentTypesForCompare(current);
+    const normalizedApplied = this.normalizeContentTypesForCompare(applied);
+    if (normalizedCurrent.length !== normalizedApplied.length) {
+      return false;
+    }
+    return normalizedCurrent.every(
+      (value, index) => value === normalizedApplied[index]
+    );
+  }
+
+  private normalizeContentTypesForCompare(
+    types: SelectablePresentationContentType[]
+  ): SelectablePresentationContentType[] {
+    const available = this.getAvailableContentTypes();
+    const effective = types.length === 0 ? available : types;
+    return [...effective].sort();
+  }
+
+  getContentTypeDisplay(): string {
+    if (this.localContentTypes.length === 0) {
+      return "All Content Types";
+    }
+
+    const labels = this.localContentTypes.map((type) => {
+      const option = this.contentTypeOptions.find(
+        (entry) => entry.value === type
+      );
+      return option?.label ?? type;
+    });
+
+    return labels.join(", ");
+  }
+
+  showsPrayerTimeStatusFilters = showsPrayerTimeStatusFilters;
+  includesPresentationContentType = includesPresentationContentType;
+
+  initPendingCategories() {
+    if (this.localSelectedCategories.length === 0) {
+      this.pendingCategories = [...this.availableCategories];
+      return;
+    }
+    this.pendingCategories = [...this.localSelectedCategories];
+  }
+
+  toggleCategoriesDropdown() {
+    if (this.showCategoriesDropdown) {
+      this.applyCategoryFilter();
+    } else {
+      this.closeOtherDropdowns("categories");
+      this.initPendingCategories();
+      this.showCategoriesDropdown = true;
+    }
+  }
+
+  togglePendingCategory(category: string) {
+    const index = this.pendingCategories.indexOf(category);
+    if (index > -1) {
+      if (this.pendingCategories.length === 1) {
+        return;
+      }
+      this.pendingCategories = this.pendingCategories.filter(
+        (value) => value !== category
+      );
+    } else {
+      this.pendingCategories = [...this.pendingCategories, category];
+    }
+  }
+
+  selectAllPendingCategories() {
+    this.pendingCategories = [...this.availableCategories];
+  }
+
+  isAllPendingCategoriesSelected(): boolean {
+    return (
+      this.availableCategories.length > 0 &&
+      this.availableCategories.every((category) =>
+        this.pendingCategories.includes(category)
+      )
+    );
+  }
+
+  isPendingCategorySelected(category: string): boolean {
+    return this.pendingCategories.includes(category);
+  }
+
+  applyCategoryFilter() {
+    const applied = this.isAllPendingCategoriesSelected()
+      ? []
+      : [...this.pendingCategories];
+    if (applied.length === 0 && !this.isAllPendingCategoriesSelected()) {
+      this.initPendingCategories();
+      this.showCategoriesDropdown = false;
+      return;
+    }
+    if (this.categoriesEqual(this.localSelectedCategories, applied)) {
+      this.showCategoriesDropdown = false;
+      return;
+    }
+    this.localSelectedCategories = [...applied];
+    this.categoriesChange.emit([...this.localSelectedCategories]);
+    this.showCategoriesDropdown = false;
+  }
+
+  getCategoriesDisplay(): string {
+    if (this.localSelectedCategories.length === 0) {
+      return "All Categories";
+    }
+    return this.localSelectedCategories.join(", ");
+  }
+
+  initPendingPromptCategories() {
+    if (this.localSelectedPromptCategories.length === 0) {
+      this.pendingPromptCategories = [...this.availablePromptCategories];
+      return;
+    }
+    this.pendingPromptCategories = [...this.localSelectedPromptCategories];
+  }
+
+  togglePromptCategoriesDropdown() {
+    if (this.showPromptCategoriesDropdown) {
+      this.applyPromptCategoryFilter();
+    } else {
+      this.closeOtherDropdowns("promptCategories");
+      this.initPendingPromptCategories();
+      this.showPromptCategoriesDropdown = true;
+    }
+  }
+
+  togglePendingPromptCategory(category: string) {
+    const index = this.pendingPromptCategories.indexOf(category);
+    if (index > -1) {
+      if (this.pendingPromptCategories.length === 1) {
+        return;
+      }
+      this.pendingPromptCategories = this.pendingPromptCategories.filter(
+        (value) => value !== category
+      );
+    } else {
+      this.pendingPromptCategories = [...this.pendingPromptCategories, category];
+    }
+  }
+
+  selectAllPendingPromptCategories() {
+    this.pendingPromptCategories = [...this.availablePromptCategories];
+  }
+
+  isAllPendingPromptCategoriesSelected(): boolean {
+    return (
+      this.availablePromptCategories.length > 0 &&
+      this.availablePromptCategories.every((category) =>
+        this.pendingPromptCategories.includes(category)
+      )
+    );
+  }
+
+  isPendingPromptCategorySelected(category: string): boolean {
+    return this.pendingPromptCategories.includes(category);
+  }
+
+  applyPromptCategoryFilter() {
+    const applied = this.isAllPendingPromptCategoriesSelected()
+      ? []
+      : [...this.pendingPromptCategories];
+    if (applied.length === 0 && !this.isAllPendingPromptCategoriesSelected()) {
+      this.initPendingPromptCategories();
+      this.showPromptCategoriesDropdown = false;
+      return;
+    }
+    if (this.promptCategoriesEqual(this.localSelectedPromptCategories, applied)) {
+      this.showPromptCategoriesDropdown = false;
+      return;
+    }
+    this.localSelectedPromptCategories = [...applied];
+    this.promptCategoriesChange.emit([...this.localSelectedPromptCategories]);
+    this.showPromptCategoriesDropdown = false;
+  }
+
+  getPromptCategoriesDisplay(): string {
+    if (this.localSelectedPromptCategories.length === 0) {
+      return "All Categories";
+    }
+    return this.localSelectedPromptCategories.join(", ");
+  }
+
+  private promptCategoriesEqual(current: string[], applied: string[]): boolean {
+    const normalizedCurrent = this.normalizePromptCategoriesForCompare(current);
+    const normalizedApplied = this.normalizePromptCategoriesForCompare(applied);
+    if (normalizedCurrent.length !== normalizedApplied.length) {
+      return false;
+    }
+    return normalizedCurrent.every((category, index) => {
+      return category === normalizedApplied[index];
+    });
+  }
+
+  private normalizePromptCategoriesForCompare(categories: string[]): string[] {
+    const normalized =
+      categories.length === 0
+        ? [...this.availablePromptCategories]
+        : categories;
+    return [...normalized].sort();
+  }
+
+  private categoriesEqual(current: string[], applied: string[]): boolean {
+    const normalizedCurrent = this.normalizeCategoriesForCompare(current);
+    const normalizedApplied = this.normalizeCategoriesForCompare(applied);
+    if (normalizedCurrent.length !== normalizedApplied.length) {
+      return false;
+    }
+    return normalizedCurrent.every(
+      (value, index) => value === normalizedApplied[index]
+    );
+  }
+
+  private normalizeCategoriesForCompare(categories: string[]): string[] {
+    const effective =
+      categories.length === 0 ? [...this.availableCategories] : categories;
+    return [...effective].sort();
+  }
+
+  toggleTimeFilterDropdown() {
+    if (this.showTimeFilterDropdown) {
+      this.showTimeFilterDropdown = false;
+    } else {
+      this.closeOtherDropdowns("timeFilter");
+      this.showTimeFilterDropdown = true;
+    }
+  }
+
+  closeTimeFilterDropdown() {
+    this.showTimeFilterDropdown = false;
+  }
+
+  selectTimeFilter(value: PresentationTimeFilter) {
+    this.localTimeFilter = value;
+    this.timeFilterChange.emit(value);
+    this.showTimeFilterDropdown = false;
+  }
+
+  getTimeFilterDisplay(): string {
+    const option = this.timeFilterOptions.find(
+      (o) => o.value === this.localTimeFilter
+    );
+    return option?.label ?? "All Time";
+  }
+
+  private closeOtherDropdowns(
+    except: "contentType" | "timeFilter" | "status" | "categories" | "promptCategories"
+  ) {
+    if (except !== "contentType") {
+      if (this.showContentTypeDropdown) {
+        this.applyContentTypeFilter();
+      } else {
+        this.showContentTypeDropdown = false;
+      }
+    }
+    if (except !== "categories") {
+      if (this.showCategoriesDropdown) {
+        this.applyCategoryFilter();
+      } else {
+        this.showCategoriesDropdown = false;
+      }
+    }
+    if (except !== "promptCategories") {
+      if (this.showPromptCategoriesDropdown) {
+        this.applyPromptCategoryFilter();
+      } else {
+        this.showPromptCategoriesDropdown = false;
+      }
+    }
+    if (except !== "timeFilter") {
+      this.showTimeFilterDropdown = false;
+    }
+    if (except !== "status") {
+      if (this.showStatusDropdown) {
+        this.applyStatusFilter();
+      }
+      this.showStatusDropdown = false;
+    }
+  }
+
   toggleStatusDropdown() {
     if (this.showStatusDropdown) {
       this.applyStatusFilter();
+      this.showStatusDropdown = false;
     } else {
+      this.closeOtherDropdowns("status");
       this.initPendingStatusFilter();
+      this.showStatusDropdown = true;
     }
-    this.showStatusDropdown = !this.showStatusDropdown;
   }
 
   togglePendingStatus(status: string) {
     const index = this.pendingStatusFilter.indexOf(status);
     if (index > -1) {
+      if (this.pendingStatusFilter.length === 1) {
+        return;
+      }
       this.pendingStatusFilter = this.pendingStatusFilter.filter(
         (s) => s !== status
       );
@@ -702,8 +1342,33 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
     }
   }
 
-  clearPendingStatus() {
-    this.pendingStatusFilter = [];
+  selectAllPendingStatus() {
+    this.pendingStatusFilter = [...this.getAvailableStatusFilters()];
+  }
+
+  isAllPendingStatusSelected(): boolean {
+    const available = this.getAvailableStatusFilters();
+    return (
+      available.length > 0 &&
+      available.every((status) => this.pendingStatusFilter.includes(status))
+    );
+  }
+
+  private getAvailableStatusFilters(): string[] {
+    return [...this.statusFilterOptions];
+  }
+
+  private resolveAppliedStatusFilters(): {
+    current: boolean;
+    answered: boolean;
+  } {
+    if (this.isAllPendingStatusSelected()) {
+      return { current: false, answered: false };
+    }
+    return {
+      current: this.pendingStatusFilter.includes("current"),
+      answered: this.pendingStatusFilter.includes("answered"),
+    };
   }
 
   isPendingStatusSelected(status: string): boolean {
@@ -711,8 +1376,14 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
   }
 
   applyStatusFilter() {
-    const current = this.pendingStatusFilter.includes("current");
-    const answered = this.pendingStatusFilter.includes("answered");
+    const { current, answered } = this.resolveAppliedStatusFilters();
+    if (
+      current === this.statusFiltersCurrent &&
+      answered === this.statusFiltersAnswered
+    ) {
+      this.showStatusDropdown = false;
+      return;
+    }
     this.statusFiltersChange.emit({ current, answered });
     this.showStatusDropdown = false;
   }
@@ -726,24 +1397,58 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
     return filters.join(", ");
   }
 
-  isCategorySelected(category: string): boolean {
-    return this.localSelectedCategories.includes(category);
+  closeModal(): void {
+    this.applyOpenDropdowns();
+    this.resetDropdownState();
+    this.close.emit();
   }
 
-  toggleCategory(event: Event, category: string) {
-    const checkbox = event.target as HTMLInputElement;
-    if (checkbox.checked) {
-      if (!this.localSelectedCategories.includes(category)) {
-        this.localSelectedCategories = [
-          ...this.localSelectedCategories,
-          category,
-        ];
-      }
-    } else {
-      this.localSelectedCategories = this.localSelectedCategories.filter(
-        (c) => c !== category
-      );
+  onSettingsBodyPointerDown(event: MouseEvent): void {
+    if (!this.hasOpenDropdown()) {
+      return;
     }
-    this.categoriesChange.emit(this.localSelectedCategories);
+    const target = event.target as Element;
+    if (target.closest("[data-settings-dropdown-panel]")) {
+      return;
+    }
+    if (target.closest("[data-settings-dropdown-trigger]")) {
+      return;
+    }
+    this.applyOpenDropdowns();
+    this.resetDropdownState();
+  }
+
+  private hasOpenDropdown(): boolean {
+    return (
+      this.showContentTypeDropdown ||
+      this.showCategoriesDropdown ||
+      this.showPromptCategoriesDropdown ||
+      this.showStatusDropdown ||
+      this.showTimeFilterDropdown
+    );
+  }
+
+  private applyOpenDropdowns(): void {
+    if (this.showContentTypeDropdown) {
+      this.applyContentTypeFilter();
+    }
+    if (this.showCategoriesDropdown) {
+      this.applyCategoryFilter();
+    }
+    if (this.showPromptCategoriesDropdown) {
+      this.applyPromptCategoryFilter();
+    }
+    if (this.showStatusDropdown) {
+      this.applyStatusFilter();
+    }
+    this.showTimeFilterDropdown = false;
+  }
+
+  private resetDropdownState(): void {
+    this.showContentTypeDropdown = false;
+    this.showCategoriesDropdown = false;
+    this.showPromptCategoriesDropdown = false;
+    this.showStatusDropdown = false;
+    this.showTimeFilterDropdown = false;
   }
 }

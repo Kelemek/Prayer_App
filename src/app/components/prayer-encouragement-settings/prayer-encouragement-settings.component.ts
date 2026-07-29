@@ -98,39 +98,42 @@ import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/a
               </div>
             </label>
 
-            @if (prayerEncouragementEnabled) {
-              <div
-                class="flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-600 rounded-lg"
-              >
-                <div class="flex-1">
-                  <label
-                    for="cooldownHours"
-                    class="font-medium text-gray-900 dark:text-gray-100 text-sm block mb-1"
-                  >
-                    Cooldown (hours)
-                  </label>
-                  <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">
-                    How long before a user can click Pray For again on the same
-                    prayer (1–168 hours).
-                  </p>
-                  <input
-                    type="number"
-                    id="cooldownHours"
-                    [(ngModel)]="cooldownHours"
-                    name="cooldownHours"
-                    min="1"
-                    max="168"
-                    [disabled]="isSaving"
-                    class="w-24 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
-                  />
-                </div>
+            <div
+              class="flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-600 rounded-lg"
+              [class.hidden]="!prayerEncouragementEnabled"
+              [attr.aria-hidden]="!prayerEncouragementEnabled"
+            >
+              <div class="flex-1">
+                <label
+                  for="cooldownHours"
+                  class="font-medium text-gray-900 dark:text-gray-100 text-sm block mb-1"
+                >
+                  Cooldown (hours)
+                </label>
+                <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                  How long before a user can click Pray For again on the same
+                  prayer (1–168 hours).
+                </p>
+                <input
+                  type="number"
+                  id="cooldownHours"
+                  [(ngModel)]="cooldownHours"
+                  name="cooldownHours"
+                  min="1"
+                  max="168"
+                  [disabled]="isSaving"
+                  class="w-24 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+                />
               </div>
+            </div>
 
-              <div
-                class="p-4 bg-gray-50 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-600 rounded-lg space-y-3"
-                role="radiogroup"
-                aria-labelledby="countVisibilityHeading"
-              >
+            <div
+              class="p-4 bg-gray-50 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-600 rounded-lg space-y-3"
+              [class.hidden]="!prayerEncouragementEnabled"
+              [attr.aria-hidden]="!prayerEncouragementEnabled"
+              role="radiogroup"
+              aria-labelledby="countVisibilityHeading"
+            >
                 <p
                   id="countVisibilityHeading"
                   class="font-medium text-gray-900 dark:text-gray-100 text-sm block mb-1"
@@ -171,7 +174,6 @@ import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/a
                   </span>
                 </label>
               </div>
-            }
 
             <div
               class="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700 justify-end"

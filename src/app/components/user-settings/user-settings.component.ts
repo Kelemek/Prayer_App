@@ -63,6 +63,7 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
   badgeFunctionalityEnabled: boolean | null = null;
   showPrayForButton: boolean | null = null;
   showPrayingCount: boolean | null = null;
+  personalPrayerCooldownHours = 4;
   theme: ThemeOption = "system";
   textSize: TextSize = "normal";
   saving = false;
@@ -71,6 +72,7 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
   savingBadge = false;
   savingShowPrayForButton = false;
   savingShowPrayingCount = false;
+  savingPersonalPrayerCooldown = false;
   successPushNotification: string | null = null;
   savingDefaultView = false;
   error: string | null = null;
@@ -195,6 +197,8 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
         this.memorizationStrictModeLoaded = true;
         this.showPrayForButton = userSession.showPrayForButton ?? true;
         this.showPrayingCount = userSession.showPrayingCount ?? true;
+        this.personalPrayerCooldownHours =
+          userSession.personalPrayerCooldownHours ?? 4;
         this.prayerEncouragementUiLoaded = true;
       } else {
         // Fall back to localStorage if session not available
@@ -419,6 +423,60 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
     }
     this.showPrayingCount = enabled;
     void this.onShowPrayingCountToggle();
+  }
+
+  async savePersonalPrayerCooldownHours(hours: number): Promise<void> {
+    const email = this.email.toLowerCase().trim();
+    if (!email) {
+      this.error = "Email not found. Please log in again.";
+      return;
+    }
+
+    if (!this.connectivity.requireOnline('save settings')) {
+      return;
+    }
+
+    const next = Math.max(1, Math.min(168, Math.round(hours)));
+    const current = this.userSessionService.getPersonalPrayerCooldownHours();
+    if (next === current) {
+      this.personalPrayerCooldownHours = next;
+      return;
+    }
+
+    this.personalPrayerCooldownHours = next;
+    this.savingPersonalPrayerCooldown = true;
+    this.error = null;
+    this.successPrayerEncouragementUi = null;
+
+    try {
+      const result = await this.membershipPrefs.upsert(
+        email,
+        { personal_prayer_cooldown_hours: next },
+        { name: this.name || "" }
+      );
+      if (!result.ok) {
+        throw result.error;
+      }
+
+      await this.userSessionService.updateUserSession({
+        personalPrayerCooldownHours: next,
+      });
+      this.successPrayerEncouragementUi = `Personal / prompt cooldown set to ${next} ${
+        next === 1 ? "hour" : "hours"
+      }`;
+      setTimeout(() => {
+        this.successPrayerEncouragementUi = null;
+        this.cdr.markForCheck();
+      }, 3000);
+    } catch (err) {
+      console.error("Error updating personal prayer cooldown:", err);
+      this.error =
+        err instanceof Error ? err.message : "Failed to update preference";
+      this.personalPrayerCooldownHours = current;
+    } finally {
+      this.savingPersonalPrayerCooldown = false;
+      this.cdr.markForCheck();
+    }
   }
 
   selectDefaultPrayerView(view: "current" | "personal"): void {
@@ -780,52 +838,8 @@ export class UserSettingsComponent implements OnInit, OnDestroy, OnChanges {
 
   private markAllItemsAsRead(): void {
     try {
-      // Get all prayers and prompts from cache
-      const prayersCache = localStorage.getItem("prayers_cache");
-      const promptsCache = localStorage.getItem("prompts_cache");
-
-      // Mark all prayers as read
-      if (prayersCache) {
-        const parsedCache = JSON.parse(prayersCache);
-        const prayers = parsedCache?.data || parsedCache || [];
-        if (Array.isArray(prayers)) {
-          const prayerIds = prayers.map((p: any) => p.id);
-          const updateIds = prayers.flatMap(
-            (p: any) => p.updates?.map((u: any) => u.id) || []
-          );
-
-          const readData = localStorage.getItem("read_prayers_data");
-          const data = readData
-            ? JSON.parse(readData)
-            : { prayers: [], updates: [] };
-          data.prayers = Array.from(new Set([...data.prayers, ...prayerIds]));
-          data.updates = Array.from(new Set([...data.updates, ...updateIds]));
-          localStorage.setItem("read_prayers_data", JSON.stringify(data));
-        }
-      }
-
-      // Mark all prompts as read
-      if (promptsCache) {
-        const parsedCache = JSON.parse(promptsCache);
-        const prompts = parsedCache?.data || parsedCache || [];
-        if (Array.isArray(prompts)) {
-          const promptIds = prompts.map((p: any) => p.id);
-          const updateIds = prompts.flatMap(
-            (p: any) => p.updates?.map((u: any) => u.id) || []
-          );
-
-          const readData = localStorage.getItem("read_prompts_data");
-          const data = readData
-            ? JSON.parse(readData)
-            : { prompts: [], updates: [] };
-          data.prompts = Array.from(new Set([...data.prompts, ...promptIds]));
-          data.updates = Array.from(new Set([...data.updates, ...updateIds]));
-          localStorage.setItem("read_prompts_data", JSON.stringify(data));
-        }
-      }
-
-      // Refresh badge counts
-      this.badgeService.refreshBadgeCounts();
+      // Uses tenant-scoped prayer/prompt caches and persists receipts to DB.
+      this.badgeService.markAllCachedItemsAsRead();
     } catch (err) {
       console.error("Error marking all items as read:", err);
     }

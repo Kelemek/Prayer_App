@@ -1,10 +1,12 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
+import { distinctUntilChanged } from 'rxjs/operators';
 import { SupabaseService } from './supabase.service';
 import { ToastService } from './toast.service';
 import { CacheService } from './cache.service';
 import { BadgeService } from './badge.service';
 import { ConnectivityService } from './connectivity.service';
+import { UserSessionService } from './user-session.service';
 import { PrayerPrompt } from '../components/prompt-card/prompt-card.component';
 import { TenantContextService } from './tenant-context.service';
 
@@ -15,6 +17,8 @@ export class PromptService {
   public promptsSubject = new BehaviorSubject<PrayerPrompt[]>([]);
   private loadingSubject = new BehaviorSubject<boolean>(true);
   private errorSubject = new BehaviorSubject<string | null>(null);
+  /** Bumps on session email change so late count hydrates are ignored. */
+  private countsHydrateGeneration = 0;
 
   public prompts$ = this.promptsSubject.asObservable();
   public loading$ = this.loadingSubject.asObservable();
@@ -26,9 +30,17 @@ export class PromptService {
     private cache: CacheService,
     private badgeService: BadgeService,
     private connectivity: ConnectivityService,
+    private userSessionService: UserSessionService,
     private tenantContext?: TenantContextService
   ) {
     this.loadPrompts();
+    this.userSessionService.userSession$
+      .pipe(
+        distinctUntilChanged((prev, curr) => prev?.email === curr?.email)
+      )
+      .subscribe((session) => {
+        void this.onUserSessionEmailChange(session?.email ?? null);
+      });
     if (this.tenantContext?.activeTenant$) {
       let previousTenantId = this.tenantContext.getActiveTenant()?.id || null;
       this.tenantContext.activeTenant$.subscribe((tenant) => {
@@ -43,7 +55,7 @@ export class PromptService {
   }
 
   /**
-   * Load prompts from database with caching
+   * Load prompts from database with caching, then attach the current user's Pray For counts.
    */
   async loadPrompts(): Promise<void> {
     try {
@@ -56,7 +68,7 @@ export class PromptService {
         return;
       }
 
-      // Try to get from cache first
+      // Try to get from cache first (base prompts without user-specific counts)
       const cacheKey = tenantId ? `prompts:${tenantId}` : 'prompts';
       let sortedPrompts =
         this.cache.get<PrayerPrompt[]>(cacheKey) ||
@@ -112,11 +124,11 @@ export class PromptService {
             return orderA - orderB;
           });
 
-        // Cache the results
+        // Cache the results without user-specific counts
         this.cache.set(cacheKey, sortedPrompts);
       }
 
-      this.promptsSubject.next(sortedPrompts);
+      await this.publishPromptsWithFreshCounts(sortedPrompts);
     } catch (err) {
       const cacheKey = this.tenantContext?.getActiveTenant()?.id
         ? `prompts:${this.tenantContext.getActiveTenant()!.id}`
@@ -140,6 +152,184 @@ export class PromptService {
       
       // Refresh badge counts to ensure badges show up for new prompts
       this.badgeService.refreshBadgeCounts();
+    }
+  }
+
+  /**
+   * Attach counts and publish. Uses UserSession email (not lingering Supabase auth) so a late
+   * load after logout cannot restore another user's private tallies. Retries once if generation
+   * changes mid-flight.
+   */
+  private async publishPromptsWithFreshCounts(base: PrayerPrompt[]): Promise<void> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const generation = this.countsHydrateGeneration;
+      const sessionEmail = this.userSessionService.getUserEmail();
+      const withCounts = sessionEmail
+        ? await this.attachPrayedForCounts(base, sessionEmail)
+        : base.map((p) => ({ ...p, prayed_for_count: 0 }));
+      if (generation === this.countsHydrateGeneration) {
+        this.promptsSubject.next(withCounts);
+        return;
+      }
+    }
+
+    // Still racing with session changes — publish list structure without applying a stale tally.
+    // Prefer existing in-memory counts for matching ids; otherwise 0.
+    const prevById = new Map(
+      this.promptsSubject.value.map((p) => [p.id, p.prayed_for_count ?? 0] as const)
+    );
+    this.promptsSubject.next(
+      base.map((p) => ({
+        ...p,
+        prayed_for_count: prevById.get(p.id) ?? 0,
+      }))
+    );
+  }
+
+  /**
+   * Attach Pray For counts for the given user email (default 0 when missing).
+   * Uses UserSession email only (or an explicit override) — never a lingering Supabase
+   * auth session after logout, matching publishPromptsWithFreshCounts.
+   */
+  async attachPrayedForCounts(
+    prompts: PrayerPrompt[],
+    emailOverride?: string | null
+  ): Promise<PrayerPrompt[]> {
+    if (!prompts.length) {
+      return prompts;
+    }
+
+    const userEmail =
+      emailOverride !== undefined
+        ? emailOverride?.trim().toLowerCase() || null
+        : this.userSessionService.getUserEmail()?.trim().toLowerCase() || null;
+
+    if (!userEmail) {
+      return prompts.map((p) => ({ ...p, prayed_for_count: 0 }));
+    }
+
+    const countsMap = await this.getPromptPrayedForCountsBatch(
+      prompts.map((p) => p.id),
+      userEmail
+    );
+
+    return prompts.map((p) => ({
+      ...p,
+      prayed_for_count: countsMap[p.id] ?? 0,
+    }));
+  }
+
+  /**
+   * Batch-load Pray For counts for the given prompt ids and user email via RPC
+   * (works for JWT and MFA; never relies on open table SELECT for anon).
+   */
+  async getPromptPrayedForCountsBatch(
+    promptIds: string[],
+    userEmail: string
+  ): Promise<Record<string, number>> {
+    try {
+      if (promptIds.length === 0) {
+        return {};
+      }
+
+      const email = userEmail.trim().toLowerCase();
+      if (!email) {
+        return {};
+      }
+
+      const { data, error } = await this.supabase.client.rpc(
+        'get_prompt_prayed_for_counts',
+        {
+          p_prompt_ids: promptIds,
+          p_user_email: email,
+        }
+      );
+
+      if (error) throw error;
+
+      const countsMap: Record<string, number> = {};
+      (data || []).forEach((row: { prompt_id: string; prayed_for_count: number }) => {
+        countsMap[row.prompt_id] = row.prayed_for_count ?? 0;
+      });
+      return countsMap;
+    } catch (error) {
+      console.error('Error fetching prompt prayed-for counts:', error);
+      return {};
+    }
+  }
+
+  /**
+   * Clear or re-hydrate per-user counts when the logged-in email changes (logout / switch).
+   * Uses the session email argument so counts hydrate even when Supabase auth is not ready yet.
+   */
+  private async onUserSessionEmailChange(email: string | null): Promise<void> {
+    const generation = ++this.countsHydrateGeneration;
+    const current = this.promptsSubject.value;
+    if (!current.length) {
+      return;
+    }
+
+    const cleared = current.map((p) => ({ ...p, prayed_for_count: 0 }));
+    this.promptsSubject.next(cleared);
+
+    if (!email) {
+      return;
+    }
+
+    const withCounts = await this.attachPrayedForCounts(cleared, email);
+    if (generation !== this.countsHydrateGeneration) {
+      return;
+    }
+    this.promptsSubject.next(withCounts);
+  }
+
+  /**
+   * Increment the current user's Pray For count for a prompt via RPC.
+   * Updates in-memory prompts list only (no full refetch).
+   */
+  async incrementPromptPrayedFor(promptId: string): Promise<number | null> {
+    if (!this.connectivity.requireOnline('mark that you prayed for a prompt')) {
+      return null;
+    }
+    try {
+      const userEmail =
+        this.userSessionService.getUserEmail()?.trim().toLowerCase() || null;
+      if (!userEmail) {
+        return null;
+      }
+
+      const generationAtStart = this.countsHydrateGeneration;
+
+      const { data: newCount, error } = await this.supabase.client.rpc(
+        'increment_prompt_prayed_for_count',
+        {
+          p_prompt_id: promptId,
+          p_user_email: userEmail,
+        }
+      );
+
+      if (error) throw error;
+      const count = typeof newCount === 'number' && newCount > 0 ? newCount : null;
+      if (count === null) return null;
+
+      const stillLoggedIn =
+        this.userSessionService.getUserEmail()?.trim().toLowerCase() === userEmail;
+      if (!stillLoggedIn || generationAtStart !== this.countsHydrateGeneration) {
+        return null;
+      }
+
+      // Invalidate in-flight hydrates so a late attach cannot overwrite this newer tally.
+      this.countsHydrateGeneration += 1;
+
+      const updated = this.promptsSubject.value.map((p) =>
+        p.id === promptId ? { ...p, prayed_for_count: count } : p
+      );
+      this.promptsSubject.next(updated);
+
+      return count;
+    } catch (err) {
+      console.error('[PromptService] incrementPromptPrayedFor failed', err);
+      return null;
     }
   }
 

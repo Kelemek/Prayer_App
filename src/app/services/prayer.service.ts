@@ -898,6 +898,46 @@ export class PrayerService {
   }
 
   /**
+   * Increment prayed_for_count for a personal prayer via RPC.
+   * Updates the in-memory counts + cache only (no full refetch).
+   * @returns The new count, or null on error.
+   */
+  async incrementPersonalPrayedFor(prayerId: string): Promise<number | null> {
+    if (!this.connectivity.requireOnline('mark that you prayed')) {
+      return null;
+    }
+    try {
+      const userEmail = this.userSessionService.getUserEmail();
+      if (!userEmail) {
+        return null;
+      }
+
+      const { data: newCount, error } = await this.supabase.client
+        .rpc('increment_personal_prayed_for_count', {
+          personal_prayer_id: prayerId,
+          p_user_email: userEmail,
+        });
+
+      if (error) throw error;
+      const count = typeof newCount === 'number' && newCount > 0 ? newCount : null;
+      if (count === null) return null;
+
+      const updateOne = (p: PrayerRequest) =>
+        p.id === prayerId ? { ...p, prayed_for_count: count } : p;
+
+      const updated = this.allPersonalPrayersSubject.value.map(updateOne);
+      this.allPersonalPrayersSubject.next(updated);
+      this.invalidatePersonalPrayersCacheAll();
+      this.cache.set('personalPrayers', updated);
+
+      return count;
+    } catch (err) {
+      console.error('[PrayerService] incrementPersonalPrayedFor failed', err);
+      return null;
+    }
+  }
+
+  /**
    * Add an update to a prayer
    */
   async addPrayerUpdate(prayerId: string, content: string, author: string): Promise<boolean> {

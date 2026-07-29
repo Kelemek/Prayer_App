@@ -18,6 +18,7 @@ export interface PrayerRequest {
   approved_at?: string | null;
   denied_at?: string | null;
   display_order?: number;
+  prayed_for_count?: number;
 }
 
 export interface PrayerUpdate {
@@ -138,6 +139,7 @@ export interface PrayerPrompt {
   tenant_id?: string;
   created_at: string;
   updated_at: string;
+  prayed_for_count?: number;
 }
 
 export interface PrayerFilters {

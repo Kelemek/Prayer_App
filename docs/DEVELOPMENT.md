@@ -436,15 +436,18 @@ it('handleSharePrayer should share personal prayer', async () => {
 
 #### BadgeService
 ```typescript
-// Track read/unread status for prayers and prompts
+// Track read/unread status for prayers and prompts (synced via badge_read_receipts)
 - getBadgeFunctionalityEnabled$()    // Observable of badge setting
-- markPrayerAsRead()                 // Mark prayer as read
+- markPrayerAsRead()                 // Mark prayer as read (DB + local cache)
 - markPromptAsRead()                 // Mark prompt as read
+- markAllCachedItemsAsRead()         // Seed all cached items as read (enable badges)
 - isPromptUnread()                   // Check if prompt unread
 - getBadgeCount$()                   // Observable of badge counts
 - getUpdateBadgesChanged$()          // Observable of changes
 - refreshBadgeCounts()               // Refresh badge data
 ```
+
+Read receipts are stored in Supabase `badge_read_receipts` per tenant membership (`tenant_id` + `user_email`) so unread badges sync across devices. A write-through localStorage mirror (`badge_read:{tenantId}:{email}`) keeps the UI snappy offline; legacy `read_prayers_data` / `read_prompts_data` keys are migrated once.
 
 **Usage in Components**:
 ```typescript
