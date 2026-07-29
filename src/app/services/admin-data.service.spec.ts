@@ -48,7 +48,8 @@ describe('AdminDataService', () => {
       in: vi.fn(() => selectChain),
       order: vi.fn(() => resolved),
       single: vi.fn(() => resolved),
-      maybeSingle: vi.fn(() => resolved)
+      maybeSingle: vi.fn(() => resolved),
+      then: (onFulfilled: any, onRejected?: any) => resolved.then(onFulfilled, onRejected),
     };
     const mutationChain: any = {
       eq: vi.fn(() => mutationChain),
@@ -232,6 +233,55 @@ describe('AdminDataService', () => {
       expect(mockSupabaseClient.from).toHaveBeenCalled();
       
       consoleLogSpy.mockRestore();
+    });
+
+    it('should resolve requester and author names from tenant memberships', async () => {
+      const mockPendingPrayers = [{
+        id: 'p1',
+        title: 'Test Prayer',
+        approval_status: 'pending',
+        email: 'mark@example.com',
+        requester: '',
+        is_anonymous: false,
+      }];
+      const mockPendingUpdates = [{
+        id: 'u1',
+        content: 'Test Update',
+        author: 'Markdlarson',
+        author_email: 'mark@example.com',
+        is_anonymous: false,
+        prayers: {
+          id: 'p2',
+          title: 'Prayer Title',
+          email: 'jane@example.com',
+          requester: '',
+          is_anonymous: false,
+        },
+      }];
+      const mockMembers = [
+        { user_email: 'mark@example.com', name: 'Mark Larson' },
+        { user_email: 'jane@example.com', name: 'Jane Smith' },
+      ];
+
+      mockSupabaseClient.from = vi.fn((table: string) => {
+        if (table === 'prayers') {
+          return createMockQueryChain(mockPendingPrayers, null);
+        }
+        if (table === 'prayer_updates') {
+          return createMockQueryChain(mockPendingUpdates, null);
+        }
+        if (table === 'tenant_memberships') {
+          return createMockQueryChain(mockMembers, null);
+        }
+        return createMockQueryChain([], null);
+      });
+
+      await service.fetchAdminData();
+
+      const data = await firstValueFrom(service.data$);
+      expect(data.pendingPrayers[0].requester).toBe('Mark Larson');
+      expect(data.pendingUpdates[0].author).toBe('Mark Larson');
+      expect(data.pendingUpdates[0].prayers?.requester).toBe('Jane Smith');
     });
 
     it('should transform prayer updates with prayer titles', async () => {

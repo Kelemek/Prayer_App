@@ -11,6 +11,7 @@ import type {
   DeletionRequest, 
   UpdateDeletionRequest 
 } from '../types/prayer';
+import { resolveDisplayName } from '../utils/display-name';
 
 export interface AdminData {
   pendingPrayers: PrayerRequest[];
@@ -153,11 +154,13 @@ export class AdminDataService {
           'Pending prayers query'
         ),
         
-        // Pending updates with full prayer details
+        // Pending updates with full prayer details (needed for updates on already-approved prayers)
         withTimeout(
           supabaseClient
           .from('prayer_updates')
-          .select('*')
+          .select(
+            '*, prayers(id, title, description, requester, prayer_for, status, email, is_anonymous, is_shared_personal_prayer, created_at, approval_status)'
+          )
           .eq('tenant_id', tenantId)
           .eq('approval_status', 'pending')
           .order('created_at', { ascending: false }),
@@ -202,6 +205,7 @@ export class AdminDataService {
       if (pendingPrayersResult.error) throw pendingPrayersResult.error;
       if (pendingUpdatesResult.error) {
         console.error('[AdminDataService] Pending updates query failed:', pendingUpdatesResult.error);
+        throw pendingUpdatesResult.error;
       }
       if (pendingDeletionRequestsResult.error) {
         console.error('[AdminDataService] Pending deletion requests query failed:', pendingDeletionRequestsResult.error);
@@ -214,11 +218,27 @@ export class AdminDataService {
       }
 
       const pendingPrayers = pendingPrayersResult.data || [];
+      const rawPendingUpdates = pendingUpdatesResult.data || [];
 
-      const pendingUpdates = (pendingUpdatesResult.data || []).map((u: any) => ({
-        ...u,
-        prayer_title: u.prayers?.title
-      }));
+      const memberNamesByEmail = await this.loadMemberNamesByEmail(
+        tenantId,
+        this.collectPendingApprovalEmails(pendingPrayers, rawPendingUpdates)
+      );
+
+      const enrichedPendingPrayers = pendingPrayers.map((prayer: PrayerRequest) =>
+        this.enrichPrayerWithMemberName(prayer, memberNamesByEmail)
+      );
+
+      const pendingUpdates = rawPendingUpdates.map((update: any) => {
+        const enrichedUpdate = this.enrichUpdateWithMemberName(update, memberNamesByEmail);
+        return {
+          ...enrichedUpdate,
+          prayer_title: enrichedUpdate.prayers?.title,
+          prayers: enrichedUpdate.prayers
+            ? this.enrichPrayerWithMemberName(enrichedUpdate.prayers, memberNamesByEmail)
+            : enrichedUpdate.prayers,
+        };
+      });
 
       const pendingDeletionRequests = (pendingDeletionRequestsResult.data || []).map((d: any) => ({
         ...d,
@@ -227,7 +247,7 @@ export class AdminDataService {
 
       // Update with pending data immediately
       this.dataSubject.next({
-        pendingPrayers,
+        pendingPrayers: enrichedPendingPrayers,
         pendingUpdates,
         pendingDeletionRequests,
         pendingUpdateDeletionRequests: pendingUpdateDeletionRequestsResult.data || [],
@@ -1254,6 +1274,97 @@ export class AdminDataService {
 
   private getRequiredTenantId(): string | null {
     return this.tenantContext.getActiveTenant()?.id || null;
+  }
+
+  private collectPendingApprovalEmails(
+    pendingPrayers: PrayerRequest[],
+    pendingUpdates: Array<{ author_email?: string | null; prayers?: { email?: string | null } | null }>
+  ): string[] {
+    const emails = new Set<string>();
+
+    for (const prayer of pendingPrayers) {
+      const email = prayer.email?.trim().toLowerCase();
+      if (email) emails.add(email);
+    }
+
+    for (const update of pendingUpdates) {
+      const authorEmail = update.author_email?.trim().toLowerCase();
+      if (authorEmail) emails.add(authorEmail);
+
+      const prayerEmail = update.prayers?.email?.trim().toLowerCase();
+      if (prayerEmail) emails.add(prayerEmail);
+    }
+
+    return Array.from(emails);
+  }
+
+  private async loadMemberNamesByEmail(
+    tenantId: string,
+    emails: string[]
+  ): Promise<Map<string, string>> {
+    const namesByEmail = new Map<string, string>();
+    if (emails.length === 0) {
+      return namesByEmail;
+    }
+
+    const { data, error } = await this.supabase.client
+      .from('tenant_memberships')
+      .select('user_email, name')
+      .eq('tenant_id', tenantId)
+      .in('user_email', emails);
+
+    if (error) {
+      console.error('[AdminDataService] Failed to resolve member names:', error);
+      return namesByEmail;
+    }
+
+    for (const row of data || []) {
+      const email = row.user_email?.trim().toLowerCase();
+      const name = row.name?.trim();
+      if (email && name) {
+        namesByEmail.set(email, name);
+      }
+    }
+
+    return namesByEmail;
+  }
+
+  private enrichPrayerWithMemberName(
+    prayer: PrayerRequest,
+    memberNamesByEmail: Map<string, string>
+  ): PrayerRequest {
+    if (prayer.is_anonymous) {
+      return prayer;
+    }
+
+    const email = prayer.email?.trim().toLowerCase();
+    const memberName = email ? memberNamesByEmail.get(email) : undefined;
+    const requester = resolveDisplayName(prayer.requester, prayer.email, memberName);
+
+    if (!requester || requester === prayer.requester) {
+      return prayer;
+    }
+
+    return { ...prayer, requester };
+  }
+
+  private enrichUpdateWithMemberName<T extends { author?: string | null; author_email?: string | null; is_anonymous?: boolean }>(
+    update: T,
+    memberNamesByEmail: Map<string, string>
+  ): T {
+    if (update.is_anonymous) {
+      return update;
+    }
+
+    const email = update.author_email?.trim().toLowerCase();
+    const memberName = email ? memberNamesByEmail.get(email) : undefined;
+    const author = resolveDisplayName(update.author, update.author_email, memberName);
+
+    if (!author || author === update.author) {
+      return update;
+    }
+
+    return { ...update, author };
   }
 
 }

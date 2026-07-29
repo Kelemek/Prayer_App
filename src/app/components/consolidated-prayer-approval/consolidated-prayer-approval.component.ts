@@ -1,13 +1,12 @@
-import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminPrayerEditModalComponent } from '../admin-prayer-edit-modal/admin-prayer-edit-modal.component';
 import { AdminUpdateEditModalComponent } from '../admin-update-edit-modal/admin-update-edit-modal.component';
-import { RichTextEditorComponent } from '../rich-text-editor/rich-text-editor.component';
+import { AdminUpdateDenyModalComponent } from '../admin-update-deny-modal/admin-update-deny-modal.component';
 import { RichTextViewComponent } from '../rich-text-view/rich-text-view.component';
 import type { PrayerRequest } from '../../services/prayer.service';
-import { AdminDataService } from '../../services/admin-data.service';
-import { ToastService } from '../../services/toast.service';
+import { getUpdateAuthorDisplay } from '../../utils/display-name';
 
 @Component({
   selector: 'app-consolidated-prayer-approval',
@@ -18,7 +17,7 @@ import { ToastService } from '../../services/toast.service';
     FormsModule,
     AdminPrayerEditModalComponent,
     AdminUpdateEditModalComponent,
-    RichTextEditorComponent,
+    AdminUpdateDenyModalComponent,
     RichTextViewComponent,
   ],
   template: `
@@ -30,7 +29,7 @@ import { ToastService } from '../../services/toast.service';
             Prayer for {{ prayer.prayer_for }}
           </h3>
           <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">
-            Requested by: <span class="font-medium text-gray-800 dark:text-gray-100">{{ prayer.requester }}</span>
+            Requested by: <span class="font-medium text-gray-800 dark:text-gray-100">{{ getRequester() }}</span>
             @if (prayer.is_anonymous) {
               <span class="inline-flex items-center gap-1 px-2 py-0.5 ml-2 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-full text-xs font-medium">
                 (Anonymous)
@@ -88,7 +87,7 @@ import { ToastService } from '../../services/toast.service';
                 <div class="flex items-start justify-between mb-3">
                   <div class="flex-1">
                     <p class="text-xs text-gray-600 dark:text-gray-400 mb-1">
-                      Updated by: <span class="font-medium text-gray-700 dark:text-gray-300">{{ update.author }}</span>
+                      Updated by: <span class="font-medium text-gray-700 dark:text-gray-300">{{ getUpdateAuthorDisplay(update) }}</span>
                       @if (update.is_anonymous) {
                         <span class="inline-flex items-center gap-1 px-2 py-0.5 ml-2 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-full text-xs font-medium">
                           (Anonymous)
@@ -108,122 +107,47 @@ import { ToastService } from '../../services/toast.service';
                     <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
                       {{ formatUpdateDate(update.created_at) }}
                     </p>
-                    @if (inlineEditingUpdateId === update.id) {
-                      <div class="space-y-3">
-                        <app-rich-text-editor
-                          [ngModel]="inlineEditingUpdateContent"
-                          (ngModelChange)="inlineEditingUpdateContent = $event"
-                          [name]="'inlineUpdate-' + update.id"
-                          ngDefaultControl
-                          ariaLabel="Update content"
-                          placeholder="Update details…"
-                          minHeight="4rem"
-                        ></app-rich-text-editor>
-                        <div class="flex gap-2 justify-end">
-                          <button
-                            type="button"
-                            (click)="saveInlineUpdate(update.id)"
-                            [disabled]="isSavingUpdate"
-                            class="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-                          >{{ isSavingUpdate ? 'Saving…' : 'Save' }}</button>
-                          <button
-                            type="button"
-                            (click)="cancelInlineUpdate()"
-                            [disabled]="isSavingUpdate"
-                            class="px-3 py-1.5 text-xs bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-100 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors font-medium"
-                          >Cancel</button>
-                        </div>
-                      </div>
-                    } @else {
-                      <app-rich-text-view
-                        class="block text-sm text-gray-700 dark:text-gray-300"
-                        [text]="update.content"
-                      ></app-rich-text-view>
-                    }
+                    <app-rich-text-view
+                      class="block text-sm text-gray-700 dark:text-gray-300"
+                      [text]="update.content"
+                    ></app-rich-text-view>
                   </div>
-                  <div class="flex flex-col gap-1 ml-2 flex-shrink-0">
-                    @if (inlineEditingUpdateId !== update.id) {
-                      <button
-                        (click)="startInlineUpdateEdit(update)"
-                        aria-label="Inline edit update"
-                        title="Inline edit update"
-                        class="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 p-1 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md cursor-pointer"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                        </svg>
-                      </button>
-                      <button
-                        (click)="editUpdate = update; showEditUpdate = true"
-                        aria-label="Edit update"
-                        title="Edit update"
-                        class="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 p-1 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md cursor-pointer"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                        </svg>
-                      </button>
-                    }
-                  </div>
+                  <button
+                    (click)="editUpdate = update; showEditUpdate = true"
+                    aria-label="Edit update"
+                    title="Edit update"
+                    class="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 p-1 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md flex-shrink-0 cursor-pointer"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                  </button>
                 </div>
-
-                <!-- Denial Form for Update -->
-                <!-- Only shown for regular prayers, not shared personal prayers -->
-                @if (!prayer.is_shared_personal_prayer && denyingUpdateId === update.id) {
-                  <div class="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-700 mb-3">
-                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Reason for denial (optional)
-                    </label>
-                    <textarea
-                      [ngModel]="updateDenialReasons.get(update.id) || ''"
-                      (ngModelChange)="updateDenialReasons.set(update.id, $event)"
-                      rows="2"
-                      placeholder="Explain why this update is being denied..."
-                      class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xs"
-                    ></textarea>
-                  </div>
-                }
 
                 <!-- Update Actions -->
                 <!-- Hidden for shared personal prayers - updates are approved at prayer level -->
                 @if (!prayer.is_shared_personal_prayer) {
                   <div class="flex justify-end gap-2">
-                    @if (denyingUpdateId !== update.id) {
-                      <button
-                        (click)="startDenyingUpdate(update.id)"
-                        class="flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs font-medium cursor-pointer"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <line x1="18" y1="6" x2="6" y2="18"></line>
-                          <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                        Deny
-                      </button>
-                      <button
-                        (click)="handleApproveUpdate(update.id)"
-                        class="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs font-medium cursor-pointer"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                        Approve
-                      </button>
-                    } @else {
-                      <button
-                        (click)="handleDenyUpdate(update.id)"
-                        class="flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs font-medium cursor-pointer"
-                      >
-                        Confirm Denial
-                      </button>
-                      <button
-                        (click)="cancelDenyingUpdate()"
-                        class="flex items-center gap-1 px-3 py-1 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-xs font-medium cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                    }
+                    <button
+                      (click)="openDenyUpdateModal(update)"
+                      class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium cursor-pointer"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                      Deny
+                    </button>
+                    <button
+                      (click)="handleApproveUpdate(update.id)"
+                      class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium cursor-pointer"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                      Approve
+                    </button>
                   </div>
                 }
               </div>
@@ -309,6 +233,16 @@ import { ToastService } from '../../services/toast.service';
           (save)="onUpdateSaved()"
         ></app-admin-update-edit-modal>
       }
+
+      <!-- Update Deny Modal -->
+      @if (denyUpdate) {
+        <app-admin-update-deny-modal
+          [isOpen]="showDenyUpdate"
+          [update]="denyUpdate"
+          (close)="closeDenyUpdateModal()"
+          (confirm)="onUpdateDenyConfirmed($event)"
+        ></app-admin-update-deny-modal>
+      }
     </div>
   `,
   styles: []
@@ -330,42 +264,42 @@ export class ConsolidatedPrayerApprovalComponent {
 
   showEditPrayer = false;
   showEditUpdate = false;
+  showDenyUpdate = false;
   editUpdate: any = null;
-  denyingUpdateId: string | null = null;
-  updateDenialReasons: Map<string, string> = new Map();
+  denyUpdate: any = null;
 
-  inlineEditingUpdateId: string | null = null;
-  inlineEditingUpdateContent = '';
-  isSavingUpdate = false;
-
-  constructor(
-    private adminDataService: AdminDataService,
-    private toast: ToastService,
-    private cdr: ChangeDetectorRef,
-  ) {}
+  getUpdateAuthorDisplay = getUpdateAuthorDisplay;
 
   getRequester(): string {
-    if (this.prayer?.requester) {
-      return this.prayer.requester;
+    if (this.prayer?.is_anonymous) {
+      return 'Anonymous';
     }
-    return 'Anonymous';
+    const requester = (this.prayer?.requester || '').trim();
+    if (requester) {
+      return requester;
+    }
+    return 'Unknown';
   }
 
   formatDate(date: string | Date | undefined): string {
-    if (!date) return '';
-    try {
-      const d = new Date(date);
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    } catch {
-      return '';
-    }
+    return this.formatDateTime(date);
   }
 
   formatUpdateDate(date: string | Date | undefined): string {
+    return this.formatDateTime(date);
+  }
+
+  private formatDateTime(date: string | Date | undefined): string {
     if (!date) return '';
     try {
       const d = new Date(date);
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      return d.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      });
     } catch {
       return '';
     }
@@ -385,25 +319,20 @@ export class ConsolidatedPrayerApprovalComponent {
     this.onApproveUpdate.emit(updateId);
   }
 
-  handleDenyUpdate(updateId: string): void {
-    const reason = this.updateDenialReasons.get(updateId) || '';
-    this.onDenyUpdate.emit({ id: updateId, reason: reason || null });
-    this.denyingUpdateId = null;
-    this.updateDenialReasons.delete(updateId);
+  openDenyUpdateModal(update: { id: string }): void {
+    this.denyUpdate = update;
+    this.showDenyUpdate = true;
   }
 
-  startDenyingUpdate(updateId: string): void {
-    this.denyingUpdateId = updateId;
-    if (!this.updateDenialReasons.has(updateId)) {
-      this.updateDenialReasons.set(updateId, '');
-    }
+  closeDenyUpdateModal(): void {
+    this.showDenyUpdate = false;
+    this.denyUpdate = null;
   }
 
-  cancelDenyingUpdate(): void {
-    if (this.denyingUpdateId) {
-      this.updateDenialReasons.delete(this.denyingUpdateId);
-    }
-    this.denyingUpdateId = null;
+  onUpdateDenyConfirmed(reason: string | null): void {
+    if (!this.denyUpdate) return;
+    this.onDenyUpdate.emit({ id: this.denyUpdate.id, reason });
+    this.closeDenyUpdateModal();
   }
 
   onPrayerSaved(): void {
@@ -423,38 +352,5 @@ export class ConsolidatedPrayerApprovalComponent {
 
   trackByUpdateId(index: number, update: any): string {
     return update?.id || index.toString();
-  }
-
-  startInlineUpdateEdit(update: { id: string; content: string }): void {
-    this.inlineEditingUpdateId = update.id;
-    this.inlineEditingUpdateContent = update.content || '';
-  }
-
-  cancelInlineUpdate(): void {
-    this.inlineEditingUpdateId = null;
-    this.inlineEditingUpdateContent = '';
-  }
-
-  async saveInlineUpdate(updateId: string): Promise<void> {
-    if (this.isSavingUpdate) return;
-    this.isSavingUpdate = true;
-    this.cdr.markForCheck();
-    try {
-      await this.adminDataService.editUpdate(updateId, { content: this.inlineEditingUpdateContent });
-      const target = this.pendingUpdates.find((u) => u?.id === updateId);
-      if (target) {
-        target.content = this.inlineEditingUpdateContent;
-      }
-      this.onUpdateEdited.emit({ id: updateId, updates: { content: this.inlineEditingUpdateContent } });
-      this.inlineEditingUpdateId = null;
-      this.inlineEditingUpdateContent = '';
-      this.toast.success('Update edited.');
-    } catch (err) {
-      console.error('Failed to update prayer update:', err);
-      this.toast.error('Failed to edit update.');
-    } finally {
-      this.isSavingUpdate = false;
-      this.cdr.markForCheck();
-    }
   }
 }

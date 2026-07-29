@@ -15,8 +15,8 @@ describe('PrayerCardComponent', () => {
     localStorage.clear();
 
     // Set up default localStorage with both old and new key names
-    localStorage.setItem('userFirstName', 'John');
-    localStorage.setItem('userLastName', 'Doe');
+    localStorage.setItem('prayerapp_user_first_name', 'John');
+    localStorage.setItem('prayerapp_user_last_name', 'Doe');
 
     // Set up default mock that returns no data (triggers fallback to localStorage)
     const defaultMaybeSingle = vi.fn().mockResolvedValue({
@@ -248,8 +248,8 @@ describe('PrayerCardComponent', () => {
 
   it('handleDeleteRequest emits and resets', () => {
     // Set up localStorage for user name and mock userSessionService for email
-    localStorage.setItem('userFirstName', 'A');
-    localStorage.setItem('userLastName', 'B');
+    localStorage.setItem('prayerapp_user_first_name', 'A');
+    localStorage.setItem('prayerapp_user_last_name', 'B');
     mockUserSessionService.getCurrentSession = vi.fn().mockReturnValue({
       email: 'session@example.com',
       firstName: 'A',
@@ -376,8 +376,8 @@ describe('PrayerCardComponent', () => {
   });
 
   it('handleUpdateDeletionRequest emits and resets', () => {
-    localStorage.setItem('userFirstName', 'X');
-    localStorage.setItem('userLastName', 'Y');
+    localStorage.setItem('prayerapp_user_first_name', 'X');
+    localStorage.setItem('prayerapp_user_last_name', 'Y');
     localStorage.setItem('userEmail', 'x@y.com');
     component.showUpdateDeleteRequestForm = 'upd-1';
     component.updateDeleteReason = 'Please remove';
@@ -405,8 +405,8 @@ describe('PrayerCardComponent', () => {
   });
 
   it('handleUpdateDeletionRequest preserves multi-part last name', () => {
-    localStorage.setItem('userFirstName', 'First');
-    localStorage.setItem('userLastName', 'Last Middle');
+    localStorage.setItem('prayerapp_user_first_name', 'First');
+    localStorage.setItem('prayerapp_user_last_name', 'Last Middle');
     localStorage.setItem('userEmail', 'fm@example.com');
     component.showUpdateDeleteRequestForm = 'upd-2';
     component.updateDeleteReason = 'Reason';
@@ -1455,14 +1455,14 @@ describe('PrayerCardComponent', () => {
     });
 
     it('should preserve multi-part names in user name handling', () => {
-      localStorage.setItem('userFirstName', 'Mary');
-      localStorage.setItem('userLastName', 'Jane Smith');
+      localStorage.setItem('prayerapp_user_first_name', 'Mary');
+      localStorage.setItem('prayerapp_user_last_name', 'Jane Smith');
 
       component.ngOnInit();
 
       // This is tested indirectly through the component's ability to work with names
-      expect(localStorage.getItem('userFirstName')).toBe('Mary');
-      expect(localStorage.getItem('userLastName')).toBe('Jane Smith');
+      expect(localStorage.getItem('prayerapp_user_first_name')).toBe('Mary');
+      expect(localStorage.getItem('prayerapp_user_last_name')).toBe('Jane Smith');
     });
 
     it('should handle email case-insensitive comparison', () => {

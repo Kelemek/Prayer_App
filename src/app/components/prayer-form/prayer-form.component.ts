@@ -18,6 +18,7 @@ import type { User } from "@supabase/supabase-js";
 import { PrayerService } from "../../services/prayer.service";
 import { AdminAuthService } from "../../services/admin-auth.service";
 import { UserSessionService } from "../../services/user-session.service";
+import { resolveAuthorName } from "../../utils/display-name";
 import { SupabaseService } from "../../services/supabase.service";
 import { ToastService } from "../../services/toast.service";
 import { TenantContextService } from "../../services/tenant-context.service";
@@ -567,7 +568,10 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
 
       // Get user name from UserSessionService cache
       const userSession = this.userSessionService.getCurrentSession();
-      const fullName = userSession?.fullName || this.getCurrentUserName();
+      const fullName = resolveAuthorName(
+        userSession?.fullName || this.getCurrentUserName(),
+        this.currentUserEmail
+      );
 
       const prayerData = {
         title: `Prayer for ${this.formData.prayer_for}`,

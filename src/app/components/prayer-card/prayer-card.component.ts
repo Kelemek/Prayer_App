@@ -11,6 +11,7 @@ import { PrayerEncouragementService } from '../../services/prayer-encouragement.
 import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
 import { RichTextEditorComponent } from '../rich-text-editor/rich-text-editor.component';
 import { RichTextViewComponent } from '../rich-text-view/rich-text-view.component';
+import { resolveAuthorName } from '../../utils/display-name';
 
 const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
 
@@ -864,7 +865,10 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
     // Get user name from UserSessionService cache
     const userSession = this.userSessionService.getCurrentSession();
     // Always store the real name; is_anonymous flag controls display
-    const authorName = userSession?.fullName || this.getCurrentUserName();
+    const authorName = resolveAuthorName(
+      userSession?.fullName || this.getCurrentUserName(),
+      userEmail
+    );
     
     const updateData = {
       prayer_id: this.prayer.id,
@@ -980,8 +984,8 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private getCurrentUserName(): string {
-    const firstName = localStorage.getItem('userFirstName') || '';
-    const lastName = localStorage.getItem('userLastName') || '';
+    const firstName = localStorage.getItem('prayerapp_user_first_name') || '';
+    const lastName = localStorage.getItem('prayerapp_user_last_name') || '';
     return `${firstName} ${lastName}`.trim();
   }
 

@@ -1122,8 +1122,45 @@ describe('AdminComponent', () => {
       expect(component.activeTab).toBe('prayers');
     });
   });
+
+  describe('buildConsolidatedApprovals', () => {
+    it('includes updates on already-approved prayers when parent prayer is embedded', () => {
+      const approvedPrayer = {
+        id: 'prayer-1',
+        title: 'Healing',
+        approval_status: 'approved',
+      };
+      const pendingUpdate = {
+        id: 'update-1',
+        prayer_id: 'prayer-1',
+        content: 'Please keep praying',
+        prayers: approvedPrayer,
+      };
+
+      const result = component.buildConsolidatedApprovals({
+        pendingPrayers: [],
+        pendingUpdates: [pendingUpdate],
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].prayer.id).toBe('prayer-1');
+      expect(result[0].pendingUpdates).toEqual([pendingUpdate]);
+      expect(result[0].hasAnyPendingUpdates).toBe(true);
+    });
+
+    it('sets hasAnyPendingUpdates per prayer', () => {
+      const result = component.buildConsolidatedApprovals({
+        pendingPrayers: [{ id: 'p1', title: 'A' }],
+        pendingUpdates: [
+          { id: 'u1', prayer_id: 'p2', prayers: { id: 'p2', title: 'B' } },
+        ],
+      });
+
+      const withUpdate = result.find((item) => item.prayer.id === 'p2');
+      const withoutUpdate = result.find((item) => item.prayer.id === 'p1');
+
+      expect(withUpdate?.hasAnyPendingUpdates).toBe(true);
+      expect(withoutUpdate?.hasAnyPendingUpdates).toBe(false);
+    });
+  });
 });
-
-
-
-

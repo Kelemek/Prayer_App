@@ -1392,7 +1392,7 @@ export class AdminComponent implements OnInit, OnDestroy {
     const result = Array.from(prayersMap.values()).map((prayer: any) => ({
       prayer,
       pendingUpdates: updatesMap.get(prayer.id) || [],
-      hasAnyPendingUpdates: data.pendingUpdates && (data.pendingUpdates.length > 0)
+      hasAnyPendingUpdates: (updatesMap.get(prayer.id) || []).length > 0
     }));
     
     return result;

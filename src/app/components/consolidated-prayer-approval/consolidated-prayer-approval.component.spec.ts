@@ -1,15 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ChangeDetectorRef } from '@angular/core';
 import { ConsolidatedPrayerApprovalComponent } from './consolidated-prayer-approval.component';
 import type { PrayerRequest } from '../../services/prayer.service';
-import { AdminDataService } from '../../services/admin-data.service';
-import { ToastService } from '../../services/toast.service';
 
 describe('ConsolidatedPrayerApprovalComponent', () => {
   let component: ConsolidatedPrayerApprovalComponent;
-  let editUpdate: ReturnType<typeof vi.fn>;
-  let toast: { success: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
-  let cdr: { markForCheck: ReturnType<typeof vi.fn> };
 
   const makePrayer = (overrides: Partial<PrayerRequest> = {}): PrayerRequest => ({
     id: 'prayer-1',
@@ -26,14 +20,7 @@ describe('ConsolidatedPrayerApprovalComponent', () => {
   });
 
   beforeEach(() => {
-    editUpdate = vi.fn().mockResolvedValue(undefined);
-    toast = { success: vi.fn(), error: vi.fn() };
-    cdr = { markForCheck: vi.fn() };
-    component = new ConsolidatedPrayerApprovalComponent(
-      { editUpdate } as unknown as AdminDataService,
-      toast as unknown as ToastService,
-      cdr as unknown as ChangeDetectorRef
-    );
+    component = new ConsolidatedPrayerApprovalComponent();
     component.prayer = makePrayer();
     component.pendingUpdates = [];
     component.hasAnyPendingUpdates = false;
@@ -98,27 +85,28 @@ describe('ConsolidatedPrayerApprovalComponent', () => {
       expect(spy).toHaveBeenCalledWith('update-1');
     });
 
-    it('startDenyingUpdate should set denyingUpdateId', () => {
-      component.startDenyingUpdate('update-1');
-      expect(component.denyingUpdateId).toBe('update-1');
-      expect(component.updateDenialReasons.has('update-1')).toBe(true);
+    it('openDenyUpdateModal should open deny modal for update', () => {
+      const update = { id: 'update-1', content: 'Test' };
+      component.openDenyUpdateModal(update);
+      expect(component.denyUpdate).toEqual(update);
+      expect(component.showDenyUpdate).toBe(true);
     });
 
-    it('handleDenyUpdate should emit onDenyUpdate event', () => {
+    it('onUpdateDenyConfirmed should emit onDenyUpdate event', () => {
       const spy = vi.spyOn(component.onDenyUpdate, 'emit');
-      component.updateDenialReasons.set('update-1', 'Spam');
-      component.denyingUpdateId = 'update-1';
-      component.handleDenyUpdate('update-1');
+      component.denyUpdate = { id: 'update-1' };
+      component.onUpdateDenyConfirmed('Spam');
       expect(spy).toHaveBeenCalledWith({ id: 'update-1', reason: 'Spam' });
-      expect(component.denyingUpdateId).toBeNull();
+      expect(component.showDenyUpdate).toBe(false);
+      expect(component.denyUpdate).toBeNull();
     });
 
-    it('cancelDenyingUpdate should clear state', () => {
-      component.denyingUpdateId = 'update-1';
-      component.updateDenialReasons.set('update-1', 'Spam');
-      component.cancelDenyingUpdate();
-      expect(component.denyingUpdateId).toBeNull();
-      expect(component.updateDenialReasons.has('update-1')).toBe(false);
+    it('closeDenyUpdateModal should clear state', () => {
+      component.denyUpdate = { id: 'update-1' };
+      component.showDenyUpdate = true;
+      component.closeDenyUpdateModal();
+      expect(component.showDenyUpdate).toBe(false);
+      expect(component.denyUpdate).toBeNull();
     });
   });
 
@@ -144,11 +132,12 @@ describe('ConsolidatedPrayerApprovalComponent', () => {
   });
 
   describe('Utility Methods', () => {
-    it('formatDate should format date correctly', () => {
+    it('formatDate should format date and time correctly', () => {
       const date = '2024-01-15T10:30:00Z';
       const result = component.formatDate(date);
       expect(result).toContain('Jan');
       expect(result).toContain('15');
+      expect(result).toMatch(/\d{1,2}:\d{2}/);
     });
 
     it('formatDate should handle invalid dates', () => {
@@ -196,17 +185,16 @@ describe('ConsolidatedPrayerApprovalComponent', () => {
       ];
     });
 
-    it('should handle multiple updates with separate denial reasons', () => {
-      component.updateDenialReasons.set('update-1', 'Reason 1');
-      component.updateDenialReasons.set('update-2', 'Reason 2');
-      
+    it('should handle denying different updates via modal', () => {
       const spy = vi.spyOn(component.onDenyUpdate, 'emit');
-      
-      component.denyingUpdateId = 'update-1';
-      component.handleDenyUpdate('update-1');
-      
+
+      component.openDenyUpdateModal({ id: 'update-1' });
+      component.onUpdateDenyConfirmed('Reason 1');
       expect(spy).toHaveBeenCalledWith({ id: 'update-1', reason: 'Reason 1' });
-      expect(component.updateDenialReasons.has('update-2')).toBe(true);
+
+      component.openDenyUpdateModal({ id: 'update-2' });
+      component.onUpdateDenyConfirmed('Reason 2');
+      expect(spy).toHaveBeenCalledWith({ id: 'update-2', reason: 'Reason 2' });
     });
   });
 
@@ -249,36 +237,45 @@ describe('ConsolidatedPrayerApprovalComponent', () => {
       expect(component.getRequester()).toBe('John Smith');
     });
 
-    it('should return Anonymous when requester missing even for legacy member ids', () => {
+    it('should return Unknown when requester missing even for legacy member ids', () => {
       component.prayer = makePrayer({
         id: 'pc-member-12345',
         requester: undefined
       });
-      expect(component.getRequester()).toBe('Anonymous');
+      expect(component.getRequester()).toBe('Unknown');
     });
 
-    it('should return Anonymous as fallback', () => {
+    it('should return Unknown as fallback', () => {
       component.prayer = makePrayer({ 
         id: 'prayer-regular',
         requester: undefined
       });
-      expect(component.getRequester()).toBe('Anonymous');
+      expect(component.getRequester()).toBe('Unknown');
     });
 
-    it('should return Anonymous when requester is empty string', () => {
+    it('should return Unknown when requester is empty string', () => {
       component.prayer = makePrayer({ 
         requester: ''
+      });
+      expect(component.getRequester()).toBe('Unknown');
+    });
+
+    it('should return Anonymous when prayer is anonymous', () => {
+      component.prayer = makePrayer({
+        requester: 'Jane Doe',
+        is_anonymous: true
       });
       expect(component.getRequester()).toBe('Anonymous');
     });
   });
 
   describe('formatUpdateDate', () => {
-    it('formatUpdateDate should format date correctly', () => {
+    it('formatUpdateDate should format date and time correctly', () => {
       const date = '2024-01-15T10:30:00Z';
       const result = component.formatUpdateDate(date);
       expect(result).toContain('Jan');
       expect(result).toContain('15');
+      expect(result).toMatch(/\d{1,2}:\d{2}/);
     });
 
     it('formatUpdateDate should handle undefined dates', () => {
@@ -316,28 +313,30 @@ describe('ConsolidatedPrayerApprovalComponent', () => {
     });
   });
 
-  describe('Denial Reason Management', () => {
-    it('handleDenyUpdate should handle missing reason gracefully', () => {
+  describe('Denial Modal Management', () => {
+    it('onUpdateDenyConfirmed should handle missing reason gracefully', () => {
       const spy = vi.spyOn(component.onDenyUpdate, 'emit');
-      component.denyingUpdateId = 'update-1';
-      component.handleDenyUpdate('update-1');
+      component.denyUpdate = { id: 'update-1' };
+      component.onUpdateDenyConfirmed(null);
       expect(spy).toHaveBeenCalledWith({ id: 'update-1', reason: null });
     });
 
-    it('cancelDenyingUpdate should handle null denyingUpdateId', () => {
-      component.denyingUpdateId = null;
-      component.cancelDenyingUpdate();
-      expect(component.denyingUpdateId).toBeNull();
-    });
-
-    it('startDenyingUpdate should preserve existing reason', () => {
-      component.updateDenialReasons.set('update-1', 'Existing reason');
-      component.startDenyingUpdate('update-1');
-      expect(component.updateDenialReasons.get('update-1')).toBe('Existing reason');
+    it('onUpdateDenyConfirmed should no-op without denyUpdate', () => {
+      const spy = vi.spyOn(component.onDenyUpdate, 'emit');
+      component.denyUpdate = null;
+      component.onUpdateDenyConfirmed('Reason');
+      expect(spy).not.toHaveBeenCalled();
     });
   });
 
   describe('Edit State Management', () => {
+    it('getUpdateAuthorDisplay resolves author from name, membership, or email', () => {
+      expect(component.getUpdateAuthorDisplay({ author: 'Jane Doe', author_email: 'jane@example.com' })).toBe('Jane Doe');
+      expect(component.getUpdateAuthorDisplay({ author: 'Markdlarson', author_email: 'mark@example.com', member_name: 'Mark Larson' })).toBe('Mark Larson');
+      expect(component.getUpdateAuthorDisplay({ author: '', author_email: 'jane.doe@example.com' })).toBe('Jane Doe');
+      expect(component.getUpdateAuthorDisplay({ author: '', author_email: '' })).toBe('Unknown');
+    });
+
     it('onUpdateSaved should handle null editUpdate', () => {
       const spy = vi.spyOn(component.onUpdateEdited, 'emit');
       component.editUpdate = null;
@@ -346,66 +345,10 @@ describe('ConsolidatedPrayerApprovalComponent', () => {
       expect(spy).not.toHaveBeenCalled();
       expect(component.showEditUpdate).toBe(false);
     });
-  });
-
-  describe('Inline update edit', () => {
-    it('startInlineUpdateEdit and cancelInlineUpdate manage state', () => {
-      component.startInlineUpdateEdit({ id: 'u1', content: 'Hello' });
-      expect(component.inlineEditingUpdateId).toBe('u1');
-      expect(component.inlineEditingUpdateContent).toBe('Hello');
-      component.cancelInlineUpdate();
-      expect(component.inlineEditingUpdateId).toBeNull();
-      expect(component.inlineEditingUpdateContent).toBe('');
-    });
-
-    it('startInlineUpdateEdit uses empty content when missing', () => {
-      component.startInlineUpdateEdit({ id: 'u1', content: undefined as unknown as string });
-      expect(component.inlineEditingUpdateContent).toBe('');
-    });
-
-    it('saveInlineUpdate persists content and emits', async () => {
-      const emitSpy = vi.spyOn(component.onUpdateEdited, 'emit');
-      component.pendingUpdates = [
-        {
-          id: 'update-1',
-          content: 'old',
-          author: 'A',
-          author_email: 'a@b.com',
-          created_at: new Date().toISOString(),
-          is_anonymous: false,
-          mark_as_answered: false,
-        },
-      ];
-      component.inlineEditingUpdateContent = 'new content';
-      await component.saveInlineUpdate('update-1');
-      expect(editUpdate).toHaveBeenCalledWith('update-1', { content: 'new content' });
-      expect(component.pendingUpdates[0].content).toBe('new content');
-      expect(emitSpy).toHaveBeenCalledWith({
-        id: 'update-1',
-        updates: { content: 'new content' },
-      });
-      expect(toast.success).toHaveBeenCalledWith('Update edited.');
-      expect(component.inlineEditingUpdateId).toBeNull();
-      expect(component.isSavingUpdate).toBe(false);
-    });
-
-    it('saveInlineUpdate no-ops while saving and handles errors', async () => {
-      component.isSavingUpdate = true;
-      await component.saveInlineUpdate('update-1');
-      expect(editUpdate).not.toHaveBeenCalled();
-
-      component.isSavingUpdate = false;
-      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      editUpdate.mockRejectedValue(new Error('fail'));
-      await component.saveInlineUpdate('update-1');
-      expect(toast.error).toHaveBeenCalledWith('Failed to edit update.');
-      expect(component.isSavingUpdate).toBe(false);
-      errSpy.mockRestore();
-    });
 
     it('formatDate and formatUpdateDate catch blocks return empty string', () => {
       const spy = vi
-        .spyOn(Date.prototype, 'toLocaleDateString')
+        .spyOn(Date.prototype, 'toLocaleString')
         .mockImplementation(() => {
           throw new Error('bad date');
         });

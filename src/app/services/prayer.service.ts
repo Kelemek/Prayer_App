@@ -11,6 +11,7 @@ import { TenantContextService } from './tenant-context.service';
 import { ConnectivityService } from './connectivity.service';
 import type { Tenant } from '../types/tenant';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import { resolveAuthorName } from '../utils/display-name';
 
 export type PrayerStatus = 'current' | 'answered' | 'archived';
 
@@ -759,7 +760,7 @@ export class PrayerService {
         title: prayer.title,
         description: prayer.description,
         status: prayer.status,
-        requester: prayer.requester,
+        requester: resolveAuthorName(prayer.requester, prayer.email) || 'Unknown',
         prayer_for: prayer.prayer_for,
         approval_status: 'pending',
         email: prayer.email || null,
@@ -1187,12 +1188,13 @@ export class PrayerService {
     }
     try {
       const tenantId = this.getActiveTenantId();
+      const author = resolveAuthorName(updateData.author, updateData.author_email) || 'Unknown';
       const { data, error } = await this.supabase.client
         .from('prayer_updates')
         .insert({
           prayer_id: updateData.prayer_id,
           content: updateData.content,
-          author: updateData.author,
+          author,
           author_email: updateData.author_email,
           is_anonymous: updateData.is_anonymous,
           mark_as_answered: updateData.mark_as_answered,
@@ -1219,7 +1221,7 @@ export class PrayerService {
         this.emailNotification.sendAdminNotification({
           type: 'update',
           title: prayer.title,
-          author: updateData.author,
+          author,
           content: updateData.content,
           requestId: data.id,
           tenantId
