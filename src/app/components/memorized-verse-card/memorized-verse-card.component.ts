@@ -12,11 +12,10 @@ import { ScriptureHoverPreviewComponent } from '../scripture-hover-preview/scrip
   selector: 'app-memorized-verse-card',
   standalone: true,
   imports: [CommonModule, ScriptureHoverPreviewComponent],
-  host: { class: 'block h-full' },
+  host: { class: 'block h-full', role: 'listitem' },
   template: `
     <div
       class="h-full bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden"
-      role="listitem"
     >
       <div class="flex h-full">
         <app-scripture-hover-preview

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { PrayedForSyncService } from './prayed-for-sync.service';
 
 describe('PrayedForSyncService', () => {
@@ -13,8 +13,12 @@ describe('PrayedForSyncService', () => {
     getUserEmail: ReturnType<typeof vi.fn>;
     userSession$: BehaviorSubject<{ email: string } | null>;
   };
-  let tenantContext: { getActiveTenant: ReturnType<typeof vi.fn>; activeTenant$: BehaviorSubject<{ id: string } | null> };
-  let injector: { get: ReturnType<typeof vi.fn> };
+  let tenantContext: {
+    getActiveTenant: ReturnType<typeof vi.fn>;
+    activeTenant$: BehaviorSubject<{ id: string } | null>;
+  };
+
+  const storageKey = 'prayed_for_pending:v2:tenant-1:user@example.com';
 
   beforeEach(() => {
     localStorage.clear();
@@ -35,16 +39,16 @@ describe('PrayedForSyncService', () => {
     };
     tenantContext = {
       getActiveTenant: vi.fn(() => ({ id: 'tenant-1' })),
-      activeTenant$: new BehaviorSubject<{ id: string } | null>({ id: 'tenant-1' }),
+      activeTenant$: new BehaviorSubject<{ id: string } | null>({
+        id: 'tenant-1',
+      }),
     };
-    injector = { get: vi.fn() };
 
     service = new PrayedForSyncService(
       supabase as any,
       connectivity as any,
       userSession as any,
-      tenantContext as any,
-      injector as any
+      tenantContext as any
     );
   });
 
@@ -53,34 +57,41 @@ describe('PrayedForSyncService', () => {
     service.ngOnDestroy();
   });
 
-  it('enqueue and mergeServerCount track pending items', () => {
-    service.enqueue('community_prayer', 'p1');
+  it('enqueue and displayCount track pending items', () => {
+    expect(service.enqueue('community_prayer', 'p1')).toBe(true);
     expect(service.getPendingCount('p1', 'community_prayer')).toBe(1);
-    expect(service.mergeServerCount('p1', 'community_prayer', 4)).toBe(5);
+    expect(service.displayCount(4, 'p1', 'community_prayer')).toBe(5);
+  });
+
+  it('returns false from enqueue without tenant and email', () => {
+    userSession.getUserEmail.mockReturnValue(null);
+    tenantContext.getActiveTenant.mockReturnValue(null);
+    expect(service.enqueue('community_prayer', 'p1')).toBe(false);
+    expect(service.getPendingCount('p1', 'community_prayer')).toBe(0);
   });
 
   it('persists queue to localStorage scoped by tenant and email', () => {
     service.enqueue('prompt', 'prompt-1');
-    expect(
-      localStorage.getItem('prayed_for_pending:v1:tenant-1:user@example.com')
-    ).toContain('prompt-1');
+    expect(localStorage.getItem(storageKey)).toContain('prompt-1');
   });
 
-  it('flush processes queue and applies server count', async () => {
-    const prayerService = {
-      applyCommunityPrayedForCount: vi.fn(),
-    };
-    injector.get.mockReturnValue(prayerService);
-
+  it('flush processes queue and emits synced event', async () => {
     supabase.client.rpc.mockResolvedValue({ data: 9, error: null });
     service.enqueue('community_prayer', 'p1');
 
+    const syncedPromise = firstValueFrom(service.synced$);
     await service.flush();
 
-    expect(supabase.client.rpc).toHaveBeenCalledWith('increment_prayed_for_count', {
-      prayer_id: 'p1',
+    expect(supabase.client.rpc).toHaveBeenCalledWith(
+      'increment_prayed_for_count',
+      { prayer_id: 'p1' }
+    );
+    const synced = await syncedPromise;
+    expect(synced).toEqual({
+      kind: 'community_prayer',
+      itemId: 'p1',
+      serverCount: 9,
     });
-    expect(prayerService.applyCommunityPrayedForCount).toHaveBeenCalledWith('p1', 9);
     expect(service.getPendingCount('p1', 'community_prayer')).toBe(0);
   });
 
@@ -94,12 +105,30 @@ describe('PrayedForSyncService', () => {
     expect(service.getPendingCount('p1', 'community_prayer')).toBe(1);
   });
 
-  it('clearQueue removes persisted entries', () => {
+  it('drops queue head after max failed flush attempts', async () => {
+    supabase.client.rpc.mockResolvedValue({ data: null, error: { message: 'fail' } });
     service.enqueue('community_prayer', 'p1');
-    service.clearQueue();
+
+    for (let i = 0; i < 5; i++) {
+      await service.flush();
+    }
+
     expect(service.getPendingCount('p1', 'community_prayer')).toBe(0);
-    expect(
-      localStorage.getItem('prayed_for_pending:v1:tenant-1:user@example.com')
-    ).toBeNull();
+    expect(localStorage.getItem(storageKey)).toBe('[]');
+  });
+
+  it('flushes and clears storage on logout using previous session email', async () => {
+    service.enqueue('community_prayer', 'p1');
+    supabase.client.rpc.mockResolvedValue({ data: 3, error: null });
+
+    userSession.getUserEmail.mockReturnValue(null);
+    userSession.userSession$.next(null);
+
+    await vi.waitFor(() => {
+      expect(localStorage.getItem(storageKey)).toBeNull();
+    });
+
+    expect(supabase.client.rpc).toHaveBeenCalled();
+    expect(service.getPendingCount('p1', 'community_prayer')).toBe(0);
   });
 });

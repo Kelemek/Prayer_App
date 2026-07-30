@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { firstValueFrom, BehaviorSubject, of } from 'rxjs';
+import { firstValueFrom, BehaviorSubject, Subject, of } from 'rxjs';
 import { PrayerService, PrayerRequest } from './prayer.service';
 
 const PRAYER_SPEC_TEST_TENANT = { id: 'test-tenant-id', name: 'Test', slug: 'test' };
@@ -23,6 +23,15 @@ async function activateTenantContext(
 ): Promise<void> {
   tenantCtx.loadingSubject.next(false);
   await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function withDisplayedPrayedForCounts<T extends { prayed_for_count?: number }>(
+  prayers: T[]
+): T[] {
+  return prayers.map((p) => ({
+    ...p,
+    prayed_for_count: p.prayed_for_count ?? 0,
+  }));
 }
 
 describe('PrayerService', () => {
@@ -53,7 +62,8 @@ describe('PrayerService', () => {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     updates: [],
-    ...overrides
+    ...overrides,
+    prayed_for_count: overrides.prayed_for_count ?? 0,
   });
 
   beforeEach(() => {
@@ -72,19 +82,36 @@ describe('PrayerService', () => {
     verificationService = {};
     cache = { get: vi.fn(() => null), getStale: vi.fn(() => null), set: vi.fn(), invalidate: vi.fn(), invalidateCategory: vi.fn() };
     badgeService = { refreshBadgeCounts: vi.fn() };
-    userSessionService = { userSession$: new BehaviorSubject<any>(null).asObservable() };
+    userSessionService = {
+      userSession$: new BehaviorSubject<any>(null).asObservable(),
+      getUserEmail: vi.fn(() => null),
+    };
     tenantContext = createPrayerSpecTenantContext();
     connectivity = {
       isOnline: vi.fn(() => true),
       isOnline$: new BehaviorSubject(true).asObservable(),
       requireOnline: vi.fn(() => true),
     };
+    const pendingCounts = new Map<string, number>();
+    const pendingChangedSubject = new Subject<void>();
+    const syncedSubject = new Subject<any>();
     prayedForSync = {
-      enqueue: vi.fn(),
+      enqueue: vi.fn((kind: string, id: string) => {
+        const key = `${kind}:${id}`;
+        pendingCounts.set(key, (pendingCounts.get(key) ?? 0) + 1);
+        pendingChangedSubject.next();
+        return true;
+      }),
       flush: vi.fn().mockResolvedValue(undefined),
-      mergeServerCount: vi.fn((_id: string, _kind: string, count: number) => count),
-      getPendingCount: vi.fn(() => 0),
-      clearQueue: vi.fn(),
+      displayCount: vi.fn((server: number, id: string, kind: string) => {
+        const key = `${kind}:${id}`;
+        return server + (pendingCounts.get(key) ?? 0);
+      }),
+      getPendingCount: vi.fn(
+        (id: string, kind: string) => pendingCounts.get(`${kind}:${id}`) ?? 0
+      ),
+      pendingChanged$: pendingChangedSubject.asObservable(),
+      synced$: syncedSubject.asObservable(),
     };
 
     // Ensure from() returns a safe default to avoid constructor side-effects failing
@@ -142,7 +169,7 @@ describe('PrayerService', () => {
       expect(prayedForSync.flush).toHaveBeenCalled();
       expect((service as any).allPrayersSubject.value[0].prayed_for_count).toBe(3);
       expect((service as any).prayersSubject.value[0].prayed_for_count).toBe(3);
-      expect((service as any).allPrayersSubject.value[1].prayed_for_count).toBeUndefined();
+      expect((service as any).allPrayersSubject.value[1].prayed_for_count).toBe(0);
     });
   });
 
@@ -575,7 +602,9 @@ describe('PrayerService', () => {
     cache.get.mockReturnValue(cached);
 
     await (service as any).loadPrayers(false);
-    expect((service as any).allPrayersSubject.value).toEqual(cached);
+    expect((service as any).allPrayersSubject.value).toEqual(
+      withDisplayedPrayedForCounts(cached)
+    );
     expect((service as any).errorSubject.value).toBeNull();
   });
 
@@ -659,7 +688,9 @@ describe('PrayerService', () => {
 
     (service as any).triggerBackgroundRecovery();
     await vi.advanceTimersByTimeAsync(500);
-    expect((service as any).allPrayersSubject.value).toEqual(cached);
+    expect((service as any).allPrayersSubject.value).toEqual(
+      withDisplayedPrayedForCounts(cached)
+    );
     expect(setupSpy).toHaveBeenCalled();
     setupSpy.mockRestore();
     vi.useRealTimers();
@@ -892,6 +923,7 @@ describe('PrayerService - Integration Tests', () => {
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
       approval_status: 'approved',
+      prayed_for_count: 0,
       prayer_updates: [
         {
           id: 'u1',
@@ -918,6 +950,7 @@ describe('PrayerService - Integration Tests', () => {
       created_at: '2024-01-03T00:00:00Z',
       updated_at: '2024-01-10T00:00:00Z',
       approval_status: 'approved',
+      prayed_for_count: 0,
       prayer_updates: []
     }
   ];
@@ -1477,7 +1510,9 @@ describe('PrayerService - Integration Tests', () => {
       await vi.advanceTimersByTimeAsync(500);
 
       expect(mockCacheService.get).toHaveBeenCalledWith(PRAYER_SPEC_SHARED_CACHE_KEY);
-      expect((service as any).allPrayersSubject.value).toEqual(cached);
+      expect((service as any).allPrayersSubject.value).toEqual(
+        withDisplayedPrayedForCounts(cached)
+      );
 
       vi.useRealTimers();
       // restore previous addEventListener to avoid side effects
@@ -1558,7 +1593,9 @@ describe('PrayerService - Integration Tests', () => {
 
       expect(() => (service as any).triggerBackgroundRecovery()).not.toThrow();
       await vi.advanceTimersByTimeAsync(500);
-      expect((service as any).allPrayersSubject.value).toEqual(cached);
+      expect((service as any).allPrayersSubject.value).toEqual(
+        withDisplayedPrayedForCounts(cached)
+      );
       vi.useRealTimers();
     });
   });
@@ -2458,7 +2495,9 @@ describe('PrayerService - Integration Tests', () => {
 
       await activateTenantContext(mockTenantContext);
 
-      expect((service as any).allPrayersSubject.value).toEqual(cachedPrayers);
+      expect((service as any).allPrayersSubject.value).toEqual(
+        withDisplayedPrayedForCounts(cachedPrayers)
+      );
       // Error may or may not be set depending on timing; just verify cache was used
       expect(mockCacheService.get).toHaveBeenCalled();
     });
@@ -4807,6 +4846,8 @@ describe('PrayerService - Integration Tests', () => {
           updated_at: now,
           approval_status: 'approved' as const,
           type: 'prayer' as const,
+          prayed_for_count: 0,
+          display_order: undefined,
           updates: []
         }
       ];

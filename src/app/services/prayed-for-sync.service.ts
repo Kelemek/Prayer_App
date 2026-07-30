@@ -1,39 +1,52 @@
-import { Injectable, Injector, OnDestroy } from '@angular/core';
-import { Subject } from 'rxjs';
-import { distinctUntilChanged, filter, takeUntil } from 'rxjs/operators';
+import { Injectable, OnDestroy } from '@angular/core';
+import { Observable, Subject } from 'rxjs';
+import { distinctUntilChanged, filter, pairwise, takeUntil } from 'rxjs/operators';
 import { SupabaseService } from './supabase.service';
 import { ConnectivityService } from './connectivity.service';
 import { UserSessionService } from './user-session.service';
 import { TenantContextService } from './tenant-context.service';
-import { PrayerService } from './prayer.service';
-import { PromptService } from './prompt.service';
 
 export type PrayedForItemKind = 'community_prayer' | 'personal_prayer' | 'prompt';
+
+export interface PrayedForSyncedEvent {
+  kind: PrayedForItemKind;
+  itemId: string;
+  serverCount: number;
+}
 
 interface PendingPrayedForEntry {
   id: string;
   itemId: string;
   kind: PrayedForItemKind;
   createdAt: string;
+  attempts: number;
 }
 
-const QUEUE_KEY_PREFIX = 'prayed_for_pending:v1';
+const QUEUE_KEY_PREFIX = 'prayed_for_pending:v2';
+const MAX_FLUSH_ATTEMPTS = 5;
 
 @Injectable({
   providedIn: 'root',
 })
 export class PrayedForSyncService implements OnDestroy {
   private readonly destroy$ = new Subject<void>();
+  private readonly pendingChangedSubject = new Subject<void>();
+  private readonly syncedSubject = new Subject<PrayedForSyncedEvent>();
+
+  readonly pendingChanged$: Observable<void> =
+    this.pendingChangedSubject.asObservable();
+  readonly synced$: Observable<PrayedForSyncedEvent> =
+    this.syncedSubject.asObservable();
+
   private syncInFlight: Promise<void> | null = null;
   private queue: PendingPrayedForEntry[] = [];
-  private queueLoaded = false;
+  private loadedStorageKey: string | null = null;
 
   constructor(
     private supabase: SupabaseService,
     private connectivity: ConnectivityService,
     private userSession: UserSessionService,
-    private tenantContext: TenantContextService,
-    private injector: Injector
+    private tenantContext: TenantContextService
   ) {
     this.connectivity.isOnline$
       .pipe(
@@ -47,15 +60,20 @@ export class PrayedForSyncService implements OnDestroy {
 
     this.userSession.userSession$
       .pipe(
-        distinctUntilChanged((prev, curr) => prev?.email === curr?.email),
+        pairwise(),
         takeUntil(this.destroy$)
       )
-      .subscribe((session) => {
-        if (session?.email) {
-          this.ensureQueueLoaded();
+      .subscribe(([prev, curr]) => {
+        if (prev?.email && !curr?.email) {
+          const tenantId = this.tenantContext.getActiveTenant()?.id ?? null;
+          void this.flushThenClearStorage(
+            this.buildStorageKey(tenantId, prev.email)
+          );
+          return;
+        }
+        if (curr?.email) {
+          this.reloadQueueForCurrentScope();
           void this.flush();
-        } else {
-          this.clearQueue();
         }
       });
 
@@ -65,11 +83,13 @@ export class PrayedForSyncService implements OnDestroy {
         takeUntil(this.destroy$)
       )
       .subscribe(() => {
-        this.queueLoaded = false;
-        this.queue = [];
-        this.ensureQueueLoaded();
+        this.reloadQueueForCurrentScope();
         void this.flush();
       });
+
+    if (this.userSession.getUserEmail()) {
+      this.reloadQueueForCurrentScope();
+    }
   }
 
   ngOnDestroy(): void {
@@ -77,29 +97,44 @@ export class PrayedForSyncService implements OnDestroy {
     this.destroy$.complete();
   }
 
-  enqueue(kind: PrayedForItemKind, itemId: string): void {
-    this.ensureQueueLoaded();
+  /** Server tally plus unsynced queue entries for this item. */
+  displayCount(
+    serverCount: number,
+    itemId: string,
+    kind: PrayedForItemKind
+  ): number {
+    return (serverCount ?? 0) + this.getPendingCount(itemId, kind);
+  }
+
+  /**
+   * Queue one Pray For increment. Returns false when tenant/email are unavailable.
+   */
+  enqueue(kind: PrayedForItemKind, itemId: string): boolean {
+    const key = this.getQueueStorageKey();
+    if (!key) {
+      console.warn('[PrayedForSync] Cannot enqueue without tenant and user email');
+      return false;
+    }
+    this.ensureQueueLoaded(key);
     this.queue.push({
       id: this.newEntryId(),
       itemId,
       kind,
       createdAt: new Date().toISOString(),
+      attempts: 0,
     });
-    this.persistQueue();
+    this.persistQueue(key);
+    this.pendingChangedSubject.next();
+    return true;
   }
 
   getPendingCount(itemId: string, kind: PrayedForItemKind): number {
-    this.ensureQueueLoaded();
+    const key = this.getQueueStorageKey();
+    if (!key) {
+      return 0;
+    }
+    this.ensureQueueLoaded(key);
     return this.queue.filter((e) => e.itemId === itemId && e.kind === kind).length;
-  }
-
-  /** Server count plus unsynced local increments for this item. */
-  mergeServerCount(
-    itemId: string,
-    kind: PrayedForItemKind,
-    serverCount: number
-  ): number {
-    return (serverCount ?? 0) + this.getPendingCount(itemId, kind);
   }
 
   flush(): Promise<void> {
@@ -111,16 +146,53 @@ export class PrayedForSyncService implements OnDestroy {
     return this.syncInFlight;
   }
 
-  clearQueue(): void {
-    this.queue = [];
-    this.queueLoaded = true;
+  private buildStorageKey(
+    tenantId: string | null | undefined,
+    email: string
+  ): string | null {
+    const tid = tenantId?.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!tid || !normalizedEmail) {
+      return null;
+    }
+    return `${QUEUE_KEY_PREFIX}:${tid}:${normalizedEmail}`;
+  }
+
+  private getQueueStorageKey(): string | null {
+    const tenantId = this.tenantContext.getActiveTenant()?.id;
+    const email = this.userSession.getUserEmail()?.trim().toLowerCase();
+    if (!tenantId || !email) {
+      return null;
+    }
+    return this.buildStorageKey(tenantId, email);
+  }
+
+  private reloadQueueForCurrentScope(): void {
     const key = this.getQueueStorageKey();
+    this.queue = [];
+    this.loadedStorageKey = null;
     if (key) {
-      try {
-        localStorage.removeItem(key);
-      } catch {
-        // ignore
-      }
+      this.ensureQueueLoaded(key);
+    }
+    this.pendingChangedSubject.next();
+  }
+
+  private async flushThenClearStorage(storageKey: string | null): Promise<void> {
+    if (storageKey) {
+      this.ensureQueueLoaded(storageKey);
+      await this.runFlush(storageKey);
+      this.removeQueueStorage(storageKey);
+    }
+    this.queue = [];
+    this.loadedStorageKey = null;
+    this.pendingChangedSubject.next();
+  }
+
+  private removeQueueStorage(storageKey: string): void {
+    try {
+      localStorage.removeItem(storageKey);
+    } catch {
+      // ignore
     }
   }
 
@@ -132,27 +204,13 @@ export class PrayedForSyncService implements OnDestroy {
     }
   }
 
-  private getQueueStorageKey(): string | null {
-    const tenantId = this.tenantContext.getActiveTenant()?.id;
-    const email = this.userSession.getUserEmail()?.trim().toLowerCase();
-    if (!tenantId || !email) {
-      return null;
-    }
-    return `${QUEUE_KEY_PREFIX}:${tenantId}:${email}`;
-  }
-
-  private ensureQueueLoaded(): void {
-    if (this.queueLoaded) {
+  private ensureQueueLoaded(storageKey: string): void {
+    if (this.loadedStorageKey === storageKey) {
       return;
     }
-    this.queueLoaded = true;
-    const key = this.getQueueStorageKey();
-    if (!key) {
-      this.queue = [];
-      return;
-    }
+    this.loadedStorageKey = storageKey;
     try {
-      const raw = localStorage.getItem(key);
+      const raw = localStorage.getItem(storageKey);
       if (!raw) {
         this.queue = [];
         return;
@@ -162,50 +220,98 @@ export class PrayedForSyncService implements OnDestroy {
         this.queue = [];
         return;
       }
-      this.queue = parsed.filter(
-        (entry): entry is PendingPrayedForEntry =>
-          !!entry &&
-          typeof entry.id === 'string' &&
-          typeof entry.itemId === 'string' &&
-          (entry.kind === 'community_prayer' ||
-            entry.kind === 'personal_prayer' ||
-            entry.kind === 'prompt')
-      );
+      this.queue = parsed
+        .map((entry) => ({
+          id: typeof entry?.id === 'string' ? entry.id : this.newEntryId(),
+          itemId: entry?.itemId,
+          kind: entry?.kind,
+          createdAt:
+            typeof entry?.createdAt === 'string'
+              ? entry.createdAt
+              : new Date().toISOString(),
+          attempts:
+            typeof entry?.attempts === 'number' && entry.attempts >= 0
+              ? entry.attempts
+              : 0,
+        }))
+        .filter(
+          (entry): entry is PendingPrayedForEntry =>
+            typeof entry.itemId === 'string' &&
+            (entry.kind === 'community_prayer' ||
+              entry.kind === 'personal_prayer' ||
+              entry.kind === 'prompt')
+        );
     } catch {
       this.queue = [];
     }
   }
 
-  private persistQueue(): void {
-    const key = this.getQueueStorageKey();
-    if (!key) {
-      return;
-    }
+  private persistQueue(storageKey: string): void {
     try {
-      localStorage.setItem(key, JSON.stringify(this.queue));
+      localStorage.setItem(storageKey, JSON.stringify(this.queue));
     } catch (error) {
       console.warn('[PrayedForSync] Failed to persist queue:', error);
     }
   }
 
-  private async runFlush(): Promise<void> {
+  private async runFlush(storageKeyOverride?: string): Promise<void> {
     if (!this.connectivity.isOnline()) {
       return;
     }
-    this.ensureQueueLoaded();
+
+    const storageKey = storageKeyOverride ?? this.getQueueStorageKey();
+    if (!storageKey) {
+      return;
+    }
+
+    this.ensureQueueLoaded(storageKey);
+
     while (this.queue.length > 0 && this.connectivity.isOnline()) {
       const entry = this.queue[0];
-      const serverCount = await this.executeRpc(entry);
+      const flushEmail = this.emailForStorageKey(storageKey);
+      const serverCount = await this.executeRpc(entry, flushEmail);
+
       if (serverCount === null) {
+        entry.attempts += 1;
+        if (entry.attempts >= MAX_FLUSH_ATTEMPTS) {
+          console.warn(
+            '[PrayedForSync] Dropping entry after max attempts',
+            entry
+          );
+          this.queue.shift();
+          this.persistQueue(storageKey);
+          this.pendingChangedSubject.next();
+          continue;
+        }
+        this.persistQueue(storageKey);
         return;
       }
+
+      if (this.queue[0]?.id !== entry.id) {
+        return;
+      }
+
       this.queue.shift();
-      this.persistQueue();
-      this.applyServerCount(entry, serverCount);
+      this.persistQueue(storageKey);
+      this.syncedSubject.next({
+        kind: entry.kind,
+        itemId: entry.itemId,
+        serverCount,
+      });
+      this.pendingChangedSubject.next();
     }
   }
 
-  private async executeRpc(entry: PendingPrayedForEntry): Promise<number | null> {
+  private emailForStorageKey(storageKey: string): string | null {
+    const parts = storageKey.split(':');
+    const email = parts[parts.length - 1]?.trim().toLowerCase();
+    return email || null;
+  }
+
+  private async executeRpc(
+    entry: PendingPrayedForEntry,
+    emailOverride: string | null
+  ): Promise<number | null> {
     try {
       if (entry.kind === 'community_prayer') {
         const { data, error } = await this.supabase.client.rpc(
@@ -216,7 +322,10 @@ export class PrayedForSyncService implements OnDestroy {
         return typeof data === 'number' ? data : null;
       }
 
-      const userEmail = this.userSession.getUserEmail()?.trim().toLowerCase();
+      const userEmail =
+        emailOverride ??
+        this.userSession.getUserEmail()?.trim().toLowerCase() ??
+        null;
       if (!userEmail) {
         return null;
       }
@@ -245,30 +354,6 @@ export class PrayedForSyncService implements OnDestroy {
     } catch (error) {
       console.warn('[PrayedForSync] RPC failed:', error);
       return null;
-    }
-  }
-
-  private applyServerCount(
-    entry: PendingPrayedForEntry,
-    count: number
-  ): void {
-    const prayerService = this.injector.get(PrayerService);
-    const promptService = this.injector.get(PromptService);
-
-    switch (entry.kind) {
-      case 'community_prayer':
-        prayerService.applyCommunityPrayedForCount(entry.itemId, count);
-        break;
-      case 'personal_prayer':
-        prayerService.applyPersonalPrayedForCount(entry.itemId, count);
-        break;
-      case 'prompt':
-        promptService.applyPromptPrayedForCount(entry.itemId, count);
-        break;
-      default: {
-        const _exhaustive: never = entry.kind;
-        return _exhaustive;
-      }
     }
   }
 }

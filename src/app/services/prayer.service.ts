@@ -9,7 +9,7 @@ import { BadgeService } from './badge.service';
 import { UserSessionService } from './user-session.service';
 import { TenantContextService } from './tenant-context.service';
 import { ConnectivityService } from './connectivity.service';
-import { PrayedForSyncService } from './prayed-for-sync.service';
+import { PrayedForSyncService, type PrayedForSyncedEvent } from './prayed-for-sync.service';
 import type { Tenant } from '../types/tenant';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { resolveAuthorName } from '../utils/display-name';
@@ -87,6 +87,9 @@ export class PrayerService {
   /** Avoid multiple "Failed to load prayers" toasts when several loads fail at once (e.g. after long background) */
   private lastLoadErrorToastTime = 0;
   private static readonly LOAD_ERROR_TOAST_COOLDOWN_MS = 10_000;
+  /** Server-side prayed_for_count baselines (display adds pending queue in prayedForSync). */
+  private readonly communityServerPrayedFor = new Map<string, number>();
+  private readonly personalServerPrayedFor = new Map<string, number>();
 
   private maybeEq<T>(query: T, column: string, value: unknown): T {
     if (query && typeof (query as any).eq === 'function') {
@@ -115,6 +118,194 @@ export class PrayerService {
     @Optional() private prayedForSync: PrayedForSyncService | null = null
   ) {
     this.initializePrayers();
+    this.attachPrayedForSyncListeners();
+  }
+
+  private attachPrayedForSyncListeners(): void {
+    if (!this.prayedForSync) {
+      return;
+    }
+    this.prayedForSync.pendingChanged$.subscribe(() => {
+      this.reprojectCommunityPrayers();
+      this.reprojectPersonalPrayers();
+    });
+    this.prayedForSync.synced$.subscribe((event) => {
+      this.onPrayedForSynced(event);
+    });
+  }
+
+  private onPrayedForSynced(event: PrayedForSyncedEvent): void {
+    if (!this.userSessionService.getUserEmail()) {
+      return;
+    }
+    switch (event.kind) {
+      case 'community_prayer':
+        this.communityServerPrayedFor.set(event.itemId, event.serverCount);
+        this.reprojectCommunityPrayers();
+        break;
+      case 'personal_prayer':
+        this.personalServerPrayedFor.set(event.itemId, event.serverCount);
+        this.reprojectPersonalPrayers();
+        break;
+      default: {
+        const _exhaustive: never = event.kind;
+        return _exhaustive;
+      }
+    }
+  }
+
+  private seedCommunityServerCounts(prayers: PrayerRequest[]): void {
+    for (const prayer of prayers) {
+      this.communityServerPrayedFor.set(
+        prayer.id,
+        prayer.prayed_for_count ?? 0
+      );
+    }
+  }
+
+  private seedPersonalServerCounts(prayers: PrayerRequest[]): void {
+    for (const prayer of prayers) {
+      this.personalServerPrayedFor.set(
+        prayer.id,
+        prayer.prayed_for_count ?? 0
+      );
+    }
+  }
+
+  private withCommunityDisplayCounts(
+    prayers: PrayerRequest[]
+  ): PrayerRequest[] {
+    return prayers.map((prayer) => ({
+      ...prayer,
+      prayed_for_count: this.displayCommunityPrayedForCount(prayer.id),
+    }));
+  }
+
+  private withPersonalDisplayCounts(
+    prayers: PrayerRequest[]
+  ): PrayerRequest[] {
+    return prayers.map((prayer) => ({
+      ...prayer,
+      prayed_for_count: this.displayPersonalPrayedForCount(prayer.id),
+    }));
+  }
+
+  private toCommunityServerOnly(prayers: PrayerRequest[]): PrayerRequest[] {
+    return prayers.map((prayer) => ({
+      ...prayer,
+      prayed_for_count:
+        this.communityServerPrayedFor.get(prayer.id) ??
+        prayer.prayed_for_count ??
+        0,
+    }));
+  }
+
+  private toPersonalServerOnly(prayers: PrayerRequest[]): PrayerRequest[] {
+    return prayers.map((prayer) => ({
+      ...prayer,
+      prayed_for_count:
+        this.personalServerPrayedFor.get(prayer.id) ??
+        prayer.prayed_for_count ??
+        0,
+    }));
+  }
+
+  private communityServerBaseline(prayerId: string): number {
+    const existing = this.communityServerPrayedFor.get(prayerId);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const displayed =
+      this.allPrayersSubject.value.find((p) => p.id === prayerId)
+        ?.prayed_for_count ?? 0;
+    const pending =
+      this.prayedForSync?.getPendingCount(prayerId, 'community_prayer') ?? 0;
+    const server = displayed - pending;
+    this.communityServerPrayedFor.set(prayerId, server);
+    return server;
+  }
+
+  private personalServerBaseline(prayerId: string): number {
+    const existing = this.personalServerPrayedFor.get(prayerId);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const displayed =
+      this.allPersonalPrayersSubject.value.find((p) => p.id === prayerId)
+        ?.prayed_for_count ?? 0;
+    const pending =
+      this.prayedForSync?.getPendingCount(prayerId, 'personal_prayer') ?? 0;
+    const server = displayed - pending;
+    this.personalServerPrayedFor.set(prayerId, server);
+    return server;
+  }
+
+  private displayCommunityPrayedForCount(prayerId: string): number {
+    const server = this.communityServerBaseline(prayerId);
+    return (
+      this.prayedForSync?.displayCount(
+        server,
+        prayerId,
+        'community_prayer'
+      ) ?? server
+    );
+  }
+
+  private displayPersonalPrayedForCount(prayerId: string): number {
+    const server = this.personalServerBaseline(prayerId);
+    return (
+      this.prayedForSync?.displayCount(
+        server,
+        prayerId,
+        'personal_prayer'
+      ) ?? server
+    );
+  }
+
+  private reprojectCommunityPrayers(): void {
+    const all = this.withCommunityDisplayCounts(
+      this.toCommunityServerOnly(this.allPrayersSubject.value)
+    );
+    this.allPrayersSubject.next(all);
+    this.prayersSubject.next(
+      this.withCommunityDisplayCounts(
+        this.toCommunityServerOnly(this.prayersSubject.value)
+      )
+    );
+  }
+
+  private reprojectPersonalPrayers(): void {
+    const updated = this.withPersonalDisplayCounts(
+      this.toPersonalServerOnly(this.allPersonalPrayersSubject.value)
+    );
+    this.allPersonalPrayersSubject.next(updated);
+    const tenantId = this.getActiveTenantId();
+    if (tenantId) {
+      this.cache.set(
+        this.personalPrayersCacheKey(tenantId)!,
+        this.toPersonalServerOnly(updated)
+      );
+    }
+  }
+
+  private publishCommunityPrayers(
+    serverPrayers: PrayerRequest[],
+    tenantId: string
+  ): void {
+    this.seedCommunityServerCounts(serverPrayers);
+    const displayed = this.withCommunityDisplayCounts(serverPrayers);
+    this.setCachedSharedPrayers(
+      tenantId,
+      this.toCommunityServerOnly(serverPrayers)
+    );
+    this.allPrayersSubject.next(displayed);
+  }
+
+  private publishPersonalPrayers(serverPrayers: PrayerRequest[]): void {
+    this.seedPersonalServerCounts(serverPrayers);
+    const displayed = this.withPersonalDisplayCounts(serverPrayers);
+    this.allPersonalPrayersSubject.next(displayed);
+    this.setPersonalPrayersCache(this.toPersonalServerOnly(serverPrayers));
   }
 
   private async initializePrayers(): Promise<void> {
@@ -221,7 +412,8 @@ export class PrayerService {
       const cachedPrayers = this.getCachedSharedPrayers(tenantId);
       if (cachedPrayers && cachedPrayers.length > 0) {
         console.log(`[PrayerService] Using cached prayers (${cachedPrayers.length} items)`);
-        this.allPrayersSubject.next(cachedPrayers);
+        this.seedCommunityServerCounts(cachedPrayers);
+        this.allPrayersSubject.next(this.withCommunityDisplayCounts(cachedPrayers));
         this.applyFilters(this.currentFilters);
         
         // ✅ TIER 1: If silent refresh and cache exists, skip DB query entirely
@@ -237,7 +429,8 @@ export class PrayerService {
         const stale = this.getStaleSharedPrayers(tenantId);
         if (stale) {
           console.log(`[PrayerService] Offline — showing ${stale.length} stale cached prayers`);
-          this.allPrayersSubject.next(stale);
+          this.seedCommunityServerCounts(stale);
+          this.allPrayersSubject.next(this.withCommunityDisplayCounts(stale));
           this.applyFilters(this.currentFilters);
         } else {
           console.log('[PrayerService] Offline with no cached prayers');
@@ -296,11 +489,7 @@ export class PrayerService {
           created_at: prayer.created_at,
           updated_at: prayer.updated_at,
           last_reminder_sent: prayer.last_reminder_sent,
-          prayed_for_count: this.mergePrayedForCount(
-            prayer.id,
-            'community_prayer',
-            prayer.prayed_for_count ?? 0
-          ),
+          prayed_for_count: prayer.prayed_for_count ?? 0,
           updates: updates.map((u: any) => ({
             id: u.id,
             prayer_id: u.prayer_id,
@@ -329,8 +518,7 @@ export class PrayerService {
         )
         .map(({ prayer }: { prayer: PrayerRequest }) => prayer);
 
-      this.allPrayersSubject.next(sortedPrayers);
-      this.setCachedSharedPrayers(tenantId, sortedPrayers);
+      this.publishCommunityPrayers(sortedPrayers, tenantId);
       this.applyFilters(this.currentFilters);
       
       // Refresh badge counts to ensure badges show up for new updates
@@ -348,7 +536,8 @@ export class PrayerService {
         : null;
       if (cachedPrayers && cachedPrayers.length > 0) {
         console.log(`[PrayerService] Showing ${cachedPrayers.length} cached prayers (error fallback)`);
-        this.allPrayersSubject.next(cachedPrayers);
+        this.seedCommunityServerCounts(cachedPrayers);
+        this.allPrayersSubject.next(this.withCommunityDisplayCounts(cachedPrayers));
         this.applyFilters(this.currentFilters);
         this.errorSubject.next(null); // Clear error to show data silently
       } else if (this.supabase.isNetworkError(err) || !this.connectivity.isOnline()) {
@@ -401,7 +590,10 @@ export class PrayerService {
         (!this.connectivity.isOnline() ? this.cache.getStale<PrayerRequest[]>(cacheKey) : null);
       if (cachedPersonalPrayers && cachedPersonalPrayers.length > 0) {
         console.log(`[PrayerService] Using cached personal prayers (${cachedPersonalPrayers.length} items)`);
-        this.allPersonalPrayersSubject.next(cachedPersonalPrayers);
+        this.seedPersonalServerCounts(cachedPersonalPrayers);
+        this.allPersonalPrayersSubject.next(
+          this.withPersonalDisplayCounts(cachedPersonalPrayers)
+        );
 
         if (silentRefresh || !this.connectivity.isOnline()) {
           console.log('[PrayerService] Cache hit — skipping personal prayers database query');
@@ -463,11 +655,7 @@ export class PrayerService {
         approval_status: 'approved' as const,
         type: 'prayer' as const,
         display_order: p.display_order,
-        prayed_for_count: this.mergePrayedForCount(
-          p.id,
-          'personal_prayer',
-          p.prayed_for_count ?? 0
-        ),
+        prayed_for_count: p.prayed_for_count ?? 0,
         updates: (p.personal_prayer_updates || []).map((u: any) => ({
           id: u.id,
           prayer_id: p.id,
@@ -482,8 +670,7 @@ export class PrayerService {
       }));
 
       console.log(`[PrayerService] Loaded ${personalPrayers.length} personal prayers from database`);
-      this.allPersonalPrayersSubject.next(personalPrayers);
-      this.cache.set(cacheKey, personalPrayers);
+      this.publishPersonalPrayers(personalPrayers);
       this.loadingPersonalPrayersSubject.next(false);
     } catch (err) {
       console.error('[PrayerService] Failed to load personal prayers:', err);
@@ -498,7 +685,10 @@ export class PrayerService {
 
         if (allCachedPrayersMatchCurrentUser) {
           console.log(`[PrayerService] Showing ${cachedPersonalPrayers.length} cached personal prayers`);
-          this.allPersonalPrayersSubject.next(cachedPersonalPrayers);
+          this.seedPersonalServerCounts(cachedPersonalPrayers);
+          this.allPersonalPrayersSubject.next(
+            this.withPersonalDisplayCounts(cachedPersonalPrayers)
+          );
         } else {
           console.warn('[PrayerService] Cached personal prayers do not match current user - discarding cache');
           this.invalidatePersonalPrayersCacheAll();
@@ -674,7 +864,8 @@ export class PrayerService {
           ? (this.getCachedSharedPrayers(tid) || this.getStaleSharedPrayers(tid))
           : null;
         if (cachedPrayers && cachedPrayers.length > 0) {
-          this.allPrayersSubject.next(cachedPrayers);
+          this.seedCommunityServerCounts(cachedPrayers);
+          this.allPrayersSubject.next(this.withCommunityDisplayCounts(cachedPrayers));
           this.applyFilters(this.currentFilters);
         }
       } catch {
@@ -692,7 +883,8 @@ export class PrayerService {
         ? (this.getCachedSharedPrayers(tid) || this.getStaleSharedPrayers(tid))
         : null;
       if (cached && cached.length > 0) {
-        this.allPrayersSubject.next(cached);
+        this.seedCommunityServerCounts(cached);
+        this.allPrayersSubject.next(this.withCommunityDisplayCounts(cached));
         this.applyFilters(this.currentFilters);
       }
     } finally {
@@ -882,75 +1074,31 @@ export class PrayerService {
   }
 
   /**
-   * Optimistically increment prayed_for_count and queue sync (works offline).
-   * @returns The optimistic count, or null when not applicable.
+   * Queue a Pray For increment (works offline). Returns displayed count or null.
    */
   async incrementPrayedFor(prayerId: string): Promise<number | null> {
-    const current =
-      this.allPrayersSubject.value.find((p) => p.id === prayerId)
-        ?.prayed_for_count ?? 0;
-    const optimistic = current + 1;
-    this.applyCommunityPrayedForCount(prayerId, optimistic);
-    this.enqueuePrayedForSync('community_prayer', prayerId);
-    return optimistic;
-  }
-
-  applyCommunityPrayedForCount(prayerId: string, count: number): void {
-    const updateOne = (p: PrayerRequest) =>
-      p.id === prayerId ? { ...p, prayed_for_count: count } : p;
-    this.allPrayersSubject.next(this.allPrayersSubject.value.map(updateOne));
-    this.prayersSubject.next(this.prayersSubject.value.map(updateOne));
+    this.communityServerBaseline(prayerId);
+    if (!this.prayedForSync?.enqueue('community_prayer', prayerId)) {
+      return null;
+    }
+    void this.prayedForSync.flush();
+    return this.displayCommunityPrayedForCount(prayerId);
   }
 
   /**
-   * Optimistically increment personal prayed_for_count and queue sync (works offline).
+   * Queue a personal Pray For increment (works offline).
    */
   async incrementPersonalPrayedFor(prayerId: string): Promise<number | null> {
     const userEmail = this.userSessionService.getUserEmail();
     if (!userEmail) {
       return null;
     }
-    const current =
-      this.allPersonalPrayersSubject.value.find((p) => p.id === prayerId)
-        ?.prayed_for_count ?? 0;
-    const optimistic = current + 1;
-    this.applyPersonalPrayedForCount(prayerId, optimistic);
-    this.enqueuePrayedForSync('personal_prayer', prayerId);
-    return optimistic;
-  }
-
-  applyPersonalPrayedForCount(prayerId: string, count: number): void {
-    const updateOne = (p: PrayerRequest) =>
-      p.id === prayerId ? { ...p, prayed_for_count: count } : p;
-    const updated = this.allPersonalPrayersSubject.value.map(updateOne);
-    this.allPersonalPrayersSubject.next(updated);
-    this.invalidatePersonalPrayersCacheAll();
-    const tenantId = this.getActiveTenantId();
-    if (tenantId) {
-      this.cache.set(this.personalPrayersCacheKey(tenantId)!, updated);
+    this.personalServerBaseline(prayerId);
+    if (!this.prayedForSync?.enqueue('personal_prayer', prayerId)) {
+      return null;
     }
-  }
-
-  private mergePrayedForCount(
-    itemId: string,
-    kind: 'community_prayer' | 'personal_prayer' | 'prompt',
-    serverCount: number
-  ): number {
-    return (
-      this.prayedForSync?.mergeServerCount(itemId, kind, serverCount) ??
-      serverCount
-    );
-  }
-
-  private enqueuePrayedForSync(
-    kind: 'community_prayer' | 'personal_prayer' | 'prompt',
-    itemId: string
-  ): void {
-    if (!this.prayedForSync) {
-      return;
-    }
-    this.prayedForSync.enqueue(kind, itemId);
     void this.prayedForSync.flush();
+    return this.displayPersonalPrayedForCount(prayerId);
   }
 
   /**
@@ -1581,6 +1729,7 @@ export class PrayerService {
           prayer_for,
           user_email,
           display_order,
+          prayed_for_count,
           created_at,
           updated_at,
           personal_prayer_updates (
@@ -1619,6 +1768,7 @@ export class PrayerService {
         approval_status: 'approved' as const,
         type: 'prayer' as const,
         display_order: p.display_order,
+        prayed_for_count: p.prayed_for_count ?? 0,
         updates: (p.personal_prayer_updates || []).map((u: any) => ({
           id: u.id,
           prayer_id: p.id,
@@ -1632,9 +1782,10 @@ export class PrayerService {
         }))
       }));
 
-      this.cache.set(cacheKey, prayers);
+      this.seedPersonalServerCounts(prayers);
+      this.setPersonalPrayersCache(prayers);
 
-      return prayers;
+      return this.withPersonalDisplayCounts(prayers);
     } catch (error) {
       console.error('[PrayerService] Failed to load personal prayers:', error);
       return [];

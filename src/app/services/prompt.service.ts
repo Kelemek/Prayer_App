@@ -6,7 +6,7 @@ import { ToastService } from './toast.service';
 import { CacheService } from './cache.service';
 import { BadgeService } from './badge.service';
 import { ConnectivityService } from './connectivity.service';
-import { PrayedForSyncService } from './prayed-for-sync.service';
+import { PrayedForSyncService, type PrayedForSyncedEvent } from './prayed-for-sync.service';
 import { UserSessionService } from './user-session.service';
 import { PrayerPrompt } from '../components/prompt-card/prompt-card.component';
 import { TenantContextService } from './tenant-context.service';
@@ -20,6 +20,7 @@ export class PromptService {
   private errorSubject = new BehaviorSubject<string | null>(null);
   /** Bumps on session email change so late count hydrates are ignored. */
   private countsHydrateGeneration = 0;
+  private readonly promptServerPrayedFor = new Map<string, number>();
 
   public prompts$ = this.promptsSubject.asObservable();
   public loading$ = this.loadingSubject.asObservable();
@@ -54,6 +55,89 @@ export class PromptService {
         this.loadPrompts();
       });
     }
+    this.attachPrayedForSyncListeners();
+  }
+
+  private attachPrayedForSyncListeners(): void {
+    if (!this.prayedForSync) {
+      return;
+    }
+    this.prayedForSync.pendingChanged$.subscribe(() => {
+      this.reprojectPromptCounts();
+    });
+    this.prayedForSync.synced$.subscribe((event) => {
+      this.onPrayedForSynced(event);
+    });
+  }
+
+  private onPrayedForSynced(event: PrayedForSyncedEvent): void {
+    if (event.kind !== 'prompt') {
+      return;
+    }
+    const sessionEmail = this.userSessionService.getUserEmail()?.trim().toLowerCase();
+    if (!sessionEmail) {
+      return;
+    }
+    this.promptServerPrayedFor.set(event.itemId, event.serverCount);
+    this.countsHydrateGeneration += 1;
+    this.reprojectPromptCounts();
+  }
+
+  private seedPromptServerCounts(prompts: PrayerPrompt[]): void {
+    for (const prompt of prompts) {
+      this.promptServerPrayedFor.set(prompt.id, prompt.prayed_for_count ?? 0);
+    }
+  }
+
+  private promptServerBaseline(promptId: string): number {
+    const existing = this.promptServerPrayedFor.get(promptId);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const displayed =
+      this.promptsSubject.value.find((p) => p.id === promptId)
+        ?.prayed_for_count ?? 0;
+    const pending =
+      this.prayedForSync?.getPendingCount(promptId, 'prompt') ?? 0;
+    const server = displayed - pending;
+    this.promptServerPrayedFor.set(promptId, server);
+    return server;
+  }
+
+  private displayPromptPrayedForCount(promptId: string): number {
+    const server = this.promptServerBaseline(promptId);
+    return (
+      this.prayedForSync?.displayCount(server, promptId, 'prompt') ?? server
+    );
+  }
+
+  private withPromptDisplayCounts(prompts: PrayerPrompt[]): PrayerPrompt[] {
+    return prompts.map((prompt) => ({
+      ...prompt,
+      prayed_for_count: this.displayPromptPrayedForCount(prompt.id),
+    }));
+  }
+
+  private toPromptServerOnly(prompts: PrayerPrompt[]): PrayerPrompt[] {
+    return prompts.map((prompt) => ({
+      ...prompt,
+      prayed_for_count:
+        this.promptServerPrayedFor.get(prompt.id) ??
+        prompt.prayed_for_count ??
+        0,
+    }));
+  }
+
+  private reprojectPromptCounts(): void {
+    const updated = this.withPromptDisplayCounts(
+      this.toPromptServerOnly(this.promptsSubject.value)
+    );
+    this.promptsSubject.next(updated);
+  }
+
+  private publishPrompts(serverPrompts: PrayerPrompt[]): void {
+    this.seedPromptServerCounts(serverPrompts);
+    this.promptsSubject.next(this.withPromptDisplayCounts(serverPrompts));
   }
 
   /**
@@ -170,7 +254,7 @@ export class PromptService {
         ? await this.attachPrayedForCounts(base, sessionEmail)
         : base.map((p) => ({ ...p, prayed_for_count: 0 }));
       if (generation === this.countsHydrateGeneration) {
-        this.promptsSubject.next(withCounts);
+        this.publishPrompts(withCounts);
         return;
       }
     }
@@ -217,23 +301,8 @@ export class PromptService {
 
     return prompts.map((p) => ({
       ...p,
-      prayed_for_count: this.mergePrayedForCount(p.id, countsMap[p.id] ?? 0),
+      prayed_for_count: countsMap[p.id] ?? 0,
     }));
-  }
-
-  private mergePrayedForCount(promptId: string, serverCount: number): number {
-    return (
-      this.prayedForSync?.mergeServerCount(promptId, 'prompt', serverCount) ??
-      serverCount
-    );
-  }
-
-  private enqueuePrayedForSync(promptId: string): void {
-    if (!this.prayedForSync) {
-      return;
-    }
-    this.prayedForSync.enqueue('prompt', promptId);
-    void this.prayedForSync.flush();
   }
 
   /**
@@ -297,11 +366,11 @@ export class PromptService {
     if (generation !== this.countsHydrateGeneration) {
       return;
     }
-    this.promptsSubject.next(withCounts);
+    this.publishPrompts(withCounts);
   }
 
   /**
-   * Optimistically increment prompt prayed_for_count and queue sync (works offline).
+   * Queue a prompt Pray For increment (works offline).
    */
   async incrementPromptPrayedFor(promptId: string): Promise<number | null> {
     const userEmail =
@@ -309,23 +378,13 @@ export class PromptService {
     if (!userEmail) {
       return null;
     }
-
-    const current =
-      this.promptsSubject.value.find((p) => p.id === promptId)
-        ?.prayed_for_count ?? 0;
-    const optimistic = current + 1;
-    this.applyPromptPrayedForCount(promptId, optimistic);
+    this.promptServerBaseline(promptId);
+    if (!this.prayedForSync?.enqueue('prompt', promptId)) {
+      return null;
+    }
     this.countsHydrateGeneration += 1;
-    this.enqueuePrayedForSync(promptId);
-    return optimistic;
-  }
-
-  applyPromptPrayedForCount(promptId: string, count: number): void {
-    this.countsHydrateGeneration += 1;
-    const updated = this.promptsSubject.value.map((p) =>
-      p.id === promptId ? { ...p, prayed_for_count: count } : p
-    );
-    this.promptsSubject.next(updated);
+    void this.prayedForSync.flush();
+    return this.displayPromptPrayedForCount(promptId);
   }
 
   /**
