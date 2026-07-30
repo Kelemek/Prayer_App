@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Optional } from '@angular/core';
 import { BehaviorSubject, Observable, fromEvent, distinctUntilChanged, first, combineLatest, filter, map } from 'rxjs';
 import { SupabaseService } from './supabase.service';
 import { ToastService } from './toast.service';
@@ -9,6 +9,7 @@ import { BadgeService } from './badge.service';
 import { UserSessionService } from './user-session.service';
 import { TenantContextService } from './tenant-context.service';
 import { ConnectivityService } from './connectivity.service';
+import { PrayedForSyncService } from './prayed-for-sync.service';
 import type { Tenant } from '../types/tenant';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { resolveAuthorName } from '../utils/display-name';
@@ -110,7 +111,8 @@ export class PrayerService {
     private badgeService: BadgeService,
     private userSessionService: UserSessionService,
     private tenantContext: TenantContextService,
-    private connectivity: ConnectivityService
+    private connectivity: ConnectivityService,
+    @Optional() private prayedForSync: PrayedForSyncService | null = null
   ) {
     this.initializePrayers();
   }
@@ -294,7 +296,11 @@ export class PrayerService {
           created_at: prayer.created_at,
           updated_at: prayer.updated_at,
           last_reminder_sent: prayer.last_reminder_sent,
-          prayed_for_count: prayer.prayed_for_count ?? 0,
+          prayed_for_count: this.mergePrayedForCount(
+            prayer.id,
+            'community_prayer',
+            prayer.prayed_for_count ?? 0
+          ),
           updates: updates.map((u: any) => ({
             id: u.id,
             prayer_id: u.prayer_id,
@@ -421,6 +427,7 @@ export class PrayerService {
           prayer_for,
           user_email,
           display_order,
+          prayed_for_count,
           created_at,
           updated_at,
           personal_prayer_updates (
@@ -456,6 +463,11 @@ export class PrayerService {
         approval_status: 'approved' as const,
         type: 'prayer' as const,
         display_order: p.display_order,
+        prayed_for_count: this.mergePrayedForCount(
+          p.id,
+          'personal_prayer',
+          p.prayed_for_count ?? 0
+        ),
         updates: (p.personal_prayer_updates || []).map((u: any) => ({
           id: u.id,
           prayer_id: p.id,
@@ -870,72 +882,75 @@ export class PrayerService {
   }
 
   /**
-   * Increment prayed_for_count for a prayer via RPC. Updates in-memory list only (no refetch).
-   * @returns The new count, or null on error.
+   * Optimistically increment prayed_for_count and queue sync (works offline).
+   * @returns The optimistic count, or null when not applicable.
    */
   async incrementPrayedFor(prayerId: string): Promise<number | null> {
-    if (!this.connectivity.requireOnline('mark that you prayed')) {
-      return null;
-    }
-    try {
-      const { data: newCount, error } = await this.supabase.client
-        .rpc('increment_prayed_for_count', { prayer_id: prayerId });
+    const current =
+      this.allPrayersSubject.value.find((p) => p.id === prayerId)
+        ?.prayed_for_count ?? 0;
+    const optimistic = current + 1;
+    this.applyCommunityPrayedForCount(prayerId, optimistic);
+    this.enqueuePrayedForSync('community_prayer', prayerId);
+    return optimistic;
+  }
 
-      if (error) throw error;
-      const count = typeof newCount === 'number' ? newCount : null;
-      if (count === null) return null;
-
-      const updateOne = (p: PrayerRequest) =>
-        p.id === prayerId ? { ...p, prayed_for_count: count } : p;
-
-      this.allPrayersSubject.next(this.allPrayersSubject.value.map(updateOne));
-      this.prayersSubject.next(this.prayersSubject.value.map(updateOne));
-
-      return count;
-    } catch (err) {
-      console.error('[PrayerService] incrementPrayedFor failed', err);
-      return null;
-    }
+  applyCommunityPrayedForCount(prayerId: string, count: number): void {
+    const updateOne = (p: PrayerRequest) =>
+      p.id === prayerId ? { ...p, prayed_for_count: count } : p;
+    this.allPrayersSubject.next(this.allPrayersSubject.value.map(updateOne));
+    this.prayersSubject.next(this.prayersSubject.value.map(updateOne));
   }
 
   /**
-   * Increment prayed_for_count for a personal prayer via RPC.
-   * Updates the in-memory counts + cache only (no full refetch).
-   * @returns The new count, or null on error.
+   * Optimistically increment personal prayed_for_count and queue sync (works offline).
    */
   async incrementPersonalPrayedFor(prayerId: string): Promise<number | null> {
-    if (!this.connectivity.requireOnline('mark that you prayed')) {
+    const userEmail = this.userSessionService.getUserEmail();
+    if (!userEmail) {
       return null;
     }
-    try {
-      const userEmail = this.userSessionService.getUserEmail();
-      if (!userEmail) {
-        return null;
-      }
+    const current =
+      this.allPersonalPrayersSubject.value.find((p) => p.id === prayerId)
+        ?.prayed_for_count ?? 0;
+    const optimistic = current + 1;
+    this.applyPersonalPrayedForCount(prayerId, optimistic);
+    this.enqueuePrayedForSync('personal_prayer', prayerId);
+    return optimistic;
+  }
 
-      const { data: newCount, error } = await this.supabase.client
-        .rpc('increment_personal_prayed_for_count', {
-          personal_prayer_id: prayerId,
-          p_user_email: userEmail,
-        });
-
-      if (error) throw error;
-      const count = typeof newCount === 'number' && newCount > 0 ? newCount : null;
-      if (count === null) return null;
-
-      const updateOne = (p: PrayerRequest) =>
-        p.id === prayerId ? { ...p, prayed_for_count: count } : p;
-
-      const updated = this.allPersonalPrayersSubject.value.map(updateOne);
-      this.allPersonalPrayersSubject.next(updated);
-      this.invalidatePersonalPrayersCacheAll();
-      this.cache.set('personalPrayers', updated);
-
-      return count;
-    } catch (err) {
-      console.error('[PrayerService] incrementPersonalPrayedFor failed', err);
-      return null;
+  applyPersonalPrayedForCount(prayerId: string, count: number): void {
+    const updateOne = (p: PrayerRequest) =>
+      p.id === prayerId ? { ...p, prayed_for_count: count } : p;
+    const updated = this.allPersonalPrayersSubject.value.map(updateOne);
+    this.allPersonalPrayersSubject.next(updated);
+    this.invalidatePersonalPrayersCacheAll();
+    const tenantId = this.getActiveTenantId();
+    if (tenantId) {
+      this.cache.set(this.personalPrayersCacheKey(tenantId)!, updated);
     }
+  }
+
+  private mergePrayedForCount(
+    itemId: string,
+    kind: 'community_prayer' | 'personal_prayer' | 'prompt',
+    serverCount: number
+  ): number {
+    return (
+      this.prayedForSync?.mergeServerCount(itemId, kind, serverCount) ??
+      serverCount
+    );
+  }
+
+  private enqueuePrayedForSync(
+    kind: 'community_prayer' | 'personal_prayer' | 'prompt',
+    itemId: string
+  ): void {
+    if (!this.prayedForSync) {
+      return;
+    }
+    this.prayedForSync.enqueue(kind, itemId);
+    void this.prayedForSync.flush();
   }
 
   /**

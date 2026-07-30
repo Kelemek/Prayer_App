@@ -75,14 +75,14 @@ import type {
                 No recommended verses yet. Check back later.
               </p>
             } @else {
-              <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                Expand a category, then tap a verse to add it to your memorization list.
-              </p>
               <app-bible-translation-picker
                 [translation]="translation"
                 triggerAriaLabel="Bible translation for recommended verses"
                 (translationChange)="onTranslationChanged($event)"
               />
+              <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">
+                Expand a category, then tap a verse to add it to your memorization list.
+              </p>
               <div class="space-y-2">
                 @for (group of groupsWithVerses; track group.category.id) {
                   <div class="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">

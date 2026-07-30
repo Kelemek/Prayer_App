@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Optional } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { distinctUntilChanged } from 'rxjs/operators';
 import { SupabaseService } from './supabase.service';
@@ -6,6 +6,7 @@ import { ToastService } from './toast.service';
 import { CacheService } from './cache.service';
 import { BadgeService } from './badge.service';
 import { ConnectivityService } from './connectivity.service';
+import { PrayedForSyncService } from './prayed-for-sync.service';
 import { UserSessionService } from './user-session.service';
 import { PrayerPrompt } from '../components/prompt-card/prompt-card.component';
 import { TenantContextService } from './tenant-context.service';
@@ -31,6 +32,7 @@ export class PromptService {
     private badgeService: BadgeService,
     private connectivity: ConnectivityService,
     private userSessionService: UserSessionService,
+    @Optional() private prayedForSync: PrayedForSyncService | null = null,
     private tenantContext?: TenantContextService
   ) {
     this.loadPrompts();
@@ -215,8 +217,23 @@ export class PromptService {
 
     return prompts.map((p) => ({
       ...p,
-      prayed_for_count: countsMap[p.id] ?? 0,
+      prayed_for_count: this.mergePrayedForCount(p.id, countsMap[p.id] ?? 0),
     }));
+  }
+
+  private mergePrayedForCount(promptId: string, serverCount: number): number {
+    return (
+      this.prayedForSync?.mergeServerCount(promptId, 'prompt', serverCount) ??
+      serverCount
+    );
+  }
+
+  private enqueuePrayedForSync(promptId: string): void {
+    if (!this.prayedForSync) {
+      return;
+    }
+    this.prayedForSync.enqueue('prompt', promptId);
+    void this.prayedForSync.flush();
   }
 
   /**
@@ -284,53 +301,31 @@ export class PromptService {
   }
 
   /**
-   * Increment the current user's Pray For count for a prompt via RPC.
-   * Updates in-memory prompts list only (no full refetch).
+   * Optimistically increment prompt prayed_for_count and queue sync (works offline).
    */
   async incrementPromptPrayedFor(promptId: string): Promise<number | null> {
-    if (!this.connectivity.requireOnline('mark that you prayed for a prompt')) {
+    const userEmail =
+      this.userSessionService.getUserEmail()?.trim().toLowerCase() || null;
+    if (!userEmail) {
       return null;
     }
-    try {
-      const userEmail =
-        this.userSessionService.getUserEmail()?.trim().toLowerCase() || null;
-      if (!userEmail) {
-        return null;
-      }
 
-      const generationAtStart = this.countsHydrateGeneration;
+    const current =
+      this.promptsSubject.value.find((p) => p.id === promptId)
+        ?.prayed_for_count ?? 0;
+    const optimistic = current + 1;
+    this.applyPromptPrayedForCount(promptId, optimistic);
+    this.countsHydrateGeneration += 1;
+    this.enqueuePrayedForSync(promptId);
+    return optimistic;
+  }
 
-      const { data: newCount, error } = await this.supabase.client.rpc(
-        'increment_prompt_prayed_for_count',
-        {
-          p_prompt_id: promptId,
-          p_user_email: userEmail,
-        }
-      );
-
-      if (error) throw error;
-      const count = typeof newCount === 'number' && newCount > 0 ? newCount : null;
-      if (count === null) return null;
-
-      const stillLoggedIn =
-        this.userSessionService.getUserEmail()?.trim().toLowerCase() === userEmail;
-      if (!stillLoggedIn || generationAtStart !== this.countsHydrateGeneration) {
-        return null;
-      }
-
-      // Invalidate in-flight hydrates so a late attach cannot overwrite this newer tally.
-      this.countsHydrateGeneration += 1;
-
-      const updated = this.promptsSubject.value.map((p) =>
-        p.id === promptId ? { ...p, prayed_for_count: count } : p
-      );
-      this.promptsSubject.next(updated);
-
-      return count;
-    } catch (err) {
-      console.error('[PromptService] incrementPromptPrayedFor failed', err);
-      return null;
-    }
+  applyPromptPrayedForCount(promptId: string, count: number): void {
+    this.countsHydrateGeneration += 1;
+    const updated = this.promptsSubject.value.map((p) =>
+      p.id === promptId ? { ...p, prayed_for_count: count } : p
+    );
+    this.promptsSubject.next(updated);
   }
 
   /**

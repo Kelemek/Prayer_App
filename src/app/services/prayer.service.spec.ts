@@ -36,6 +36,7 @@ describe('PrayerService', () => {
   let userSessionService: any;
   let tenantContext: ReturnType<typeof createPrayerSpecTenantContext>;
   let connectivity: any;
+  let prayedForSync: any;
 
   const makePrayer = (overrides: Partial<PrayerRequest> = {}): PrayerRequest => ({
     id: '1',
@@ -78,6 +79,13 @@ describe('PrayerService', () => {
       isOnline$: new BehaviorSubject(true).asObservable(),
       requireOnline: vi.fn(() => true),
     };
+    prayedForSync = {
+      enqueue: vi.fn(),
+      flush: vi.fn().mockResolvedValue(undefined),
+      mergeServerCount: vi.fn((_id: string, _kind: string, count: number) => count),
+      getPendingCount: vi.fn(() => 0),
+      clearQueue: vi.fn(),
+    };
 
     // Ensure from() returns a safe default to avoid constructor side-effects failing
     supabase.client.from.mockImplementation((table: string) => ({
@@ -91,7 +99,7 @@ describe('PrayerService', () => {
     supabase.client.rpc = vi.fn().mockResolvedValue({ data: null, error: null });
     supabase.ensureConnected = vi.fn().mockResolvedValue(undefined);
 
-    service = new PrayerService(supabase, toast, emailNotification, verificationService as any, cache, badgeService, userSessionService, tenantContext as any, connectivity as any);
+    service = new PrayerService(supabase, toast, emailNotification, verificationService as any, cache, badgeService, userSessionService, tenantContext as any, connectivity as any, prayedForSync as any);
     tenantContext.loadingSubject.next(false);
   });
 
@@ -121,94 +129,56 @@ describe('PrayerService', () => {
   });
 
   describe('incrementPrayedFor', () => {
-    it('calls rpc and updates in-memory lists with returned count', async () => {
+    it('optimistically updates in-memory lists and enqueues sync', async () => {
       const p1 = makePrayer({ id: 'pid-1', prayed_for_count: 2 });
       const p2 = makePrayer({ id: 'pid-2' });
       (service as any).allPrayersSubject.next([p1, p2]);
       (service as any).prayersSubject.next([p1, p2]);
 
-      supabase.client.rpc.mockResolvedValue({ data: 3, error: null });
-
       const result = await service.incrementPrayedFor('pid-1');
 
       expect(result).toBe(3);
-      expect(supabase.client.rpc).toHaveBeenCalledWith('increment_prayed_for_count', { prayer_id: 'pid-1' });
+      expect(prayedForSync.enqueue).toHaveBeenCalledWith('community_prayer', 'pid-1');
+      expect(prayedForSync.flush).toHaveBeenCalled();
       expect((service as any).allPrayersSubject.value[0].prayed_for_count).toBe(3);
       expect((service as any).prayersSubject.value[0].prayed_for_count).toBe(3);
       expect((service as any).allPrayersSubject.value[1].prayed_for_count).toBeUndefined();
     });
-
-    it('returns null and does not update lists when rpc errors', async () => {
-      const p1 = makePrayer({ id: 'pid-1', prayed_for_count: 1 });
-      (service as any).allPrayersSubject.next([p1]);
-      (service as any).prayersSubject.next([p1]);
-      supabase.client.rpc.mockResolvedValue({ data: null, error: new Error('db error') });
-
-      const result = await service.incrementPrayedFor('pid-1');
-
-      expect(result).toBeNull();
-      expect((service as any).allPrayersSubject.value[0].prayed_for_count).toBe(1);
-    });
-
-    it('returns null when rpc returns non-number', async () => {
-      const p1 = makePrayer({ id: 'pid-1' });
-      (service as any).allPrayersSubject.next([p1]);
-      (service as any).prayersSubject.next([p1]);
-      supabase.client.rpc.mockResolvedValue({ data: 'invalid', error: null });
-
-      const result = await service.incrementPrayedFor('pid-1');
-
-      expect(result).toBeNull();
-    });
   });
 
   describe('incrementPersonalPrayedFor', () => {
-    it('calls rpc with email and updates personal prayers with returned count', async () => {
-      const p1 = { id: 'personal-1', prayed_for_count: 2 };
+    it('optimistically updates personal prayers and enqueues sync', async () => {
+      const p1 = { id: 'personal-1', prayed_for_count: 2 } as PrayerRequest;
       (service as any).allPersonalPrayersSubject.next([p1]);
       userSessionService.getUserEmail = vi.fn().mockReturnValue('user@example.com');
-      connectivity.requireOnline.mockReturnValue(true);
-
-      supabase.client.rpc.mockResolvedValue({ data: 4, error: null });
 
       const result = await service.incrementPersonalPrayedFor('personal-1');
 
-      expect(result).toBe(4);
-      expect(supabase.client.rpc).toHaveBeenCalledWith('increment_personal_prayed_for_count', {
-        personal_prayer_id: 'personal-1',
-        p_user_email: 'user@example.com',
-      });
-      expect((service as any).allPersonalPrayersSubject.value[0].prayed_for_count).toBe(4);
-    });
-
-    it('returns null when offline', async () => {
-      connectivity.requireOnline.mockReturnValue(false);
-      const result = await service.incrementPersonalPrayedFor('personal-1');
-      expect(result).toBeNull();
-      expect(supabase.client.rpc).not.toHaveBeenCalled();
+      expect(result).toBe(3);
+      expect(prayedForSync.enqueue).toHaveBeenCalledWith('personal_prayer', 'personal-1');
+      expect((service as any).allPersonalPrayersSubject.value[0].prayed_for_count).toBe(3);
     });
 
     it('returns null when no user email', async () => {
-      connectivity.requireOnline.mockReturnValue(true);
       userSessionService.getUserEmail = vi.fn().mockReturnValue(null);
-
       const result = await service.incrementPersonalPrayedFor('personal-1');
-
       expect(result).toBeNull();
-      expect(supabase.client.rpc).not.toHaveBeenCalled();
+      expect(prayedForSync.enqueue).not.toHaveBeenCalled();
     });
+  });
 
-    it('returns null when rpc errors', async () => {
-      const p1 = { id: 'personal-1', prayed_for_count: 1 };
+  describe('incrementPersonalPrayedFor offline', () => {
+    it('works offline via optimistic enqueue', async () => {
+      connectivity.isOnline.mockReturnValue(false);
+      const p1 = { id: 'personal-1', prayed_for_count: 1 } as PrayerRequest;
       (service as any).allPersonalPrayersSubject.next([p1]);
       userSessionService.getUserEmail = vi.fn().mockReturnValue('user@example.com');
-      connectivity.requireOnline.mockReturnValue(true);
-      supabase.client.rpc.mockResolvedValue({ data: null, error: new Error('db error') });
 
       const result = await service.incrementPersonalPrayedFor('personal-1');
 
-      expect(result).toBeNull();
-      expect((service as any).allPersonalPrayersSubject.value[0].prayed_for_count).toBe(1);
+      expect(result).toBe(2);
+      expect(prayedForSync.enqueue).toHaveBeenCalled();
+      expect(supabase.client.rpc).not.toHaveBeenCalled();
     });
   });
 

@@ -5,9 +5,12 @@ import { MemorizationActionBarComponent } from './memorization-action-bar.compon
 
 describe('MemorizationActionBarComponent', () => {
   it('renders add buttons', async () => {
-    await render(MemorizationActionBarComponent);
-    expect(screen.getByRole('button', { name: /Add Verses/i })).toBeTruthy();
+    await render(MemorizationActionBarComponent, {
+      componentInputs: { showRecommended: true },
+    });
+    expect(screen.getByRole('button', { name: /^Verses$/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Bible Books/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Recommended/i })).toBeTruthy();
   });
 
   it('hides Recommended by default', async () => {
@@ -22,6 +25,26 @@ describe('MemorizationActionBarComponent', () => {
     expect(screen.getByRole('button', { name: /Recommended/i })).toBeTruthy();
   });
 
+  it('emits addVerses when Verses is clicked', async () => {
+    const user = userEvent.setup();
+    const addVerses = vi.fn();
+    const { fixture } = await render(MemorizationActionBarComponent);
+    fixture.componentInstance.addVerses.subscribe(addVerses);
+
+    await user.click(screen.getByRole('button', { name: /^Verses$/i }));
+    expect(addVerses).toHaveBeenCalledOnce();
+  });
+
+  it('emits addBibleBooks when Bible Books is clicked', async () => {
+    const user = userEvent.setup();
+    const addBibleBooks = vi.fn();
+    const { fixture } = await render(MemorizationActionBarComponent);
+    fixture.componentInstance.addBibleBooks.subscribe(addBibleBooks);
+
+    await user.click(screen.getByRole('button', { name: /Bible Books/i }));
+    expect(addBibleBooks).toHaveBeenCalledOnce();
+  });
+
   it('emits openRecommended when Recommended is clicked', async () => {
     const user = userEvent.setup();
     const openRecommended = vi.fn();
@@ -32,5 +55,26 @@ describe('MemorizationActionBarComponent', () => {
 
     await user.click(screen.getByRole('button', { name: /Recommended/i }));
     expect(openRecommended).toHaveBeenCalledOnce();
+  });
+
+  it('applies soft blue styles to secondary buttons when their modal is active', async () => {
+    await render(MemorizationActionBarComponent, {
+      componentInputs: {
+        showRecommended: true,
+        bibleBooksActive: true,
+        recommendedActive: false,
+      },
+    });
+
+    const bibleBooks = screen.getByRole('button', { name: /Bible Books/i });
+    const recommended = screen.getByRole('button', { name: /Recommended/i });
+
+    expect(bibleBooks.className).toContain('bg-blue-100');
+    expect(bibleBooks.className).toContain('dark:bg-blue-900/40');
+    expect(bibleBooks.getAttribute('aria-pressed')).toBe('true');
+
+    expect(recommended.className).toContain('bg-white');
+    expect(recommended.className).toContain('dark:bg-gray-800');
+    expect(recommended.getAttribute('aria-pressed')).toBe('false');
   });
 });

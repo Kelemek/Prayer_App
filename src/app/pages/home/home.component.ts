@@ -700,7 +700,7 @@ import {
               [class]="
                 'flex-1 whitespace-nowrap px-3 py-2 rounded-lg text-xs font-medium transition-all ' +
                 (selectedPersonalCategories.length === 0
-                  ? 'bg-[#2F5F54] text-white shadow-md'
+                  ? 'border !border-[#2F5F54] dark:!border-[#2F5F54] bg-slate-100 dark:bg-green-900/40 ring ring-[#2F5F54] dark:ring-[#2F5F54] ring-offset-0 text-gray-700 dark:text-gray-300 shadow-md'
                   : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:border-[#2F5F54] dark:hover:border-[#2F5F54]') +
                 (isSwappingCategories
                   ? ' opacity-50 cursor-not-allowed'
@@ -727,7 +727,7 @@ import {
                 [class]="
                   'w-full whitespace-nowrap pl-7 pr-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-2 relative ' +
                   (isPersonalCategorySelected(category)
-                    ? 'bg-[#2F5F54] text-white shadow-md'
+                    ? 'border !border-[#2F5F54] dark:!border-[#2F5F54] bg-slate-100 dark:bg-green-900/40 ring ring-[#2F5F54] dark:ring-[#2F5F54] ring-offset-0 text-gray-700 dark:text-gray-300 shadow-md'
                     : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:border-[#2F5F54] dark:hover:border-[#2F5F54]') +
                   (isSwappingCategories
                     ? ' opacity-50 cursor-not-allowed'
@@ -966,6 +966,9 @@ import {
             @if (activeFilter === 'memorize') {
             <app-memorization-action-bar
               [showRecommended]="!!(memorizationRecommendationsService.hasRecommendations$ | async)"
+              [addVersesActive]="showAddMemorizedVerse"
+              [bibleBooksActive]="showAddMemorizedBibleBooks"
+              [recommendedActive]="showMemorizationRecommendations"
               (addVerses)="showAddMemorizedVerse = true"
               (addBibleBooks)="showAddMemorizedBibleBooks = true"
               (openRecommended)="openMemorizationRecommendations()"
@@ -992,6 +995,7 @@ import {
             >
               Learning
             </p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" role="list">
             @for (item of memorizedLearning; track item.id) {
             <app-memorized-verse-card
               [item]="item"
@@ -999,12 +1003,14 @@ import {
               (remove)="confirmRemoveMemorizedItem($event)"
             />
             }
+            </div>
             } @if (memorizedPracticing.length > 0) {
             <p
               class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2 mt-4"
             >
               Practicing
             </p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" role="list">
             @for (item of memorizedPracticing; track item.id) {
             <app-memorized-verse-card
               [item]="item"
@@ -1012,12 +1018,14 @@ import {
               (remove)="confirmRemoveMemorizedItem($event)"
             />
             }
+            </div>
             } @if (memorizedMastered.length > 0) {
             <p
               class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2 mt-4"
             >
               Mastered
             </p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" role="list">
             @for (item of memorizedMastered; track item.id) {
             <app-memorized-verse-card
               [item]="item"
@@ -1025,6 +1033,7 @@ import {
               (remove)="confirmRemoveMemorizedItem($event)"
             />
             }
+            </div>
             } }
 
             <!-- Empty State for Prompts -->

@@ -161,7 +161,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
 
       <!-- Add Update Form -->
       @if (showAddUpdateForm) {
-      <form #updateForm="ngForm" (ngSubmit)="updateForm.valid && handleAddUpdate()" class="mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-[#39704D] dark:border-[#39704D] rounded-lg" role="region" [attr.aria-labelledby]="'addUpdateTitle-' + prayer.id">
+      <form #updateForm="ngForm" (ngSubmit)="updateForm.valid && handleAddUpdate()" class="mt-4 mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-[#39704D] dark:border-[#39704D] rounded-lg" role="region" [attr.aria-labelledby]="'addUpdateTitle-' + prayer.id">
         <h4 [id]="'addUpdateTitle-' + prayer.id" class="text-sm font-medium text-[#39704D] dark:text-[#5FB876] mb-3">Add Prayer Update</h4>
         <div class="space-y-2">
           <div [id]="'updateContent-' + prayer.id">
@@ -693,6 +693,9 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   getBorderClass(): string {
+    if (this.isPersonal) {
+      return '!border-gray-300 dark:!border-gray-600';
+    }
     if (this.prayer.status === 'current') {
       return '!border-[#0047AB] dark:!border-[#0047AB]';
     } else if (this.prayer.status === 'answered') {
