@@ -147,6 +147,8 @@ export class PrayerService {
         this.personalServerPrayedFor.set(event.itemId, event.serverCount);
         this.reprojectPersonalPrayers();
         break;
+      case 'prompt':
+        break;
       default: {
         const _exhaustive: never = event.kind;
         return _exhaustive;
