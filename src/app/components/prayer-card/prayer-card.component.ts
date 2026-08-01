@@ -1,16 +1,24 @@
-import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, OnChanges, SimpleChanges, TemplateRef, ViewChild } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, OnChanges, SimpleChanges, TemplateRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Observable, BehaviorSubject, Subject, of } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { PrayerRequest, PrayerService } from '../../services/prayer.service';
+import { RichTextEditorsSettingsService } from '../../services/rich-text-editors-settings.service';
 import { SupabaseService } from '../../services/supabase.service';
 import { UserSessionService } from '../../services/user-session.service';
 import { BadgeService } from '../../services/badge.service';
 import { PrayerEncouragementService } from '../../services/prayer-encouragement.service';
 import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
-import { RichTextEditorComponent } from '../rich-text-editor/rich-text-editor.component';
 import { RichTextViewComponent } from '../rich-text-view/rich-text-view.component';
+import {
+  PrayerAddUpdateModalComponent,
+  PrayerAddUpdatePayload,
+} from '../prayer-add-update-modal/prayer-add-update-modal.component';
+import {
+  PrayerDeleteRequestModalComponent,
+  PrayerDeleteRequestPayload,
+} from '../prayer-delete-request-modal/prayer-delete-request-modal.component';
 import { resolveAuthorName } from '../../utils/display-name';
 
 const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
@@ -18,7 +26,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
 @Component({
   selector: 'app-prayer-card',
   standalone: true,
-  imports: [CommonModule, FormsModule, ConfirmationDialogComponent, RichTextEditorComponent, RichTextViewComponent],
+  imports: [CommonModule, FormsModule, ConfirmationDialogComponent, RichTextViewComponent, PrayerAddUpdateModalComponent, PrayerDeleteRequestModalComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div 
@@ -121,25 +129,28 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
 
       <!-- Action buttons - flex-nowrap, reduced padding so row fits without wrap or scroll -->
       @if (showAddUpdateButton()) {
-      <div class="flex flex-nowrap gap-1 mb-0 items-center min-w-0">
+      <div class="flex flex-nowrap gap-1 items-center min-w-0">
         <button
+          type="button"
           (click)="toggleAddUpdate()"
           title="Add an update to this prayer"
-          class="flex-shrink-0 px-2 py-1 text-xs font-medium bg-green-50 dark:bg-green-900/20 text-[#39704D] dark:text-[#5FB876] rounded-md border border-[#39704D] dark:border-[#39704D] hover:bg-green-100 dark:hover:bg-green-900/30 focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 cursor-pointer whitespace-nowrap"
+          class="flex-shrink-0 px-2 py-1 text-xs font-medium btn-chip btn-chip-green whitespace-nowrap"
         >
           Add Update
         </button>
         @if ((userSessionService.getShowPrayForButton$() | async) && (prayerEncouragementService.getPrayerEncouragementEnabled$() | async) && !prayer.id.startsWith('pc-member-')) {
           @if (canPrayFor$ | async) {
             <button
+              type="button"
               (click)="onPrayForClick()"
               title="Record that you prayed for this request"
-              class="flex-shrink-0 px-2 py-1 text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md border border-blue-600 dark:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 cursor-pointer whitespace-nowrap"
+              class="flex-shrink-0 px-2 py-1 text-xs font-medium btn-chip btn-chip-blue whitespace-nowrap"
             >
               Pray For
             </button>
           } @else {
             <button
+              type="button"
               disabled
               [title]="'You can pray for this again in ' + ((prayerEncouragementService.getCooldownHoursForPrayer$(isPersonal) | async) ?? 4) + ' hours'"
               class="flex-shrink-0 px-2 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-md border border-gray-300 dark:border-gray-600 cursor-not-allowed whitespace-nowrap"
@@ -159,110 +170,27 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
       </div>
       }
 
-      <!-- Add Update Form -->
-      @if (showAddUpdateForm) {
-      <form #updateForm="ngForm" (ngSubmit)="updateForm.valid && handleAddUpdate()" class="mt-4 mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-[#39704D] dark:border-[#39704D] rounded-lg" role="region" [attr.aria-labelledby]="'addUpdateTitle-' + prayer.id">
-        <h4 [id]="'addUpdateTitle-' + prayer.id" class="text-sm font-medium text-[#39704D] dark:text-[#5FB876] mb-3">Add Prayer Update</h4>
-        <div class="space-y-2">
-          <div [id]="'updateContent-' + prayer.id">
-            <app-rich-text-editor
-              #addUpdateRichText
-              [(ngModel)]="updateContent"
-              name="updateContent"
-              ngDefaultControl
-              required
-              ariaLabel="Prayer update details"
-              placeholder="Prayer update..."
-              minHeight="5rem"
-            ></app-rich-text-editor>
-          </div>
-          @if (!isPersonal) {
-          <div class="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="updateIsAnonymous-{{prayer.id}}"
-              [(ngModel)]="updateIsAnonymous"
-              name="updateIsAnonymous"
-              class="rounded border-gray-900 dark:border-white focus:ring-2 focus:ring-[#39704D]"
-            />
-            <label [for]="'updateIsAnonymous-' + prayer.id" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-              Post update anonymously
-            </label>
-          </div>
-          }
-          <div class="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="updateMarkAsAnswered-{{prayer.id}}"
-              [(ngModel)]="updateMarkAsAnswered"
-              name="updateMarkAsAnswered"
-              class="rounded border-gray-900 dark:border-white focus:ring-2 focus:ring-[#39704D]"
-            />
-            <label [for]="'updateMarkAsAnswered-' + prayer.id" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-              Mark this prayer as answered
-            </label>
-          </div>
-          <div class="flex gap-2">
-            <button
-              type="submit"
-              [disabled]="!updateForm.valid"
-              class="px-3 py-1.5 text-sm font-medium bg-[#39704D] text-white rounded-md border border-[#2d5a3f] hover:bg-[#2d5a3f] focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm cursor-pointer"
-              aria-label="Submit prayer update"
-            >
-              Add Update
-            </button>
-            <button
-              type="button"
-              (click)="showAddUpdateForm = false"
-              class="px-3 py-1.5 text-sm font-medium bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 cursor-pointer"
-              aria-label="Cancel prayer update form"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </form>
-      }
+      <app-prayer-add-update-modal
+        [isOpen]="showAddUpdateForm"
+        [prayerId]="prayer.id"
+        [isPersonal]="isPersonal"
+        [richTextEditorsEnabled]="richTextEditorsEnabled"
+        (close)="closeAddUpdateForm()"
+        (submit)="onAddUpdateSubmit($event)"
+      />
 
-      <!-- Delete Request Form -->
-      @if (showDeleteRequestForm) {
-      <form #deleteForm="ngForm" (ngSubmit)="deleteForm.valid && handleDeleteRequest()" class="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-600 rounded-lg" role="region" [attr.aria-labelledby]="'deleteFormTitle-' + prayer.id">
-        <h4 [id]="'deleteFormTitle-' + prayer.id" class="text-sm font-medium text-red-700 dark:text-red-400 mb-3">Request Prayer Deletion</h4>
-        <div class="space-y-2">
-          <textarea
-            [id]="'deleteReason-' + prayer.id"
-            placeholder="Reason for deletion request..."
-            [(ngModel)]="deleteReason"
-            name="deleteReason"
-            aria-label="Reason for deletion"
-            class="w-full px-3 py-2 text-sm border border-red-300 dark:border-red-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 h-20"
-            required
-          ></textarea>
-          <div class="flex gap-2">
-            <button
-              type="submit"
-              [disabled]="!deleteForm.valid"
-              class="px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Submit deletion request"
-            >
-              Submit Request
-            </button>
-            <button
-              type="button"
-              (click)="showDeleteRequestForm = false"
-              class="px-3 py-1 text-sm bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-400 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
-              aria-label="Cancel deletion request form"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </form>
-      }
+      <app-prayer-delete-request-modal
+        [isOpen]="showDeleteRequestForm || showUpdateDeleteRequestForm !== null"
+        [prayerId]="prayer.id"
+        [requestType]="showUpdateDeleteRequestForm ? 'update' : 'prayer'"
+        [updateId]="showUpdateDeleteRequestForm ?? ''"
+        (close)="closeAllDeleteRequestForms()"
+        (submit)="onDeleteRequestModalSubmit($event)"
+      />
 
       <!-- Recent Updates -->
       @if (prayer.updates && prayer.updates.length > 0) {
-      <div class="mt-4">
+      <div [class.mt-4]="recentUpdatesNeedsTopMargin()">
         <div class="flex items-center justify-between mb-2">
           <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">
             Recent Updates @if (!showAllUpdates && getDisplayedUpdates().length < prayer.updates.length) {<span>({{ getDisplayedUpdates().length }} of {{ prayer.updates.length }})</span>}
@@ -282,7 +210,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
         <div class="space-y-3">
           @for (update of getDisplayedUpdates(); track update.id) {
           <div
-            [class]="'bg-gray-100 dark:bg-gray-700 rounded-lg p-6 border relative ' + getBorderClass()"
+            [class]="'bg-inset-surface-muted rounded-lg p-6 border border-gray-300 dark:border-gray-600 relative'"
           >
             <div class="relative mb-2">
               <div class="flex items-start relative min-h-8">
@@ -344,41 +272,6 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
               class="block text-sm text-gray-700 dark:text-gray-300"
               [text]="update.content"
             ></app-rich-text-view>
-
-            @if (showUpdateDeleteRequestForm === update.id && !isAdmin) {
-            <form #updateDeleteForm="ngForm" (ngSubmit)="updateDeleteForm.valid && handleUpdateDeletionRequest()" class="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg" role="region" [attr.aria-labelledby]="'updateDeleteFormTitle-' + update.id">
-              <h4 [id]="'updateDeleteFormTitle-' + update.id" class="text-xs font-medium text-red-700 dark:text-red-400 mb-2">Request Update Deletion</h4>
-              <div class="space-y-2">
-                <textarea
-                  [id]="'updateDeleteReason-' + update.id"
-                  placeholder="Reason for deletion request..."
-                  [(ngModel)]="updateDeleteReason"
-                  name="updateDeleteReason"
-                  aria-label="Reason for deletion"
-                  class="w-full px-3 py-2 text-sm border border-red-300 dark:border-red-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 h-20"
-                  required
-                ></textarea>
-                <div class="flex gap-2">
-                  <button
-                    type="submit"
-                    [disabled]="!updateDeleteForm.valid"
-                    class="px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-label="Submit update deletion request"
-                  >
-                    Submit Request
-                  </button>
-                  <button
-                    type="button"
-                    (click)="showUpdateDeleteRequestForm = null"
-                    class="px-3 py-1 text-sm bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-400 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
-                    aria-label="Cancel update deletion request form"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </form>
-            }
           </div>
           }
         </div>
@@ -466,7 +359,7 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
             </button>
             <button
               (click)="onConfirmPrayForFromModal()"
-              class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium cursor-pointer"
+              class="px-4 py-2 btn-chip btn-chip-blue"
             >
               Pray For
             </button>
@@ -479,8 +372,6 @@ const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = 'prayer_encouragement_modal_do_not_show';
   styles: []
 })
 export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
-  @ViewChild('addUpdateRichText') addUpdateRichText?: RichTextEditorComponent;
-
   @Input() prayer!: PrayerRequest;
   @Input() isAdmin = false;
   @Input() isPersonal = false;
@@ -518,17 +409,7 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
   updateConfirmationId: string | null = null;
   showPrayForModal = false;
   prayForDoNotShowAgain = false;
-
-  // Update form fields
-  updateContent = '';
-  updateIsAnonymous = false;
-  updateMarkAsAnswered = false;
-
-  // Delete request form fields
-  deleteReason = '';
-
-  // Update deletion request form fields
-  updateDeleteReason = '';
+  richTextEditorsEnabled = true;
 
   constructor(
     private supabase: SupabaseService,
@@ -536,8 +417,17 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
     public badgeService: BadgeService,
     private prayerService: PrayerService,
     public prayerEncouragementService: PrayerEncouragementService,
-    private cdr: ChangeDetectorRef
-  ) {}
+    private cdr: ChangeDetectorRef,
+    richTextEditorsSettings: RichTextEditorsSettingsService
+  ) {
+    richTextEditorsSettings
+      .getRichTextEditorsEnabled$()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(v => {
+        this.richTextEditorsEnabled = v;
+        this.cdr.markForCheck();
+      });
+  }
 
   ngOnInit(): void {
     // Initialize badge observable for this prayer
@@ -756,6 +646,11 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
     return true; // 'everyone'
   }
 
+  /** Top margin before Recent Updates when action buttons sit above. */
+  recentUpdatesNeedsTopMargin(): boolean {
+    return this.showAddUpdateButton();
+  }
+
   showPrayedForBadge(): boolean {
     const count = this.prayer.prayed_for_count ?? 0;
     if (count <= 0) return false;
@@ -827,6 +722,7 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
       this.showDeleteRequestForm = !this.showDeleteRequestForm;
       if (this.showDeleteRequestForm) {
         this.showAddUpdateForm = false;
+        this.showUpdateDeleteRequestForm = null;
       }
     }
   }
@@ -857,47 +753,64 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
     this.showAddUpdateForm = !this.showAddUpdateForm;
     if (this.showAddUpdateForm) {
       this.showDeleteRequestForm = false;
+      this.showUpdateDeleteRequestForm = null;
     }
   }
 
-  async handleAddUpdate(): Promise<void> {
-    this.addUpdateRichText?.flushMarkdownToForm();
+  closeAddUpdateForm(): void {
+    this.showAddUpdateForm = false;
+    this.cdr.markForCheck();
+  }
 
+  onAddUpdateSubmit(payload: PrayerAddUpdatePayload): void {
     const userEmail = this.getCurrentUserEmail();
-    
-    // Get user name from UserSessionService cache
     const userSession = this.userSessionService.getCurrentSession();
-    // Always store the real name; is_anonymous flag controls display
     const authorName = resolveAuthorName(
       userSession?.fullName || this.getCurrentUserName(),
       userEmail
     );
-    
+
     const updateData = {
       prayer_id: this.prayer.id,
-      content: this.updateContent,
+      content: payload.content,
       author: authorName,
       author_email: userEmail,
-      is_anonymous: this.updateIsAnonymous,
-      mark_as_answered: this.updateMarkAsAnswered
+      is_anonymous: payload.is_anonymous,
+      mark_as_answered: payload.mark_as_answered,
     };
 
     this.addUpdate.emit(updateData);
-    this.resetUpdateForm();
+    this.showAddUpdateForm = false;
+    this.cdr.markForCheck();
   }
 
-  handleDeleteRequest(): void {
+  closeAllDeleteRequestForms(): void {
+    this.showDeleteRequestForm = false;
+    this.showUpdateDeleteRequestForm = null;
+    this.cdr.markForCheck();
+  }
+
+  onDeleteRequestModalSubmit(payload: PrayerDeleteRequestPayload): void {
+    if (this.showUpdateDeleteRequestForm) {
+      this.onUpdateDeleteRequestSubmit(payload);
+    } else {
+      this.onDeleteRequestSubmit(payload);
+    }
+  }
+
+  onDeleteRequestSubmit(payload: PrayerDeleteRequestPayload): void {
     const nameParts = this.getCurrentUserName().split(' ');
     const requestData = {
       prayer_id: this.prayer.id,
       requester_first_name: nameParts[0] || '',
       requester_last_name: nameParts.slice(1).join(' ') || '',
       requester_email: this.getCurrentUserEmail(),
-      reason: this.deleteReason
+      reason: payload.reason,
     };
 
     this.requestDeletion.emit(requestData);
-    this.resetDeleteForm();
+    this.showDeleteRequestForm = false;
+    this.cdr.markForCheck();
   }
 
   handleDeleteUpdate(updateId: string): void {
@@ -916,6 +829,7 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
         this.showDeleteRequestForm = false;
       }
     }
+    this.cdr.markForCheck();
   }
 
   getDisplayedUpdates() {
@@ -961,18 +875,6 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
     return this.formatDate(dateToShow);
   }
 
-  private resetUpdateForm(): void {
-    this.updateContent = '';
-    this.updateIsAnonymous = false;
-    this.updateMarkAsAnswered = false;
-    this.showAddUpdateForm = false;
-  }
-
-  private resetDeleteForm(): void {
-    this.deleteReason = '';
-    this.showDeleteRequestForm = false;
-  }
-
   private getCurrentUserEmail(): string {
     // Get email from UserSessionService (cached from database)
     const session = this.userSessionService.getCurrentSession();
@@ -992,25 +894,21 @@ export class PrayerCardComponent implements OnInit, OnChanges, OnDestroy {
     return `${firstName} ${lastName}`.trim();
   }
 
-  handleUpdateDeletionRequest(): void {
+  onUpdateDeleteRequestSubmit(payload: PrayerDeleteRequestPayload): void {
     if (!this.showUpdateDeleteRequestForm) return;
-    
+
     const nameParts = this.getCurrentUserName().split(' ');
     const requestData = {
       update_id: this.showUpdateDeleteRequestForm,
       requester_first_name: nameParts[0] || '',
       requester_last_name: nameParts.slice(1).join(' ') || '',
       requester_email: this.getCurrentUserEmail(),
-      reason: this.updateDeleteReason
+      reason: payload.reason,
     };
 
     this.requestUpdateDeletion.emit(requestData);
-    this.resetUpdateDeleteForm();
-  }
-
-  private resetUpdateDeleteForm(): void {
-    this.updateDeleteReason = '';
     this.showUpdateDeleteRequestForm = null;
+    this.cdr.markForCheck();
   }
 
   markPrayerAsRead(): void {

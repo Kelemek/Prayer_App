@@ -6,7 +6,8 @@ import { AdminAuthService } from '../../services/admin-auth.service';
 import { UserSessionService } from '../../services/user-session.service';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
-import { BehaviorSubject } from 'rxjs';
+import { RichTextEditorsSettingsService } from '../../services/rich-text-editors-settings.service';
+import { BehaviorSubject, of } from 'rxjs';
 import type { User } from '@supabase/supabase-js';
 
 describe('PrayerFormComponent', () => {
@@ -18,6 +19,7 @@ describe('PrayerFormComponent', () => {
   let mockSupabaseService: any;
   let mockToastService: any;
   let mockTenantContextService: any;
+  let mockRichTextEditorsSettings: RichTextEditorsSettingsService;
   let mockUser: User | null;
 
   beforeEach(() => {
@@ -111,6 +113,10 @@ describe('PrayerFormComponent', () => {
       success: vi.fn()
     };
 
+    mockRichTextEditorsSettings = {
+      getRichTextEditorsEnabled$: vi.fn(() => of(true)),
+    } as unknown as RichTextEditorsSettingsService;
+
     component = new PrayerFormComponent(
       mockPrayerService,
       mockAdminAuthService,
@@ -118,7 +124,9 @@ describe('PrayerFormComponent', () => {
       mockSupabaseService,
       mockToastService as any as ToastService,
       mockChangeDetectorRef as ChangeDetectorRef,
-      mockTenantContextService as any
+      mockTenantContextService as any,
+      { onDestroy: vi.fn() } as any,
+      mockRichTextEditorsSettings
     );
   });
 
@@ -184,7 +192,14 @@ describe('PrayerFormComponent', () => {
     it('should reload cached email when isOpen changes to true', () => {
       const refreshSpy = vi.spyOn(component as any, 'refreshCurrentUserEmail');
       component.isOpen = true;
-      component.ngOnChanges();
+      component.ngOnChanges({
+        isOpen: {
+          currentValue: true,
+          previousValue: false,
+          firstChange: false,
+          isFirstChange: () => false,
+        },
+      });
       vi.runAllTimers();
       expect(refreshSpy).toHaveBeenCalled();
     });
@@ -192,7 +207,14 @@ describe('PrayerFormComponent', () => {
     it('should not reload when isOpen is false', () => {
       const refreshSpy = vi.spyOn(component as any, 'refreshCurrentUserEmail');
       component.isOpen = false;
-      component.ngOnChanges();
+      component.ngOnChanges({
+        isOpen: {
+          currentValue: false,
+          previousValue: true,
+          firstChange: false,
+          isFirstChange: () => false,
+        },
+      });
       expect(refreshSpy).not.toHaveBeenCalled();
     });
   });
@@ -417,36 +439,6 @@ describe('PrayerFormComponent', () => {
       component.close.subscribe(closeSpy);
       component.cancel();
       expect(closeSpy).toHaveBeenCalled();
-    });
-  });
-
-  describe('backdrop click', () => {
-    it('should call cancel when backdrop is clicked', () => {
-      const cancelSpy = vi.spyOn(component, 'cancel');
-      const mockEvent = {
-        target: {
-          classList: {
-            contains: (className: string) => className === 'fixed'
-          }
-        }
-      } as any;
-
-      component.onBackdropClick(mockEvent);
-      expect(cancelSpy).toHaveBeenCalled();
-    });
-
-    it('should not call cancel when content area is clicked', () => {
-      const cancelSpy = vi.spyOn(component, 'cancel');
-      const mockEvent = {
-        target: {
-          classList: {
-            contains: (className: string) => false
-          }
-        }
-      } as any;
-
-      component.onBackdropClick(mockEvent);
-      expect(cancelSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -870,7 +862,14 @@ describe('PrayerFormComponent', () => {
     it('should load available categories when opening personal prayer form', () => {
       component.isOpen = true;
       component.formData.is_personal = true;
-      component.ngOnChanges();
+      component.ngOnChanges({
+        isOpen: {
+          currentValue: true,
+          previousValue: false,
+          firstChange: false,
+          isFirstChange: () => false,
+        },
+      });
       vi.runAllTimers();
 
       expect(component.availableCategories).toEqual([]);
@@ -889,32 +888,6 @@ describe('PrayerFormComponent', () => {
     });
   });
 
-  describe('onBackdropClick', () => {
-    it('should call cancel when clicking on backdrop', () => {
-      vi.spyOn(component, 'cancel');
-      const mockElement = document.createElement('div');
-      mockElement.classList.add('fixed');
-      
-      const event = new MouseEvent('click', { bubbles: true });
-      Object.defineProperty(event, 'target', { value: mockElement });
-
-      component.onBackdropClick(event);
-
-      expect(component.cancel).toHaveBeenCalled();
-    });
-
-    it('should not call cancel when clicking on modal content', () => {
-      vi.spyOn(component, 'cancel');
-      const mockElement = document.createElement('div');
-      
-      const event = new MouseEvent('click', { bubbles: true });
-      Object.defineProperty(event, 'target', { value: mockElement });
-
-      component.onBackdropClick(event);
-
-      expect(component.cancel).not.toHaveBeenCalled();
-    });
-  });
 
   describe('onDocumentClick', () => {
     it('should call markForCheck after event handling', () => {

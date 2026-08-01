@@ -16,6 +16,10 @@ import { FormsModule } from "@angular/forms";
 import { Observable, BehaviorSubject, Subject, of } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { BadgeService } from "../../services/badge.service";
+import {
+  PROMPT_TYPE_CHIP_ACTIVE_CLASS,
+  PROMPT_TYPE_CHIP_INACTIVE_CLASS,
+} from "../../lib/prompt-type-chip-classes";
 import { ConfirmationDialogComponent } from "../confirmation-dialog/confirmation-dialog.component";
 import { UserSessionService } from "../../services/user-session.service";
 import { PrayerEncouragementService } from "../../services/prayer-encouragement.service";
@@ -74,8 +78,8 @@ export interface PrayerPrompt {
             [class]="
               'inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors cursor-pointer ' +
               (isTypeSelected
-                ? 'bg-[#988F83] text-white shadow-md hover:bg-[#7a6e67]'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600')
+                ? promptTypeChipActiveClass
+                : promptTypeChipInactiveClass)
             "
             [title]="
               isTypeSelected
@@ -261,6 +265,9 @@ export class PromptCardComponent implements OnInit, OnChanges, OnDestroy {
 
   @Output() delete = new EventEmitter<string>();
   @Output() onTypeClick = new EventEmitter<string>();
+
+  readonly promptTypeChipActiveClass = PROMPT_TYPE_CHIP_ACTIVE_CLASS;
+  readonly promptTypeChipInactiveClass = PROMPT_TYPE_CHIP_INACTIVE_CLASS;
 
   readonly userSessionService = inject(UserSessionService);
   readonly prayerEncouragementService = inject(PrayerEncouragementService);

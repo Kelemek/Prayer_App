@@ -2,71 +2,85 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
-  OnDestroy,
   OnInit,
   ViewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Subject, takeUntil } from 'rxjs';
 import { EmailNotificationService } from '../../services/email-notification.service';
-import { TenantContextService } from '../../services/tenant-context.service';
 import { ToastService } from '../../services/toast.service';
-import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
-import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
 import { RichTextEditorComponent } from '../rich-text-editor/rich-text-editor.component';
+import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
 
 export type AdminBroadcastBodyFormat = 'html' | 'markdown';
 
 @Component({
   selector: 'app-admin-subscriber-email-broadcast',
   standalone: true,
-  imports: [
-    FormsModule,
-    AdminCollapsibleSectionComponent,
-    RichTextEditorComponent,
-    ConfirmationDialogComponent,
-  ],
+  imports: [FormsModule, RichTextEditorComponent, ConfirmationDialogComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-admin-collapsible-section
-      title="Send email to all subscribers"
-      triggerId="admin-subscriber-email-broadcast-trigger"
-      panelId="admin-subscriber-email-broadcast-panel"
-      [expanded]="sectionExpanded"
-      (expandedChange)="onExpandedChange($event)"
+    <div
+      class="mb-4 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/40"
+      [class.cursor-pointer]="!sectionExpanded"
+      (click)="!sectionExpanded && toggleSection()"
     >
-      <svg
-        sectionIcon
-        class="text-blue-600 dark:text-blue-400 shrink-0"
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
+      <button
+        type="button"
+        id="admin-subscriber-email-broadcast-trigger"
+        class="admin-settings-collapsible-trigger cursor-pointer w-full flex min-h-12 items-center justify-between gap-2 text-left rounded-lg -mx-1 px-1 py-0.5 -my-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-800"
+        (click)="toggleSection(); $event.stopPropagation()"
+        [attr.aria-expanded]="sectionExpanded"
+        aria-controls="admin-subscriber-email-broadcast-panel"
       >
-        <path
-          d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"
-        ></path>
-        <path d="m21.854 2.147-10.94 10.939"></path>
-      </svg>
-
-      <div class="space-y-4">
-        @if (!activeTenantId) {
-          <p
-            class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3"
+        <span class="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 min-w-0">
+          <svg
+            class="text-blue-600 dark:text-blue-400 shrink-0"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
           >
-            Select an organization above to send email to that organization's subscribers.
-          </p>
-        } @else {
+            <path
+              d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"
+            ></path>
+            <path d="m21.854 2.147-10.94 10.939"></path>
+          </svg>
+          Send email to all subscribers
+        </span>
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="shrink-0 text-gray-500 dark:text-gray-400 transition-transform duration-200"
+          [class.rotate-180]="sectionExpanded"
+          aria-hidden="true"
+        >
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </button>
+
+      @if (sectionExpanded) {
+        <div
+          id="admin-subscriber-email-broadcast-panel"
+          role="region"
+          aria-labelledby="admin-subscriber-email-broadcast-trigger"
+          class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4"
+          (click)="$event.stopPropagation()"
+        >
           <p class="text-sm text-gray-600 dark:text-gray-400">
             Sends one queued email per address (same pipeline as prayer/update notifications). Recipients are all
-            <strong class="font-medium text-gray-800 dark:text-gray-200">non-blocked</strong> members of the active
-            organization shown in Email Subscribers (platform super admins are excluded), including people who turned
-            off mass-email. The address configured under
+            <strong class="font-medium text-gray-800 dark:text-gray-200">non-blocked</strong> rows in Email Subscribers,
+            including people who turned off mass-email. The address configured under
             <strong class="font-medium text-gray-800 dark:text-gray-200">Security → Test Account</strong> is excluded
             when set.
           </p>
@@ -91,7 +105,7 @@ export type AdminBroadcastBodyFormat = 'html' | 'markdown';
               [(ngModel)]="subject"
               [disabled]="sending"
               maxlength="998"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-inset-surface text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               autocomplete="off"
             />
           </div>
@@ -111,7 +125,7 @@ export type AdminBroadcastBodyFormat = 'html' | 'markdown';
                 [class.bg-blue-600]="bodyFormat === 'html'"
                 [class.text-white]="bodyFormat === 'html'"
                 [class.bg-white]="bodyFormat !== 'html'"
-                [class.dark:bg-gray-700]="bodyFormat !== 'html'"
+                [class.dark:bg-gray-700/60]="bodyFormat !== 'html'"
                 [class.text-gray-800]="bodyFormat !== 'html'"
                 [class.dark:text-gray-100]="bodyFormat !== 'html'"
                 [disabled]="sending"
@@ -125,7 +139,7 @@ export type AdminBroadcastBodyFormat = 'html' | 'markdown';
                 [class.bg-blue-600]="bodyFormat === 'markdown'"
                 [class.text-white]="bodyFormat === 'markdown'"
                 [class.bg-white]="bodyFormat !== 'markdown'"
-                [class.dark:bg-gray-700]="bodyFormat !== 'markdown'"
+                [class.dark:bg-gray-700/60]="bodyFormat !== 'markdown'"
                 [class.text-gray-800]="bodyFormat !== 'markdown'"
                 [class.dark:text-gray-100]="bodyFormat !== 'markdown'"
                 [disabled]="sending"
@@ -136,11 +150,9 @@ export type AdminBroadcastBodyFormat = 'html' | 'markdown';
             </div>
             <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
               @if (bodyFormat === 'html') {
-                Paste the companion HTML from a marketing doc (screenshots keep working). Unsafe tags are stripped on
-                send.
+                Paste the companion HTML from a marketing doc (screenshots keep working). Unsafe tags are stripped on send.
               } @else {
-                Use the toolbar for short messages. Prefer
-                <strong class="font-medium">HTML paste</strong> for emails with images.
+                Use the toolbar for short messages. Prefer <strong class="font-medium">HTML paste</strong> for emails with images.
               }
             </p>
           </div>
@@ -160,7 +172,7 @@ export type AdminBroadcastBodyFormat = 'html' | 'markdown';
                 rows="16"
                 spellcheck="false"
                 placeholder="Paste HTML here…"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-mono text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-inset-surface text-gray-900 dark:text-gray-100 font-mono text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500"
                 aria-label="Broadcast message HTML"
               ></textarea>
             } @else {
@@ -183,17 +195,14 @@ export type AdminBroadcastBodyFormat = 'html' | 'markdown';
               class="inline-flex items-center justify-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
             >
               @if (sending) {
-                <span
-                  class="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"
-                  aria-hidden="true"
-                ></span>
+                <span class="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true"></span>
               }
               {{ sending ? 'Sending…' : 'Send' }}
             </button>
           </div>
-        }
-      </div>
-    </app-admin-collapsible-section>
+        </div>
+      }
+    </div>
 
     @if (showConfirmDialog) {
       <app-confirmation-dialog
@@ -208,11 +217,10 @@ export type AdminBroadcastBodyFormat = 'html' | 'markdown';
     }
   `,
 })
-export class AdminSubscriberEmailBroadcastComponent implements OnInit, OnDestroy {
+export class AdminSubscriberEmailBroadcastComponent implements OnInit {
   @ViewChild(RichTextEditorComponent) richTextEditor?: RichTextEditorComponent;
 
   sectionExpanded = false;
-  activeTenantId: string | null = null;
   subject = '';
   /** Default HTML for marketing / screenshot emails; Rich text still available. */
   bodyFormat: AdminBroadcastBodyFormat = 'html';
@@ -228,38 +236,17 @@ export class AdminSubscriberEmailBroadcastComponent implements OnInit, OnDestroy
   confirmDetails =
     'Includes subscribers who unsubscribed from mass email. Blocked accounts are excluded. The Security → Test Account email is never queued.';
 
-  private readonly destroy$ = new Subject<void>();
-
   constructor(
     private emailNotification: EmailNotificationService,
-    private tenantContext: TenantContextService,
     private toast: ToastService,
     private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
-    this.activeTenantId = this.tenantContext.getActiveTenant()?.id ?? null;
-    this.tenantContext.activeTenant$.pipe(takeUntil(this.destroy$)).subscribe((tenant) => {
-      const nextId = tenant?.id ?? null;
-      if (nextId === this.activeTenantId) {
-        return;
-      }
-      this.activeTenantId = nextId;
-      void this.loadRecipientCount();
-      this.cdr.markForCheck();
-    });
     void this.loadRecipientCount();
   }
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-
   get canSend(): boolean {
-    if (!this.activeTenantId) {
-      return false;
-    }
     if (this.subject.trim().length === 0) {
       return false;
     }
@@ -284,8 +271,8 @@ export class AdminSubscriberEmailBroadcastComponent implements OnInit, OnDestroy
     this.cdr.markForCheck();
   }
 
-  onExpandedChange(expanded: boolean): void {
-    this.sectionExpanded = expanded;
+  toggleSection(): void {
+    this.sectionExpanded = !this.sectionExpanded;
     if (this.sectionExpanded && this.recipientCount === null && !this.recipientCountLoading) {
       void this.loadRecipientCount();
     }
@@ -293,19 +280,10 @@ export class AdminSubscriberEmailBroadcastComponent implements OnInit, OnDestroy
   }
 
   private async loadRecipientCount(): Promise<void> {
-    if (!this.activeTenantId) {
-      this.recipientCount = null;
-      this.recipientCountLoading = false;
-      this.cdr.markForCheck();
-      return;
-    }
-
     this.recipientCountLoading = true;
     this.cdr.markForCheck();
     try {
-      this.recipientCount = await this.emailNotification.getManualBroadcastRecipientCount(
-        this.activeTenantId
-      );
+      this.recipientCount = await this.emailNotification.getManualBroadcastRecipientCount();
     } catch (e) {
       console.error('Failed to load subscriber count', e);
       this.recipientCount = null;
@@ -334,7 +312,7 @@ export class AdminSubscriberEmailBroadcastComponent implements OnInit, OnDestroy
     if (this.bodyFormat === 'markdown') {
       this.richTextEditor?.flushMarkdownToForm();
     }
-    if (!this.canSend || !this.activeTenantId) {
+    if (!this.canSend) {
       this.cdr.markForCheck();
       return;
     }
@@ -343,16 +321,8 @@ export class AdminSubscriberEmailBroadcastComponent implements OnInit, OnDestroy
     try {
       const queueOptions =
         this.bodyFormat === 'html'
-          ? {
-              subject: this.subject,
-              bodyHtml: this.bodyHtml,
-              tenantId: this.activeTenantId,
-            }
-          : {
-              subject: this.subject,
-              bodyMarkdown: this.bodyMarkdown,
-              tenantId: this.activeTenantId,
-            };
+          ? { subject: this.subject, bodyHtml: this.bodyHtml }
+          : { subject: this.subject, bodyMarkdown: this.bodyMarkdown };
       const { queued } = await this.emailNotification.queueAdminManualBroadcastToSubscribers(queueOptions);
       if (queued === 0) {
         this.toast.info('No subscribers to email (non-blocked list is empty).');

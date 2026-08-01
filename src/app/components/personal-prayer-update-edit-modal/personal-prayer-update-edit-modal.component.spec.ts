@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PersonalPrayerUpdateEditModalComponent } from './personal-prayer-update-edit-modal.component';
 import { PrayerService, PrayerUpdate } from '../../services/prayer.service';
 import { ToastService } from '../../services/toast.service';
+import { RichTextEditorsSettingsService } from '../../services/rich-text-editors-settings.service';
 import { ChangeDetectorRef } from '@angular/core';
+import { of } from 'rxjs';
 
 describe('PersonalPrayerUpdateEditModalComponent', () => {
   let component: PersonalPrayerUpdateEditModalComponent;
@@ -35,7 +37,11 @@ describe('PersonalPrayerUpdateEditModalComponent', () => {
     component = new PersonalPrayerUpdateEditModalComponent(
       prayerService,
       toastService,
-      changeDetectorRef
+      changeDetectorRef,
+      { onDestroy: vi.fn() } as any,
+      {
+        getRichTextEditorsEnabled$: vi.fn(() => of(true)),
+      } as unknown as RichTextEditorsSettingsService
     );
   });
 

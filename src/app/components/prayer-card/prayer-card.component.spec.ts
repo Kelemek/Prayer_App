@@ -8,6 +8,9 @@ describe('PrayerCardComponent', () => {
   let component: PrayerCardComponent;
   let mockSupabaseService: any;
   let mockUserSessionService: any;
+  const mockRichTextEditorsSettingsService = {
+    getRichTextEditorsEnabled$: vi.fn().mockReturnValue(of(true)),
+  };
   const now = new Date();
 
   beforeEach(() => {
@@ -55,7 +58,15 @@ describe('PrayerCardComponent', () => {
       })
     };
 
-    component = new PrayerCardComponent(mockSupabaseService, mockUserSessionService, {} as any);
+    component = new PrayerCardComponent(
+      mockSupabaseService,
+      mockUserSessionService,
+      {} as any,
+      {} as any,
+      {} as any,
+      { markForCheck: vi.fn() } as any,
+      mockRichTextEditorsSettingsService as any
+    );
 
     component.prayer = {
       id: 'p1',
@@ -194,14 +205,14 @@ describe('PrayerCardComponent', () => {
     expect(component.showAddUpdateForm).toBe(false);
   });
 
-  it('handleAddUpdate emits and resets', async () => {
-    // Default mock setup has userSessionService returning email
-    component.updateContent = 'An update';
-    component.updateIsAnonymous = false;
-    component.updateMarkAsAnswered = true;
+  it('onAddUpdateSubmit emits and closes modal', () => {
     const spy = vi.spyOn(component.addUpdate, 'emit');
 
-    await component.handleAddUpdate();
+    component.onAddUpdateSubmit({
+      content: 'An update',
+      is_anonymous: false,
+      mark_as_answered: true,
+    });
 
     expect(spy).toHaveBeenCalled();
     const emitted = spy.mock.calls[0][0];
@@ -209,33 +220,32 @@ describe('PrayerCardComponent', () => {
     expect(emitted.content).toBe('An update');
     expect(emitted.author).toBe('John Doe');
     expect(emitted.author_email).toBe('test@example.com');
-    expect(component.updateContent).toBe('');
     expect(component.showAddUpdateForm).toBe(false);
   });
 
-  it('getCurrentUserEmail returns email from userSessionService', async () => {
-    // userSessionService.getCurrentSession() is mocked in beforeEach
-    component.updateContent = 'An update';
-    component.updateIsAnonymous = false;
-    component.updateMarkAsAnswered = true;
+  it('getCurrentUserEmail returns email from userSessionService', () => {
     const spy = vi.spyOn(component.addUpdate, 'emit');
 
-    await component.handleAddUpdate();
+    component.onAddUpdateSubmit({
+      content: 'An update',
+      is_anonymous: false,
+      mark_as_answered: true,
+    });
 
     expect(spy).toHaveBeenCalled();
     const emitted = spy.mock.calls[0][0];
     expect(emitted.author_email).toBe('test@example.com');
   });
 
-  it('getCurrentUserEmail returns empty string when session has no email', async () => {
-    // Mock userSessionService to return null session
+  it('getCurrentUserEmail returns empty string when session has no email', () => {
     mockUserSessionService.getCurrentSession = vi.fn().mockReturnValue(null);
-    component.updateContent = 'No email update';
-    component.updateIsAnonymous = false;
-    component.updateMarkAsAnswered = true;
     const spy = vi.spyOn(component.addUpdate, 'emit');
 
-    await component.handleAddUpdate();
+    component.onAddUpdateSubmit({
+      content: 'No email update',
+      is_anonymous: false,
+      mark_as_answered: true,
+    });
 
     expect(spy).toHaveBeenCalled();
     const emitted = spy.mock.calls[0][0];
@@ -247,14 +257,14 @@ describe('PrayerCardComponent', () => {
     expect(component.shouldShowToggleButton()).toBe(false);
   });
 
-  it('handleUpdateDeletionRequest early returns when no form shown', () => {
+  it('onUpdateDeleteRequestSubmit early returns when no form shown', () => {
     component.showUpdateDeleteRequestForm = null;
     const spy = vi.spyOn(component.requestUpdateDeletion, 'emit');
-    component.handleUpdateDeletionRequest();
+    component.onUpdateDeleteRequestSubmit({ reason: 'test' });
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it('handleDeleteRequest emits and resets', () => {
+  it('onDeleteRequestSubmit emits and closes modal', () => {
     // Set up localStorage for user name and mock userSessionService for email
     localStorage.setItem('prayerapp_user_first_name', 'A');
     localStorage.setItem('prayerapp_user_last_name', 'B');
@@ -265,10 +275,8 @@ describe('PrayerCardComponent', () => {
       fullName: 'A B',
       isActive: true
     });
-    component.deleteReason = 'Because';
     const spy = vi.spyOn(component.requestDeletion, 'emit');
-
-    component.handleDeleteRequest();
+    component.onDeleteRequestSubmit({ reason: 'Because' });
 
     expect(spy).toHaveBeenCalled();
     const payload = spy.mock.calls[0][0];
@@ -277,7 +285,6 @@ describe('PrayerCardComponent', () => {
     expect(payload.requester_last_name).toBe('B');
     expect(payload.requester_email).toBe('session@example.com');
     expect(payload.reason).toBe('Because');
-    expect(component.deleteReason).toBe('');
     expect(component.showDeleteRequestForm).toBe(false);
   });
 
@@ -383,19 +390,17 @@ describe('PrayerCardComponent', () => {
     expect(out.length).toBeGreaterThan(0);
   });
 
-  it('handleUpdateDeletionRequest emits and resets', () => {
+  it('onUpdateDeleteRequestSubmit emits and closes modal', () => {
     localStorage.setItem('prayerapp_user_first_name', 'X');
     localStorage.setItem('prayerapp_user_last_name', 'Y');
     localStorage.setItem('userEmail', 'x@y.com');
     component.showUpdateDeleteRequestForm = 'upd-1';
-    component.updateDeleteReason = 'Please remove';
     const spy = vi.spyOn(component.requestUpdateDeletion, 'emit');
-    component.handleUpdateDeletionRequest();
+    component.onUpdateDeleteRequestSubmit({ reason: 'Please remove' });
     expect(spy).toHaveBeenCalled();
     const payload = spy.mock.calls[0][0];
     expect(payload.update_id).toBe('upd-1');
     expect(payload.requester_first_name).toBe('X');
-    expect(component.updateDeleteReason).toBe('');
     expect(component.showUpdateDeleteRequestForm).toBeNull();
   });
 
@@ -412,14 +417,13 @@ describe('PrayerCardComponent', () => {
     expect(all[0].id).toBe('u1');
   });
 
-  it('handleUpdateDeletionRequest preserves multi-part last name', () => {
+  it('onUpdateDeleteRequestSubmit preserves multi-part last name', () => {
     localStorage.setItem('prayerapp_user_first_name', 'First');
     localStorage.setItem('prayerapp_user_last_name', 'Last Middle');
     localStorage.setItem('userEmail', 'fm@example.com');
     component.showUpdateDeleteRequestForm = 'upd-2';
-    component.updateDeleteReason = 'Reason';
     const spy = vi.spyOn(component.requestUpdateDeletion, 'emit');
-    component.handleUpdateDeletionRequest();
+    component.onUpdateDeleteRequestSubmit({ reason: 'Reason' });
     expect(spy).toHaveBeenCalled();
     const payload = spy.mock.calls[0][0];
     expect(payload.requester_first_name).toBe('First');
@@ -453,7 +457,8 @@ describe('PrayerCardComponent', () => {
         { getBadgeFunctionalityEnabled$: () => of(false) } as any,
         localPrayerService as any,
         localPrayerEncouragementService as any,
-        localCdr as any
+        localCdr as any,
+        mockRichTextEditorsSettingsService as any
       );
       localComponent.prayer = {
         id: 'prayer-2',
@@ -529,7 +534,8 @@ describe('PrayerCardComponent', () => {
         { getBadgeFunctionalityEnabled$: () => of(false) } as any,
         mockPrayerService,
         mockPrayerEncouragementService,
-        mockCdr as any
+        mockCdr as any,
+        mockRichTextEditorsSettingsService as any
       );
       prayForComponent.prayer = {
         id: 'prayer-1',
@@ -634,7 +640,15 @@ describe('PrayerCardComponent', () => {
         userSession$: of(null)
       };
 
-      component = new PrayerCardComponent(mockSupabaseService as any, mockUserSessionService as any, {} as any);
+      component = new PrayerCardComponent(
+        mockSupabaseService as any,
+        mockUserSessionService as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        { markForCheck: vi.fn() } as any,
+        mockRichTextEditorsSettingsService as any
+      );
     });
 
     it('should display prayer_for field in header', () => {
@@ -765,7 +779,15 @@ describe('PrayerCardComponent', () => {
     beforeEach(() => {
       const mockSupabaseService = { client: {} };
       const mockUserSessionService = { userSession$: of(null) };
-      component = new PrayerCardComponent(mockSupabaseService as any, mockUserSessionService as any, {} as any);
+      component = new PrayerCardComponent(
+        mockSupabaseService as any,
+        mockUserSessionService as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        { markForCheck: vi.fn() } as any,
+        mockRichTextEditorsSettingsService as any
+      );
     });
 
     it('should identify current prayer status', () => {
@@ -861,7 +883,15 @@ describe('PrayerCardComponent', () => {
     beforeEach(() => {
       const mockSupabaseService = { client: {} };
       const mockUserSessionService = { userSession$: of(null) };
-      component = new PrayerCardComponent(mockSupabaseService as any, mockUserSessionService as any, {} as any);
+      component = new PrayerCardComponent(
+        mockSupabaseService as any,
+        mockUserSessionService as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        { markForCheck: vi.fn() } as any,
+        mockRichTextEditorsSettingsService as any
+      );
     });
 
     it('should have dark mode background class', () => {
@@ -935,7 +965,15 @@ describe('PrayerCardComponent', () => {
       mockUserSessionService = {
         userSession$: of(null)
       };
-      component = new PrayerCardComponent(mockSupabaseService as any, mockUserSessionService as any, {} as any);
+      component = new PrayerCardComponent(
+        mockSupabaseService as any,
+        mockUserSessionService as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        { markForCheck: vi.fn() } as any,
+        mockRichTextEditorsSettingsService as any
+      );
     });
 
     it('should initialize output events', () => {
@@ -1002,7 +1040,15 @@ describe('PrayerCardComponent', () => {
     beforeEach(() => {
       const mockSupabaseService = { client: {} };
       const mockUserSessionService = { userSession$: of(null) };
-      component = new PrayerCardComponent(mockSupabaseService as any, mockUserSessionService as any, {} as any);
+      component = new PrayerCardComponent(
+        mockSupabaseService as any,
+        mockUserSessionService as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        { markForCheck: vi.fn() } as any,
+        mockRichTextEditorsSettingsService as any
+      );
     });
 
     it('should show badge when prayer is unread', () => {
@@ -1049,7 +1095,15 @@ describe('PrayerCardComponent', () => {
     beforeEach(() => {
       const mockSupabaseService = { client: {} };
       const mockUserSessionService = { userSession$: of(null) };
-      component = new PrayerCardComponent(mockSupabaseService as any, mockUserSessionService as any, {} as any);
+      component = new PrayerCardComponent(
+        mockSupabaseService as any,
+        mockUserSessionService as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        { markForCheck: vi.fn() } as any,
+        mockRichTextEditorsSettingsService as any
+      );
     });
 
     it('should handle very long prayer descriptions', () => {
@@ -1592,9 +1646,9 @@ describe('PrayerCardComponent', () => {
         expect(component.showAddUpdateForm).toBe(false);
       });
 
-      it('handleUpdateDeletionRequest: method exists', () => {
+      it('onUpdateDeleteRequestSubmit: method exists', () => {
         // Verify the method exists in component
-        expect(typeof component.handleUpdateDeletionRequest).toBe('function');
+        expect(typeof component.onUpdateDeleteRequestSubmit).toBe('function');
       });
 
       // Tests for private method - commented out

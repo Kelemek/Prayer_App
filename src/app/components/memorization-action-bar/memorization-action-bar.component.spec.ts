@@ -5,23 +5,9 @@ import { MemorizationActionBarComponent } from './memorization-action-bar.compon
 
 describe('MemorizationActionBarComponent', () => {
   it('renders add buttons', async () => {
-    await render(MemorizationActionBarComponent, {
-      componentInputs: { showRecommended: true },
-    });
+    await render(MemorizationActionBarComponent);
     expect(screen.getByRole('button', { name: /^Verses$/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Bible Books/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Recommended/i })).toBeTruthy();
-  });
-
-  it('hides Recommended by default', async () => {
-    await render(MemorizationActionBarComponent);
-    expect(screen.queryByRole('button', { name: /Recommended/i })).toBeNull();
-  });
-
-  it('shows Recommended when showRecommended is true', async () => {
-    await render(MemorizationActionBarComponent, {
-      componentInputs: { showRecommended: true },
-    });
     expect(screen.getByRole('button', { name: /Recommended/i })).toBeTruthy();
   });
 
@@ -48,9 +34,7 @@ describe('MemorizationActionBarComponent', () => {
   it('emits openRecommended when Recommended is clicked', async () => {
     const user = userEvent.setup();
     const openRecommended = vi.fn();
-    const { fixture } = await render(MemorizationActionBarComponent, {
-      componentInputs: { showRecommended: true },
-    });
+    const { fixture } = await render(MemorizationActionBarComponent);
     fixture.componentInstance.openRecommended.subscribe(openRecommended);
 
     await user.click(screen.getByRole('button', { name: /Recommended/i }));
@@ -60,7 +44,6 @@ describe('MemorizationActionBarComponent', () => {
   it('applies soft blue styles to secondary buttons when their modal is active', async () => {
     await render(MemorizationActionBarComponent, {
       componentInputs: {
-        showRecommended: true,
         bibleBooksActive: true,
         recommendedActive: false,
       },
@@ -70,11 +53,14 @@ describe('MemorizationActionBarComponent', () => {
     const recommended = screen.getByRole('button', { name: /Recommended/i });
 
     expect(bibleBooks.className).toContain('bg-blue-100');
-    expect(bibleBooks.className).toContain('dark:bg-blue-900/40');
+    expect(bibleBooks.className).toContain('dark:bg-blue-950');
+    expect(bibleBooks.className).toContain('#0047AB');
     expect(bibleBooks.getAttribute('aria-pressed')).toBe('true');
 
     expect(recommended.className).toContain('bg-white');
     expect(recommended.className).toContain('dark:bg-gray-800');
+    expect(recommended.className).toContain('hover:ring-[#0047AB]');
+    expect(recommended.className).toContain('dark:hover:!bg-blue-950');
     expect(recommended.getAttribute('aria-pressed')).toBe('false');
   });
 });

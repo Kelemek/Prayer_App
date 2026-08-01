@@ -58,6 +58,10 @@ import { MemorizedVerseCardComponent } from "../../components/memorized-verse-ca
 import { MemorizationRecommendationsModalComponent } from "../../components/memorization-recommendations-modal/memorization-recommendations-modal.component";
 import { AddMemorizedVerseModalComponent } from "../../components/add-memorized-verse-modal/add-memorized-verse-modal.component";
 import { AddMemorizedBibleBooksModalComponent } from "../../components/add-memorized-bible-books-modal/add-memorized-bible-books-modal.component";
+import {
+  PROMPT_TYPE_CHIP_ACTIVE_CLASS,
+  PROMPT_TYPE_CHIP_INACTIVE_CLASS,
+} from "../../lib/prompt-type-chip-classes";
 import { MemorizationPracticeSessionComponent } from "../../components/memorization-practice-session/memorization-practice-session.component";
 import { groupItemsByMasterLevel } from "../../lib/memorization/memorization-mastery";
 import { memorizationNeedsKeyboardOnOpen } from "../../lib/memorization/memorizationKeyboardPractice";
@@ -234,7 +238,7 @@ import {
             <div class="sm:hidden flex items-center gap-2 flex-nowrap">
               <button
                 (click)="showHelp = true"
-                class="flex items-center gap-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors cursor-pointer"
+                class="flex items-center gap-1 px-2 py-2 text-sm font-medium btn-chip btn-chip-gray"
                 title="Help"
               >
                 <svg
@@ -265,7 +269,7 @@ import {
               </button>
               <button
                 (click)="showSettings = true"
-                class="flex items-center gap-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors cursor-pointer"
+                class="flex items-center gap-1 px-2 py-2 text-sm font-medium btn-chip btn-chip-gray"
                 title="Settings"
               >
                 <svg
@@ -288,14 +292,14 @@ import {
                 routerLink="/presentation"
                 [queryParams]="presentationHandoffQueryParams"
                 (click)="onPresentationLinkClick($event)"
-                class="flex items-center gap-1 bg-[#2F5F54] dark:bg-[#2F5F54] text-white px-3 py-2 rounded-lg hover:bg-[#1a3a2e] dark:hover:bg-[#1a3a2e] focus:outline-none focus:ring-2 focus:ring-[#2F5F54] transition-colors text-sm cursor-pointer"
+                class="flex items-center gap-1 px-3 py-2 text-sm font-medium btn-chip btn-chip-green"
                 title="Prayer Mode"
               >
                 <span>Pray</span>
               </a>
               <button
                 (click)="openPrayerRequest()"
-                class="flex items-center gap-1 bg-blue-600 dark:bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-sm cursor-pointer"
+                class="flex items-center gap-1 px-3 py-2 text-sm font-medium btn-chip btn-chip-blue"
               >
                 <span>Request</span>
               </button>
@@ -355,7 +359,7 @@ import {
                 <div class="flex items-center gap-2">
                   <button
                     (click)="showHelp = true"
-                    class="flex items-center justify-center h-12 gap-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors cursor-pointer"
+                    class="flex items-center justify-center h-12 gap-1 px-3 text-sm font-medium btn-chip btn-chip-gray"
                     title="Help & Guidance"
                   >
                     <svg
@@ -386,7 +390,7 @@ import {
                   </button>
                   <button
                     (click)="showSettings = true"
-                    class="flex items-center justify-center h-12 gap-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors cursor-pointer"
+                    class="flex items-center justify-center h-12 gap-1 px-3 text-sm font-medium btn-chip btn-chip-gray"
                     title="Settings"
                   >
                     <svg
@@ -409,14 +413,14 @@ import {
                     routerLink="/presentation"
                     [queryParams]="presentationHandoffQueryParams"
                     (click)="onPresentationLinkClick($event)"
-                    class="flex items-center justify-center h-12 gap-1 bg-[#2F5F54] dark:bg-[#2F5F54] text-white px-3 rounded-lg hover:bg-[#1a3a2e] dark:hover:bg-[#1a3a2e] focus:outline-none focus:ring-2 focus:ring-[#2F5F54] transition-colors text-sm cursor-pointer"
+                    class="flex items-center justify-center h-12 gap-1 px-3 text-sm font-medium btn-chip btn-chip-green"
                     title="Prayer Mode"
                   >
                     <span>Pray</span>
                   </a>
                   <button
                     (click)="openPrayerRequest()"
-                    class="flex items-center justify-center h-12 gap-1 bg-blue-600 dark:bg-blue-600 text-white px-3 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-sm cursor-pointer"
+                    class="flex items-center justify-center h-12 gap-1 px-3 text-sm font-medium btn-chip btn-chip-blue"
                   >
                     <span>Request</span>
                   </button>
@@ -650,8 +654,8 @@ import {
               [class]="
                 'flex-1 whitespace-nowrap px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ' +
                 (selectedPromptTypes.length === 0
-                  ? 'bg-[#988F83] text-white shadow-md'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:border-[#988F83] dark:hover:border-[#988F83]')
+                  ? promptTypeActiveClass
+                  : promptTypeInactiveClass)
               "
             >
               All Types ({{ promptsCount }})
@@ -664,8 +668,8 @@ import {
               [class]="
                 'flex-1 whitespace-nowrap px-3 py-2 rounded-lg text-xs font-medium transition-all relative cursor-pointer ' +
                 (isPromptTypeSelected(type)
-                  ? 'bg-[#988F83] text-white shadow-md'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:border-[#988F83] dark:hover:border-[#988F83]')
+                  ? promptTypeActiveClass
+                  : promptTypeInactiveClass)
               "
             >
               {{ type }} ({{ getPromptCountByType(type) }}) @if
@@ -965,7 +969,6 @@ import {
 
             @if (activeFilter === 'memorize') {
             <app-memorization-action-bar
-              [showRecommended]="!!(memorizationRecommendationsService.hasRecommendations$ | async)"
               [addVersesActive]="showAddMemorizedVerse"
               [bibleBooksActive]="showAddMemorizedBibleBooks"
               [recommendedActive]="showMemorizationRecommendations"
@@ -1045,6 +1048,7 @@ import {
       <!-- Overlays outside scroll viewport so position:fixed covers full screen on iOS Safari -->
       <app-prayer-form
         [isOpen]="showPrayerForm"
+        [defaultPersonalPrayer]="activeFilter === 'personal'"
         (close)="onPrayerFormClose($event)"
       ></app-prayer-form>
 
@@ -1133,6 +1137,9 @@ import {
   `,
 })
 export class HomeComponent implements OnInit, OnDestroy {
+  readonly promptTypeActiveClass = PROMPT_TYPE_CHIP_ACTIVE_CLASS;
+  readonly promptTypeInactiveClass = PROMPT_TYPE_CHIP_INACTIVE_CLASS;
+
   @ViewChild("memorizeKeyboardBridge")
   private memorizeKeyboardBridge?: ElementRef<HTMLInputElement>;
 

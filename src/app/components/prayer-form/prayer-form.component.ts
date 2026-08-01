@@ -5,12 +5,15 @@ import {
   EventEmitter,
   OnInit,
   OnChanges,
+  SimpleChanges,
   OnDestroy,
   ChangeDetectorRef,
   HostListener,
   ChangeDetectionStrategy,
   ViewChild,
+  DestroyRef,
 } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
 import { NgClass } from "@angular/common";
 import { Observable, Subject, takeUntil } from "rxjs";
@@ -22,57 +25,22 @@ import { resolveAuthorName } from "../../utils/display-name";
 import { SupabaseService } from "../../services/supabase.service";
 import { ToastService } from "../../services/toast.service";
 import { TenantContextService } from "../../services/tenant-context.service";
+import { RichTextEditorsSettingsService } from "../../services/rich-text-editors-settings.service";
 import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.component";
+import { ModalShellComponent } from "../modal-shell/modal-shell.component";
 
 @Component({
   selector: "app-prayer-form",
   standalone: true,
-  imports: [FormsModule, NgClass, RichTextEditorComponent],
+  imports: [FormsModule, NgClass, RichTextEditorComponent, ModalShellComponent],
   template: `
     @if (isOpen) {
-    <div
-      class="fixed inset-0 bg-gray-900/50 z-50 flex items-center justify-center p-4"
-      (click)="onBackdropClick($event)"
+    <app-modal-shell
+      title="New Prayer Request"
+      titleId="prayer-form-title"
+      closeAriaLabel="Close prayer form dialog"
+      (close)="cancel()"
     >
-      <div
-        class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-        (click)="$event.stopPropagation()"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="prayer-form-title"
-      >
-        <!-- Header -->
-        <div
-          class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700"
-        >
-          <h2
-            id="prayer-form-title"
-            class="text-xl font-semibold text-gray-800 dark:text-gray-200"
-          >
-            New Prayer Request
-          </h2>
-          <button
-            (click)="cancel()"
-            aria-label="Close prayer form dialog"
-            class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer"
-          >
-            <svg
-              class="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"
-              ></path>
-            </svg>
-          </button>
-        </div>
-
-        <!-- Form -->
         <form
           #prayerForm="ngForm"
           (ngSubmit)="prayerForm.valid && handleSubmit()"
@@ -123,7 +91,7 @@ import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.co
               required
               aria-required="true"
               aria-label="Prayer For"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-inset-surface text-gray-900 dark:text-gray-100"
               placeholder="Who or what this prayer is for"
             />
           </div>
@@ -136,6 +104,7 @@ import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.co
             >
               Prayer Request Details <span aria-label="required">*</span>
             </label>
+            @if (richTextEditorsEnabled) {
             <app-rich-text-editor
               #descriptionEditor
               [(ngModel)]="formData.description"
@@ -146,6 +115,18 @@ import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.co
               placeholder="Describe the prayer request in detail"
               minHeight="6rem"
             ></app-rich-text-editor>
+            } @else {
+            <textarea
+              id="description"
+              name="description"
+              [(ngModel)]="formData.description"
+              required
+              rows="8"
+              aria-label="Prayer Request Details"
+              placeholder="Describe the prayer request in detail"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-inset-surface text-gray-900 dark:text-gray-100 min-h-[6rem] whitespace-pre-wrap"
+            ></textarea>
+            }
           </div>
 
           <!-- Prayer Visibility Toggle Buttons -->
@@ -286,13 +267,13 @@ import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.co
               (focus)="showCategoryDropdown = true"
               (input)="onCategoryInput($event)"
               (keydown)="onCategoryKeyDown($event)"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-inset-surface text-gray-900 dark:text-gray-100"
               placeholder="e.g., Health, Family, Work (or create a new category)"
             />
             <!-- Category Dropdown -->
             @if (showCategoryDropdown && filteredCategories.length > 0) {
             <div
-              class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg z-10 max-h-48 overflow-y-auto"
+              class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg z-10 max-h-48 overflow-y-auto"
             >
               @for (category of filteredCategories; track category; let i =
               $index) {
@@ -312,7 +293,7 @@ import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.co
           }
 
           <!-- Buttons -->
-          <div class="flex gap-3 pt-4">
+          <div class="flex justify-end pt-4">
             <button
               type="submit"
               [disabled]="
@@ -324,7 +305,7 @@ import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.co
               [title]="
                 !isFormValid() && prayerForm.valid ? submitBlockedTitle : null
               "
-              class="flex-1 bg-blue-600 dark:bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              class="min-h-11 px-6 py-2.5 text-base font-medium btn-chip btn-chip-blue disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
               aria-label="Submit prayer request"
             >
               {{
@@ -335,19 +316,9 @@ import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.co
                   : "Submit Prayer Request"
               }}
             </button>
-            <button
-              type="button"
-              (click)="cancel()"
-              [disabled]="showSuccessMessage"
-              class="flex-1 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 py-2 px-4 rounded-md hover:bg-gray-400 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-              aria-label="Cancel and close form"
-            >
-              {{ showSuccessMessage ? "Closing..." : "Close" }}
-            </button>
           </div>
         </form>
-      </div>
-    </div>
+    </app-modal-shell>
     }
   `,
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -357,6 +328,8 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
   @ViewChild("descriptionEditor") descriptionEditor?: RichTextEditorComponent;
 
   @Input() isOpen = false;
+  /** When true and the modal opens, default to Personal Prayer. */
+  @Input() defaultPersonalPrayer = false;
   @Output() close = new EventEmitter<{ isPersonal?: boolean }>();
 
   formData: {
@@ -377,6 +350,7 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
 
   isSubmitting = false;
   showSuccessMessage = false;
+  richTextEditorsEnabled = true;
   isAdmin = false;
   currentUserEmail = "";
   availableCategories: string[] = [];
@@ -393,8 +367,18 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
     private supabase: SupabaseService,
     private toast: ToastService,
     private cdr: ChangeDetectorRef,
-    private tenantContext: TenantContextService
-  ) {}
+    private tenantContext: TenantContextService,
+    private destroyRef: DestroyRef,
+    richTextEditorsSettings: RichTextEditorsSettingsService
+  ) {
+    richTextEditorsSettings
+      .getRichTextEditorsEnabled$()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((v) => {
+        this.richTextEditorsEnabled = v;
+        this.cdr.markForCheck();
+      });
+  }
 
   ngOnInit(): void {
     this.refreshCurrentUserEmail();
@@ -416,7 +400,10 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
     });
   }
 
-  ngOnChanges(): void {
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes["isOpen"]?.currentValue === true) {
+      this.formData.is_personal = this.defaultPersonalPrayer;
+    }
     if (this.isOpen) {
       this.refreshCurrentUserEmail();
       this.prayerService.getUniqueCategoriesForUser().then((cats) => {
@@ -646,12 +633,6 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
     this.isSubmitting = false;
     this.showCategoryDropdown = false;
     this.close.emit();
-  }
-
-  onBackdropClick(event: MouseEvent): void {
-    if ((event.target as HTMLElement).classList.contains("fixed")) {
-      this.cancel();
-    }
   }
 
   @HostListener("document:click", ["$event"])

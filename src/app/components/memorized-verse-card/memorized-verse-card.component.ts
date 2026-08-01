@@ -27,7 +27,7 @@ import { ScriptureHoverPreviewComponent } from '../scripture-hover-preview/scrip
           <button
             type="button"
             (click)="practice.emit(item)"
-            class="w-full min-w-0 text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
+            class="w-full h-full min-w-0 text-left px-4 py-3 transition-colors cursor-pointer border border-transparent hover:!border-[#0047AB] hover:!bg-blue-100 hover:ring hover:ring-[#0047AB] hover:ring-offset-0 dark:hover:!border-[#0047AB] dark:hover:!bg-blue-950 dark:hover:ring-[#0047AB]"
           >
             <span class="font-semibold text-gray-900 dark:text-gray-100 block truncate">
               {{ item.reference }}
@@ -50,7 +50,7 @@ import { ScriptureHoverPreviewComponent } from '../scripture-hover-preview/scrip
         <button
           type="button"
           (click)="remove.emit(item)"
-          class="shrink-0 flex items-center justify-center px-3 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
+          class="shrink-0 flex items-center justify-center px-3 border border-transparent text-gray-500 dark:text-gray-400 transition-colors cursor-pointer hover:!border-[#0047AB] hover:!bg-blue-100 hover:ring hover:ring-[#0047AB] hover:ring-offset-0 hover:text-red-600 dark:hover:!border-[#0047AB] dark:hover:!bg-blue-950 dark:hover:ring-[#0047AB] dark:hover:text-red-400"
           [attr.aria-label]="'Remove ' + item.reference"
           title="Remove"
         >

@@ -1,323 +1,315 @@
-import { Component, OnInit, OnDestroy, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Subject, takeUntil } from 'rxjs';
-import { SupabaseService } from '../../services/supabase.service';
-import { BrandingService } from '../../services/branding.service';
-import { ImageOptimizationService } from '../../services/image-optimization.service';
-import { TenantContextService } from '../../services/tenant-context.service';
-import {
-  LOGO_ACCEPT_ATTR,
-  LOGO_MAX_HEIGHT,
-  LOGO_MAX_INPUT_BYTES,
-  LOGO_MAX_WIDTH,
-  LOGO_UPLOAD_HELPER_TEXT,
-  isAllowedLogoMimeType,
-  logoCompressionFormat,
-  logoNeedsResize,
-} from '../../utils/branding-logo-spec';
 import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
-import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
+import { SupabaseService } from '../../services/supabase.service';
 
 @Component({
   selector: 'app-branding',
   standalone: true,
-  imports: [FormsModule, AdminSectionLoadingComponent, AdminCollapsibleSectionComponent],
+  imports: [FormsModule, AdminSectionLoadingComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-admin-collapsible-section
-      title="App Branding"
-      triggerId="app-branding-trigger"
-      panelId="app-branding-panel"
-      [expanded]="sectionExpanded"
-      (expandedChange)="onExpandedChange($event)"
-    >
-      <svg
-        sectionIcon
-        class="text-blue-600 dark:text-blue-400 shrink-0"
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/40" [class.cursor-pointer]="!sectionExpanded" (click)="!sectionExpanded && onSectionToggle()">
+      <button
+        type="button"
+        id="app-branding-settings-trigger"
+        class="admin-settings-collapsible-trigger cursor-pointer w-full flex min-h-12 items-center justify-between gap-2 text-left rounded-lg -mx-1 px-1 py-0.5 -my-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-800"
+        (click)="onSectionToggle(); $event.stopPropagation()"
+        [attr.aria-expanded]="sectionExpanded"
+        aria-controls="app-branding-panel"
       >
-        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
-        <circle cx="12" cy="12" r="3"></circle>
-      </svg>
+        <span class="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 min-w-0">
+          <svg class="text-blue-600 dark:text-blue-400 shrink-0" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          App Branding
+        </span>
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="shrink-0 text-gray-500 dark:text-gray-400 transition-transform duration-200"
+          [class.rotate-180]="sectionExpanded"
+          aria-hidden="true"
+        >
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </button>
 
-      @if (isLoading) {
-        <app-admin-section-loading message="Loading branding settings…" />
-      } @else {
-        @if (!activeTenantId) {
-          <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
-            Select an organization above to edit branding for that tenant.
-          </p>
-        } @else {
-          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Customize the title and logo displayed at the top of your app.
-          </p>
+      @if (sectionExpanded) {
+      <div
+        id="app-branding-panel"
+        role="region"
+        aria-labelledby="app-branding-settings-trigger"
+        class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"
+      >
+      <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Customize the title and tagline displayed at the top of your app.
+      </p>
 
-          <div class="space-y-4">
-            <!-- Error Message -->
-            @if (error) {
-            <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md p-4 mb-4">
-              <p class="text-sm text-red-800 dark:text-red-200">{{ error }}</p>
-            </div>
-            }
-            @if (uploadInfo) {
-            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md p-4 mb-4">
-              <p class="text-sm text-blue-800 dark:text-blue-200">{{ uploadInfo }}</p>
-            </div>
-            }
-            <!-- App Title -->
+      @if (loading) {
+      <app-admin-section-loading message="Loading branding settings…" />
+      }
+
+      @if (!loading) {
+      <div class="space-y-4">
+        <!-- Error Message -->
+        @if (error) {
+        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md p-4 mb-4">
+          <p class="text-sm text-red-800 dark:text-red-200">{{ error }}</p>
+        </div>
+        }
+        <!-- App Title -->
+        <div>
+          <label for="appTitle" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            App Title
+          </label>
+          <input
+            type="text"
+            id="appTitle"
+            [(ngModel)]="appTitle"
+            name="appTitle"
+            aria-label="Application title"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-inset-surface text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            placeholder="Church Prayer Manager"
+          />
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Main heading displayed in the app header
+          </p>
+        </div>
+
+        <!-- App Subtitle -->
+        <div>
+          <label for="appSubtitle" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            App Subtitle/Tagline
+          </label>
+          <input
+            type="text"
+            id="appSubtitle"
+            [(ngModel)]="appSubtitle"
+            name="appSubtitle"
+            aria-label="Application subtitle or tagline"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-inset-surface text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            placeholder="Keeping our community connected in prayer"
+          />
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Subheading or tagline displayed in the app header
+          </p>
+        </div>
+
+        <!-- Church website URL (header logo / title link) -->
+        <div>
+          <label for="churchWebsiteUrl" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Church website URL
+          </label>
+          <input
+            type="url"
+            id="churchWebsiteUrl"
+            [(ngModel)]="churchWebsiteUrl"
+            name="churchWebsiteUrl"
+            aria-label="Church website URL for header logo link"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-inset-surface text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            placeholder="https://www.example.org"
+          />
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Optional. When set, the home header logo and title become a link that opens in a new tab.
+          </p>
+        </div>
+
+        <!-- Logo Settings -->
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="useLogo"
+              [(ngModel)]="useLogo"
+              name="useLogo"
+              aria-label="Use custom logo instead of app title"
+              class="h-4 w-4 text-blue-600 border-gray-300 bg-white dark:bg-gray-800 rounded focus:ring-blue-500 cursor-pointer focus:ring-2"
+            />
+            <label for="useLogo" class="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
+              Use custom logo instead of app title
+            </label>
+          </div>
+
+          @if (useLogo) {
+          <div class="space-y-4 pl-7">
+            <!-- Light Mode Logo -->
             <div>
-              <label for="appTitle" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                App Title
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Light Mode Logo
               </label>
-              <input
-                type="text"
-                id="appTitle"
-                [(ngModel)]="appTitle"
-                name="appTitle"
-                aria-label="Application title"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Church Prayer Manager"
-              />
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Main heading displayed in the app header
-              </p>
-            </div>
-
-            <!-- Logo Settings -->
-            <div class="space-y-4">
-              <label
-                class="flex items-center gap-3 cursor-pointer"
-              >
+              <div class="flex items-start gap-3">
                 <input
-                  type="checkbox"
-                  id="useLogo"
-                  [checked]="useLogo"
-                  (click)="onUseLogoClick($event)"
-                  name="useLogo"
-                  aria-label="Use custom logo instead of app title"
-                  class="h-4 w-4 text-blue-600 border-gray-300 bg-white dark:bg-gray-800 rounded focus:ring-blue-500 cursor-pointer focus:ring-2"
+                  type="file"
+                  #lightLogoInput
+                  accept="image/*"
+                  (change)="onLogoUpload($event, 'light')"
+                  class="hidden"
                 />
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Use custom logo instead of app title
-                </span>
-              </label>
-
-              @if (useLogo) {
-              <div class="space-y-4 pl-7">
-                <p class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ logoUploadHelperText }}
-                </p>
-                <!-- Light Mode Logo -->
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Light Mode Logo
-                  </label>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                    Shown on light header backgrounds.
-                  </p>
-                  <div class="flex items-start gap-3">
-                    <input
-                      type="file"
-                      #lightLogoInput
-                      [accept]="logoAcceptAttr"
-                      (change)="onLogoUpload($event, 'light')"
-                      class="hidden"
-                    />
-                    <button
-                      (click)="lightLogoInput.click()"
-                      [disabled]="uploading"
-                      class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                      aria-label="Upload light mode logo"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="17 8 12 3 7 8"></polyline>
-                        <line x1="12" y1="3" x2="12" y2="15"></line>
-                      </svg>
-                      Upload
-                    </button>
-                    @if (lightModeLogoUrl) {
-                    <button
-                      (click)="lightModeLogoUrl = ''"
-                      class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors cursor-pointer"
-                      aria-label="Remove light mode logo"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                      </svg>
-                      Remove
-                    </button>
-                    }
-                  </div>
-                  @if (lightModeLogoUrl) {
-                  <div class="mt-3 p-3 rounded-lg border border-gray-300 bg-white">
-                    <p class="text-xs font-medium text-gray-700 mb-2">Preview (Light Mode):</p>
-                    <img
-                      [src]="lightModeLogoUrl"
-                      alt="Light mode logo preview"
-                      class="h-16 w-auto max-w-xs"
-                    />
-                  </div>
-                  }
-                </div>
-
-                <!-- Dark Mode Logo -->
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Dark Mode Logo
-                  </label>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                    Shown on dark header backgrounds.
-                  </p>
-                  <div class="flex items-start gap-3">
-                    <input
-                      type="file"
-                      #darkLogoInput
-                      [accept]="logoAcceptAttr"
-                      (change)="onLogoUpload($event, 'dark')"
-                      class="hidden"
-                    />
-                    <button
-                      (click)="darkLogoInput.click()"
-                      [disabled]="uploading"
-                      class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                      aria-label="Upload dark mode logo"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="17 8 12 3 7 8"></polyline>
-                        <line x1="12" y1="3" x2="12" y2="15"></line>
-                      </svg>
-                      Upload
-                    </button>
-                    @if (darkModeLogoUrl) {
-                    <button
-                      (click)="darkModeLogoUrl = ''"
-                      class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors cursor-pointer"
-                      aria-label="Remove dark mode logo"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                      </svg>
-                      Remove
-                    </button>
-                    }
-                  </div>
-                  @if (darkModeLogoUrl) {
-                  <div class="mt-3 p-3 rounded-lg border border-gray-700" style="background-color: #1f2937;">
-                    <p class="text-xs font-medium text-gray-300 mb-2">Preview (Dark Mode):</p>
-                    <img
-                      [src]="darkModeLogoUrl"
-                      alt="Dark mode logo preview"
-                      class="h-16 w-auto max-w-xs"
-                    />
-                  </div>
-                  }
-                </div>
+                <button
+                  (click)="lightLogoInput.click()"
+                  [disabled]="uploading"
+                  class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  aria-label="Upload light mode logo"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  Upload
+                </button>
+                @if (lightModeLogoUrl) {
+                <button
+                  (click)="lightModeLogoUrl = ''"
+                  class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors cursor-pointer"
+                  aria-label="Remove light mode logo"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  Remove
+                </button>
+                }
+              </div>
+              @if (lightModeLogoUrl) {
+              <div class="mt-3 p-3 rounded-lg border border-gray-300 bg-white">
+                <p class="text-xs font-medium text-gray-700 mb-2">Preview (Light Mode):</p>
+                <img
+                  [src]="lightModeLogoUrl"
+                  alt="Light mode logo preview"
+                  class="h-16 w-auto max-w-xs"
+                />
               </div>
               }
             </div>
 
-            <!-- Save Button -->
-            <div class="flex justify-end gap-3 mt-6">
-              <button
-                (click)="save()"
-                [disabled]="saving"
-                class="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-              >
-                @if (saving) {
-                  <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Saving...
-                }
-                @if (!saving) {
+            <!-- Dark Mode Logo -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Dark Mode Logo
+              </label>
+              <div class="flex items-start gap-3">
+                <input
+                  type="file"
+                  #darkLogoInput
+                  accept="image/*"
+                  (change)="onLogoUpload($event, 'dark')"
+                  class="hidden"
+                />
+                <button
+                  (click)="darkLogoInput.click()"
+                  [disabled]="uploading"
+                  class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  aria-label="Upload dark mode logo"
+                >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
-                    <polyline points="7 3 7 8 15 8"></polyline>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
                   </svg>
-                  Save Branding Settings
+                  Upload
+                </button>
+                @if (darkModeLogoUrl) {
+                <button
+                  (click)="darkModeLogoUrl = ''"
+                  class="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors cursor-pointer"
+                  aria-label="Remove dark mode logo"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  Remove
+                </button>
                 }
-              </button>
+              </div>
+              @if (darkModeLogoUrl) {
+              <div class="mt-3 p-3 rounded-lg border border-gray-700" style="background-color: #1f2937;">
+                <p class="text-xs font-medium text-gray-300 mb-2">Preview (Dark Mode):</p>
+                <img
+                  [src]="darkModeLogoUrl"
+                  alt="Dark mode logo preview"
+                  class="h-16 w-auto max-w-xs"
+                />
+              </div>
+              }
             </div>
-
-            <!-- Success Message -->
-            @if (success) {
-            <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-md p-4 mt-4">
-              <p class="text-sm text-green-800 dark:text-green-200">
-                Branding settings saved successfully!
-              </p>
-            </div>
-            }
           </div>
+          }
+        </div>
+
+        <!-- Save Button -->
+        <div class="flex justify-end gap-3 mt-6">
+          <button
+            (click)="save()"
+            [disabled]="saving"
+            class="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          >
+            @if (saving) {
+              <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              Saving...
+            }
+            @if (!saving) {
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              Save Branding Settings
+            }
+          </button>
+        </div>
+
+        <!-- Success Message -->
+        @if (success) {
+        <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-md p-4 mt-4">
+          <p class="text-sm text-green-800 dark:text-green-200">
+            Branding settings saved successfully!
+          </p>
+        </div>
         }
+      </div>
       }
-    </app-admin-collapsible-section>
+      </div>
+      }
+    </div>
   `,
   styles: []
 })
-export class AppBrandingComponent implements OnInit, OnDestroy {
+export class AppBrandingComponent {
   @Output() onSave = new EventEmitter<void>();
-
-  private readonly destroy$ = new Subject<void>();
 
   sectionExpanded = false;
   private sectionInitialLoadDone = false;
-  isLoading = false;
-
-  get activeTenantId(): string | null {
-    return this.tenantContext.getActiveTenant()?.id ?? null;
-  }
 
   appTitle = 'Church Prayer Manager';
+  appSubtitle = 'Keeping our community connected in prayer';
+  churchWebsiteUrl = '';
   useLogo = false;
   lightModeLogoUrl = '';
   darkModeLogoUrl = '';
+  loading = false;
   saving = false;
   uploading = false;
   error: string | null = null;
-  uploadInfo: string | null = null;
   success = false;
 
-  readonly logoAcceptAttr = LOGO_ACCEPT_ATTR;
-  readonly logoUploadHelperText = LOGO_UPLOAD_HELPER_TEXT;
-
   constructor(
-    private supabase: SupabaseService,
-    private brandingService: BrandingService,
-    private imageOptimization: ImageOptimizationService,
-    private cdr: ChangeDetectorRef,
-    private tenantContext: TenantContextService
+    private supabase: SupabaseService, 
+    private cdr: ChangeDetectorRef
   ) {}
 
-  ngOnInit() {
-    this.tenantContext.activeTenant$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        if (!this.activeTenantId) {
-          this.resetFormState();
-        } else if (this.sectionExpanded) {
-          void this.loadSettings();
-        }
-        this.cdr.markForCheck();
-      });
-  }
-
-  ngOnDestroy() {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-
-  onExpandedChange(expanded: boolean): void {
-    this.sectionExpanded = expanded;
+  onSectionToggle(): void {
+    this.sectionExpanded = !this.sectionExpanded;
     if (this.sectionExpanded && !this.sectionInitialLoadDone) {
       this.sectionInitialLoadDone = true;
       void this.loadSettings();
@@ -325,203 +317,91 @@ export class AppBrandingComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  private resetFormState(): void {
-    this.appTitle = 'Church Prayer Manager';
-    this.useLogo = false;
-    this.lightModeLogoUrl = '';
-    this.darkModeLogoUrl = '';
-    this.error = null;
-    this.uploadInfo = null;
-    this.success = false;
-  }
-
-  onUseLogoClick(event: MouseEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    if (this.saving || this.uploading) {
-      return;
-    }
-    this.useLogo = !this.useLogo;
-    this.cdr.markForCheck();
-  }
-
-  private async getCallerEmail(): Promise<string | null> {
-    const { data: { session } } = await this.supabase.client.auth.getSession();
-    return session?.user?.email?.toLowerCase().trim() || null;
-  }
-
   async loadSettings() {
-    const tenantId = this.activeTenantId;
-    if (!tenantId) {
-      return;
-    }
-
-    this.isLoading = true;
+    this.loading = true;
     this.cdr.markForCheck();
     this.error = null;
 
     try {
-      const callerEmail = await this.getCallerEmail();
-      if (!callerEmail) {
-        throw new Error('Not authenticated');
-      }
-
-      const { data: rows, error } = await this.supabase.client.rpc(
-        'get_tenant_branding_settings',
-        {
-          p_tenant_id: tenantId,
-          p_email: callerEmail,
-        }
-      );
+      const { data, error } = await this.supabase.client
+        .from('admin_settings')
+        .select('app_title, app_subtitle, church_website_url, use_logo, light_mode_logo_blob, dark_mode_logo_blob')
+        .eq('id', 1)
+        .single();
 
       if (error) throw error;
 
-      type BrandingRow = {
-        app_title?: string | null;
-        use_logo?: boolean | null;
-        light_mode_logo_blob?: string | null;
-        dark_mode_logo_blob?: string | null;
-      };
-
-      const data = (rows as BrandingRow[] | null)?.[0] ?? null;
-
       if (data) {
         if (data.app_title) this.appTitle = data.app_title;
-        if (data.use_logo !== null && data.use_logo !== undefined) {
-          this.useLogo = data.use_logo;
-        }
-        if (data.light_mode_logo_blob) {
-          this.lightModeLogoUrl = data.light_mode_logo_blob;
-        }
-        if (data.dark_mode_logo_blob) {
-          this.darkModeLogoUrl = data.dark_mode_logo_blob;
-        }
+        if (data.app_subtitle) this.appSubtitle = data.app_subtitle;
+        if (data.use_logo !== null) this.useLogo = data.use_logo;
+        if (data.light_mode_logo_blob) this.lightModeLogoUrl = data.light_mode_logo_blob;
+        if (data.dark_mode_logo_blob) this.darkModeLogoUrl = data.dark_mode_logo_blob;
+        this.churchWebsiteUrl = data.church_website_url?.trim() ? data.church_website_url.trim() : '';
       }
     } catch (err: any) {
       console.error('Error loading branding settings:', err);
       this.error = 'Failed to load branding settings';
+      this.sectionExpanded = true;
     } finally {
-      this.isLoading = false;
+      this.loading = false;
       this.cdr.markForCheck();
     }
   }
 
-  async onLogoUpload(event: Event, mode: 'light' | 'dark') {
+  onLogoUpload(event: Event, mode: 'light' | 'dark') {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
 
-    if (!isAllowedLogoMimeType(file.type)) {
-      this.error = 'Logo must be a PNG, WebP, or JPEG image.';
-      this.uploadInfo = null;
-      input.value = '';
-      this.cdr.markForCheck();
-      return;
-    }
-
-    if (file.size > LOGO_MAX_INPUT_BYTES) {
-      this.error = 'Logo file must be 2 MB or smaller.';
-      this.uploadInfo = null;
-      input.value = '';
-      this.cdr.markForCheck();
-      return;
-    }
-
     this.uploading = true;
-    this.error = null;
-    this.uploadInfo = null;
     this.cdr.markForCheck();
+    this.error = null;
 
-    try {
-      const dimensions = await this.readImageDimensions(file);
-      const optimized = await this.imageOptimization.compressImage(file, {
-        maxWidth: LOGO_MAX_WIDTH,
-        maxHeight: LOGO_MAX_HEIGHT,
-        format: logoCompressionFormat(file.type),
-        quality: 0.9,
-      });
-
-      const base64String = optimized.compressed.base64;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64String = e.target?.result as string;
       if (mode === 'light') {
         this.lightModeLogoUrl = base64String;
       } else {
         this.darkModeLogoUrl = base64String;
       }
-
-      if (logoNeedsResize(dimensions.width, dimensions.height)) {
-        this.uploadInfo = 'Image was resized to fit the header.';
-      }
-    } catch {
-      this.error = 'Failed to process image file';
-    } finally {
       this.uploading = false;
-      input.value = '';
       this.cdr.markForCheck();
-    }
-  }
-
-  private readImageDimensions(
-    file: File
-  ): Promise<{ width: number; height: number }> {
-    return new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        resolve({ width: img.width, height: img.height });
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error('Failed to load image'));
-      };
-      img.src = url;
-    });
+    };
+    reader.onerror = () => {
+      this.error = 'Failed to read image file';
+      this.uploading = false;
+      this.cdr.markForCheck();
+    };
+    reader.readAsDataURL(file);
   }
 
   async save() {
-    const tenantId = this.activeTenantId;
-    if (!tenantId) {
-      this.error = 'No active organization selected.';
-      this.cdr.markForCheck();
-      return;
-    }
-
     this.saving = true;
     this.cdr.markForCheck();
     this.error = null;
     this.success = false;
 
     try {
-      const callerEmail = await this.getCallerEmail();
-      if (!callerEmail) {
-        this.error = 'Not authenticated.';
-        return;
-      }
-
-      const { error } = await this.supabase.client.rpc(
-        'update_tenant_branding_settings',
-        {
-          p_tenant_id: tenantId,
-          p_app_title: this.appTitle,
-          p_use_logo: this.useLogo,
-          p_light_mode_logo_blob: this.lightModeLogoUrl || null,
-          p_dark_mode_logo_blob: this.darkModeLogoUrl || null,
-          p_email: callerEmail,
-        }
-      );
+      const { error } = await this.supabase.client
+        .from('admin_settings')
+        .upsert({
+          id: 1,
+          app_title: this.appTitle,
+          app_subtitle: this.appSubtitle,
+          church_website_url: this.churchWebsiteUrl.trim() || null,
+          use_logo: this.useLogo,
+          light_mode_logo_blob: this.lightModeLogoUrl || null,
+          dark_mode_logo_blob: this.darkModeLogoUrl || null,
+          updated_at: new Date().toISOString()
+        });
 
       if (error) throw error;
 
       this.success = true;
       this.cdr.markForCheck();
-
-      this.brandingService.applySavedBranding({
-        useLogo: this.useLogo,
-        lightLogo: this.lightModeLogoUrl || null,
-        darkLogo: this.darkModeLogoUrl || null,
-        appTitle: this.appTitle,
-        lastModified: new Date(),
-      });
+      
       this.onSave.emit();
 
       setTimeout(() => {
