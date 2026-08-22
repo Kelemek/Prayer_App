@@ -55,6 +55,7 @@ import {
   type PersonalCategoryQueryWireDeps,
 } from "../lib/prayer-personal-category-wire";
 import {
+  orchestratePersonalCategoryRename,
   orchestratePersonalCategoryReorder,
   orchestratePersonalCategorySwap,
   orchestratePersonalPrayerOrderUpdate,
@@ -72,9 +73,13 @@ import {
 } from "../lib/prayer-catalog-load";
 import {
   personalPrayersCacheKeyForTenant,
-  withTenantId,
 } from "../lib/prayer-tenant";
-import type { PrayerRequest, PrayerStatus, PrayerUpdate } from "../lib/prayer-types";
+import {
+  buildSharedPersonalPrayerCommunityRow,
+  buildSharedPersonalPrayerUpdateRows,
+  resolveSharedPrayerRequesterName,
+} from "../lib/prayer-personal-share";
+import type { PrayerRequest, PrayerUpdate } from "../lib/prayer-types";
 
 export type PrayerPersonalFacadeHooks = {
   getUserEmail: () => Promise<string | null>;
@@ -711,6 +716,32 @@ export class PrayerPersonalService {
     return personalCategoryNamesFromPrayers(personalPrayers);
   }
 
+  async renamePersonalCategory(
+    oldCategory: string,
+    newCategory: string,
+    options?: { reservedCategoryNames?: string[] }
+  ): Promise<boolean> {
+    return orchestratePersonalCategoryRename(
+      oldCategory,
+      newCategory,
+      {
+        requireOnline: () =>
+          this.connectivity.requireOnline("rename a category"),
+        toastError: (message) => this.toast.error(message),
+        sanitize: (category) => sanitizePersonalPrayerCategory(category),
+        getUniqueCategoryNames: () => this.getUniqueCategoriesForUser(),
+        getTenantId: () => this.getActiveTenantId(),
+        getUserEmail: () => this.getUserEmail(),
+        client: this.supabase.client,
+        local: {
+          getPrayers: () => this.allPersonalPrayersSubject.value,
+          setPrayers: (prayers) => this.setPersonalPrayersState(prayers),
+        },
+      },
+      options
+    );
+  }
+
   async addPersonalPrayerUpdate(
     personalPrayerId: string,
     content: string,
@@ -884,33 +915,14 @@ export class PrayerPersonalService {
       const session = await this.userSessionService.userSession$
         .pipe(first())
         .toPromise();
-      let requesterName = session?.fullName || personalPrayer.user_email;
-      if (!session?.fullName) {
-        const emailPart = personalPrayer.user_email.split("@")[0];
-        requesterName = emailPart
-          .replace(/[._-]/g, " ")
-          .split(" ")
-          .map(
-            (word: string) =>
-              word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-          )
-          .join(" ");
-      }
+      const requesterName = resolveSharedPrayerRequesterName(
+        session?.fullName,
+        personalPrayer.user_email
+      );
 
-      const publicPrayerData = withTenantId(
-        {
-          title: personalPrayer.title,
-          description: personalPrayer.description,
-          status: (personalPrayer.category === "Answered"
-            ? "answered"
-            : "current") as PrayerStatus,
-          requester: requesterName,
-          prayer_for: personalPrayer.prayer_for,
-          email: personalPrayer.user_email,
-          is_anonymous: false,
-          approval_status: "pending" as const,
-          is_shared_personal_prayer: true,
-        },
+      const publicPrayerData = buildSharedPersonalPrayerCommunityRow(
+        personalPrayer,
+        requesterName,
         tenantId
       );
 
@@ -925,22 +937,12 @@ export class PrayerPersonalService {
         );
       if (!newPrayer) throw new Error("Failed to create public prayer");
 
-      const updates = personalPrayer.personal_prayer_updates || [];
-      if (updates.length > 0) {
-        const updatesCopy = updates.map((update: any) =>
-          withTenantId(
-            {
-              prayer_id: newPrayer.id,
-              content: update.content,
-              author: update.author,
-              author_email: update.author_email || null,
-              is_anonymous: false,
-              approval_status: "pending" as const,
-              created_at: update.created_at,
-            },
-            tenantId
-          )
-        );
+      const updatesCopy = buildSharedPersonalPrayerUpdateRows(
+        personalPrayer,
+        newPrayer.id,
+        tenantId
+      );
+      if (updatesCopy.length > 0) {
         const { error: updatesCopyError } =
           await insertSharedCommunityPrayerUpdates(
             this.supabase.client,

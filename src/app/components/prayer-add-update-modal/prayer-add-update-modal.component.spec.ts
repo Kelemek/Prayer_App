@@ -19,12 +19,6 @@ describe("PrayerAddUpdateModalComponent", () => {
     expect(component.showAnonymousOption()).toBe(false);
   });
 
-  it("showAnonymousOption returns false for member prayers", () => {
-    component.isPersonal = false;
-    component.prayerId = "pc-member-123";
-    expect(component.showAnonymousOption()).toBe(false);
-  });
-
   it("showAnonymousOption returns true for community prayers", () => {
     component.isPersonal = false;
     component.prayerId = "community-1";

@@ -190,6 +190,67 @@ export class PersonalCategoryColorService {
     }
   }
 
+  async renameCategory(oldCategory: string, newCategory: string): Promise<boolean> {
+    const oldName = sanitizePersonalCategoryName(oldCategory);
+    const newName = sanitizePersonalCategoryName(newCategory);
+    if (!oldName || !newName || oldName === newName) {
+      return true;
+    }
+
+    const userEmail = this.userSessionService.getUserEmail();
+    const tenantId = this.tenantContext.getActiveTenant()?.id ?? null;
+    if (!userEmail || !tenantId) {
+      return false;
+    }
+
+    const renameForEmail = userEmail.toLowerCase().trim();
+    const renameForTenantId = tenantId;
+    const cacheKey = this.getCacheKey(tenantId);
+    const currentMap = this.colorsSubject.value;
+    const color = currentMap[oldName];
+
+    try {
+      const { error } = await this.supabase.client
+        .from('personal_prayer_category_colors')
+        .update({
+          category: newName,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('tenant_id', tenantId)
+        .eq('user_email', userEmail)
+        .eq('category', oldName);
+
+      if (error) {
+        throw error;
+      }
+
+      const currentEmail = this.userSessionService.getUserEmail();
+      const currentTenantId = this.tenantContext.getActiveTenant()?.id ?? null;
+      if (
+        !currentEmail ||
+        currentEmail.toLowerCase().trim() !== renameForEmail ||
+        currentTenantId !== renameForTenantId
+      ) {
+        return true;
+      }
+
+      if (!color) {
+        void this.loadColors(true);
+        return true;
+      }
+
+      const updated = { ...currentMap };
+      delete updated[oldName];
+      updated[newName] = color;
+      this.colorsSubject.next(updated);
+      this.cache.set(cacheKey, updated);
+      return true;
+    } catch (err) {
+      console.error('[PersonalCategoryColorService] Failed to rename color:', err);
+      return false;
+    }
+  }
+
   invalidate(): void {
     this.colorsSubject.next({});
     if (this.activeCacheKey) {

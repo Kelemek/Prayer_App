@@ -15,14 +15,6 @@ describe("HomeDeepLinkHostAdapter", () => {
       selectedPromptTypes: ["Morning"],
       personalCategoryFilterMode: "named",
       selectedPersonalCategories: ["Health"],
-      filteredPlanningCenterPrayers: [],
-      loadingPlanningCenterList: false,
-      loadingMemberPrayers: false,
-      planningCenterListResolved: true,
-      planningCenterListId: null,
-      planningCenterListMembers: [],
-      memberPrayersLoadAttempted: false,
-      memberPrayersLoadFailed: false,
     };
     applyPrayerFilters = vi.fn();
     refreshHomeCatalog = vi.fn();

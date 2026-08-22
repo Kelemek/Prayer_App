@@ -3,7 +3,6 @@ import {
   buildCommunityPrayerInsertRow,
   buildCommunityPrayerStatusUpdatePayload,
   dispatchCommunityPendingUpdateAdminNotification,
-  ensureEmailSubscriberForPrayerSubmit,
   patchCommunityPrayerStatus,
   removeCommunityPrayerById,
   removeCommunityPrayerFromBothLists,
@@ -21,10 +20,11 @@ describe('prayer-community-mutations', () => {
         prayer_for: 'John',
         email: 'j@example.com',
         is_anonymous: false,
-      })
+      }, 'tenant-1')
     ).toMatchObject({
       approval_status: 'pending',
       email: 'j@example.com',
+      tenant_id: 'tenant-1',
     });
   });
 
@@ -67,23 +67,6 @@ describe('prayer-community-mutations', () => {
     );
     expect(lists.filtered).toHaveLength(1);
     expect(lists.all).toHaveLength(2);
-  });
-
-  it('ensureEmailSubscriberForPrayerSubmit inserts when missing', async () => {
-    const insertSubscriber = vi.fn().mockResolvedValue(undefined);
-    const findExistingSubscriber = vi.fn().mockResolvedValue(null);
-
-    await ensureEmailSubscriberForPrayerSubmit(
-      'Jane',
-      'Jane@Example.com',
-      findExistingSubscriber,
-      insertSubscriber
-    );
-
-    expect(findExistingSubscriber).toHaveBeenCalledWith('jane@example.com');
-    expect(insertSubscriber).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'jane@example.com', name: 'Jane' })
-    );
   });
 
   it('dispatchCommunityPendingUpdateAdminNotification skips when title missing', () => {

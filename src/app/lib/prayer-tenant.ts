@@ -1,6 +1,7 @@
 export function maybeEq<T>(query: T, column: string, value: unknown): T {
-  if (query && typeof (query as { eq?: (c: string, v: unknown) => T }).eq === 'function') {
-    return (query as { eq: (c: string, v: unknown) => T }).eq(column, value);
+  const withEq = query as unknown as { eq?: (c: string, v: unknown) => T };
+  if (query && typeof withEq.eq === 'function') {
+    return withEq.eq(column, value);
   }
   return query;
 }

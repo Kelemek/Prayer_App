@@ -5,7 +5,6 @@ import {
   buildPersonalCategoryCounts,
   filterDisplayedPromptsForHome,
   filterPersonalPrayersForHome,
-  filterPlanningCenterPrayersForHome,
   getPromptCountByType,
   getUniquePromptTypes,
   type HomeCatalogFilterState,
@@ -17,7 +16,6 @@ import {
 
 export interface HomeCatalogSourceState {
   personalPrayers: PrayerRequest[];
-  planningCenterPrayers: PrayerRequest[];
   prompts: PrayerPrompt[];
   filter: HomeCatalogFilterState;
 }
@@ -25,7 +23,6 @@ export interface HomeCatalogSourceState {
 @Injectable()
 export class HomeCatalogStore {
   filteredPersonalPrayers: PrayerRequest[] = [];
-  filteredPlanningCenterPrayers: PrayerRequest[] = [];
   displayedPrompts: PrayerPrompt[] = [];
   uniquePromptTypes: string[] = [];
   personalCategoryCounts: Record<string, number> = {};
@@ -45,10 +42,6 @@ export class HomeCatalogStore {
     this.filteredPersonalPrayers = filterPersonalPrayersForHome(
       state.personalPrayers,
       state.filter
-    );
-    this.filteredPlanningCenterPrayers = filterPlanningCenterPrayersForHome(
-      state.planningCenterPrayers,
-      state.filter.searchTerm
     );
     this.displayedPrompts = filterDisplayedPromptsForHome(
       state.prompts,

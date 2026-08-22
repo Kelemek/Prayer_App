@@ -1,12 +1,9 @@
-import { isMemberPrayerId } from './prayer-card-kind';
-
 export type PrayerItemDeepLinkTab =
   | 'current'
   | 'answered'
   | 'archived'
   | 'total'
-  | 'personal'
-  | 'planning_center_list';
+  | 'personal';
 
 export type PersonalDeepLinkCategoryMode = 'current' | 'answered' | 'total';
 
@@ -29,9 +26,6 @@ export function resolvePrayerItemDeepLinkTab(
   communityPrayers: ReadonlyArray<{ id: string; status: string }>,
   personalPrayers: ReadonlyArray<{ id: string }>
 ): PrayerItemDeepLinkTab | null {
-  if (isMemberPrayerId(prayerId)) {
-    return 'planning_center_list';
-  }
   if (personalPrayers.some((p) => p.id === prayerId)) {
     return 'personal';
   }

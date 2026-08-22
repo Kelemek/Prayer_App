@@ -20,7 +20,7 @@ export type UpdateDeletionRequestInput = {
 
 export function buildPrayerDeletionRequestRow(
   requestData: PrayerDeletionRequestInput,
-  tenantId?: string | null
+  tenantId: string
 ): Record<string, unknown> {
   return {
     prayer_id: requestData.prayer_id,
@@ -30,13 +30,13 @@ export function buildPrayerDeletionRequestRow(
     ),
     requested_email: requestData.requester_email,
     reason: requestData.reason,
-    ...(tenantId ? { tenant_id: tenantId } : {}),
+    tenant_id: tenantId,
   };
 }
 
 export function buildUpdateDeletionRequestRow(
   requestData: UpdateDeletionRequestInput,
-  tenantId?: string | null
+  tenantId: string
 ): Record<string, unknown> {
   return {
     update_id: requestData.update_id,
@@ -46,7 +46,7 @@ export function buildUpdateDeletionRequestRow(
     ),
     requested_email: requestData.requester_email,
     reason: requestData.reason,
-    ...(tenantId ? { tenant_id: tenantId } : {}),
+    tenant_id: tenantId,
   };
 }
 

@@ -90,6 +90,29 @@ describe('PersonalCategoryColorService', () => {
     expect(service.getColorsSnapshot().Health).toBe('#DC2626');
   });
 
+  it('renameCategory updates tenant-scoped snapshot and cache', async () => {
+    await service.loadColors(true);
+    const updateEqCategory = vi.fn().mockResolvedValue({ error: null });
+    const updateEqEmail = vi.fn().mockReturnValue({ eq: updateEqCategory });
+    const updateEqTenant = vi.fn().mockReturnValue({ eq: updateEqEmail });
+    fromMock.mockReturnValue({
+      select: selectMock,
+      upsert: upsertMock,
+      update: vi.fn().mockReturnValue({ eq: updateEqTenant }),
+    });
+
+    const result = await service.renameCategory('Health', 'Family');
+
+    expect(result).toBe(true);
+    expect(updateEqTenant).toHaveBeenCalledWith('tenant_id', TEST_TENANT_ID);
+    expect(service.getColorsSnapshot().Family).toBe('#DC2626');
+    expect(service.getColorsSnapshot().Health).toBeUndefined();
+    expect(cache.set).toHaveBeenCalledWith(
+      `personalCategoryColors_${TEST_TENANT_ID}`,
+      expect.objectContaining({ Family: '#DC2626' })
+    );
+  });
+
   it('setColor upserts with tenant_id and updates snapshot', async () => {
     await service.setColor('Family', '#2563EB');
     expect(upsertMock).toHaveBeenCalledWith(

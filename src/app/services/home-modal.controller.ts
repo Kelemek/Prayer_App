@@ -8,6 +8,9 @@ export interface HomeModalHost {
 
 @Injectable()
 export class HomeModalController {
+  private host: HomeModalHost | null = null;
+  private adminAuthService: AdminAuthService | null = null;
+
   showPrayerForm = false;
   showSearchPanel = false;
   showSettings = false;
@@ -19,24 +22,14 @@ export class HomeModalController {
   showEditPersonalUpdate = false;
   editingUpdate: PrayerUpdate | null = null;
   editingUpdatePrayerId = "";
-  showEditMemberUpdate = false;
-  editingMemberUpdate: PrayerUpdate | null = null;
-  editingMemberUpdatePrayerId = "";
-
-  private host: HomeModalHost | null = null;
-  private adminAuthService: AdminAuthService | null = null;
-  private reloadMemberPrayerUpdates: ((personId: string) => void) | null = null;
-
   bindHost(
     host: HomeModalHost,
     deps: {
       adminAuthService: AdminAuthService;
-      reloadMemberPrayerUpdates: (personId: string) => void;
     }
   ): void {
     this.host = host;
     this.adminAuthService = deps.adminAuthService;
-    this.reloadMemberPrayerUpdates = deps.reloadMemberPrayerUpdates;
   }
 
   onPrayerFormClose(): void {
@@ -124,27 +117,6 @@ export class HomeModalController {
     this.editingUpdate = null;
     this.editingUpdatePrayerId = "";
     this.requireHost().markForCheck();
-  }
-
-  openEditMemberUpdateModal(event: {
-    update: PrayerUpdate;
-    prayerId: string;
-  }): void {
-    this.editingMemberUpdate = event.update;
-    this.editingMemberUpdatePrayerId = event.prayerId;
-    this.showEditMemberUpdate = true;
-    this.requireHost().markForCheck();
-  }
-
-  onMemberUpdateSaved(): void {
-    this.showEditMemberUpdate = false;
-    const personId = this.editingMemberUpdatePrayerId.substring(
-      "pc-member-".length
-    );
-    this.editingMemberUpdate = null;
-    this.editingMemberUpdatePrayerId = "";
-    this.requireHost().markForCheck();
-    setTimeout(() => this.reloadMemberPrayerUpdates?.(personId), 100);
   }
 
   private requireHost(): HomeModalHost {

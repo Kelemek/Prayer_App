@@ -10,7 +10,7 @@ export type CommunityPrayerSubmitInput = Pick<
 
 export function buildCommunityPrayerInsertRow(
   prayer: CommunityPrayerSubmitInput,
-  tenantId?: string | null
+  tenantId: string
 ): Record<string, unknown> {
   return {
     title: prayer.title,
@@ -21,23 +21,7 @@ export function buildCommunityPrayerInsertRow(
     approval_status: 'pending',
     email: prayer.email || null,
     is_anonymous: prayer.is_anonymous || false,
-    ...(tenantId ? { tenant_id: tenantId } : {}),
-  };
-}
-
-export function normalizeSubscriberEmail(email: string): string {
-  return email.toLowerCase().trim();
-}
-
-export function buildEmailSubscriberInsertRow(
-  name: string,
-  email: string
-): Record<string, unknown> {
-  return {
-    name,
-    email: normalizeSubscriberEmail(email),
-    is_active: true,
-    is_admin: false,
+    tenant_id: tenantId,
   };
 }
 
@@ -210,19 +194,6 @@ export function applyCommunityPrayerDeleteSnapshot(
   actions.dropReminders(id);
 }
 
-export async function ensureEmailSubscriberForPrayerSubmit(
-  requester: string,
-  email: string,
-  findExistingSubscriber: (normalizedEmail: string) => Promise<{ id: string } | null>,
-  insertSubscriber: (row: Record<string, unknown>) => Promise<void>
-): Promise<void> {
-  const normalized = normalizeSubscriberEmail(email);
-  const existing = await findExistingSubscriber(normalized);
-  if (!existing) {
-    await insertSubscriber(buildEmailSubscriberInsertRow(requester, email));
-  }
-}
-
 export type CommunityUpdateSubmitData = {
   prayer_id: string;
   content: string;
@@ -234,7 +205,7 @@ export type CommunityUpdateSubmitData = {
 
 export function buildPendingCommunityUpdateInsertRow(
   updateData: CommunityUpdateSubmitData,
-  tenantId?: string | null
+  tenantId: string
 ): Record<string, unknown> {
   return {
     prayer_id: updateData.prayer_id,
@@ -244,7 +215,7 @@ export function buildPendingCommunityUpdateInsertRow(
     is_anonymous: updateData.is_anonymous,
     mark_as_answered: updateData.mark_as_answered,
     approval_status: 'pending',
-    ...(tenantId ? { tenant_id: tenantId } : {}),
+    tenant_id: tenantId,
   };
 }
 
@@ -252,13 +223,13 @@ export function buildSimplePendingUpdateInsertRow(
   prayerId: string,
   content: string,
   author: string,
-  tenantId?: string | null
+  tenantId: string
 ): Record<string, unknown> {
   return {
     prayer_id: prayerId,
     content,
     author,
     approval_status: 'pending',
-    ...(tenantId ? { tenant_id: tenantId } : {}),
+    tenant_id: tenantId,
   };
 }

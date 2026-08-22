@@ -9,12 +9,6 @@ describe('resolvePrayerItemDeepLinkTab', () => {
   ];
   const personal = [{ id: 'p-1' }];
 
-  it('routes pc-member ids to planning_center_list', () => {
-    expect(
-      resolvePrayerItemDeepLinkTab('pc-member-42', community, personal)
-    ).toBe('planning_center_list');
-  });
-
   it('routes personal prayer ids to personal tab', () => {
     expect(resolvePrayerItemDeepLinkTab('p-1', community, personal)).toBe(
       'personal'

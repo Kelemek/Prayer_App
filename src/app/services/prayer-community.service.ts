@@ -110,6 +110,15 @@ export class PrayerCommunityService {
     return this.tenantContext.getActiveTenant()?.id || null;
   }
 
+  private requireActiveTenantId(action: string): string | null {
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) {
+      this.toast.error(`Select an organization to ${action}.`);
+      return null;
+    }
+    return tenantId;
+  }
+
   private shouldUseSuperAdminRpc(): boolean {
     return shouldUseSuperAdminTenantPrayerRpc({
       getIsSuperAdmin: () => this.tenantContext.getIsSuperAdmin?.() ?? false,
@@ -422,11 +431,10 @@ export class PrayerCommunityService {
       return false;
     }
     try {
-      const tenantId = this.getActiveTenantId();
+      const tenantId = this.requireActiveTenantId(
+        'submit a public prayer request'
+      );
       if (!tenantId) {
-        this.toast.error(
-          'Select an organization to submit a public prayer request.'
-        );
         return false;
       }
 
@@ -503,7 +511,10 @@ export class PrayerCommunityService {
       return false;
     }
     try {
-      const tenantId = this.getActiveTenantId();
+      const tenantId = this.requireActiveTenantId('update prayer status');
+      if (!tenantId) {
+        return false;
+      }
       const { error } = await updateCommunityPrayerStatusRow(
         this.supabase.client,
         id,
@@ -543,7 +554,10 @@ export class PrayerCommunityService {
       return false;
     }
     try {
-      const tenantId = this.getActiveTenantId();
+      const tenantId = this.requireActiveTenantId('add a prayer update');
+      if (!tenantId) {
+        return false;
+      }
       const { data, error } = await insertPendingCommunityPrayerUpdate(
         this.supabase.client,
         prayerId,
@@ -556,13 +570,14 @@ export class PrayerCommunityService {
 
       const { data: prayer } = await fetchCommunityPrayerTitle(
         this.supabase.client,
-        prayerId
+        prayerId,
+        tenantId
       );
       if (prayer && tenantId) {
         this.emailNotification
           .sendAdminNotification({
             type: 'update',
-            title: prayer.title,
+            title: prayer.title ?? '',
             author,
             content,
             requestId: data.id,
@@ -587,7 +602,10 @@ export class PrayerCommunityService {
       return false;
     }
     try {
-      const tenantId = this.getActiveTenantId();
+      const tenantId = this.requireActiveTenantId('delete a prayer');
+      if (!tenantId) {
+        return false;
+      }
       const { error } = await deleteCommunityPrayerRow(
         this.supabase.client,
         id,
@@ -625,7 +643,10 @@ export class PrayerCommunityService {
       return false;
     }
     try {
-      const tenantId = this.getActiveTenantId();
+      const tenantId = this.requireActiveTenantId('delete an update');
+      if (!tenantId) {
+        return false;
+      }
       const { error } = await deleteCommunityPrayerUpdateRow(
         this.supabase.client,
         updateId,
@@ -655,7 +676,10 @@ export class PrayerCommunityService {
       return false;
     }
     try {
-      const tenantId = this.getActiveTenantId();
+      const tenantId = this.requireActiveTenantId('add a prayer update');
+      if (!tenantId) {
+        return false;
+      }
       const author =
         resolveAuthorName(updateData.author, updateData.author_email) ||
         'Unknown';
@@ -669,13 +693,14 @@ export class PrayerCommunityService {
 
       const { data: prayer } = await fetchCommunityPrayerTitle(
         this.supabase.client,
-        updateData.prayer_id
+        updateData.prayer_id,
+        tenantId
       );
       if (prayer && tenantId) {
         this.emailNotification
           .sendAdminNotification({
             type: 'update',
-            title: prayer.title,
+            title: prayer.title ?? '',
             author,
             content: updateData.content,
             requestId: data.id,
@@ -700,7 +725,10 @@ export class PrayerCommunityService {
       return false;
     }
     try {
-      const tenantId = this.getActiveTenantId();
+      const tenantId = this.requireActiveTenantId('delete an update');
+      if (!tenantId) {
+        return false;
+      }
       const { error } = await deleteCommunityPrayerUpdateRow(
         this.supabase.client,
         updateId,
@@ -725,7 +753,10 @@ export class PrayerCommunityService {
       return false;
     }
     try {
-      const tenantId = this.getActiveTenantId();
+      const tenantId = this.requireActiveTenantId('request deletion');
+      if (!tenantId) {
+        return false;
+      }
       const { data, error } = await insertPrayerDeletionRequestRow(
         this.supabase.client,
         requestData,
@@ -767,7 +798,10 @@ export class PrayerCommunityService {
       return false;
     }
     try {
-      const tenantId = this.getActiveTenantId();
+      const tenantId = this.requireActiveTenantId('request deletion');
+      if (!tenantId) {
+        return false;
+      }
       const { data, error } = await insertUpdateDeletionRequestRow(
         this.supabase.client,
         requestData,

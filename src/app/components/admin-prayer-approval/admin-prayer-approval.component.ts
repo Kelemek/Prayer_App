@@ -21,7 +21,6 @@ import { ToastService } from '../../services/toast.service';
         (delete)="onDelete.emit($event)"
         (edit)="onEdit.emit($event)"
         (toggleUpdateAnswered)="onToggleUpdateAnswered.emit($event)"
-        (toggleMemberUpdateAnswered)="onToggleMemberUpdateAnswered.emit($event)"
       ></app-prayer-card>
 
       <!-- Inline Description Edit (quick fix before approving) -->
@@ -120,7 +119,6 @@ export class AdminPrayerApprovalComponent {
   @Output() onEdit = new EventEmitter<{ id: string; updates: { description?: string } }>();
   @Output() onDelete = new EventEmitter<string>();
   @Output() onToggleUpdateAnswered = new EventEmitter<unknown>();
-  @Output() onToggleMemberUpdateAnswered = new EventEmitter<unknown>();
 
   isDenying = false;
   denialReason = '';

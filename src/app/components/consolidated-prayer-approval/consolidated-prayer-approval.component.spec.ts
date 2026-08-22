@@ -237,14 +237,6 @@ describe('ConsolidatedPrayerApprovalComponent', () => {
       expect(component.getRequester()).toBe('John Smith');
     });
 
-    it('should return Unknown when requester missing even for legacy member ids', () => {
-      component.prayer = makePrayer({
-        id: 'pc-member-12345',
-        requester: undefined
-      });
-      expect(component.getRequester()).toBe('Unknown');
-    });
-
     it('should return Unknown as fallback', () => {
       component.prayer = makePrayer({ 
         id: 'prayer-regular',

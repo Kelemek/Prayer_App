@@ -32,7 +32,6 @@ export class PrayerCardModalsStackComponent {
   @Input() showAddUpdateForm = false;
   @Input({ required: true }) prayerId!: string;
   @Input() isPersonal = false;
-  @Input() isMember = false;
   @Input() richTextEditorsEnabled = true;
   @Input() addUpdateTourElementIds: PrayerCardAddUpdateTourElementIds | null =
     null;

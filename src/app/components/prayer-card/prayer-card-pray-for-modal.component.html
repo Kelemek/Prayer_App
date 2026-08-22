@@ -8,8 +8,6 @@
       <p class="text-gray-600 dark:text-gray-300 mb-4">
         @if (isPersonal) {
         When you click Pray For, your personal prayer count increases so you can track how often you have prayed for this request.
-        } @else if (isMember) {
-        When you click Pray For, the shared praying count for this Planning Center member increases. Only the total count is shown—your click is anonymous.
         } @else {
         When you click Pray For, the person who submitted this prayer request will see that others have prayed for them. Only the total count is shown—your click is anonymous.
         }
@@ -18,8 +16,6 @@
         <p class="text-sm text-blue-700 dark:text-blue-300">
           @if (isPersonal) {
           You can pray for the same personal request again in {{ (prayerEncouragementService.getCooldownHoursForPrayer$(true) | async) ?? 4 }} hours. Change this cooldown in Settings under Prayer encouragement on cards.
-          } @else if (isMember) {
-          This encourages others by showing how many times this member has been prayed for. You can pray for the same member again in {{ (prayerEncouragementService.getCooldownHoursForPrayer$(true) | async) ?? 4 }} hours. Change this cooldown in Settings under Prayer encouragement on cards.
           } @else {
           This encourages the requester by showing how many times their prayer has been lifted up. You can pray for the same request again in {{ (prayerEncouragementService.getCooldownHoursForPrayer$(false) | async) ?? 4 }} hours.
           }

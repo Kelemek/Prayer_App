@@ -549,6 +549,18 @@ export class PrayerService {
     return this.personal.getPersonalPrayers(forceRefresh);
   }
 
+  async renamePersonalCategory(
+    oldCategory: string,
+    newCategory: string,
+    options?: { reservedCategoryNames?: string[] }
+  ): Promise<boolean> {
+    return this.personal.renamePersonalCategory(
+      oldCategory,
+      newCategory,
+      options
+    );
+  }
+
   async addPersonalPrayer(
     prayer: Omit<
       PrayerRequest,

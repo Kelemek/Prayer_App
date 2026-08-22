@@ -50,16 +50,9 @@ export function prayerUpdateFromRecord(
 }
 
 export function prayerCardUpdateActionsMode(
-  isPersonal: boolean,
-  isMember: boolean
+  isPersonal: boolean
 ): PrayerUpdateActionsMode {
-  if (isPersonal) {
-    return 'personal';
-  }
-  if (isMember) {
-    return 'member';
-  }
-  return 'readonly';
+  return isPersonal ? 'personal' : 'readonly';
 }
 
 export function personalAnsweredStatusModalMode(

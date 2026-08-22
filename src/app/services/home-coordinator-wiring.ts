@@ -221,7 +221,6 @@ export function wireHomeCoordinators(
     { markForCheck: () => cdr.markForCheck() },
     {
       adminAuthService: deps.adminAuthService,
-      reloadMemberPrayerUpdates: () => undefined,
     }
   );
 
@@ -389,7 +388,6 @@ export function createHomeCatalogBindings(
     | "filters"
     | "selectedPromptTypes"
   > & {
-    planningCenterPrayers?: PrayerRequest[];
     prompts: import("../components/prompt-card/prompt-card.component").PrayerPrompt[];
     personalCategoryFilterMode: HomeCatalogPageBindings["personalCategoryFilterMode"];
     selectedPersonalCategories: string[];
@@ -397,7 +395,6 @@ export function createHomeCatalogBindings(
 ): HomeCatalogPageBindings {
   return {
     personalPrayers: page.personalPrayers,
-    planningCenterPrayers: page.planningCenterPrayers ?? [],
     prompts: page.prompts,
     activeFilter: page.activeFilter,
     filters: page.filters,

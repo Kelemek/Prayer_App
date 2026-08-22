@@ -4,7 +4,7 @@ import { type MetaHeaderBandSize } from '../../lib/prayer-card-layout';
 import { CardActionsOverflowMenuComponent } from '../card-actions-overflow-menu/card-actions-overflow-menu.component';
 import type { CardActionsOverflowItem } from '../card-actions-overflow-menu/card-actions-overflow-menu.types';
 
-export type PrayerUpdateActionsMode = 'personal' | 'member' | 'readonly';
+export type PrayerUpdateActionsMode = 'personal' | 'readonly';
 
 @Component({
   selector: 'app-prayer-update-actions',
@@ -35,32 +35,23 @@ export class PrayerUpdateActionsComponent {
 
   get overflowItems(): CardActionsOverflowItem[] {
     const items: CardActionsOverflowItem[] = [];
-    if (this.mode === 'personal') {
-      items.push({
-        id: 'edit',
-        label: 'Edit update',
-        ariaLabel: 'Edit prayer update',
-        icon: 'edit',
-        tone: 'blue',
-        onSelect: () => this.edit.emit(),
-      });
-    }
-    if (this.mode === 'member') {
-      items.push({
-        id: 'answered',
-        label: this.update.is_answered ? 'Mark as unanswered' : 'Mark as answered',
-        icon: 'check',
-        tone: this.update.is_answered ? 'green' : 'gray',
-        onSelect: () => this.toggleAnswered.emit(),
-      });
-      items.push({
-        id: 'edit',
-        label: 'Edit update',
-        ariaLabel: 'Edit member update',
-        icon: 'edit',
-        tone: 'blue',
-        onSelect: () => this.edit.emit(),
-      });
+    switch (this.mode) {
+      case 'personal':
+        items.push({
+          id: 'edit',
+          label: 'Edit update',
+          ariaLabel: 'Edit prayer update',
+          icon: 'edit',
+          tone: 'blue',
+          onSelect: () => this.edit.emit(),
+        });
+        break;
+      case 'readonly':
+        break;
+      default: {
+        const _exhaustive: never = this.mode;
+        return _exhaustive;
+      }
     }
     if (this.showDelete) {
       items.push({

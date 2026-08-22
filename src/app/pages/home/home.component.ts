@@ -356,7 +356,6 @@ export class HomeComponent implements OnInit, OnDestroy, HomeCoordinatorWiringPa
   getCatalogBindings() {
     return createHomeCatalogBindings({
       personalPrayers: this.personalPrayers,
-      planningCenterPrayers: [],
       prompts: this.promptService.promptsSubject.value,
       activeFilter: this.activeFilter,
       filters: this.filters,
@@ -518,71 +517,12 @@ export class HomeComponent implements OnInit, OnDestroy, HomeCoordinatorWiringPa
   async updateDefaultViewPreference(
     preference: "current" | "personal"
   ): Promise<boolean> {
-    const email = this.userSessionService.getUserEmail();
-
-    if (!email) {
-      return false;
-    }
-
-    const tenantId = this.tenantContextService.getActiveTenant()?.id;
-    if (!tenantId) {
-      return false;
-    }
-
-    try {
-      // Check if subscriber record exists
-      const { data: existingRecord, error: fetchError } =
-        await this.supabaseService.client
-          .from("tenant_memberships")
-          .select("id")
-          .eq("tenant_id", tenantId)
-          .eq("user_email", email.toLowerCase().trim())
-          .maybeSingle();
-
-      if (fetchError) {
-        throw fetchError;
-      }
-
-      if (existingRecord) {
-        // Update existing record
-        const { error: updateError } = await this.supabaseService.client
-          .from("tenant_memberships")
-          .update({ default_prayer_view: preference })
-          .eq("tenant_id", tenantId)
-          .eq("user_email", email.toLowerCase().trim());
-
-        if (updateError) {
-          throw updateError;
-        }
-      } else {
-        // Create new record
-        const { error: insertError } = await this.supabaseService.client
-          .from("tenant_memberships")
-          .insert({
-            user_email: email.toLowerCase().trim(),
-            name: email.split("@")[0] || "User",
-            is_active: true,
-            role: "member",
-            receive_admin_emails: false,
-            tenant_id: tenantId,
-            default_prayer_view: preference,
-          });
-
-        if (insertError) {
-          throw insertError;
-        }
-      }
-
-      // Update UserSessionService cache to keep it in sync
-      await this.userSessionService.updateUserSession({
-        defaultPrayerView: preference,
-      });
-
-      return true;
-    } catch (err) {
-      console.error("Error updating default view preference:", err);
-      return false;
-    }
+    return updateHomeDefaultViewPreference(
+      this.supabaseService.client,
+      this.userSessionService,
+      preference,
+      this.tenantContextService.getActiveTenant()?.id
+    );
   }
 
   markAsAnswered(id: string): void {

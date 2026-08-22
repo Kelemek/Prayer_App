@@ -12,7 +12,6 @@ describe("home-catalog-refresh", () => {
       { id: "p1", prayer_for: "A", category: "Family" } as any,
       { id: "p2", prayer_for: "B", category: "Answered" } as any,
     ],
-    planningCenterPrayers: [],
     prompts: [],
     activeFilter: "personal",
     filters: { searchTerm: "" },

@@ -7,7 +7,6 @@ import type { PersonalCategoryFilterMode } from "../types/presentation";
 
 export interface HomeCatalogPageBindings {
   personalPrayers: PrayerRequest[];
-  planningCenterPrayers: PrayerRequest[];
   prompts: PrayerPrompt[];
   activeFilter: HomeActiveFilter;
   filters: PrayerFilters;
@@ -22,7 +21,6 @@ export function refreshHomeCatalog(
 ): void {
   catalog.rebuild({
     personalPrayers: page.personalPrayers,
-    planningCenterPrayers: page.planningCenterPrayers,
     prompts: page.prompts,
     filter: {
       activeFilter: page.activeFilter,

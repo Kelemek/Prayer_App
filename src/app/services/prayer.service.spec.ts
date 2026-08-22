@@ -260,7 +260,7 @@ describe('PrayerService', () => {
     );
   });
 
-  it('addPrayer logs error when auto-subscribe fails but still returns true', async () => {
+  it('addPrayer logs error when membership auto-insert fails but still returns true', async () => {
     vi.spyOn(crypto, 'randomUUID').mockReturnValue('new-prayer-id-2');
     supabase.client.from.mockImplementation((table: string) => {
       if (table === 'prayers') {
@@ -746,7 +746,7 @@ describe('PrayerService', () => {
     warnSpy.mockRestore();
   });
 
-  it('addPrayer does not insert email subscriber when maybeSingle returns existing', async () => {
+  it('addPrayer does not insert a membership when maybeSingle returns existing', async () => {
     const existingEmailSupabase = {
       client: {
         from: (table: string) => {
@@ -1613,7 +1613,7 @@ describe('PrayerService - Integration Tests', () => {
       mockTenantContext, mockConnectivity as any);
     });
 
-    it('addPrayer does not insert email subscriber when one already exists', async () => {
+    it('addPrayer does not insert a membership when one already exists', async () => {
       // prepare spies
       const emailInsertSpy = vi.fn(() => Promise.resolve({ data: { id: 'e2' }, error: null }));
 
@@ -1632,11 +1632,11 @@ describe('PrayerService - Integration Tests', () => {
 
       const res = await service.addPrayer({ title: 'T', description: 'D', status: 'current', requester: 'R', prayer_for: 'P', email: 'exists@example.com', is_anonymous: false });
       expect(res).toBe(true);
-      // insert should not be called because existing subscriber was found
+      // insert should not be called because an existing membership was found
       expect(emailInsertSpy).not.toHaveBeenCalled();
     });
 
-    it('addPrayer handles auto-subscribe insert error gracefully', async () => {
+    it('addPrayer handles membership insert error gracefully', async () => {
       mockSupabaseService.client.from = vi.fn((table: string) => {
         if (table === 'prayers') {
           return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'p2' }, error: null } ) }) }) };
@@ -1719,7 +1719,7 @@ describe('PrayerService - Integration Tests', () => {
       expect(mockToastService.success).toHaveBeenCalled();
     });
 
-    it('addPrayer continues when maybeSingle throws during auto-subscribe', async () => {
+    it('addPrayer continues when maybeSingle throws during membership lookup', async () => {
       mockSupabaseService.client.from = vi.fn((table: string) => {
         if (table === 'prayers') {
           return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'pX' }, error: null } ) }) }) };
@@ -1882,7 +1882,9 @@ describe('PrayerService - Integration Tests', () => {
     it('should update prayer status successfully', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+          }))
         }))
       }));
 
@@ -1893,7 +1895,9 @@ describe('PrayerService - Integration Tests', () => {
     it('should handle update prayer status errors', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         update: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: { message: 'Update failed' } }))
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ data: null, error: { message: 'Update failed' } }))
+          }))
         }))
       }));
 
@@ -1954,7 +1958,9 @@ describe('PrayerService - Integration Tests', () => {
     it('should delete prayer successfully', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         delete: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+          }))
         }))
       }));
 
@@ -1965,7 +1971,9 @@ describe('PrayerService - Integration Tests', () => {
     it('should handle delete prayer errors', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         delete: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: { message: 'Delete failed' } }))
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ data: null, error: { message: 'Delete failed' } }))
+          }))
         }))
       }));
 
@@ -1990,7 +1998,9 @@ describe('PrayerService - Integration Tests', () => {
     it('should delete prayer update successfully', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         delete: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ data: {}, error: null }))
+          }))
         }))
       }));
 
@@ -2001,7 +2011,9 @@ describe('PrayerService - Integration Tests', () => {
     it('should handle delete prayer update errors', async () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         delete: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: { message: 'Delete failed' } }))
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ data: null, error: { message: 'Delete failed' } }))
+          }))
         }))
       }));
 
@@ -3489,7 +3501,9 @@ describe('PrayerService - Integration Tests', () => {
 
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
         delete: () => ({
-          eq: () => Promise.resolve({ error: null })
+          eq: () => ({
+            eq: () => Promise.resolve({ error: null })
+          })
         }),
         select: () => ({
           eq: () => ({
@@ -3990,7 +4004,9 @@ describe('PrayerService - Integration Tests', () => {
       let callCount = 0;
       vi.spyOn(mockSupabaseService.client, 'from').mockReturnValue({
         delete: () => ({
-          eq: () => Promise.resolve({ error: null })
+          eq: () => ({
+            eq: () => Promise.resolve({ error: null })
+          })
         }),
         select: () => ({
           eq: () => ({

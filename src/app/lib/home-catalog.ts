@@ -65,17 +65,6 @@ export function filterPersonalPrayersForHome(
   return filtered;
 }
 
-export function filterPlanningCenterPrayersForHome(
-  prayers: PrayerRequest[],
-  searchTerm: string | undefined
-): PrayerRequest[] {
-  const searchLower = normalizeSearchTerm(searchTerm);
-  if (!searchLower) {
-    return prayers;
-  }
-  return prayers.filter((prayer) => prayerMatchesSearch(prayer, searchLower));
-}
-
 export function filterDisplayedPromptsForHome(
   prompts: PrayerPrompt[],
   state: HomeCatalogFilterState

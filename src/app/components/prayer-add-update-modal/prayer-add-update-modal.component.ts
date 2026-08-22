@@ -178,7 +178,7 @@ export class PrayerAddUpdateModalComponent implements OnChanges {
   }
 
   showAnonymousOption(): boolean {
-    return !this.isPersonal && !this.prayerId.startsWith("pc-member-");
+    return !this.isPersonal;
   }
 
   handleSubmit(): void {

@@ -95,7 +95,7 @@ export interface HomeLifecycleServices {
   memorizationService: MemorizationService;
   memorizationRecommendationsService: MemorizationRecommendationsService;
     tenantContextService?: TenantContextService;
-    tenantPermissionService?: TenantPermissionService;
+    tenantPermissionService: TenantPermissionService;
     connectivity?: ConnectivityService;
 }
 

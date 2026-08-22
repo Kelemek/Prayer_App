@@ -28,7 +28,6 @@ export class PrayerCardActionsRowComponent {
   @Input({ required: true }) showPrayedForBadge!: boolean;
   @Input({ required: true }) usesPersonalCooldown!: boolean;
   @Input({ required: true }) canPrayFor!: boolean;
-  @Input() isMember = false;
   @Input({ required: true }) userSessionService!: UserSessionService;
   @Input({ required: true }) prayerEncouragementService!: PrayerEncouragementService;
 

@@ -6,16 +6,13 @@ describe("HomeModalController", () => {
   let controller: HomeModalController;
   let host: { markForCheck: ReturnType<typeof vi.fn> };
   let adminAuthService: { logout: ReturnType<typeof vi.fn> };
-  let reloadMemberPrayerUpdates: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     controller = new HomeModalController();
     host = { markForCheck: vi.fn() };
     adminAuthService = { logout: vi.fn().mockResolvedValue(undefined) };
-    reloadMemberPrayerUpdates = vi.fn();
     controller.bindHost(host, {
       adminAuthService: adminAuthService as any,
-      reloadMemberPrayerUpdates,
     });
   });
 
@@ -68,18 +65,5 @@ describe("HomeModalController", () => {
     await controller.handleLogout();
     expect(controller.showLogoutConfirmation).toBe(false);
     expect(adminAuthService.logout).toHaveBeenCalled();
-  });
-
-  it("reloads member updates after member update save", () => {
-    vi.useFakeTimers();
-    controller.editingMemberUpdatePrayerId = "pc-member-abc";
-    controller.showEditMemberUpdate = true;
-
-    controller.onMemberUpdateSaved();
-    expect(controller.showEditMemberUpdate).toBe(false);
-
-    vi.advanceTimersByTime(100);
-    expect(reloadMemberPrayerUpdates).toHaveBeenCalledWith("abc");
-    vi.useRealTimers();
   });
 });

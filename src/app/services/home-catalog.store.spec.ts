@@ -15,7 +15,6 @@ describe("HomeCatalogStore", () => {
           updates: [],
         } as any,
       ],
-      planningCenterPrayers: [],
       prompts: [{ id: "1", title: "Hello", description: "d", type: "Morning" }],
       filter: {
         activeFilter: "prompts",

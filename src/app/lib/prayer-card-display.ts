@@ -1,4 +1,4 @@
-import { isCommunityPrayerCard, isMemberPrayerId } from './prayer-card-kind';
+import { isCommunityPrayerCard } from './prayer-card-kind';
 import type { PrayerCardIdentity } from './prayer-card-kind';
 import { isCurrentUserPrayerRequester } from './prayer-card-user-context';
 
@@ -8,8 +8,7 @@ export type PrayerCardActiveFilter =
   | 'archived'
   | 'total'
   | 'prompts'
-  | 'personal'
-  | 'planning_center_list';
+  | 'personal';
 
 export function displayPrayerCardRequester(
   requester: string,
@@ -19,19 +18,14 @@ export function displayPrayerCardRequester(
 }
 
 export function showPrayerCardDescription(
-  prayerId: string,
   description: string | null | undefined
 ): boolean {
-  if (isMemberPrayerId(prayerId)) {
-    return false;
-  }
   return !!description?.trim();
 }
 
 export function showPrayerCardPrayedForBadge(
   prayedForCount: number | null | undefined,
   isPersonal: boolean,
-  isMember: boolean,
   isAdmin: boolean,
   currentUserEmail: string,
   prayerEmail: string | null | undefined
@@ -39,17 +33,15 @@ export function showPrayerCardPrayedForBadge(
   const count = prayedForCount ?? 0;
   if (count <= 0) return false;
   if (isPersonal) return true;
-  if (isMember) return true;
   if (isAdmin) return true;
   return isCurrentUserPrayerRequester(currentUserEmail, prayerEmail);
 }
 
 export function prayedForCountLabelForPrayerCard(
   prayedForCount: number | null | undefined,
-  isPersonal: boolean,
-  isMember: boolean
+  isPersonal: boolean
 ): string {
-  if (isPersonal || isMember) {
+  if (isPersonal) {
     return (prayedForCount ?? 0) === 1 ? 'Prayer' : 'Prayers';
   }
   return 'Praying';
@@ -74,9 +66,6 @@ export function showPrayerCardReminderButton(
   if (isPersonal) {
     return prayerCategory !== 'Answered';
   }
-  if (isMemberPrayerId(prayerId)) {
-    return true;
-  }
   return prayerStatus === 'current';
 }
 
@@ -87,9 +76,6 @@ export function showPrayerCardStatusPillInHeader(
   return isCommunityPrayerCard(prayer, isPersonal);
 }
 
-export function usesPrayerCardPersonalCooldown(
-  isPersonal: boolean,
-  prayerId: string
-): boolean {
-  return isPersonal || isMemberPrayerId(prayerId);
+export function usesPrayerCardPersonalCooldown(isPersonal: boolean): boolean {
+  return isPersonal;
 }

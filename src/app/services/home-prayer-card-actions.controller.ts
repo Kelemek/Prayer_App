@@ -7,6 +7,10 @@ import {
   PrayerService,
   type PrayerRequest,
 } from "./prayer.service";
+import type {
+  PrayerDeletionRequestInput,
+  UpdateDeletionRequestInput,
+} from "../lib/prayer-community-deletion-requests";
 import { PromptService } from "./prompt.service";
 import { ToastService } from "./toast.service";
 import { UserSessionService } from "./user-session.service";
@@ -106,7 +110,7 @@ export class HomePrayerCardActionsController {
     await this.deleteUpdate(event);
   }
 
-  async requestDeletion(requestData: unknown): Promise<void> {
+  async requestDeletion(requestData: PrayerDeletionRequestInput): Promise<void> {
     try {
       await this.prayerService.requestDeletion(requestData);
     } catch (error) {
@@ -115,17 +119,13 @@ export class HomePrayerCardActionsController {
     }
   }
 
-  async requestUpdateDeletion(requestData: unknown): Promise<void> {
+  async requestUpdateDeletion(requestData: UpdateDeletionRequestInput): Promise<void> {
     try {
       await this.prayerService.requestUpdateDeletion(requestData);
     } catch (error) {
       console.error("Error requesting update deletion:", error);
       this.toastService.error("Failed to submit update deletion request");
     }
-  }
-
-  async toggleMemberUpdateAnswered(_event: unknown): Promise<void> {
-    return;
   }
 
   deletePersonalPrayer(id: string): void {

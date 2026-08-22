@@ -1,11 +1,21 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   personalCategoryReorderRpcArgs,
   personalCategorySwapRpcArgs,
+  validatePersonalCategoryRename,
   validatePersonalCategorySwapInputs,
   applyPersonalCategoryRenameLocally,
   type CategoryDisplayOrderRange,
   type PersonalPrayerDisplayOrderUpdate,
 } from './prayer-personal-category';
+import {
+  fetchPersonalPrayerCategoryIdRows,
+  renamePersonalPrayerCategoriesByIds,
+} from './prayer-personal-db';
+import {
+  hasPersonalCategoryRenameTargets,
+  matchingPersonalPrayerIdsForCategoryRename,
+} from './prayer-personal-rename';
 import {
   applyPersonalCategoryReorderLocally,
   applyPersonalCategorySwapLocally,
@@ -296,5 +306,90 @@ export async function orchestratePersonalPrayerOrderUpdate(
   } catch (error) {
     console.error('[PrayerService] Error updating personal prayer order:', error);
     return await updatePersonalPrayerOrderFallback(prayers, deps);
+  }
+}
+
+export type PersonalCategoryRenameDeps = {
+  requireOnline: () => boolean;
+  toastError: (message: string) => void;
+  sanitize: (category: string | null | undefined) => string | null;
+  getUniqueCategoryNames: () => Promise<string[]>;
+  getTenantId: () => string | null;
+  getUserEmail: () => Promise<string | null>;
+  client: SupabaseClient;
+  local: PersonalCategoryLocalActions;
+};
+
+export async function orchestratePersonalCategoryRename(
+  oldCategory: string,
+  newCategory: string,
+  deps: PersonalCategoryRenameDeps,
+  options?: { reservedCategoryNames?: string[] }
+): Promise<boolean> {
+  if (!deps.requireOnline()) {
+    return false;
+  }
+
+  const validation = validatePersonalCategoryRename(
+    oldCategory,
+    newCategory,
+    deps.sanitize,
+    await deps.getUniqueCategoryNames(),
+    options?.reservedCategoryNames ?? []
+  );
+
+  if (!validation.ok) {
+    deps.toastError(validation.errorMessage);
+    return false;
+  }
+
+  if (validation.unchanged) {
+    return true;
+  }
+
+  const { oldName, newName } = validation;
+  const tenantId = deps.getTenantId();
+  if (!tenantId) {
+    deps.toastError('No active organization selected');
+    return false;
+  }
+
+  try {
+    const userEmail = await deps.getUserEmail();
+    if (!userEmail) {
+      deps.toastError('User email not available');
+      return false;
+    }
+
+    const { data: categoryRows, error: selectError } =
+      await fetchPersonalPrayerCategoryIdRows(deps.client, userEmail, tenantId);
+    if (selectError) {
+      throw selectError;
+    }
+
+    const matchingIds = matchingPersonalPrayerIdsForCategoryRename(
+      categoryRows ?? [],
+      oldName
+    );
+
+    if (hasPersonalCategoryRenameTargets(matchingIds)) {
+      const { error } = await renamePersonalPrayerCategoriesByIds(
+        deps.client,
+        userEmail,
+        matchingIds,
+        newName,
+        tenantId
+      );
+      if (error) {
+        throw error;
+      }
+    }
+
+    applyPersonalCategoryRenameSnapshot(deps.local, oldName, newName);
+    return true;
+  } catch (error) {
+    console.error('[PrayerService] Error renaming personal category:', error);
+    deps.toastError('Failed to rename category');
+    return false;
   }
 }

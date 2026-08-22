@@ -205,11 +205,7 @@ export class HomeDeepLinkCoordinator {
   }
 
   private ensureFreshCatalogForPrayerDeepLink(prayerId: string): void {
-    if (
-      !this.host ||
-      this.host.isMemberPrayerId(prayerId) ||
-      this.prayerDeepLinkFreshCatalogRequested
-    ) {
+    if (!this.host || this.prayerDeepLinkFreshCatalogRequested) {
       return;
     }
     this.prayerDeepLinkFreshCatalogRequested = true;
@@ -219,9 +215,6 @@ export class HomeDeepLinkCoordinator {
   private giveUpPrayerDeepLinkIfUnresolvable(prayerId: string): boolean {
     if (!this.host) {
       return true;
-    }
-    if (this.host.isMemberPrayerId(prayerId)) {
-      return this.host.shouldGiveUpMemberPrayerDeepLink(prayerId);
     }
     return this.host.shouldGiveUpCommunityPersonalPrayerDeepLink(prayerId);
   }

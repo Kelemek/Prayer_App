@@ -10,10 +10,9 @@ export interface PrayerUpdate {
   updated_at?: string;
   is_anonymous?: boolean;
   is_answered?: boolean;
-  /** Personal prayer updates use this flag (member updates use is_answered). */
+  /** Personal prayer updates use this flag. */
   mark_as_answered?: boolean;
   approval_status?: string;
-  in_planning_center?: boolean | null;
 }
 
 export interface PrayerRequest {
@@ -36,7 +35,6 @@ export interface PrayerRequest {
   display_order?: number;
   prayer_image?: string | null;
   updates: PrayerUpdate[];
-  in_planning_center?: boolean | null;
   prayed_for_count?: number;
   /** Set on personal-prayer rows (legacy cache entries may only have email). */
   user_email?: string;

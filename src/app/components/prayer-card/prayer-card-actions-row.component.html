@@ -14,7 +14,7 @@
   >
     Add Update
   </button>
-  @if (!isMember && (userSessionService.getShowPrayForButton$() | async) && (prayerEncouragementService.getPrayerEncouragementEnabled$() | async)) {
+  @if ((userSessionService.getShowPrayForButton$() | async) && (prayerEncouragementService.getPrayerEncouragementEnabled$() | async)) {
     @if (canPrayFor) {
       <button
         type="button"

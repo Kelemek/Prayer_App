@@ -21,8 +21,6 @@ import { ConnectivityService } from "../../services/connectivity.service";
 import { PresentationSettingsService } from "../../services/presentation-settings.service";
 import { PresentationCatalogStore } from "../../services/presentation-catalog.store";
 import { PresentationPlaybackController } from "../../services/presentation-playback.controller";
-import { PresentationContentCoordinator } from "../../services/presentation-content.coordinator";
-import { PresentationContentLoader } from "../../services/presentation-content-loader";
 import { PresentationPrayerTimerController } from "../../services/presentation-prayer-timer.controller";
 import { PresentationControlsInputController } from "../../services/presentation-controls-input.controller";
 import { PresentationHomeHandoffCoordinator } from "../../services/presentation-home-handoff.coordinator";
@@ -97,9 +95,7 @@ type ThemeOption = "light" | "dark" | "system";
 export class PresentationComponent implements OnInit, OnDestroy {
   readonly catalog = new PresentationCatalogStore();
   readonly playback: PresentationPlaybackController;
-  readonly contentLoader: PresentationContentLoader;
-  readonly contentCoordinator: PresentationContentCoordinator;
-  readonly prayerTimer = new PresentationPrayerTimerController();
+  readonly prayerTimer: PresentationPrayerTimerController;
   readonly controlsInput = new PresentationControlsInputController();
   readonly homeHandoffCoordinator = new PresentationHomeHandoffCoordinator();
   readonly settingsCoordinator: PresentationSettingsCoordinator;
@@ -193,14 +189,7 @@ export class PresentationComponent implements OnInit, OnDestroy {
     private presentationSettingsService: PresentationSettingsService
   ) {
     this.playback = new PresentationPlaybackController(this.ngZone);
-    this.contentLoader = new PresentationContentLoader(
-      this.prayerService,
-      this.promptService
-    );
-    this.contentCoordinator = new PresentationContentCoordinator(
-      this.contentLoader,
-      this.prayerService
-    );
+    this.prayerTimer = new PresentationPrayerTimerController(this.ngZone);
     this.settingsCoordinator = new PresentationSettingsCoordinator(
       this.presentationSettingsService
     );

@@ -177,11 +177,13 @@ export async function updateCommunityPrayerStatusRow(
   client: SupabaseClient,
   id: string,
   updateData: Record<string, unknown>,
-  tenantId?: string | null
+  tenantId: string
 ): Promise<{ error: unknown }> {
-  let updateQuery = client.from('prayers').update(updateData).eq('id', id);
-  updateQuery = maybeEqTenantId(updateQuery, tenantId);
-  const result = await updateQuery;
+  const result = await client
+    .from('prayers')
+    .update(updateData)
+    .eq('id', id)
+    .eq('tenant_id', tenantId);
   return { error: result.error };
 }
 
@@ -190,7 +192,7 @@ export async function insertPendingCommunityPrayerUpdate(
   prayerId: string,
   content: string,
   author: string,
-  tenantId?: string | null
+  tenantId: string
 ): Promise<{ data: { id: string } | null; error: unknown }> {
   const result = await client
     .from('prayer_updates')
@@ -203,7 +205,7 @@ export async function insertPendingCommunityPrayerUpdate(
 export async function insertPendingCommunityUpdate(
   client: SupabaseClient,
   updateData: CommunityUpdateSubmitData,
-  tenantId?: string | null
+  tenantId: string
 ): Promise<{ data: { id: string } | null; error: unknown }> {
   const result = await client
     .from('prayer_updates')
@@ -232,29 +234,33 @@ export async function fetchCommunityPrayerTitle(
 export async function deleteCommunityPrayerRow(
   client: SupabaseClient,
   id: string,
-  tenantId?: string | null
+  tenantId: string
 ): Promise<{ error: unknown }> {
-  let deleteQuery = client.from('prayers').delete().eq('id', id);
-  deleteQuery = maybeEqTenantId(deleteQuery, tenantId);
-  const result = await deleteQuery;
+  const result = await client
+    .from('prayers')
+    .delete()
+    .eq('id', id)
+    .eq('tenant_id', tenantId);
   return { error: result.error };
 }
 
 export async function deleteCommunityPrayerUpdateRow(
   client: SupabaseClient,
   updateId: string,
-  tenantId?: string | null
+  tenantId: string
 ): Promise<{ error: unknown }> {
-  let deleteQuery = client.from('prayer_updates').delete().eq('id', updateId);
-  deleteQuery = maybeEqTenantId(deleteQuery, tenantId);
-  const result = await deleteQuery;
+  const result = await client
+    .from('prayer_updates')
+    .delete()
+    .eq('id', updateId)
+    .eq('tenant_id', tenantId);
   return { error: result.error };
 }
 
 export async function insertPrayerDeletionRequestRow(
   client: SupabaseClient,
   requestData: PrayerDeletionRequestInput,
-  tenantId?: string | null
+  tenantId: string
 ): Promise<{ data: { id: string } | null; error: unknown }> {
   const result = await client
     .from('deletion_requests')
@@ -278,7 +284,7 @@ export async function fetchPrayerRowForDeletionNotify(
 export async function insertUpdateDeletionRequestRow(
   client: SupabaseClient,
   requestData: UpdateDeletionRequestInput,
-  tenantId?: string | null
+  tenantId: string
 ): Promise<{ data: { id: string } | null; error: unknown }> {
   const result = await client
     .from('update_deletion_requests')

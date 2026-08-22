@@ -30,9 +30,7 @@ export interface HomeDeepLinkHost {
   stripQueryParam(key: "filter" | "prayerId" | "promptId"): void;
   clearDeepLinkFilters(options?: { prayerId?: string }): void;
   resolvePrayerDeepLinkTab(prayerId: string): HomeActiveFilter | null;
-  isMemberPrayerId(prayerId: string): boolean;
   isPrayerInLoadedCatalog(prayerId: string): boolean;
-  shouldGiveUpMemberPrayerDeepLink(prayerId: string): boolean;
   shouldGiveUpCommunityPersonalPrayerDeepLink(prayerId: string): boolean;
   requestFreshPrayerCatalog(): void;
   isPromptInCatalog(promptId: string): boolean;
@@ -101,14 +99,10 @@ export class HomeDeepLinkHostAdapter implements HomeDeepLinkHost {
       this.deps.prayerService.getAllCommunityPrayersSnapshot(),
       this.deps.prayerService.getPersonalPrayersSnapshot()
     );
-    if (tab === "planning_center_list" || tab === "archived") {
+    if (tab === "archived") {
       return "current";
     }
     return tab;
-  }
-
-  isMemberPrayerId(_prayerId: string): boolean {
-    return false;
   }
 
   isPrayerInLoadedCatalog(prayerId: string): boolean {
@@ -118,10 +112,6 @@ export class HomeDeepLinkHostAdapter implements HomeDeepLinkHost {
       community.some((p: PrayerRequest) => p.id === prayerId) ||
       personal.some((p: PrayerRequest) => p.id === prayerId)
     );
-  }
-
-  shouldGiveUpMemberPrayerDeepLink(_prayerId: string): boolean {
-    return true;
   }
 
   shouldGiveUpCommunityPersonalPrayerDeepLink(prayerId: string): boolean {

@@ -22,14 +22,6 @@ function baseContext(
 }
 
 describe('showPrayerCardDeleteButton', () => {
-  it('hides delete for member cards', () => {
-    expect(
-      showPrayerCardDeleteButton(
-        baseContext({ prayerId: 'pc-member-abc', isPersonal: false })
-      )
-    ).toBe(false);
-  });
-
   it('allows personal and admin deletes', () => {
     expect(showPrayerCardDeleteButton(baseContext({ isPersonal: true }))).toBe(
       true
@@ -65,11 +57,11 @@ describe('showPrayerCardDeleteButton', () => {
 });
 
 describe('showPrayerCardAddUpdateButton', () => {
-  it('allows member cards regardless of policy', () => {
+  it('allows personal cards regardless of policy', () => {
     expect(
       showPrayerCardAddUpdateButton(
         baseContext({
-          prayerId: 'pc-member-abc',
+          isPersonal: true,
           updatesAllowed: 'admin-only',
         })
       )

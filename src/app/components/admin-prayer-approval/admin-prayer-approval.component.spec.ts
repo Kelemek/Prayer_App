@@ -56,7 +56,6 @@ describe('AdminPrayerApprovalComponent', () => {
       expect(component.onEdit).toBeDefined();
       expect(component.onDelete).toBeDefined();
       expect(component.onToggleUpdateAnswered).toBeDefined();
-      expect(component.onToggleMemberUpdateAnswered).toBeDefined();
     });
 
     it('should accept a prayer input', () => {

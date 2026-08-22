@@ -1,6 +1,5 @@
 import type { HelpSection } from '../types/help-content';
 import type { HelpDriverTourService } from '../services/help-driver-tour.service';
-import { getCardActionsOverflowTriggerEl } from './help-card-actions-menu-tour';
 import type { HomeHelpTourHost } from '../services/home-help-tour-host.adapter';
 
 export interface HomeHelpTourSectionStartContext {
@@ -47,16 +46,8 @@ export function startFilteringTour(section: HelpSection, ctx: HomeHelpTourSectio
       host.setFilter("answered");
       host.markForCheck();
     },
-    switchToArchived: () => {
-      host.setFilter("archived");
-      host.markForCheck();
-    },
     switchToTotal: () => {
       host.setFilter("total");
-      host.markForCheck();
-    },
-    switchToMembers: () => {
-      host.setFilter("planning_center_list");
       host.markForCheck();
     },
     switchToPrompts: () => {
@@ -65,10 +56,6 @@ export function startFilteringTour(section: HelpSection, ctx: HomeHelpTourSectio
     },
     switchToPersonal: () => {
       host.setFilter("personal");
-      host.markForCheck();
-    },
-    openSearchPanel: () => {
-      host.openSearchPanel();
       host.markForCheck();
     },
   });
@@ -220,27 +207,9 @@ export async function startPrayerRemindersTour(section: HelpSection, ctx: HomeHe
   host.setFilter("current");
   host.markForCheck();
   await new Promise<void>((resolve) => window.setTimeout(resolve, 80));
-  const hasEmail = host.hasSessionEmail();
-  let hasReminderCardMenuTarget = false;
-  if (hasEmail) {
-    const list = await host.getCurrentPrayers();
-    hasReminderCardMenuTarget = list.length > 0;
-  }
-  if (
-    hasReminderCardMenuTarget &&
-    typeof document !== "undefined" &&
-    !getCardActionsOverflowTriggerEl(document)
-  ) {
-    hasReminderCardMenuTarget = false;
-  }
   ctx.helpDriverTourService.startPrayerRemindersHelpSectionTour(
     { title: section.title, description: section.description },
-    { hasReminderCardMenuTarget },
     {
-      switchToCurrent: () => {
-        host.setFilter("current");
-        host.markForCheck();
-      },
       openSettings: () => host.openUserSettings(),
       closeSettings: () => host.closeUserSettings(),
       markForCheck: () => host.markForCheck(),

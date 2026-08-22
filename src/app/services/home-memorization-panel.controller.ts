@@ -89,11 +89,12 @@ export class HomeMemorizationPanelController {
   }
 
   isRecommendationAlreadyAdded(rec: MemorizationRecommendation): boolean {
+    const translation = this.requireMemorizationService().getPreferredTranslation();
     return this.memorizedItems.some(
       (item) =>
         (item.kind === "verse" || item.kind == null) &&
         item.reference === rec.reference &&
-        item.translation === rec.translation
+        item.translation === translation
     );
   }
 
@@ -107,8 +108,7 @@ export class HomeMemorizationPanelController {
       const memorizationService = this.requireMemorizationService();
       const scriptureService = this.requireScriptureService();
       const toastService = this.requireToastService();
-      const translation =
-        rec.translation ?? memorizationService.getPreferredTranslation();
+      const translation = memorizationService.getPreferredTranslation();
       const passage = await scriptureService.getPassage(
         rec.reference,
         translation

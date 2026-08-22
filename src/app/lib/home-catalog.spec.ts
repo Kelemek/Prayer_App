@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   filterDisplayedPromptsForHome,
   filterPersonalPrayersForHome,
-  filterPlanningCenterPrayersForHome,
   getPromptCountByType,
   getUniquePromptTypes,
 } from "./home-catalog";
@@ -59,21 +58,6 @@ describe("home-catalog", () => {
         selectedPersonalCategories: ["Family"],
       }).map((p) => p.id)
     ).toEqual(["p1"]);
-  });
-
-  it("filters planning center prayers by search term", () => {
-    const prayers = [
-      {
-        id: "m1",
-        prayer_for: "Member",
-        description: "Alpha",
-        title: "T",
-        updates: [],
-      },
-    ] as PrayerRequest[];
-
-    expect(filterPlanningCenterPrayersForHome(prayers, "")).toHaveLength(1);
-    expect(filterPlanningCenterPrayersForHome(prayers, "beta")).toHaveLength(0);
   });
 
   it("filters displayed prompts by active tab, search, and type", () => {

@@ -138,13 +138,7 @@ export class PrayerCardComponent
     prayerId: string;
   }>();
   @Output() edit = new EventEmitter<PrayerRequest>();
-  @Output() editMemberUpdate = new EventEmitter<{
-    update: PrayerUpdate;
-    prayerId: string;
-  }>();
   @Output() toggleUpdateAnswered =
-    new EventEmitter<PrayerCardToggleAnsweredEvent>();
-  @Output() toggleMemberUpdateAnswered =
     new EventEmitter<PrayerCardToggleAnsweredEvent>();
   @Output() categoryPickerOpenChange = new EventEmitter<boolean>();
   @Output() prayedForCountChange = new EventEmitter<{
@@ -346,7 +340,7 @@ export class PrayerCardComponent
     this.showPrayForModal = false;
     const prayedForPrayer = this.prayer;
     const prayerId = prayedForPrayer.id;
-    const { isMember, usesPersonalCooldown } = this.viewState;
+    const { usesPersonalCooldown } = this.viewState;
 
     const newCount = await runPrayerCardPrayFor(
       {
@@ -355,7 +349,6 @@ export class PrayerCardComponent
       },
       {
         prayerId,
-        isMember,
         isPersonal: this.isPersonal,
         usePersonalCooldown: usesPersonalCooldown,
       }
@@ -526,10 +519,7 @@ export class PrayerCardComponent
   }
 
   getUpdateActionsMode() {
-    return prayerCardUpdateActionsMode(
-      this.isPersonal,
-      this.viewState.isMember
-    );
+    return prayerCardUpdateActionsMode(this.isPersonal);
   }
 
   onUpdateEdit(update: PrayerUpdateRecord): void {
@@ -539,21 +529,15 @@ export class PrayerCardComponent
         update: payload,
         prayerId: this.prayer.id,
       });
-      return;
-    }
-    if (this.viewState.isMember) {
-      this.editMemberUpdate.emit({ update: payload, prayerId: this.prayer.id });
     }
   }
 
-  onMemberUpdateAnsweredToggle(update: PrayerUpdateRecord): void {
-    const event = {
+  onUpdateAnsweredToggle(update: PrayerUpdateRecord): void {
+    this.toggleUpdateAnswered.emit({
       updateId: update.id,
       prayerId: this.prayer.id,
       isAnswered: !update.is_answered,
-    };
-    this.toggleUpdateAnswered.emit(event);
-    this.toggleMemberUpdateAnswered.emit(event);
+    });
   }
 
   onPersonalAnsweredClick(): void {

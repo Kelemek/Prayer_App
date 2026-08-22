@@ -22,7 +22,6 @@ export class PrayerCardPrayForModalComponent {
 
   @Input({ required: true }) isOpen!: boolean;
   @Input({ required: true }) isPersonal!: boolean;
-  @Input({ required: true }) isMember!: boolean;
   @Input({ required: true }) usesPersonalCooldown!: boolean;
 
   @Output() confirm = new EventEmitter<boolean>();
