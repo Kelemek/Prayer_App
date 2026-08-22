@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import 'driver.js/dist/driver.css';
+@import './card-chrome.css';
 
 @source './**/*.{html,ts}';
 
@@ -9,8 +10,18 @@
   --color-church-green-dark: #004b3d;
   --color-church-green-medium: #2f5f54;
   --color-church-green: #39704d;
+  --color-church-green-tint: color-mix(
+    in srgb,
+    var(--color-church-green-medium) 30%,
+    var(--color-church-cream)
+  );
   --color-church-gray-warm: #988f83;
   --color-church-cream: #e8e5e1;
+  --color-church-surface-inactive-tab-border: color-mix(
+    in srgb,
+    var(--color-church-green-medium) 90%,
+    black
+  );
   --color-church-blue: #0047ab;
   --color-church-blue-dark: #3e5266;
   --color-church-navy: #1f2937;
@@ -41,6 +52,8 @@
   /* Shared header background colors for light/dark translucent header & safe area */
   --header-bg-light: rgba(255, 255, 255, 0.5);
   --header-bg-dark: rgba(31, 41, 55, 0.5);
+  --z-index-sticky-chrome: 50;
+  --z-index-modal-overlay: 100;
 }
 
 /*
@@ -151,6 +164,13 @@
 }
 .btn-chip-green-elevated {
   @apply bg-white dark:bg-gray-800 text-[#39704D] dark:text-[#5FB876] border border-[#39704D] dark:border-[#39704D] shadow-sm hover:bg-green-50 dark:hover:bg-green-900/30 focus:ring-[#39704D];
+}
+/* Meta header bands + rich-text toolbar + modal chrome headers/footers. */
+@utility bg-card-meta-header-band {
+  background-color: var(--color-card-meta-header-band) !important;
+  .dark & {
+    background-color: var(--color-card-meta-header-band-dark) !important;
+  }
 }
 /* Presentation slide card: larger symmetric shadow (replaces bottom-heavy shadow-2xl). */
 .presentation-card-elevation {
@@ -363,6 +383,7 @@ html.dark .presentation-card-elevation {
 /* Church Theme Variables */
 :root {
   --text-scale: 1;
+  --color-card-meta-header-band: #d6d1cb;
   --bg-primary: #FFFFFF;
   --bg-secondary: #F8F7F5;
   --bg-tertiary: #E8E5E1;
@@ -376,6 +397,7 @@ html.dark .presentation-card-elevation {
 }
 
 html.dark {
+  --color-card-meta-header-band-dark: rgb(17 24 39 / 0.5);
   --bg-primary: #1F2937;
   --bg-secondary: #2B2B2B;
   --bg-tertiary: #3E5266;
@@ -651,6 +673,94 @@ html, body {
   html:not(.native-app) .main-page-shell .safe-area-viewport {
     height: 100%;
   }
+}
+
+/* Bordered section cards in Home Settings + Presentation Settings modals */
+.settings-modal-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.settings-modal-section-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.settings-modal-body {
+  background-color: #e8e5e1;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.settings-modal-body::-webkit-scrollbar {
+  display: none;
+}
+html.dark .settings-modal-body {
+  background-color: transparent;
+}
+
+.settings-modal-section-card {
+  background-color: #ffffff;
+  border: 1px solid #2F5F54;
+}
+html.dark .settings-modal-section-card {
+  background-color: transparent;
+  border-color: #2F5F54;
+}
+
+/* Modal and settings chrome edges — church green medium #2F5F54 */
+.modal-panel-edge,
+.modal-shell-panel,
+.settings-modal-panel {
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-church-surface-inactive-tab-border);
+}
+.modal-panel-edge:has(.modal-chrome-header),
+.modal-panel-edge:has(.modal-chrome-footer),
+.modal-shell-panel:has(.modal-chrome-header),
+.settings-modal-panel:has(.settings-modal-header) {
+  overflow: hidden;
+}
+html.dark .modal-panel-edge,
+html.dark .modal-shell-panel,
+html.dark .settings-modal-panel {
+  border-color: #2F5F54;
+}
+.modal-chrome-border-b {
+  border-bottom: 1px solid #2F5F54;
+}
+.modal-chrome-border-t {
+  border-top: 1px solid #2F5F54;
+}
+.modal-chrome-header {
+  border-bottom: 1px solid #2F5F54;
+  background-color: var(--color-card-meta-header-band) !important;
+}
+html.dark .modal-chrome-header {
+  background-color: var(--color-card-meta-header-band-dark) !important;
+}
+.modal-chrome-footer {
+  border-top: 1px solid #2F5F54;
+  background-color: var(--color-card-meta-header-band) !important;
+}
+html.dark .modal-chrome-footer {
+  background-color: var(--color-card-meta-header-band-dark) !important;
+}
+.settings-modal-header {
+  border-bottom: 1px solid #2F5F54;
+  background-color: var(--color-card-meta-header-band) !important;
+}
+html.dark .settings-modal-header {
+  background-color: var(--color-card-meta-header-band-dark) !important;
+}
+.settings-modal-footer {
+  border-top: 1px solid #2F5F54;
+  background-color: var(--color-card-meta-header-band) !important;
+}
+html.dark .settings-modal-footer {
+  background-color: var(--color-card-meta-header-band-dark) !important;
 }
 
 /* Driver.js help tutorials: wider popover, scroll long copy; dark theme when html.dark */
