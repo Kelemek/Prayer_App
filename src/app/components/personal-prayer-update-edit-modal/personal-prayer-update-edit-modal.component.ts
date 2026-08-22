@@ -136,10 +136,14 @@ export class PersonalPrayerUpdateEditModalComponent
       this.isSubmitting = true;
       this.cdr.markForCheck();
 
-      this.contentEditor?.flushMarkdownToForm();
+      const content =
+        this.contentEditor?.flushMarkdownToForm() ?? this.formData.content ?? '';
+      if (!content.trim()) {
+        return;
+      }
 
       const updates: Partial<PrayerUpdate> = {
-        content: this.formData.content,
+        content,
       };
 
       const success = await this.prayerService.updatePersonalPrayerUpdate(

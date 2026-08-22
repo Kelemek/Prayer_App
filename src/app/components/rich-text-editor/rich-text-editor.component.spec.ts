@@ -67,9 +67,16 @@ describe('RichTextEditorComponent', () => {
     const valueChange = vi.fn();
     component.registerOnChange(onChange);
     component.valueChange.subscribe(valueChange);
-    component.flushMarkdownToForm();
+    const result = component.flushMarkdownToForm();
+    expect(typeof result).toBe('string');
     expect(onChange).toHaveBeenCalled();
     expect(valueChange).toHaveBeenCalled();
+  });
+
+  it('flushMarkdownToForm returns bound value when disabled', () => {
+    component.writeValue('saved draft');
+    component.disabled = true;
+    expect(component.flushMarkdownToForm()).toBe('saved draft');
   });
 
   it('flushMarkdownToForm no-ops when disabled', () => {
@@ -128,5 +135,13 @@ describe('RichTextEditorComponent', () => {
     expect(component.editor).toBeTruthy();
     component.ngOnDestroy();
     expect(component.editor).toBeNull();
+  });
+
+  it('round-trips ++underline++ markdown when loading existing content', () => {
+    component.writeValue('Line one\n\n++underlined++');
+    component.flushMarkdownToForm();
+    expect(component.editor?.getHTML()).toContain('<u>');
+    expect(component.editor?.getHTML()).not.toContain('++underlined++');
+    expect(component.value).toContain('++underlined++');
   });
 });

@@ -292,7 +292,7 @@ import { environment } from "../../../environments/environment";
                   <button
                     type="button"
                     (click)="openHeaderModal('help')"
-                    class="flex items-center gap-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 text-xs sm:text-sm cursor-pointer"
+                    class="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm font-medium btn-chip btn-chip-gray"
                   >
                     <svg
                       width="18"
@@ -324,7 +324,7 @@ import { environment } from "../../../environments/environment";
                   <button
                     type="button"
                     (click)="openHeaderModal('settings')"
-                    class="flex items-center gap-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 text-xs sm:text-sm cursor-pointer"
+                    class="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm font-medium btn-chip btn-chip-gray"
                   >
                     <svg
                       width="18"
@@ -346,7 +346,7 @@ import { environment } from "../../../environments/environment";
                   <button
                     type="button"
                     (click)="openHeaderModal('pray')"
-                    class="flex items-center gap-1 bg-[#2F5F54] text-white px-3 py-2 rounded-lg text-xs sm:text-sm hover:bg-[#1a3a2e] focus:outline-none focus:ring-2 focus:ring-[#2F5F54] cursor-pointer"
+                    class="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm font-medium btn-chip btn-chip-green"
                   >
                     <span>Pray</span>
                   </button>
@@ -354,7 +354,7 @@ import { environment } from "../../../environments/environment";
                   <button
                     type="button"
                     (click)="openHeaderModal('request')"
-                    class="flex items-center gap-1 bg-blue-600 text-white px-3 py-2 rounded-lg text-xs sm:text-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                    class="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm font-medium btn-chip btn-chip-blue"
                   >
                     <span>Request</span>
                   </button>
@@ -560,7 +560,7 @@ import { environment } from "../../../environments/environment";
                       type="button"
                       (click)="openHeaderModal('card-update')"
                       title="Add an update to this prayer"
-                      class="px-3 py-1 text-xs font-medium bg-green-50 dark:bg-green-900/20 text-[#39704D] dark:text-[#5FB876] rounded-md border border-[#39704D] dark:border-[#39704D] hover:bg-green-100 dark:hover:bg-green-900/30 focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 cursor-pointer"
+                      class="px-3 py-1 text-xs font-medium btn-chip btn-chip-green"
                     >
                       Add Update
                     </button>
@@ -568,7 +568,7 @@ import { environment } from "../../../environments/environment";
                       type="button"
                       (click)="openHeaderModal('card-pray-for')"
                       title="Record that you prayed for this request"
-                      class="px-3 py-1 text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md border border-blue-600 dark:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 cursor-pointer"
+                      class="px-3 py-1 text-xs font-medium btn-chip btn-chip-blue"
                     >
                       Pray For
                     </button>
@@ -643,7 +643,7 @@ import { environment } from "../../../environments/environment";
                   <div class="flex flex-wrap gap-1 items-center">
                     <button
                       type="button"
-                      class="px-3 py-1 text-xs font-medium bg-green-50 dark:bg-green-900/20 text-[#39704D] dark:text-[#5FB876] rounded-md border border-[#39704D] dark:border-[#39704D] hover:bg-green-100 dark:hover:bg-green-900/30 focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 cursor-pointer"
+                      class="px-3 py-1 text-xs font-medium btn-chip btn-chip-green"
                     >
                       Add Update
                     </button>
@@ -676,7 +676,7 @@ import { environment } from "../../../environments/environment";
                   <div class="flex flex-wrap gap-1 items-center">
                     <button
                       type="button"
-                      class="px-3 py-1 text-xs font-medium bg-green-50 dark:bg-green-900/20 text-[#39704D] dark:text-[#5FB876] rounded-md border border-[#39704D] dark:border-[#39704D] hover:bg-green-100 dark:hover:bg-green-900/30 focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 cursor-pointer"
+                      class="px-3 py-1 text-xs font-medium btn-chip btn-chip-green"
                     >
                       Add Update
                     </button>
@@ -688,7 +688,7 @@ import { environment } from "../../../environments/environment";
                   <button
                     type="button"
                     (click)="openPromptCategoriesModal()"
-                    class="flex-1 whitespace-nowrap px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer bg-[#988F83] text-white shadow-md"
+                    class="flex-1 whitespace-nowrap px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer border !border-[#988F83] dark:!border-[#988F83] bg-stone-100 dark:bg-stone-900/40 ring ring-[#988F83] dark:ring-[#988F83] ring-offset-0 text-gray-700 dark:text-gray-300 shadow-md"
                   >
                     All Types (76)
                   </button>
@@ -762,7 +762,7 @@ import { environment } from "../../../environments/environment";
                   <button
                     type="button"
                     (click)="openPersonalCategoriesModal()"
-                    class="flex-1 whitespace-nowrap px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer bg-[#2F5F54] text-white shadow-md"
+                    class="flex-1 whitespace-nowrap px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer border !border-[#2F5F54] dark:!border-[#2F5F54] bg-slate-100 dark:bg-green-900/40 ring ring-[#2F5F54] dark:ring-[#2F5F54] ring-offset-0 text-gray-700 dark:text-gray-300 shadow-md"
                   >
                     All Categories (13)
                   </button>

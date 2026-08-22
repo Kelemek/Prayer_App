@@ -2321,10 +2321,15 @@ export class PrayerService {
     if (!this.connectivity.requireOnline('add a personal prayer update')) {
       return false;
     }
+    const trimmedContent = (content ?? '').trim();
+    if (!trimmedContent) {
+      this.toast.error('Update content is required');
+      return false;
+    }
     try {
       const updateData = {
         personal_prayer_id: personalPrayerId,
-        content,
+        content: trimmedContent,
         author,
         author_email: authorEmail,
         mark_as_answered: markAsAnswered

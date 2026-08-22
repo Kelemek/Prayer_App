@@ -7,6 +7,7 @@ import { UserSessionService } from '../../services/user-session.service';
 import { PrayerEncouragementService } from '../../services/prayer-encouragement.service';
 import { PrayerService } from '../../services/prayer.service';
 import { PromptService } from '../../services/prompt.service';
+import { PersonalCategoryColorService } from '../../services/personal-category-color.service';
 import { AdminAuthService } from '../../services/admin-auth.service';
 import { SupabaseService } from '../../services/supabase.service';
 
@@ -17,6 +18,7 @@ function createDisplayCardProviders(overrides?: {
   promptService?: Record<string, unknown>;
   adminAuthService?: Record<string, unknown>;
   supabaseService?: Record<string, unknown>;
+  personalCategoryColorService?: Record<string, unknown>;
 }) {
   const mockUserSessionService = {
     getShowPrayForButton$: vi.fn().mockReturnValue(of(false)),
@@ -64,6 +66,12 @@ function createDisplayCardProviders(overrides?: {
     },
     ...overrides?.supabaseService
   };
+  const mockPersonalCategoryColorService = {
+    colors$: of({ Health: '#DC2626' }),
+    loadColors: vi.fn().mockResolvedValue({ Health: '#DC2626' }),
+    getColor: vi.fn(() => '#DC2626'),
+    ...overrides?.personalCategoryColorService
+  };
 
   return {
     providers: [
@@ -72,7 +80,8 @@ function createDisplayCardProviders(overrides?: {
       { provide: PrayerService, useValue: mockPrayerService },
       { provide: PromptService, useValue: mockPromptService },
       { provide: AdminAuthService, useValue: mockAdminAuthService },
-      { provide: SupabaseService, useValue: mockSupabaseService }
+      { provide: SupabaseService, useValue: mockSupabaseService },
+      { provide: PersonalCategoryColorService, useValue: mockPersonalCategoryColorService }
     ],
     mocks: {
       mockUserSessionService,
@@ -80,7 +89,8 @@ function createDisplayCardProviders(overrides?: {
       mockPrayerService,
       mockPromptService,
       mockAdminAuthService,
-      mockSupabaseService
+      mockSupabaseService,
+      mockPersonalCategoryColorService
     }
   };
 }
@@ -733,6 +743,20 @@ describe('PrayerDisplayCardComponent', () => {
       
       expect(container.textContent).toContain('Recent Updates');
       expect(container.textContent).toContain('Update 1');
+    });
+
+    it('should apply stored category pill styles for personal prayers', async () => {
+      const personalWithCategory = {
+        ...personalPrayer,
+        category: 'Health',
+      };
+      const { fixture } = await renderDisplayCard({
+        componentProperties: { prayer: personalWithCategory }
+      });
+
+      const styles = fixture.componentInstance.getCategoryPillStyles();
+      expect(styles.color).toBe('#DC2626');
+      expect(styles.backgroundColor).toContain('color-mix');
     });
   });
 });

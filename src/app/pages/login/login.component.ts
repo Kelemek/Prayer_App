@@ -368,7 +368,7 @@ import { Subject, takeUntil } from "rxjs";
                   (requiresApproval && !affiliationReason.trim())
                 "
                 type="button"
-                class="w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#2F5F54] hover:bg-[#1a3a2e] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#2F5F54] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                class="w-full py-3 px-4 rounded-md text-sm btn-chip btn-chip-green disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 @if (loading) {
                 <div class="flex items-center justify-center gap-2">
@@ -609,12 +609,12 @@ import { Subject, takeUntil } from "rxjs";
           <button
             type="submit"
             [disabled]="loading || !isValidEmail()"
-            class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#2F5F54] hover:bg-[#1a3a2e] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#2F5F54] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            class="w-full flex justify-center py-3 px-4 text-sm font-medium btn-chip btn-chip-green-elevated disabled:opacity-50 disabled:cursor-not-allowed"
           >
             @if (loading) {
             <div class="flex items-center gap-2">
               <div
-                class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"
+                class="animate-spin rounded-full h-4 w-4 border-b-2 border-[#39704D] dark:border-[#5FB876]"
               ></div>
               Sending code...
             </div>

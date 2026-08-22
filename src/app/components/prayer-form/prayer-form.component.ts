@@ -26,13 +26,15 @@ import { SupabaseService } from "../../services/supabase.service";
 import { ToastService } from "../../services/toast.service";
 import { TenantContextService } from "../../services/tenant-context.service";
 import { RichTextEditorsSettingsService } from "../../services/rich-text-editors-settings.service";
+import { PersonalCategoryColorService } from "../../services/personal-category-color.service";
+import { PersonalCategoryColorPickerComponent } from "../personal-category-color-picker/personal-category-color-picker.component";
 import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.component";
 import { ModalShellComponent } from "../modal-shell/modal-shell.component";
 
 @Component({
   selector: "app-prayer-form",
   standalone: true,
-  imports: [FormsModule, NgClass, RichTextEditorComponent, ModalShellComponent],
+  imports: [FormsModule, NgClass, RichTextEditorComponent, ModalShellComponent, PersonalCategoryColorPickerComponent],
   template: `
     @if (isOpen) {
     <app-modal-shell
@@ -256,6 +258,8 @@ import { ModalShellComponent } from "../modal-shell/modal-shell.component";
                 max)</span
               >
             </label>
+            <div class="space-y-2">
+              <div class="relative min-w-0">
             <input
               type="text"
               id="category"
@@ -289,6 +293,16 @@ import { ModalShellComponent } from "../modal-shell/modal-shell.component";
               }
             </div>
             }
+              </div>
+              @if (formData.category.trim()) {
+              <app-personal-category-color-picker
+                layout="inline"
+                [color]="categoryColor"
+                [categoryLabel]="formData.category"
+                (colorChange)="onCategoryColorChange($event)"
+              />
+              }
+            </div>
           </div>
           }
 
@@ -357,6 +371,8 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
   filteredCategories: string[] = [];
   selectedCategoryIndex = -1;
   showCategoryDropdown = false;
+  categoryColor = '#2563EB';
+  private categoryColorDirty = false;
   user$!: Observable<User | null>;
   private destroy$ = new Subject<void>();
 
@@ -366,6 +382,7 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
     private userSessionService: UserSessionService,
     private supabase: SupabaseService,
     private toast: ToastService,
+    private personalCategoryColorService: PersonalCategoryColorService,
     private cdr: ChangeDetectorRef,
     private tenantContext: TenantContextService,
     private destroyRef: DestroyRef,
@@ -406,9 +423,11 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
     }
     if (this.isOpen) {
       this.refreshCurrentUserEmail();
+      this.categoryColorDirty = false;
       this.prayerService.getUniqueCategoriesForUser().then((cats) => {
         this.availableCategories = cats;
       });
+      void this.personalCategoryColorService.loadColors();
     }
   }
 
@@ -469,6 +488,7 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
   onCategoryInput(event: Event): void {
     const input = (event.target as HTMLInputElement).value;
     this.formData.category = input;
+    this.syncCategoryColorForInput(input);
     this.updateFilteredCategories();
     // Show dropdown if there are filtered results
     if (this.filteredCategories.length > 0) {
@@ -490,6 +510,8 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
 
   selectCategory(category: string): void {
     this.formData.category = category;
+    this.categoryColor = this.personalCategoryColorService.getColor(category);
+    this.categoryColorDirty = false;
     this.showCategoryDropdown = false;
     this.filteredCategories = [];
     this.selectedCategoryIndex = -1;
@@ -589,6 +611,20 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
         : await this.prayerService.addPrayer(prayerData);
 
       if (success) {
+        if (
+          isPersonal &&
+          this.formData.category.trim() &&
+          this.categoryColorDirty
+        ) {
+          const colorSaved = await this.personalCategoryColorService.setColor(
+            this.formData.category,
+            this.categoryColor
+          );
+          if (!colorSaved) {
+            return;
+          }
+        }
+
         this.showSuccessMessage = true;
         this.cdr.markForCheck();
 
@@ -604,6 +640,8 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
           is_personal: false,
           category: "",
         };
+        this.categoryColor = '#2563EB';
+        this.categoryColorDirty = false;
 
         // Auto-close after 5 seconds
         setTimeout(() => {
@@ -632,7 +670,25 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
     this.showSuccessMessage = false;
     this.isSubmitting = false;
     this.showCategoryDropdown = false;
+    this.categoryColor = '#2563EB';
+    this.categoryColorDirty = false;
     this.close.emit();
+  }
+
+  onCategoryColorChange(color: string): void {
+    this.categoryColor = color;
+    this.categoryColorDirty = true;
+    this.cdr.markForCheck();
+  }
+
+  private syncCategoryColorForInput(category: string): void {
+    const trimmed = category.trim();
+    if (!trimmed) {
+      return;
+    }
+    this.categoryColor = this.personalCategoryColorService.getColor(trimmed);
+    this.categoryColorDirty = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener("document:click", ["$event"])

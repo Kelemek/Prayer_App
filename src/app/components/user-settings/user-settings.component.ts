@@ -1776,7 +1776,7 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
               type="button"
               (click)="deleteAccountKeepPrayers()"
               [disabled]="deletingAccount"
-              class="order-1 sm:order-2 px-4 py-2 rounded-lg btn-chip btn-chip-green disabled:opacity-50 disabled:cursor-not-allowed"
+              class="order-1 sm:order-2 px-4 py-2 rounded-md btn-chip btn-chip-green disabled:opacity-50 disabled:cursor-not-allowed"
             >
               @if (deletingAccount) { Deleting… } @else { Delete account but
               keep my prayers }
@@ -1785,7 +1785,7 @@ type PrintRange = "week" | "twoweeks" | "month" | "year" | "all";
               type="button"
               (click)="deleteAccountAndPrayers()"
               [disabled]="deletingAccount"
-              class="px-4 py-2 rounded-lg btn-chip btn-chip-red disabled:opacity-50 disabled:cursor-not-allowed"
+              class="px-4 py-2 rounded-md btn-chip btn-chip-red disabled:opacity-50 disabled:cursor-not-allowed"
             >
               @if (deletingAccount) { Deleting… } @else { Delete my account and
               all my prayers }

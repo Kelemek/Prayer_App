@@ -5,8 +5,10 @@ import {
   OnInit,
   ChangeDetectorRef,
   inject,
+  DestroyRef,
 } from "@angular/core";
-import { AsyncPipe, NgClass } from "@angular/common";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { AsyncPipe, NgClass, NgStyle } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { Observable, of } from "rxjs";
 import { RichTextViewComponent } from "../rich-text-view/rich-text-view.component";
@@ -14,6 +16,8 @@ import { UserSessionService } from "../../services/user-session.service";
 import { PrayerEncouragementService } from "../../services/prayer-encouragement.service";
 import { PrayerService } from "../../services/prayer.service";
 import { PromptService } from "../../services/prompt.service";
+import { PersonalCategoryColorService } from "../../services/personal-category-color.service";
+import { personalCategoryPillStyles } from "../../../utils/personalCategoryColor";
 
 const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = "prayer_encouragement_modal_do_not_show";
 
@@ -60,7 +64,7 @@ interface PrayerPrompt {
 @Component({
   selector: "app-prayer-display-card",
   standalone: true,
-  imports: [NgClass, RichTextViewComponent, AsyncPipe, FormsModule],
+  imports: [NgClass, NgStyle, RichTextViewComponent, AsyncPipe, FormsModule],
   template: `
     <!-- Prayer Card -->
     @if (prayer) {
@@ -71,7 +75,8 @@ interface PrayerPrompt {
       @if (prayer.category && isPersonalPrayer()) {
       <div class="mb-6">
         <span
-          class="inline-block px-3 md:px-4 lg:px-5 py-1 md:py-1.5 lg:py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm md:text-base lg:text-lg font-medium"
+          class="inline-block px-3 md:px-4 lg:px-5 py-1 md:py-1.5 lg:py-2 rounded-full text-sm md:text-base lg:text-lg font-medium border"
+          [ngStyle]="getCategoryPillStyles()"
         >
           {{ prayer.category }}
         </span>
@@ -136,7 +141,7 @@ interface PrayerPrompt {
               type="button"
               (click)="onPrayForClick()"
               title="Record that you prayed for this request"
-              class="px-4 py-2 text-base md:text-lg font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl border border-blue-600 dark:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 cursor-pointer whitespace-nowrap"
+              class="px-4 py-2 text-base md:text-lg font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md border border-blue-600 dark:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 cursor-pointer whitespace-nowrap"
             >
               Pray For
             </button>
@@ -145,7 +150,7 @@ interface PrayerPrompt {
               type="button"
               disabled
               [title]="'You can pray for this again in ' + ((prayerEncouragementService.getCooldownHoursForPrayer$(usesPersonalCooldown()) | async) ?? 4) + ' hours'"
-              class="px-4 py-2 text-base md:text-lg font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-xl border border-gray-300 dark:border-gray-600 cursor-not-allowed whitespace-nowrap"
+              class="px-4 py-2 text-base md:text-lg font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-md border border-gray-300 dark:border-gray-600 cursor-not-allowed whitespace-nowrap"
             >
               Prayed For
             </button>
@@ -153,7 +158,7 @@ interface PrayerPrompt {
         }
         @if ((userSessionService.getShowPrayingCount$() | async) && (prayerEncouragementService.getPrayerEncouragementEnabled$() | async) && showPrayedForBadge()) {
           <span
-            class="px-3 py-2 text-base md:text-lg font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl border border-blue-600 dark:border-blue-500 whitespace-nowrap"
+            class="px-3 py-2 text-base md:text-lg font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md border border-blue-600 dark:border-blue-500 whitespace-nowrap"
             title="Number praying for this request"
           >
             {{ (prayer.prayed_for_count ?? 0) }} Praying
@@ -270,7 +275,7 @@ interface PrayerPrompt {
           <button
             type="button"
             (click)="onConfirmPrayForFromModal()"
-            class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium cursor-pointer"
+            class="px-4 py-2 btn-chip btn-chip-blue"
           >
             Pray For
           </button>
@@ -320,7 +325,7 @@ interface PrayerPrompt {
               type="button"
               (click)="onPrayForClick()"
               title="Record that you prayed using this prompt"
-              class="px-4 py-2 text-base md:text-lg font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl border border-blue-600 dark:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 cursor-pointer whitespace-nowrap"
+              class="px-4 py-2 text-base md:text-lg font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md border border-blue-600 dark:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 cursor-pointer whitespace-nowrap"
             >
               Pray For
             </button>
@@ -329,7 +334,7 @@ interface PrayerPrompt {
               type="button"
               disabled
               [title]="'You can pray for this again in ' + ((prayerEncouragementService.getCooldownHoursForPrayer$(true) | async) ?? 4) + ' hours'"
-              class="px-4 py-2 text-base md:text-lg font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-xl border border-gray-300 dark:border-gray-600 cursor-not-allowed whitespace-nowrap"
+              class="px-4 py-2 text-base md:text-lg font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-md border border-gray-300 dark:border-gray-600 cursor-not-allowed whitespace-nowrap"
             >
               Prayed For
             </button>
@@ -337,7 +342,7 @@ interface PrayerPrompt {
         }
         @if ((userSessionService.getShowPrayingCount$() | async) && (prayerEncouragementService.getPrayerEncouragementEnabled$() | async) && showPromptPrayedForBadge()) {
           <span
-            class="px-3 py-2 text-base md:text-lg font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl border border-blue-600 dark:border-blue-500 whitespace-nowrap"
+            class="px-3 py-2 text-base md:text-lg font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md border border-blue-600 dark:border-blue-500 whitespace-nowrap"
             title="How many times you have prayed with this prompt"
           >
             {{ (prompt.prayed_for_count ?? 0) }} Prayers
@@ -383,7 +388,7 @@ interface PrayerPrompt {
           <button
             type="button"
             (click)="onConfirmPrayForFromModal()"
-            class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium cursor-pointer"
+            class="px-4 py-2 btn-chip btn-chip-blue"
           >
             Pray For
           </button>
@@ -440,6 +445,8 @@ export class PrayerDisplayCardComponent implements OnInit {
   readonly prayerEncouragementService = inject(PrayerEncouragementService);
   private readonly prayerService = inject(PrayerService);
   private readonly promptService = inject(PromptService);
+  private readonly personalCategoryColorService = inject(PersonalCategoryColorService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly cdr = inject(ChangeDetectorRef);
 
   showAllUpdates = false;
@@ -448,7 +455,18 @@ export class PrayerDisplayCardComponent implements OnInit {
   canPrayFor$ = of(true);
 
   ngOnInit(): void {
+    void this.personalCategoryColorService.loadColors();
+    this.personalCategoryColorService.colors$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.cdr.markForCheck();
+      });
     this.refreshCanPrayFor$();
+  }
+
+  getCategoryPillStyles(): Record<string, string> {
+    const hex = this.personalCategoryColorService.getColor(this.prayer?.category);
+    return personalCategoryPillStyles(hex);
   }
 
   private refreshCanPrayFor$(): void {

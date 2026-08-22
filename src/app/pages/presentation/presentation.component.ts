@@ -140,7 +140,7 @@ type ThemeOption = "light" | "dark" | "system";
           </p>
           <button
             (click)="exitPresentation()"
-            class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            class="px-6 py-3 btn-chip btn-chip-blue"
           >
             Return to Home
           </button>
@@ -1374,11 +1374,11 @@ export class PresentationComponent implements OnInit, OnDestroy {
       this.statusFilters = { ...handoff.statusFilters };
     }
 
-    if (handoff.promptCategories?.length) {
+    if (handoff.promptCategories) {
       this.selectedPromptCategories = [...handoff.promptCategories];
     }
 
-    if (handoff.personalCategories?.length) {
+    if (handoff.personalCategories) {
       this.selectedPersonalCategories = [...handoff.personalCategories];
     }
 

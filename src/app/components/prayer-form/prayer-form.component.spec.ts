@@ -18,6 +18,7 @@ describe('PrayerFormComponent', () => {
   let mockChangeDetectorRef: any;
   let mockSupabaseService: any;
   let mockToastService: any;
+  let mockPersonalCategoryColorService: any;
   let mockTenantContextService: any;
   let mockRichTextEditorsSettings: RichTextEditorsSettingsService;
   let mockUser: User | null;
@@ -113,6 +114,13 @@ describe('PrayerFormComponent', () => {
       success: vi.fn()
     };
 
+    mockPersonalCategoryColorService = {
+      colors$: of({}),
+      loadColors: vi.fn().mockResolvedValue({}),
+      getColor: vi.fn(() => '#2563EB'),
+      setColor: vi.fn().mockResolvedValue(true),
+    };
+
     mockRichTextEditorsSettings = {
       getRichTextEditorsEnabled$: vi.fn(() => of(true)),
     } as unknown as RichTextEditorsSettingsService;
@@ -123,6 +131,7 @@ describe('PrayerFormComponent', () => {
       mockUserSessionService,
       mockSupabaseService,
       mockToastService as any as ToastService,
+      mockPersonalCategoryColorService,
       mockChangeDetectorRef as ChangeDetectorRef,
       mockTenantContextService as any,
       { onDestroy: vi.fn() } as any,
@@ -885,6 +894,35 @@ describe('PrayerFormComponent', () => {
 
     it('should initialize selectedCategoryIndex as -1', () => {
       expect(component.selectedCategoryIndex).toBe(-1);
+    });
+
+    it('should save category color when dirty after personal prayer create', async () => {
+      mockPrayerService.addPersonalPrayer.mockResolvedValue(true);
+      component.currentUserEmail = 'test@example.com';
+      component.formData.is_personal = true;
+      component.formData.prayer_for = 'Someone';
+      component.formData.description = 'Details';
+      component.formData.category = 'Health';
+      component.onCategoryColorChange('#111111');
+
+      await component.handleSubmit();
+
+      expect(mockPersonalCategoryColorService.setColor).toHaveBeenCalledWith(
+        'Health',
+        '#111111'
+      );
+    });
+
+    it('should not save category color unless the user changed it', async () => {
+      mockPrayerService.addPersonalPrayer.mockResolvedValue(true);
+      component.currentUserEmail = 'test@example.com';
+      component.formData.prayer_for = 'Someone';
+      component.formData.description = 'Details';
+      component.formData.category = 'Health';
+
+      await component.handleSubmit();
+
+      expect(mockPersonalCategoryColorService.setColor).not.toHaveBeenCalled();
     });
   });
 

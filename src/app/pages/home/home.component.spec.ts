@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, of, NEVER } from 'rxjs';
 import { HomeComponent } from './home.component';
 import { PrayerRequest } from '../../services/prayer.service';
 
@@ -53,7 +53,8 @@ const makeMocks = () => {
     isLoading$: new BehaviorSubject(false).asObservable(),
     getUserEmail: vi.fn(() => null),
     getUserFullName: vi.fn(() => null),
-    getCurrentSession: vi.fn(() => null)
+    getCurrentSession: vi.fn(() => null),
+    getDefaultPrayerView: vi.fn(() => 'current'),
   };
 
   const badgeService: any = {
@@ -91,7 +92,8 @@ const makeMocks = () => {
   };
 
   const router: any = {
-    navigate: vi.fn()
+    navigate: vi.fn(),
+    events: NEVER,
   };
 
   const route: any = {
@@ -178,7 +180,12 @@ const makeMocks = () => {
     requireOnline: vi.fn(() => true),
   };
 
-  return { prayerService, promptService, adminAuthService, userSessionService, badgeService, cacheService, toastService, analyticsService, cdr, router, route, supabaseService, tenantPermissionService, tenantContextService, memorizationService, memorizationRecommendationsService, scriptureService, connectivity, prayersSubject, promptsSubject, userSessionSubject, allPersonalPrayersSubject };
+  const personalCategoryColorService: any = {
+    colors$: of({}),
+    loadColors: vi.fn().mockResolvedValue({}),
+  };
+
+  return { prayerService, promptService, adminAuthService, userSessionService, badgeService, cacheService, toastService, analyticsService, cdr, router, route, supabaseService, tenantPermissionService, tenantContextService, memorizationService, memorizationRecommendationsService, scriptureService, connectivity, personalCategoryColorService, prayersSubject, promptsSubject, userSessionSubject, allPersonalPrayersSubject };
 };
 
 let mocks: ReturnType<typeof makeMocks>;
@@ -225,7 +232,8 @@ const createHomeComponent = (
   memorizationService?: any,
   connectivity?: any,
   memorizationRecommendationsService?: any,
-  scriptureService?: any
+  scriptureService?: any,
+  personalCategoryColorService?: any
 ) => {
   const m = mocks;
   const comp = new HomeComponent(
@@ -245,7 +253,8 @@ const createHomeComponent = (
     connectivity ?? m.connectivity,
     memorizationService ?? m.memorizationService,
     memorizationRecommendationsService ?? m.memorizationRecommendationsService,
-    scriptureService ?? m.scriptureService
+    scriptureService ?? m.scriptureService,
+    personalCategoryColorService ?? m.personalCategoryColorService
   );
   const permissions = tenantPermissionService ?? m.tenantPermissionService;
   comp.canAccessShared = permissions.canAccessShared();
@@ -856,6 +865,204 @@ describe('HomeComponent', () => {
     );
     await comp.logout();
     expect(mocks.adminAuthService.logout).toHaveBeenCalled();
+  });
+
+  it('onPresentationLinkClick navigates with router state on primary click', () => {
+    const comp = createHomeComponent(
+      mocks.prayerService,
+      mocks.promptService,
+      mocks.adminAuthService,
+      mocks.userSessionService,
+      mocks.badgeService,
+      mocks.toastService,
+      mocks.analyticsService,
+      mocks.cdr,
+      mocks.router,
+      mocks.route,
+      mocks.supabaseService
+    );
+    comp.activeFilter = 'prompts';
+    const preventDefault = vi.fn();
+    comp.onPresentationLinkClick({
+      button: 0,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      altKey: false,
+      preventDefault,
+    } as unknown as MouseEvent);
+    expect(preventDefault).toHaveBeenCalled();
+    expect(mocks.router.navigate).toHaveBeenCalledWith(['/presentation'], {
+      state: {
+        presentationHomeHandoff: {
+          contentTypes: ['prompts'],
+          returnContext: {
+            activeFilter: 'prompts',
+          },
+        },
+      },
+    });
+  });
+
+  it('onPresentationLinkClick allows modifier clicks to use native link navigation', () => {
+    const comp = createHomeComponent(
+      mocks.prayerService,
+      mocks.promptService,
+      mocks.adminAuthService,
+      mocks.userSessionService,
+      mocks.badgeService,
+      mocks.toastService,
+      mocks.analyticsService,
+      mocks.cdr,
+      mocks.router,
+      mocks.route,
+      mocks.supabaseService
+    );
+    comp.activeFilter = 'prompts';
+    const preventDefault = vi.fn();
+    comp.onPresentationLinkClick({
+      button: 0,
+      ctrlKey: true,
+      metaKey: false,
+      shiftKey: false,
+      altKey: false,
+      preventDefault,
+    } as unknown as MouseEvent);
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(mocks.router.navigate).not.toHaveBeenCalled();
+    expect(comp.presentationHandoffQueryParams).toEqual({
+      homeTypes: 'prompts',
+      homeReturnFilter: 'prompts',
+    });
+  });
+
+  it('presentationHandoffQueryParams includes answered status from answered tab', () => {
+    const comp = createHomeComponent(
+      mocks.prayerService,
+      mocks.promptService,
+      mocks.adminAuthService,
+      mocks.userSessionService,
+      mocks.badgeService,
+      mocks.toastService,
+      mocks.analyticsService,
+      mocks.cdr,
+      mocks.router,
+      mocks.route,
+      mocks.supabaseService
+    );
+    comp.activeFilter = 'answered';
+    expect(comp.presentationHandoffQueryParams).toEqual({
+      homeTypes: 'prayers',
+      homeStatus: 'answered',
+      homeReturnFilter: 'answered',
+    });
+  });
+
+  it('presentationHandoffQueryParams includes selected prompt type', () => {
+    const comp = createHomeComponent(
+      mocks.prayerService,
+      mocks.promptService,
+      mocks.adminAuthService,
+      mocks.userSessionService,
+      mocks.badgeService,
+      mocks.toastService,
+      mocks.analyticsService,
+      mocks.cdr,
+      mocks.router,
+      mocks.route,
+      mocks.supabaseService
+    );
+    comp.activeFilter = 'prompts';
+    comp.selectedPromptTypes = ['Church'];
+    expect(comp.presentationHandoffQueryParams).toEqual({
+      homeTypes: 'prompts',
+      homePromptCats: 'Church',
+      homeReturnFilter: 'prompts',
+    });
+  });
+
+  it('presentationHandoffQueryParams maps memorize tab to personal when default view is personal', () => {
+    mocks.userSessionService.getDefaultPrayerView.mockReturnValue('personal');
+    const comp = createHomeComponent(
+      mocks.prayerService,
+      mocks.promptService,
+      mocks.adminAuthService,
+      mocks.userSessionService,
+      mocks.badgeService,
+      mocks.toastService,
+      mocks.analyticsService,
+      mocks.cdr,
+      mocks.router,
+      mocks.route,
+      mocks.supabaseService
+    );
+    comp.activeFilter = 'memorize';
+    expect(comp.presentationHandoffQueryParams).toEqual({
+      homeTypes: 'personal',
+      homeReturnFilter: 'memorize',
+    });
+  });
+
+  it('onPresentationLinkClick passes answered status in router state', () => {
+    const comp = createHomeComponent(
+      mocks.prayerService,
+      mocks.promptService,
+      mocks.adminAuthService,
+      mocks.userSessionService,
+      mocks.badgeService,
+      mocks.toastService,
+      mocks.analyticsService,
+      mocks.cdr,
+      mocks.router,
+      mocks.route,
+      mocks.supabaseService
+    );
+    comp.activeFilter = 'answered';
+    const preventDefault = vi.fn();
+    comp.onPresentationLinkClick({
+      button: 0,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      altKey: false,
+      preventDefault,
+    } as unknown as MouseEvent);
+    expect(mocks.router.navigate).toHaveBeenCalledWith(['/presentation'], {
+      state: {
+        presentationHomeHandoff: {
+          contentTypes: ['prayers'],
+          statusFilters: { current: false, answered: true },
+          returnContext: {
+            activeFilter: 'answered',
+          },
+        },
+      },
+    });
+  });
+
+  it('applyHomeReturnContext restores personal tab and category', () => {
+    const comp = createHomeComponent(
+      mocks.prayerService,
+      mocks.promptService,
+      mocks.adminAuthService,
+      mocks.userSessionService,
+      mocks.badgeService,
+      mocks.toastService,
+      mocks.analyticsService,
+      mocks.cdr,
+      mocks.router,
+      mocks.route,
+      mocks.supabaseService
+    );
+    const setFilterSpy = vi.spyOn(comp, 'setFilter');
+
+    comp['applyHomeReturnContext']({
+      activeFilter: 'personal',
+      selectedPersonalCategories: ['Evening'],
+    });
+
+    expect(setFilterSpy).toHaveBeenCalledWith('personal');
+    expect(comp.selectedPersonalCategories).toEqual(['Evening']);
   });
 
   it('navigateToAdmin navigates when admin access is allowed', () => {
@@ -3114,6 +3321,45 @@ describe('HomeComponent', () => {
       expect(comp.viewReady).toBe(true);
       expect(comp.activeFilter).toBe('current');
       expect(comp.canAccessShared).toBe(true);
+    });
+
+    it('should set viewReady when restoring home from presentation return context', async () => {
+      const mocks = makeMocks();
+      const replaceState = vi.fn();
+      vi.stubGlobal('history', {
+        state: {
+          homeReturnContext: {
+            activeFilter: 'current',
+          },
+        },
+        replaceState,
+      });
+
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService,
+        mocks.tenantPermissionService,
+        mocks.tenantContextService
+      );
+
+      comp.ngOnInit();
+      mocks.userSessionSubject.next({ defaultPrayerView: 'personal' });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(comp.viewReady).toBe(true);
+      expect(comp.activeFilter).toBe('current');
+      expect(comp.canAccessShared).toBe(true);
+      vi.unstubAllGlobals();
     });
 
     it('should handle error loading personal prayers gracefully', async () => {

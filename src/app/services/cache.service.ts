@@ -81,6 +81,7 @@ export class CacheService {
         if (
           key.startsWith('tenant_') ||
           key.startsWith('personalTenant_') ||
+          key.startsWith('personalCategoryColors_') ||
           key.startsWith('prompts:') ||
           key.startsWith('memorizationRecommendations:')
         ) {

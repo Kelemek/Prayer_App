@@ -11,6 +11,7 @@ describe('PersonalPrayerEditModalComponent', () => {
   let prayerService: any;
   let toastService: any;
   let changeDetectorRef: any;
+  let personalCategoryColorService: any;
 
   const mockPrayer: PrayerRequest = {
     id: '123',
@@ -35,9 +36,17 @@ describe('PersonalPrayerEditModalComponent', () => {
       markForCheck: vi.fn()
     };
 
+    personalCategoryColorService = {
+      colors$: of({}),
+      loadColors: vi.fn().mockResolvedValue({}),
+      getColor: vi.fn(() => '#2563EB'),
+      setColor: vi.fn().mockResolvedValue(true),
+    };
+
     component = new PersonalPrayerEditModalComponent(
       prayerService,
       toastService,
+      personalCategoryColorService,
       changeDetectorRef,
       { onDestroy: vi.fn() } as any,
       {
@@ -283,6 +292,37 @@ describe('PersonalPrayerEditModalComponent', () => {
 
       expect(component.close.emit).not.toHaveBeenCalled();
       expect(toastService.success).not.toHaveBeenCalled();
+    });
+
+    it('should not save category color unless the user changed it', async () => {
+      prayerService.updatePersonalPrayer.mockResolvedValue(true);
+
+      await component.handleSubmit();
+
+      expect(personalCategoryColorService.setColor).not.toHaveBeenCalled();
+    });
+
+    it('should save category color when the user changes it in the picker', async () => {
+      prayerService.updatePersonalPrayer.mockResolvedValue(true);
+      component.onCategoryColorChange('#111111');
+
+      await component.handleSubmit();
+
+      expect(personalCategoryColorService.setColor).toHaveBeenCalledWith(
+        'Health',
+        '#111111'
+      );
+    });
+
+    it('should not close when category color save fails after prayer update', async () => {
+      prayerService.updatePersonalPrayer.mockResolvedValue(true);
+      personalCategoryColorService.setColor.mockResolvedValue(false);
+      vi.spyOn(component.close, 'emit');
+      component.onCategoryColorChange('#111111');
+
+      await component.handleSubmit();
+
+      expect(component.close.emit).not.toHaveBeenCalled();
     });
 
     it('should call markForCheck when setting isSubmitting to true', async () => {

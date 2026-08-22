@@ -30,7 +30,7 @@ import { ToastService } from "../../services/toast.service";
         <button
           (click)="claimInvite()"
           [disabled]="loading || !token"
-          class="w-full px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+          class="w-full px-4 py-2 rounded-md btn-chip btn-chip-blue disabled:opacity-60"
         >
           {{ loading ? "Claiming..." : "Claim Invite" }}
         </button>

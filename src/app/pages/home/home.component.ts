@@ -8,7 +8,12 @@ import {
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
-import { RouterModule, Router, ActivatedRoute } from "@angular/router";
+import {
+  RouterModule,
+  Router,
+  ActivatedRoute,
+  NavigationEnd,
+} from "@angular/router";
 import { ChangeDetectorRef } from "@angular/core";
 import {
   CdkDragDrop,
@@ -45,6 +50,7 @@ import { SupabaseService } from "../../services/supabase.service";
 import { BadgeService } from "../../services/badge.service";
 import { Observable, take, Subject, takeUntil, filter, map, distinctUntilChanged, skip, combineLatest } from "rxjs";
 import { ToastService } from "../../services/toast.service";
+import { PersonalCategoryColorService } from "../../services/personal-category-color.service";
 import { AnalyticsService } from "../../services/analytics.service";
 import { PullToRefreshDirective } from "../../directives/pull-to-refresh.directive";
 import { TenantPermissionService } from "../../services/tenant-permission.service";
@@ -87,6 +93,7 @@ import {
   type SelectablePresentationContentType,
   type HomeReturnContext,
 } from "../../types/presentation";
+import { mapHomeFilterToContentType } from "../../services/presentation-settings.service";
 @Component({
   selector: "app-home",
   standalone: true,
@@ -289,6 +296,7 @@ import {
                 </svg>
               </button>
               <a
+                id="tour-btn-prayer-mode-mobile"
                 routerLink="/presentation"
                 [queryParams]="presentationHandoffQueryParams"
                 (click)="onPresentationLinkClick($event)"
@@ -410,6 +418,7 @@ import {
                     </svg>
                   </button>
                   <a
+                    id="tour-btn-prayer-mode-desktop"
                     routerLink="/presentation"
                     [queryParams]="presentationHandoffQueryParams"
                     (click)="onPresentationLinkClick($event)"
@@ -1205,6 +1214,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     | "personal"
     | "memorize" = "current";
   viewReady = false;
+  private pendingHomeReturnContext: HomeReturnContext | null = null;
   selectedPromptTypes: string[] = [];
   selectedPersonalCategories: string[] = [];
   isCategoryDragging = false;
@@ -1263,7 +1273,8 @@ export class HomeComponent implements OnInit, OnDestroy {
     private connectivity: ConnectivityService,
     public memorizationService: MemorizationService,
     public memorizationRecommendationsService: MemorizationRecommendationsService,
-    private scriptureService: ScriptureService
+    private scriptureService: ScriptureService,
+    private personalCategoryColorService: PersonalCategoryColorService
   ) {
     const windowCache = (window as { __cachedLogos?: { tenantId?: string | null; useLogo?: boolean } }).__cachedLogos;
     const tenantId = localStorage.getItem("active_tenant_id");
@@ -1280,10 +1291,30 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.pendingHomeReturnContext = this.consumeHomeReturnContext();
+
     // Track page view on home component load
     this.analyticsService.trackPageView();
 
-    this.consumeHomeReturnContext();
+    this.router.events
+      .pipe(
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((e) => {
+        if (!this.isRouterUrlHome(e.urlAfterRedirects)) {
+          return;
+        }
+        const returnContext = this.consumeHomeReturnContext();
+        if (returnContext) {
+          if (this.viewReady) {
+            this.applyHomeReturnContext(returnContext);
+            this.cdr.markForCheck();
+          } else {
+            this.pendingHomeReturnContext = returnContext;
+          }
+        }
+      });
 
     this.route.queryParams
       .pipe(takeUntil(this.destroy$))
@@ -1482,7 +1513,15 @@ export class HomeComponent implements OnInit, OnDestroy {
     ])
       .pipe(take(1), takeUntil(this.destroy$))
       .subscribe(([session]) => {
-        this.applyInitialView(session);
+        if (this.pendingHomeReturnContext) {
+          this.canAccessShared = this.tenantPermissionService.canAccessShared();
+          this.applyHomeReturnContext(this.pendingHomeReturnContext);
+          this.pendingHomeReturnContext = null;
+          this.viewReady = true;
+          this.cdr.markForCheck();
+        } else {
+          this.applyInitialView(session);
+        }
       });
   }
 
@@ -1522,6 +1561,7 @@ export class HomeComponent implements OnInit, OnDestroy {
       const session = this.userSessionService.getCurrentSession();
       if (session && session.email) {
         tasks.push(this.prayerService.loadPersonalPrayers(false));
+        tasks.push(this.personalCategoryColorService.loadColors(true));
         tasks.push(this.memorizationService.loadItems());
       }
 
@@ -2498,9 +2538,12 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   private getPresentationHomeHandoff() {
+    const defaultPrayerView =
+      this.userSessionService.getDefaultPrayerView() ?? "current";
     const contentTypes: SelectablePresentationContentType[] = [
-      this.mapHomeFilterToContentType(
-        this.activeFilter as HomePresentationFilter
+      mapHomeFilterToContentType(
+        this.activeFilter as HomePresentationFilter,
+        defaultPrayerView
       ),
     ];
     return buildPresentationHomeHandoff({
@@ -2509,27 +2552,6 @@ export class HomeComponent implements OnInit, OnDestroy {
       selectedPromptTypes: this.selectedPromptTypes,
       selectedPersonalCategories: this.selectedPersonalCategories,
     });
-  }
-
-  private mapHomeFilterToContentType(
-    filter: HomePresentationFilter
-  ): SelectablePresentationContentType {
-    switch (filter) {
-      case 'current':
-      case 'answered':
-      case 'total':
-        return 'prayers';
-      case 'prompts':
-        return 'prompts';
-      case 'personal':
-        return 'personal';
-      case 'memorize':
-        return 'prayers';
-      default: {
-        const _exhaustive: never = filter;
-        return _exhaustive;
-      }
-    }
   }
 
   private consumeHomeReturnContext(): HomeReturnContext | null {
@@ -2543,9 +2565,14 @@ export class HomeComponent implements OnInit, OnDestroy {
       { ...state, [HOME_RETURN_CONTEXT_STATE_KEY]: undefined },
       ""
     );
-
-    this.applyHomeReturnContext(returnContext);
     return returnContext;
+  }
+
+  /** True when the post-redirect URL is the app root (home). */
+  private isRouterUrlHome(urlAfterRedirects: string): boolean {
+    const path =
+      (urlAfterRedirects.split(/[?#]/)[0] ?? "").replace(/\/+$/, "") || "/";
+    return path === "/" || path === "";
   }
 
   private applyHomeReturnContext(context: HomeReturnContext): void {

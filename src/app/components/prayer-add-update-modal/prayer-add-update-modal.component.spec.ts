@@ -32,11 +32,12 @@ describe("PrayerAddUpdateModalComponent", () => {
   });
 
   it("handleSubmit emits payload and resets form fields", () => {
-    const flush = vi.fn();
+    const flush = vi.fn().mockReturnValue("Test update");
+    component.richTextEditorsEnabled = true;
     component.addUpdateRichText = {
       flushMarkdownToForm: flush,
     } as unknown as RichTextEditorComponent;
-    component.updateContent = "Test update";
+    component.updateContent = "";
     component.updateIsAnonymous = true;
     component.updateMarkAsAnswered = true;
     const spy = vi.spyOn(component.submit, "emit");
@@ -52,6 +53,30 @@ describe("PrayerAddUpdateModalComponent", () => {
     expect(component.updateContent).toBe("");
     expect(component.updateIsAnonymous).toBe(false);
     expect(component.updateMarkAsAnswered).toBe(false);
+  });
+
+  it("handleSubmit uses textarea content when rich text is disabled", () => {
+    component.richTextEditorsEnabled = false;
+    component.updateContent = "Plain text update";
+    const spy = vi.spyOn(component.submit, "emit");
+
+    component.handleSubmit();
+
+    expect(spy).toHaveBeenCalledWith({
+      content: "Plain text update",
+      is_anonymous: false,
+      mark_as_answered: false,
+    });
+  });
+
+  it("handleSubmit does not emit when content is empty", () => {
+    component.richTextEditorsEnabled = false;
+    component.updateContent = "   ";
+    const spy = vi.spyOn(component.submit, "emit");
+
+    component.handleSubmit();
+
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it("closeModal emits close and resets form fields", () => {

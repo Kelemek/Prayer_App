@@ -331,15 +331,23 @@ export class RichTextEditorComponent
    * Push the latest Markdown from the editor into the bound ControlValueAccessor / ngModel.
    * Call this immediately before reading the model on form submit so lists and the last
    * keystroke are not lost (ProseMirror may not have fired onUpdate yet).
+   * Returns the markdown that was flushed (or the current bound value when the editor is unavailable).
    */
-  flushMarkdownToForm(): void {
-    if (!this.editor || this.disabled) return;
+  flushMarkdownToForm(): string {
+    if (!this.editor || this.disabled) {
+      return this.value ?? '';
+    }
     const storage = this.editor.storage as unknown as Record<string, { getMarkdown?: () => string } | undefined>;
-    const md = storage['markdown']?.getMarkdown?.() ?? '';
+    let md = storage['markdown']?.getMarkdown?.() ?? '';
+    if (!md.trim() && this.editor.getText().trim()) {
+      md = this.editor.getText();
+    }
     this.lastEmitted = md;
+    this.value = md;
     this.onChange(md);
     this.valueChange.emit(md);
     this.cdr.markForCheck();
+    return md;
   }
 
   /** Exposes plain text length (useful for required-validation callers). */

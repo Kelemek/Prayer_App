@@ -4461,6 +4461,22 @@ describe('PrayerService - Integration Tests', () => {
       expect(mockToastService.error).toHaveBeenCalled();
     });
 
+    it('addPersonalPrayerUpdate rejects empty content before insert', async () => {
+      const insert = vi.fn();
+      mockSupabaseService.client.from.mockImplementation((table: string) => {
+        if (table === 'personal_prayer_updates') {
+          return { insert };
+        }
+        return { insert: vi.fn() };
+      });
+
+      const result = await service.addPersonalPrayerUpdate('p1', '   ', 'Me', 'me@test.com', false);
+
+      expect(result).toBe(false);
+      expect(insert).not.toHaveBeenCalled();
+      expect(mockToastService.error).toHaveBeenCalledWith('Update content is required');
+    });
+
     it('deletePersonalPrayerUpdate removes update and updates cache', async () => {
       const prayer = {
         id: 'p1',

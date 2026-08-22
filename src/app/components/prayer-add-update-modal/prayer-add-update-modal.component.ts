@@ -182,13 +182,23 @@ export class PrayerAddUpdateModalComponent implements OnChanges {
   }
 
   handleSubmit(): void {
-    this.addUpdateRichText?.flushMarkdownToForm();
+    const content = this.resolveUpdateContent();
+    if (!content.trim()) {
+      return;
+    }
     this.submit.emit({
-      content: this.updateContent,
+      content,
       is_anonymous: this.updateIsAnonymous,
       mark_as_answered: this.updateMarkAsAnswered,
     });
     this.resetForm();
+  }
+
+  private resolveUpdateContent(): string {
+    if (this.richTextEditorsEnabled) {
+      return this.addUpdateRichText?.flushMarkdownToForm() ?? this.updateContent ?? '';
+    }
+    return this.updateContent ?? '';
   }
 
   closeModal(): void {
