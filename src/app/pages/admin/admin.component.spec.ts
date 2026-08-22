@@ -324,7 +324,7 @@ describe('AdminComponent', () => {
     };
     // Build consolidated approvals based on the data (2 prayers + 1 prayer with update = 3 consolidated items if updates merged)
     // But since the test uses simple numbers instead of prayer objects, we need to mock consolidatedApprovals
-    component.consolidatedApprovals = [1, 2, 3]; // 2 pending prayers + 1 prayer with update = 3 consolidated
+    component.consolidatedApprovals = [{}, {}, {}] as any; // 2 pending prayers + 1 prayer with update = 3 consolidated
     
     // Total: 3 consolidated + 3 deletion requests + 0 update deletion requests + 1 account request = 7
     expect(component.totalPendingCount).toBe(7);
@@ -524,12 +524,6 @@ describe('AdminComponent', () => {
     expect(tabSpy).toHaveBeenCalledWith('settings');
 
     tabSpy.mockClear();
-    component.activeTab = 'updates';
-    component['adminData'] = { pendingUpdates: [], pendingDeletionRequests: [], pendingPrayers: [] };
-    component['autoProgressTabs']();
-    expect(tabSpy).toHaveBeenCalledWith('settings');
-
-    tabSpy.mockClear();
     component.activeTab = 'deletions';
     component['adminData'] = { pendingDeletionRequests: [], pendingPrayers: [], pendingUpdates: [] };
     component['autoProgressTabs']();
@@ -541,12 +535,6 @@ describe('AdminComponent', () => {
 
     component.activeTab = 'prayers';
     component['adminData'] = { pendingPrayers: undefined, pendingUpdates: undefined, pendingDeletionRequests: undefined };
-    component['autoProgressTabs']();
-    expect(tabSpy).toHaveBeenCalledWith('settings');
-
-    tabSpy.mockClear();
-    component.activeTab = 'updates';
-    component['adminData'] = { pendingUpdates: undefined, pendingDeletionRequests: undefined, pendingPrayers: undefined };
     component['autoProgressTabs']();
     expect(tabSpy).toHaveBeenCalledWith('settings');
 
@@ -567,7 +555,7 @@ describe('AdminComponent', () => {
 
   it('autoProgressTabs does not change tabs when pending lists are non-empty (updates)', () => {
     const tabSpy = vi.spyOn(component, 'onTabChange');
-    component.activeTab = 'updates';
+    component.activeTab = 'prayers';
     component['adminData'] = { pendingUpdates: [{ id: 'u1' }], pendingDeletionRequests: [], pendingPrayers: [] };
     component['autoProgressTabs']();
     expect(tabSpy).not.toHaveBeenCalled();
@@ -892,9 +880,8 @@ describe('AdminComponent', () => {
     });
 
     it('should track active tabs correctly', () => {
-      const tabs: Array<'prayers' | 'updates' | 'deletions' | 'accounts' | 'settings'> = [
+      const tabs: Array<'prayers' | 'deletions' | 'accounts' | 'settings'> = [
         'prayers',
-        'updates',
         'deletions',
         'accounts',
         'settings'
