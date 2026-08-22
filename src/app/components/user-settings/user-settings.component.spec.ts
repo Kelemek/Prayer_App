@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { of } from 'rxjs';
 import { UserSettingsComponent } from './user-settings.component';
 import { ThemeService } from '../../services/theme.service';
 import { TextSizeService } from '../../services/text-size.service';
 import { SupabaseService } from '../../services/supabase.service';
 import { PrintService } from '../../services/print.service';
 import { PrayerService } from '../../services/prayer.service';
-import { EmailNotificationService } from '../../services/email-notification.service';
 import { AdminAuthService } from '../../services/admin-auth.service';
 import { UserSessionService } from '../../services/user-session.service';
 import { CapacitorService } from '../../services/capacitor.service';
@@ -38,15 +38,14 @@ describe('UserSettingsComponent', () => {
   let mockSupabaseService: any;
   let mockPrintService: any;
   let mockPrayerService: any;
-  let mockEmailNotificationService: any;
   let mockAdminAuthService: any;
   let mockBadgeService: any;
   let mockUserSessionService: any;
   let mockCapacitorService: any;
+  let mockPrayerEncouragementService: any;
   let mockMembershipPrefs: any;
   let mockChangeDetectorRef: any;
   let mockConnectivity: any;
-  let mockToast: any;
 
   beforeEach(() => {
     localStorage.clear();
@@ -98,14 +97,13 @@ describe('UserSettingsComponent', () => {
 
     mockPrintService = {
       downloadPrintablePrayerList: vi.fn(() => Promise.resolve()),
-      downloadPrintablePromptList: vi.fn(() => Promise.resolve())
+      downloadPrintablePromptList: vi.fn(() => Promise.resolve()),
+      downloadPrintablePersonalPrayerList: vi.fn(() => Promise.resolve()),
     };
 
     mockPrayerService = {
       getUniqueCategoriesForUser: vi.fn().mockImplementation(() => Promise.resolve(['Health', 'Family', 'Work']))
     };
-
-    mockEmailNotificationService = {};
 
     mockAdminAuthService = {
       logout: vi.fn(() => Promise.resolve())
@@ -126,7 +124,10 @@ describe('UserSettingsComponent', () => {
         receiveAdminEmails: false,
         receivePush: true
       })),
-      updateUserSession: vi.fn(async () => ({}))
+      updateUserSession: vi.fn(async () => ({})),
+      loadUserSession: vi.fn(async () => {}),
+      getPersonalPrayerCooldownHours: vi.fn(() => 4),
+      getPersonalPrayerCooldownHours$: vi.fn(() => of(4)),
     };
 
     mockCapacitorService = {
@@ -162,26 +163,31 @@ describe('UserSettingsComponent', () => {
       markForCheck: vi.fn()
     };
 
+    mockPrayerEncouragementService = {
+      getPrayerEncouragementEnabled$: vi.fn(() => of(true)),
+    };
+
     mockConnectivity = {
       isOnline: vi.fn(() => true),
       requireOnline: vi.fn(() => true),
       isOnline$: { subscribe: vi.fn() },
     };
-    mockToast = { info: vi.fn(), error: vi.fn(), success: vi.fn(), warning: vi.fn() };
 
     component = new UserSettingsComponent(
       mockThemeService,
       mockTextSizeService,
+      mockPrintService as PrintService,
       mockSupabaseService,
+      mockPrayerService,
       mockAdminAuthService,
       mockGitHubFeedbackService as any,
       mockBadgeService as any,
       mockUserSessionService,
       mockCapacitorService as CapacitorService,
+      mockPrayerEncouragementService as any,
       mockTenantContextService as any,
       mockMembershipPrefs as any,
       mockConnectivity as any,
-      mockToast as any,
       mockChangeDetectorRef as ChangeDetectorRef
     );
   });

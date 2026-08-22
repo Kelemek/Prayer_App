@@ -1,0 +1,18 @@
+<!-- Delete account -->
+<div
+  class="settings-modal-section-card border border-red-200 dark:border-red-800 rounded-lg p-3 sm:p-4"
+>
+  <p class="text-sm text-gray-700 dark:text-gray-300 mb-2">
+    Remove your account and sign out. You can choose to keep your
+    prayers so they continue to be lifted up.
+  </p>
+  <button
+    type="button"
+    (click)="host.showDeleteAccountVerification = true"
+    title="Delete your account"
+    class="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 underline cursor-pointer"
+    aria-label="Delete your account"
+  >
+    Delete your account
+  </button>
+</div>
