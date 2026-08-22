@@ -30,6 +30,16 @@ import { PersonalCategoryColorService } from "../../services/personal-category-c
 import { PersonalCategoryColorPickerComponent } from "../personal-category-color-picker/personal-category-color-picker.component";
 import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.component";
 import { ModalShellComponent } from "../modal-shell/modal-shell.component";
+import {
+  EMPTY_PRAYER_FORM_FIELDS,
+  buildPrayerFormSubmitPayload,
+  submitPrayerFormRequest,
+} from "../../lib/prayer-form-submit";
+import {
+  filterPersonalPrayerCategories,
+  nextCategorySelectionIndex,
+  prayerFormCategoryKeyAction,
+} from "../../lib/prayer-form-category";
 
 @Component({
   selector: "app-prayer-form",
@@ -497,14 +507,10 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private updateFilteredCategories(): void {
-    const searchTerm = this.formData.category.toLowerCase().trim();
-    if (searchTerm === "") {
-      this.filteredCategories = [];
-    } else {
-      this.filteredCategories = this.availableCategories.filter((cat) =>
-        cat.toLowerCase().includes(searchTerm)
-      );
-    }
+    this.filteredCategories = filterPersonalPrayerCategories(
+      this.availableCategories,
+      this.formData.category
+    );
     this.selectedCategoryIndex = -1;
   }
 
@@ -519,41 +525,42 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   onCategoryKeyDown(event: KeyboardEvent): void {
-    if (!this.showCategoryDropdown || this.filteredCategories.length === 0) {
-      if (event.key === "Enter") {
+    const action = prayerFormCategoryKeyAction(
+      event.key,
+      this.showCategoryDropdown,
+      this.filteredCategories,
+      this.selectedCategoryIndex
+    );
+    if (action.type === "noop") {
+      if (
+        event.key === "Enter" &&
+        (!this.showCategoryDropdown || this.filteredCategories.length === 0)
+      ) {
         event.preventDefault();
       }
       return;
     }
 
-    switch (event.key) {
-      case "ArrowDown":
-        event.preventDefault();
-        this.selectedCategoryIndex = Math.min(
-          this.selectedCategoryIndex + 1,
-          this.filteredCategories.length - 1
-        );
+    event.preventDefault();
+    this.selectedCategoryIndex = nextCategorySelectionIndex(
+      action,
+      this.selectedCategoryIndex,
+      this.filteredCategories.length
+    );
+    switch (action.type) {
+      case "move-down":
+      case "move-up":
         break;
-      case "ArrowUp":
-        event.preventDefault();
-        this.selectedCategoryIndex = Math.max(
-          this.selectedCategoryIndex - 1,
-          -1
-        );
+      case "select":
+        this.selectCategory(action.category);
         break;
-      case "Enter":
-        event.preventDefault();
-        if (this.selectedCategoryIndex >= 0) {
-          this.selectCategory(
-            this.filteredCategories[this.selectedCategoryIndex]
-          );
-        }
-        break;
-      case "Escape":
-        event.preventDefault();
+      case "close":
         this.showCategoryDropdown = false;
-        this.selectedCategoryIndex = -1;
         break;
+      default: {
+        const _exhaustive: never = action;
+        return _exhaustive;
+      }
     }
     this.cdr.markForCheck();
   }
@@ -582,18 +589,12 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
         this.currentUserEmail
       );
 
-      const prayerData = {
-        title: `Prayer for ${this.formData.prayer_for}`,
-        description: this.formData.description,
-        requester: fullName,
-        prayer_for: this.formData.prayer_for,
-        email: this.currentUserEmail,
-        is_anonymous: this.formData.is_anonymous,
-        category: this.formData.category || undefined,
-        status: "current" as const,
-      };
+      const prayerData = buildPrayerFormSubmitPayload(
+        this.formData,
+        this.currentUserEmail,
+        fullName
+      );
 
-      // User is logged in - submit directly without verification
       await this.submitPrayer(prayerData);
     } catch (error) {
       console.error("Failed to initiate prayer submission:", error);
@@ -603,47 +604,29 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
-  private async submitPrayer(prayerData: any): Promise<void> {
+  private async submitPrayer(
+    prayerData: ReturnType<typeof buildPrayerFormSubmitPayload>
+  ): Promise<void> {
     try {
-      const isPersonal = this.formData.is_personal;
-      const success = isPersonal
-        ? await this.prayerService.addPersonalPrayer(prayerData)
-        : await this.prayerService.addPrayer(prayerData);
+      const result = await submitPrayerFormRequest(
+        this.prayerService,
+        this.personalCategoryColorService,
+        this.formData,
+        prayerData,
+        this.categoryColor,
+        this.categoryColorDirty
+      );
 
-      if (success) {
-        if (
-          isPersonal &&
-          this.formData.category.trim() &&
-          this.categoryColorDirty
-        ) {
-          const colorSaved = await this.personalCategoryColorService.setColor(
-            this.formData.category,
-            this.categoryColor
-          );
-          if (!colorSaved) {
-            return;
-          }
-        }
-
+      if (result.ok) {
         this.showSuccessMessage = true;
         this.cdr.markForCheck();
 
-        // Emit close immediately so personal prayers list refreshes right away
-        this.close.emit({ isPersonal });
+        this.close.emit({ isPersonal: result.isPersonal });
 
-        // Reset form
-        this.formData = {
-          title: "",
-          description: "",
-          prayer_for: "",
-          is_anonymous: false,
-          is_personal: false,
-          category: "",
-        };
+        this.formData = { ...EMPTY_PRAYER_FORM_FIELDS };
         this.categoryColor = '#2563EB';
         this.categoryColorDirty = false;
 
-        // Auto-close after 5 seconds
         setTimeout(() => {
           this.showSuccessMessage = false;
           this.cdr.markForCheck();
@@ -659,14 +642,7 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   cancel(): void {
-    this.formData = {
-      title: "",
-      description: "",
-      prayer_for: "",
-      is_anonymous: false,
-      is_personal: false,
-      category: "",
-    };
+    this.formData = { ...EMPTY_PRAYER_FORM_FIELDS };
     this.showSuccessMessage = false;
     this.isSubmitting = false;
     this.showCategoryDropdown = false;

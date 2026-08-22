@@ -8,6 +8,7 @@ describe('PrayerCardComponent', () => {
   let component: PrayerCardComponent;
   let mockSupabaseService: any;
   let mockUserSessionService: any;
+  let mockBadgeService: any;
   const mockRichTextEditorsSettingsService = {
     getRichTextEditorsEnabled$: vi.fn().mockReturnValue(of(true)),
   };
@@ -58,12 +59,20 @@ describe('PrayerCardComponent', () => {
       })
     };
 
+    mockBadgeService = {
+      isPrayerUnread: vi.fn().mockReturnValue(false),
+      isUpdateUnread: vi.fn().mockReturnValue(false),
+      getUpdateBadgesChanged$: vi.fn().mockReturnValue(of(null)),
+      markPrayerAsRead: vi.fn(),
+      markUpdateAsRead: vi.fn(),
+      getBadgeFunctionalityEnabled$: vi.fn().mockReturnValue(of(true)),
+    };
+
     component = new PrayerCardComponent(
-      mockSupabaseService,
       mockUserSessionService,
+      mockBadgeService,
       {} as any,
-      {} as any,
-      {} as any,
+      { getCanPrayFor$: vi.fn().mockReturnValue(of(true)) } as any,
       { markForCheck: vi.fn() } as any,
       mockRichTextEditorsSettingsService as any
     );
@@ -96,12 +105,12 @@ describe('PrayerCardComponent', () => {
     expect(component.getBorderClass()).toContain('C9A961');
   });
 
-  it('getBorderClass uses neutral border for personal prayers', () => {
+  it('getBorderClass uses Personal tab green for personal prayers', () => {
     component.isPersonal = true;
     (component.prayer as any).status = 'current';
-    expect(component.getBorderClass()).toContain('border-gray-300');
-    expect(component.getBorderClass()).toContain('dark:!border-gray-600');
+    expect(component.getBorderClass()).toContain('2F5F54');
     expect(component.getBorderClass()).not.toContain('0047AB');
+    expect(component.getBorderClass()).not.toContain('border-gray-300');
   });
 
   it('getStatusBadgeClasses varies by status', () => {
@@ -452,8 +461,7 @@ describe('PrayerCardComponent', () => {
       const localCdr = { markForCheck: vi.fn() };
 
       const localComponent = new PrayerCardComponent(
-        mockSupabaseService as any,
-        mockUserSessionService as any,
+      mockUserSessionService as any,
         { getBadgeFunctionalityEnabled$: () => of(false) } as any,
         localPrayerService as any,
         localPrayerEncouragementService as any,
@@ -529,8 +537,7 @@ describe('PrayerCardComponent', () => {
       mockCdr = { markForCheck: vi.fn() };
 
       prayForComponent = new PrayerCardComponent(
-        mockSupabaseService as any,
-        mockUserSessionService as any,
+      mockUserSessionService as any,
         { getBadgeFunctionalityEnabled$: () => of(false) } as any,
         mockPrayerService,
         mockPrayerEncouragementService,
@@ -641,8 +648,7 @@ describe('PrayerCardComponent', () => {
       };
 
       component = new PrayerCardComponent(
-        mockSupabaseService as any,
-        mockUserSessionService as any,
+      mockUserSessionService as any,
         {} as any,
         {} as any,
         {} as any,
@@ -780,8 +786,7 @@ describe('PrayerCardComponent', () => {
       const mockSupabaseService = { client: {} };
       const mockUserSessionService = { userSession$: of(null) };
       component = new PrayerCardComponent(
-        mockSupabaseService as any,
-        mockUserSessionService as any,
+      mockUserSessionService as any,
         {} as any,
         {} as any,
         {} as any,
@@ -884,8 +889,7 @@ describe('PrayerCardComponent', () => {
       const mockSupabaseService = { client: {} };
       const mockUserSessionService = { userSession$: of(null) };
       component = new PrayerCardComponent(
-        mockSupabaseService as any,
-        mockUserSessionService as any,
+      mockUserSessionService as any,
         {} as any,
         {} as any,
         {} as any,
@@ -966,8 +970,7 @@ describe('PrayerCardComponent', () => {
         userSession$: of(null)
       };
       component = new PrayerCardComponent(
-        mockSupabaseService as any,
-        mockUserSessionService as any,
+      mockUserSessionService as any,
         {} as any,
         {} as any,
         {} as any,
@@ -1000,7 +1003,14 @@ describe('PrayerCardComponent', () => {
     });
 
     it('should emit addUpdate event when update is added', () => {
-      const updateData = { id: 'u1', content: 'Update', author: 'Jane' };
+      const updateData = {
+        prayer_id: '1',
+        content: 'Update',
+        author: 'Jane',
+        author_email: 'jane@example.com',
+        is_anonymous: false,
+        mark_as_answered: false,
+      };
 
       const emitSpy = vi.spyOn(component.addUpdate, 'emit');
       component.addUpdate.emit(updateData);
@@ -1041,8 +1051,7 @@ describe('PrayerCardComponent', () => {
       const mockSupabaseService = { client: {} };
       const mockUserSessionService = { userSession$: of(null) };
       component = new PrayerCardComponent(
-        mockSupabaseService as any,
-        mockUserSessionService as any,
+      mockUserSessionService as any,
         {} as any,
         {} as any,
         {} as any,
@@ -1096,8 +1105,7 @@ describe('PrayerCardComponent', () => {
       const mockSupabaseService = { client: {} };
       const mockUserSessionService = { userSession$: of(null) };
       component = new PrayerCardComponent(
-        mockSupabaseService as any,
-        mockUserSessionService as any,
+      mockUserSessionService as any,
         {} as any,
         {} as any,
         {} as any,
@@ -1216,19 +1224,11 @@ describe('PrayerCardComponent', () => {
   });
 
   describe('Additional Coverage - Update and Deletion Interactions', () => {
-    let mockBadgeService: any;
-
     beforeEach(() => {
-      // Setup mock badge service for these tests
-      mockBadgeService = {
-        isPrayerUnread: vi.fn().mockReturnValue(false),
-        isUpdateUnread: vi.fn().mockReturnValue(false),
-        getBadgeFunctionalityEnabled$: vi.fn().mockReturnValue(of(true)),
-        getUpdateBadgesChanged$: vi.fn().mockReturnValue(of(null)),
-        markPrayerAsRead: vi.fn(),
-        markUpdateAsRead: vi.fn()
-      };
-      component.badgeService = mockBadgeService;
+      mockBadgeService.isPrayerUnread.mockReturnValue(false);
+      mockBadgeService.isUpdateUnread.mockReturnValue(false);
+      mockBadgeService.getBadgeFunctionalityEnabled$.mockReturnValue(of(true));
+      mockBadgeService.getUpdateBadgesChanged$.mockReturnValue(of(null));
     });
 
     it('should track update badges with updateBadges$ map', () => {

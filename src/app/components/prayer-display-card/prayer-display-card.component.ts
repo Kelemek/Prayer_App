@@ -18,6 +18,12 @@ import { PrayerService } from "../../services/prayer.service";
 import { PromptService } from "../../services/prompt.service";
 import { PersonalCategoryColorService } from "../../services/personal-category-color.service";
 import { personalCategoryPillStyles } from "../../../utils/personalCategoryColor";
+import { joinCardShellClassParts } from "../../lib/card-shell-chrome";
+import {
+  getPrayerCardVariantLayout,
+  getPromptCardVariantLayout,
+} from "../../lib/prayer-card-layout";
+import { getPrayerStatusPillClasses, META_HEADER_BORDER_BOTTOM_CLASSES } from "../../lib/prayer-status-header";
 
 const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = "prayer_encouragement_modal_do_not_show";
 
@@ -68,20 +74,39 @@ interface PrayerPrompt {
   template: `
     <!-- Prayer Card -->
     @if (prayer) {
-    <div
-      class="presentation-card-scroll bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-h-full overflow-y-auto"
-    >
-      <!-- Category Badge (Personal Prayers) -->
-      @if (prayer.category && isPersonalPrayer()) {
-      <div class="mb-6">
+    <div [class]="prayerLayout.presentationScrollClasses">
+    <div [class]="prayerShellClasses">
+      <div
+        [class]="
+          'bg-card-meta-header-band overflow-hidden ' +
+          prayerLayout.headerBleedClasses +
+          ' ' +
+          prayerLayout.headerBandRoundedClasses +
+          ' ' +
+          metaHeaderBorderBottomClasses +
+          ' ' +
+          prayerLayout.headerInsetClasses +
+          ' min-h-[36px] flex items-center justify-between mb-4 md:mb-6'
+        "
+      >
+        @if (prayer.category && isPersonalPrayer()) {
         <span
-          class="inline-block px-3 md:px-4 lg:px-5 py-1 md:py-1.5 lg:py-2 rounded-full text-sm md:text-base lg:text-lg font-medium border"
+          class="inline-block px-3 py-1 rounded-full text-sm font-medium border"
           [ngStyle]="getCategoryPillStyles()"
         >
           {{ prayer.category }}
         </span>
+        } @else if (!isPersonalPrayer()) {
+        <div [ngClass]="getStatusBadgeClasses(prayer.status)">
+          {{ prayer.status.charAt(0).toUpperCase() + prayer.status.slice(1) }}
+        </div>
+        } @else {
+        <span></span>
+        }
+        <span class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+          {{ formatDate(prayer.created_at) }}
+        </span>
       </div>
-      }
 
       <!-- Prayer For -->
       <div class="mb-6">
@@ -117,10 +142,6 @@ interface PrayerPrompt {
         <div>
           <span class="font-semibold">Requested by:</span>
           {{ prayer.requester || "Anonymous" }}
-        </div>
-        } @if (!isPersonalPrayer()) {
-        <div [ngClass]="getStatusBadgeClasses(prayer.status)">
-          {{ prayer.status.charAt(0).toUpperCase() + prayer.status.slice(1) }}
         </div>
         }
       </div>
@@ -229,6 +250,7 @@ interface PrayerPrompt {
       </div>
       }
     </div>
+    </div>
 
     <!-- Pray For explanation modal -->
     @if (showPrayForModal) {
@@ -287,14 +309,22 @@ interface PrayerPrompt {
 
     <!-- Prompt Card -->
     @if (prompt) {
-    <div
-      class="presentation-card-scroll bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-h-full overflow-y-auto"
-    >
-      <!-- Type Badge -->
-      <div class="mb-6">
-        <span
-          class="inline-block px-3 md:px-4 lg:px-5 py-1 md:py-1.5 lg:py-2 bg-[#988F83] text-white rounded-full text-sm md:text-base lg:text-xl font-semibold"
-        >
+    <div [class]="promptLayout.presentationScrollClasses">
+    <div [class]="promptShellClasses">
+      <div
+        [class]="
+          'bg-card-meta-header-band overflow-hidden ' +
+          promptLayout.headerBleedClasses +
+          ' ' +
+          promptLayout.headerBandRoundedClasses +
+          ' ' +
+          metaHeaderBorderBottomClasses +
+          ' ' +
+          promptLayout.headerInsetClasses +
+          ' min-h-[36px] flex items-center mb-4 md:mb-6'
+        "
+      >
+        <span [class]="promptLayout.typeHeaderClasses + ' font-semibold'">
           {{ prompt.type }}
         </span>
       </div>
@@ -349,6 +379,7 @@ interface PrayerPrompt {
           </span>
         }
       </div>
+    </div>
     </div>
 
     <!-- Pray For explanation modal (prompt) -->
@@ -453,6 +484,24 @@ export class PrayerDisplayCardComponent implements OnInit {
   showPrayForModal = false;
   prayForDoNotShowAgain = false;
   canPrayFor$ = of(true);
+
+  readonly prayerLayout = getPrayerCardVariantLayout("presentation");
+  readonly promptLayout = getPromptCardVariantLayout("presentation");
+  readonly metaHeaderBorderBottomClasses = META_HEADER_BORDER_BOTTOM_CLASSES;
+
+  get prayerShellClasses(): string {
+    return joinCardShellClassParts(
+      this.prayerLayout.shellBaseClasses,
+      this.prayerLayout
+    );
+  }
+
+  get promptShellClasses(): string {
+    return joinCardShellClassParts(
+      this.promptLayout.shellBaseClasses,
+      this.promptLayout
+    );
+  }
 
   ngOnInit(): void {
     void this.personalCategoryColorService.loadColors();
@@ -571,24 +620,7 @@ export class PrayerDisplayCardComponent implements OnInit {
   }
 
   getStatusBadgeClasses(status: string): string {
-    const baseClasses = "px-5 py-2 rounded-full border ";
-    switch (status) {
-      case "current":
-        return (
-          baseClasses +
-          "bg-blue-50 dark:bg-blue-900/20 text-[#0047AB] dark:text-[#4A90E2] border-[#0047AB] dark:border-[#0047AB]"
-        );
-      case "answered":
-        return (
-          baseClasses +
-          "bg-green-50 dark:bg-green-900/20 text-[#39704D] dark:text-[#5FB876] border-[#39704D] dark:border-[#39704D]"
-        );
-      default:
-        return (
-          baseClasses +
-          "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 border-gray-400 dark:border-gray-600"
-        );
-    }
+    return getPrayerStatusPillClasses(status);
   }
 
   getRecentUpdates() {
