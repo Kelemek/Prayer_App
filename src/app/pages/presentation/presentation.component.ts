@@ -19,6 +19,17 @@ import { TenantPermissionService } from "../../services/tenant-permission.servic
 import { TenantContextService } from "../../services/tenant-context.service";
 import { ConnectivityService } from "../../services/connectivity.service";
 import { PresentationSettingsService } from "../../services/presentation-settings.service";
+import { PresentationCatalogStore } from "../../services/presentation-catalog.store";
+import { PresentationPlaybackController } from "../../services/presentation-playback.controller";
+import { PresentationContentCoordinator } from "../../services/presentation-content.coordinator";
+import { PresentationContentLoader } from "../../services/presentation-content-loader";
+import { PresentationPrayerTimerController } from "../../services/presentation-prayer-timer.controller";
+import { PresentationControlsInputController } from "../../services/presentation-controls-input.controller";
+import { PresentationHomeHandoffCoordinator } from "../../services/presentation-home-handoff.coordinator";
+import { PresentationSettingsCoordinator } from "../../services/presentation-settings.coordinator";
+import {
+  wirePresentationControllers,
+} from "../../services/presentation-coordinator-wiring";
 import { PresentationToolbarComponent } from "../../components/presentation-toolbar/presentation-toolbar.component";
 import { PrayerDisplayCardComponent } from "../../components/prayer-display-card/prayer-display-card.component";
 import { PresentationSettingsModalComponent } from "../../components/presentation-settings-modal/presentation-settings-modal.component";
@@ -79,225 +90,47 @@ type ThemeOption = "light" | "dark" | "system";
     PrayerDisplayCardComponent,
     PresentationSettingsModalComponent,
   ],
-  template: `
-    <div
-      class="w-full min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white relative"
-    >
-      @if (!isOnline) {
-      <div
-        class="absolute top-0 left-0 right-0 z-50 border-b border-amber-300 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100"
-        role="status"
-      >
-        You're offline. Showing previously loaded content.
-      </div>
-      }
-      <!-- Loading State -->
-      @if (loading) {
-      <div class="w-full min-h-screen flex items-center justify-center">
-        <div class="flex flex-col items-center gap-4">
-          <div
-            class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"
-          ></div>
-          <div class="text-gray-900 dark:text-white text-xl">
-            Loading {{ getContentLoadingLabel() }}...
-          </div>
-        </div>
-      </div>
-      }
-
-      <!-- Main Content Display -->
-      @if (!loading && items.length > 0) {
-      <div
-        [class]="
-          'h-screen flex flex-col justify-center px-3 md:px-6 py-6 transition-all duration-300 relative z-0 ' +
-          (showControls ? 'presentation-content-with-toolbar' : 'pb-6')
-        "
-      >
-        <div class="w-full max-w-6xl mx-auto h-full">
-          <div class="presentation-scroll-area hide-scrollbar h-full overflow-y-auto flex items-center px-2">
-            <app-prayer-display-card
-              [prayer]="isPrayer(currentItem) ? currentItem : undefined"
-              [prompt]="isPrompt(currentItem) ? currentItem : undefined"
-            >
-            </app-prayer-display-card>
-          </div>
-        </div>
-      </div>
-      }
-
-      <!-- No Content Message -->
-      @if (!loading && items.length === 0) {
-      <div class="w-full min-h-screen flex items-center justify-center">
-        <div class="text-center p-8">
-          <div class="text-6xl mb-4">🙏</div>
-          <h2
-            class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-2"
-          >
-            No Content Available
-          </h2>
-          <p class="text-gray-600 dark:text-gray-400 mb-6">
-            {{ getEmptyContentMessage() }}
-          </p>
-          <button
-            (click)="exitPresentation()"
-            class="px-6 py-3 btn-chip btn-chip-blue"
-          >
-            Return to Home
-          </button>
-        </div>
-      </div>
-      }
-
-      <!-- Toolbar -->
-      <app-presentation-toolbar
-        [visible]="showControls"
-        [isPlaying]="isPlaying"
-        [showTimer]="true"
-        [countdownRemaining]="countdownRemaining"
-        [currentDuration]="currentDuration"
-        (previous)="previousSlide()"
-        (next)="nextSlide()"
-        (togglePlay)="togglePlay()"
-        (settingsToggle)="showSettings = !showSettings"
-        (exit)="exitPresentation()"
-      >
-      </app-presentation-toolbar>
-
-      <!-- Settings Modal -->
-      <app-presentation-settings-modal
-        [visible]="showSettings"
-        [theme]="theme"
-        [smartMode]="smartMode"
-        [displayDuration]="displayDuration"
-        [contentTypes]="contentTypes"
-        [randomize]="randomize"
-        [loop]="loop"
-        [timeFilter]="timeFilter"
-        [statusFiltersCurrent]="statusFilters.current"
-        [statusFiltersAnswered]="statusFilters.answered"
-        [prayerTimerMinutes]="prayerTimerMinutes"
-        [availableCategories]="uniquePersonalCategories"
-        [selectedCategories]="selectedPersonalCategories"
-        [availablePromptCategories]="uniquePromptCategories"
-        [selectedPromptCategories]="selectedPromptCategories"
-        (close)="showSettings = false"
-        (themeChange)="handleThemeChange($event)"
-        (smartModeChange)="smartMode = $event; persistSettings()"
-        (displayDurationChange)="displayDuration = $event; persistSettings()"
-        (contentTypesChange)="contentTypes = $event; handleContentTypeChange()"
-        (randomizeChange)="randomize = $event; handleRandomizeChange()"
-        (loopChange)="handleLoopChange($event)"
-        (timeFilterChange)="timeFilter = $event; handleTimeFilterChange()"
-        (statusFiltersChange)="
-          statusFilters = $event; handleStatusFilterChange()
-        "
-        (prayerTimerMinutesChange)="prayerTimerMinutes = $event; persistSettings()"
-        (categoriesChange)="handlePersonalCategoriesChange($event)"
-        (promptCategoriesChange)="handlePromptCategoriesChange($event)"
-        (startPrayerTimer)="startPrayerTimer()"
-        (refresh)="refreshContent()"
-      >
-      </app-presentation-settings-modal>
-
-      <!-- Timer Notification -->
-      @if (showTimerNotification) {
-      <div
-        class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 safe-area-overlay"
-      >
-        <div
-          class="bg-gradient-to-br from-green-600 to-green-700 rounded-3xl p-12 shadow-2xl border-4 border-green-400 text-center max-w-2xl mx-4 animate-pulse relative"
-        >
-          <button
-            (click)="showTimerNotification = false"
-            class="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-full transition-colors"
-          >
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              class="text-white"
-            >
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-          <svg
-            width="80"
-            height="80"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            class="mx-auto mb-6 text-white"
-          >
-            <circle cx="12" cy="12" r="10"></circle>
-            <path d="M12 6v6l4 2"></path>
-          </svg>
-          <h2 class="text-6xl font-bold mb-4 text-white">
-            Prayer Timer Complete! 🙏
-          </h2>
-          <p class="text-2xl opacity-90 text-white">
-            Your prayer time has ended
-          </p>
-        </div>
-      </div>
-      }
-
-      <!-- Presentation Complete Notification -->
-      @if (showPresentationCompleteNotification) {
-      <div
-        class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 safe-area-overlay"
-      >
-        <div
-          class="bg-white dark:bg-gray-800 rounded-3xl p-12 shadow-2xl border border-gray-200 dark:border-gray-700 text-center max-w-2xl mx-4 relative"
-        >
-          <button
-            (click)="dismissPresentationComplete()"
-            class="absolute top-4 right-4 p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
-          >
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-          <h2 class="text-6xl font-bold mb-4 text-gray-900 dark:text-gray-100">
-            Prayers Complete! 🙏
-          </h2>
-          <p class="text-2xl text-gray-600 dark:text-gray-300">
-            You've viewed all prayers
-          </p>
-        </div>
-      </div>
-      }
-    </div>
-  `,
+  templateUrl: "./presentation.component.html",
   changeDetection: ChangeDetectionStrategy.Eager,
-  styles: [
-    `
-      :host {
-        display: block;
-      }
-      .presentation-content-with-toolbar {
-        padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
-      }
-    `,
-  ],
+  styleUrl: "./presentation.component.css",
 })
 export class PresentationComponent implements OnInit, OnDestroy {
-  prayers: Prayer[] = [];
-  prompts: PrayerPrompt[] = [];
-  personalPrayers: any[] = [];
-  combinedShuffledItems: any[] = [];
+  readonly catalog = new PresentationCatalogStore();
+  readonly playback: PresentationPlaybackController;
+  readonly contentLoader: PresentationContentLoader;
+  readonly contentCoordinator: PresentationContentCoordinator;
+  readonly prayerTimer = new PresentationPrayerTimerController();
+  readonly controlsInput = new PresentationControlsInputController();
+  readonly homeHandoffCoordinator = new PresentationHomeHandoffCoordinator();
+  readonly settingsCoordinator: PresentationSettingsCoordinator;
+
+  get prayers(): Prayer[] {
+    return this.catalog.prayers as unknown as Prayer[];
+  }
+  set prayers(value: Prayer[]) {
+    this.catalog.prayers = value as any;
+  }
+
+  get prompts(): PrayerPrompt[] {
+    return this.catalog.prompts as unknown as PrayerPrompt[];
+  }
+  set prompts(value: PrayerPrompt[]) {
+    this.catalog.prompts = value as any;
+  }
+
+  get personalPrayers(): any[] {
+    return this.catalog.personalPrayers;
+  }
+  set personalPrayers(value: any[]) {
+    this.catalog.personalPrayers = value;
+  }
+
+  get combinedShuffledItems(): any[] {
+    return this.catalog.combinedShuffledItems;
+  }
+  set combinedShuffledItems(value: any[]) {
+    this.catalog.combinedShuffledItems = value;
+  }
   currentIndex = 0;
   isPlaying = false;
   displayDuration = 10;
@@ -358,7 +191,27 @@ export class PresentationComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone,
     private presentationSettingsService: PresentationSettingsService
-  ) {}
+  ) {
+    this.playback = new PresentationPlaybackController(this.ngZone);
+    this.contentLoader = new PresentationContentLoader(
+      this.prayerService,
+      this.promptService
+    );
+    this.contentCoordinator = new PresentationContentCoordinator(
+      this.contentLoader,
+      this.prayerService
+    );
+    this.settingsCoordinator = new PresentationSettingsCoordinator(
+      this.presentationSettingsService
+    );
+    wirePresentationControllers({
+      page: this as any,
+      cdr: this.cdr,
+      playback: this.playback,
+      controlsInput: this.controlsInput,
+      exitPresentation: () => this.exitPresentation(),
+    });
+  }
 
   ngOnInit(): void {
     this.isOnline = this.connectivity.isOnline();
@@ -368,7 +221,7 @@ export class PresentationComponent implements OnInit, OnDestroy {
     });
 
     this.loadTheme();
-    this.applySettings(this.presentationSettingsService.load());
+    this.settingsCoordinator.loadInto(this);
 
     this.canAccessSharedContent = this.tenantPermissions.canAccessShared();
     if (!this.canAccessSharedContent) {
@@ -525,16 +378,7 @@ export class PresentationComponent implements OnInit, OnDestroy {
   }
 
   persistSettings(): void {
-    this.presentationSettingsService.save({
-      contentTypes: [...this.contentTypes],
-      randomize: this.randomize,
-      smartMode: this.smartMode,
-      displayDuration: this.displayDuration,
-      loop: this.loop,
-      timeFilter: this.timeFilter,
-      statusFilters: { ...this.statusFilters },
-      prayerTimerMinutes: this.prayerTimerMinutes,
-    });
+    this.settingsCoordinator.persistFrom(this);
   }
 
   handleLoopChange(enabled: boolean): void {

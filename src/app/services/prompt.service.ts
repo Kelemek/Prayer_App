@@ -26,6 +26,22 @@ export class PromptService {
   public loading$ = this.loadingSubject.asObservable();
   public error$ = this.errorSubject.asObservable();
 
+  getPromptsSnapshot(): PrayerPrompt[] {
+    return this.promptsSubject.value;
+  }
+
+  getActivePromptCategories(): string[] {
+    const seen = new Set<string>();
+    const categories: string[] = [];
+    for (const prompt of this.promptsSubject.value) {
+      if (!seen.has(prompt.type)) {
+        seen.add(prompt.type);
+        categories.push(prompt.type);
+      }
+    }
+    return categories;
+  }
+
   constructor(
     private supabase: SupabaseService,
     private toast: ToastService,

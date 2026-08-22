@@ -43,6 +43,10 @@ describe('PresentationComponent', () => {
     mockPrayerService = {
       prayers$: { subscribe: vi.fn(), value: [] },
       allPersonalPrayers$: new BehaviorSubject<any[]>([]),
+      loadPrayers: vi.fn().mockResolvedValue(undefined),
+      loadPersonalPrayers: vi.fn().mockResolvedValue(undefined),
+      getAllCommunityPrayersSnapshot: vi.fn(() => []),
+      getPersonalPrayersSnapshot: vi.fn(() => []),
     };
     cdr = { markForCheck: vi.fn(), detectChanges: vi.fn() };
     ngZone = { run: (cb: any) => cb() };
@@ -57,6 +61,9 @@ describe('PresentationComponent', () => {
       attachPrayedForCounts: vi.fn(async (prompts: any[]) =>
         prompts.map((p) => ({ ...p, prayed_for_count: p.prayed_for_count ?? 0 }))
       ),
+      loadPrompts: vi.fn().mockResolvedValue(undefined),
+      getPromptsSnapshot: vi.fn(() => []),
+      getActivePromptCategories: vi.fn(() => []),
     };
     const mockUserSession = {
       userSession$: new BehaviorSubject(null),
@@ -546,6 +553,10 @@ describe('PresentationComponent', () => {
     mockPrayerService = {
       prayers$: { subscribe: vi.fn(), value: [] },
       allPersonalPrayers$: new BehaviorSubject<any[]>([]),
+      loadPrayers: vi.fn().mockResolvedValue(undefined),
+      loadPersonalPrayers: vi.fn().mockResolvedValue(undefined),
+      getAllCommunityPrayersSnapshot: vi.fn(() => []),
+      getPersonalPrayersSnapshot: vi.fn(() => []),
     };
     mockCdr = { markForCheck: vi.fn(), detectChanges: vi.fn() };
     mockNgZone = { run: (fn: Function) => fn() } as unknown as NgZone;
@@ -561,6 +572,9 @@ describe('PresentationComponent', () => {
       attachPrayedForCounts: vi.fn(async (prompts: any[]) =>
         prompts.map((p) => ({ ...p, prayed_for_count: p.prayed_for_count ?? 0 }))
       ),
+      loadPrompts: vi.fn().mockResolvedValue(undefined),
+      getPromptsSnapshot: vi.fn(() => []),
+      getActivePromptCategories: vi.fn(() => []),
     };
     const mockUserSession = {
       userSession$: new BehaviorSubject(null),

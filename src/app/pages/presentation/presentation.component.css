@@ -1,0 +1,6 @@
+:host {
+        display: block;
+      }
+      .presentation-content-with-toolbar {
+        padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+      }

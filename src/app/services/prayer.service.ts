@@ -105,6 +105,14 @@ export class PrayerService {
   public loading$ = this.loadingSubject.asObservable();
   public error$ = this.errorSubject.asObservable();
 
+  getAllCommunityPrayersSnapshot(): PrayerRequest[] {
+    return this.allPrayersSubject.value;
+  }
+
+  getPersonalPrayersSnapshot(): PrayerRequest[] {
+    return this.allPersonalPrayersSubject.value;
+  }
+
   constructor(
     private supabase: SupabaseService,
     private toast: ToastService,

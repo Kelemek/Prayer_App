@@ -1,0 +1,44 @@
+<div [class]="sectionGapClass" id="tour-prompt-type-filters">
+  <div
+    [class]="subFilterGroupClass + ' ' + chipRowClass"
+  >
+  @let badgesEnabled = (badgeService.getBadgeFunctionalityEnabled$() | async);
+
+  <div [class]="chipHostClass">
+    <button
+      type="button"
+      (click)="clearTypes.emit()"
+      [class]="
+        promptChipButtonClass(selectedPromptTypes.length === 0, false)
+      "
+    >
+      All Types ({{ promptsCount }})
+    </button>
+  </div>
+
+  @for (type of uniquePromptTypes; track type) {
+  <div [class]="chipHostClass">
+    <button
+      type="button"
+      (click)="toggleType.emit(type)"
+      [class]="
+        promptChipButtonClass(
+          selectedPromptTypes.includes(type),
+          !!(badgesEnabled && unreadCountForType(type) > 0)
+        )
+      "
+    >
+      {{ type }} ({{ getPromptCountByType(type) }})
+      @if (badgesEnabled && unreadCountForType(type) > 0) {
+      <app-home-filter-badge-button
+        [count]="unreadCountForType(type)"
+        [title]="'Mark all ' + type + ' prompts as read'"
+        [ariaLabel]="'Mark all ' + type + ' prompts as read'"
+        (markRead)="badgeService.markAllAsReadByPromptType(type)"
+      />
+      }
+    </button>
+  </div>
+  }
+  </div>
+</div>

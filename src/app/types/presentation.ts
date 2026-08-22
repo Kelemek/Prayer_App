@@ -70,6 +70,11 @@ export type PresentationTimeFilter =
   | 'year'
   | 'all';
 
+export interface PresentationStatusFilters {
+  current: boolean;
+  answered: boolean;
+}
+
 export interface PresentationSettings {
   contentTypes: SelectablePresentationContentType[];
   randomize: boolean;
@@ -77,7 +82,7 @@ export interface PresentationSettings {
   displayDuration: number;
   loop: boolean;
   timeFilter: PresentationTimeFilter;
-  statusFilters: { current: boolean; answered: boolean };
+  statusFilters: PresentationStatusFilters;
   prayerTimerMinutes: number;
 }
 
@@ -91,10 +96,18 @@ export type HomePresentationFilter =
 
 export type DefaultPrayerView = 'current' | 'personal';
 
+/** Home Personal tab fixed chips + named category selection. */
+export type PersonalCategoryFilterMode =
+  | 'current'
+  | 'answered'
+  | 'total'
+  | 'named';
+
 export interface HomeReturnContext {
   activeFilter: HomePresentationFilter;
   selectedPromptTypes?: string[];
   selectedPersonalCategories?: string[];
+  personalCategoryFilterMode?: PersonalCategoryFilterMode;
 }
 
 export interface PresentationHomeHandoff {

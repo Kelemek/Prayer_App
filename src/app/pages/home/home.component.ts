@@ -94,6 +94,28 @@ import {
   type HomeReturnContext,
 } from "../../types/presentation";
 import { mapHomeFilterToContentType } from "../../services/presentation-settings.service";
+
+import { HomeDeepLinkCoordinator } from "../../services/home-deep-link.coordinator";
+import type { HomeDeepLinkHostAdapter } from "../../services/home-deep-link-host.adapter";
+import { HomeCatalogStore } from "../../services/home-catalog.store";
+import { HomeFilterCoordinator } from "../../services/home-filter.coordinator";
+import { HomePersonalCategoryController } from "../../services/home-personal-category.controller";
+import { HomeMemorizationPanelController } from "../../services/home-memorization-panel.controller";
+import { HomeLifecycleCoordinator } from "../../services/home-lifecycle.coordinator";
+import { HomeModalController } from "../../services/home-modal.controller";
+import { HomeRefreshCoordinator } from "../../services/home-refresh.coordinator";
+import { PresentationHomeHandoffCoordinator } from "../../services/presentation-home-handoff.coordinator";
+import { HomePrayerCardActionsController } from "../../services/home-prayer-card-actions.controller";
+import { HomePresentationNavigationController } from "../../services/home-presentation-navigation.controller";
+import {
+  createHomeCatalogBindings,
+  readHomeFilteredPersonalPrayers,
+  syncHomeCatalog,
+  wireHomeCoordinators,
+  type HomeCoordinatorWiringPage,
+} from "../../services/home-coordinator-wiring";
+import type { HomeLifecyclePageBindings } from "../../services/home-lifecycle-host.adapter";
+import { updateHomeDefaultViewPreference } from "../../lib/home-default-view-preference";
 @Component({
   selector: "app-home",
   standalone: true,
@@ -122,1030 +144,10 @@ import { mapHomeFilterToContentType } from "../../services/presentation-settings
     MemorizationPracticeSessionComponent,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
-  styles: [
-    `
-      /*
-        Always-mounted bridge for resume keyboard open. WebKit only opens the software
-        keyboard when focus happens on an already-present field inside the user gesture;
-        newly created session inputs are too late after close→reopen.
-      */
-      .memorize-keyboard-bridge {
-        position: fixed;
-        left: 0;
-        bottom: 0;
-        width: 100%;
-        height: 1px;
-        margin: 0;
-        padding: 0;
-        border: 0;
-        background: transparent;
-        color: transparent;
-        caret-color: transparent;
-        outline: none;
-        box-shadow: none;
-        opacity: 0.01;
-        font-size: 16px;
-        overflow: hidden;
-        z-index: 0;
-        -webkit-appearance: none;
-        appearance: none;
-        -webkit-tap-highlight-color: transparent;
-      }
-      .memorize-keyboard-bridge:focus {
-        outline: none;
-        box-shadow: none;
-      }
-      .memorize-keyboard-bridge::-webkit-contacts-auto-fill-button,
-      .memorize-keyboard-bridge::-webkit-credentials-auto-fill-button {
-        visibility: hidden;
-        display: none !important;
-        pointer-events: none;
-        position: absolute;
-        right: 0;
-        opacity: 0;
-      }
-    `,
-  ],
-  template: `
-    <div
-      class="main-page-shell w-full min-h-screen bg-gray-50 dark:bg-gray-900"
-    >
-      <!-- Pre-mounted so resume can focus inside the verse-card tap (iOS keyboard). -->
-      <form autocomplete="off" class="contents" (submit)="$event.preventDefault()">
-        <input
-          #memorizeKeyboardBridge
-          type="text"
-          name="search"
-          autocomplete="off"
-          autocorrect="off"
-          autocapitalize="off"
-          spellcheck="false"
-          enterkeyhint="done"
-          data-1p-ignore="true"
-          data-lpignore="true"
-          data-form-type="other"
-          aria-hidden="true"
-          tabindex="-1"
-          class="memorize-keyboard-bridge"
-          data-testid="memorize-keyboard-bridge"
-        />
-      </form>
-      @if (!isOnline) {
-      <div
-        class="sticky top-0 z-40 border-b border-amber-300 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100"
-        role="status"
-      >
-        You’re offline. You can view previously loaded prayers. Connect to submit or update.
-      </div>
-      }
-      <!-- Scroll viewport below safe area: header sticky inside so content scrolls under header to top of header, never into safe area -->
-      <div
-        class="safe-area-viewport w-full bg-gray-50 dark:bg-gray-900"
-        appPullToRefresh
-        [refreshing]="isRefreshing"
-        (refresh)="onPullToRefresh()"
-      >
-        <!-- Header -->
-        <header
-          class="w-full bg-white/50 dark:bg-gray-800/50 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50"
-        >
-          <div class="w-full max-w-6xl mx-auto px-4 py-4 sm:py-6">
-            <!-- Mobile layout: indicator in top row with logo -->
-            <div class="sm:hidden flex items-start justify-between gap-2 mb-3">
-              <!-- Logo on left -->
-              <div class="flex items-center gap-3">
-                <app-logo (logoStatusChange)="hasLogo = $event"></app-logo>
-              </div>
-
-              <div class="flex flex-col items-end gap-2 min-w-0">
-                <!-- Email Indicator - Top Right -->
-                @if ((userSessionService.userSession$ | async); as session) {
-                <button
-                  (click)="showLogoutConfirmation = true"
-                  class="text-[10px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors cursor-pointer shrink-0"
-                  title="Click to log out"
-                >
-                  <span class="hidden xs:inline">{{ session.email }}</span>
-                  <span class="xs:hidden">Logged In</span>
-                </button>
-                } @else {
-                <button
-                  (click)="showLogoutConfirmation = true"
-                  class="text-[10px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors cursor-pointer shrink-0"
-                  title="Click to log out"
-                >
-                  <span class="hidden xs:inline">{{ getUserEmail() }}</span>
-                  <span class="xs:hidden">Logged In</span>
-                </button>
-                }
-              </div>
-            </div>
-
-            <!-- Mobile buttons row - flex-nowrap so title/buttons stay on one line on smallest screens -->
-            <div class="sm:hidden flex items-center gap-2 flex-nowrap">
-              <button
-                (click)="showHelp = true"
-                class="flex items-center gap-1 px-2 py-2 text-sm font-medium btn-chip btn-chip-gray"
-                title="Help"
-              >
-                <svg
-                  class="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  ></circle>
-                  <text
-                    x="12"
-                    y="16"
-                    text-anchor="middle"
-                    fill="currentColor"
-                    font-size="14"
-                    font-weight="bold"
-                  >
-                    ?
-                  </text>
-                </svg>
-              </button>
-              <button
-                (click)="showSettings = true"
-                class="flex items-center gap-1 px-2 py-2 text-sm font-medium btn-chip btn-chip-gray"
-                title="Settings"
-              >
-                <svg
-                  class="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
-                  ></path>
-                  <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-              </button>
-              <a
-                id="tour-btn-prayer-mode-mobile"
-                routerLink="/presentation"
-                [queryParams]="presentationHandoffQueryParams"
-                (click)="onPresentationLinkClick($event)"
-                class="flex items-center gap-1 px-3 py-2 text-sm font-medium btn-chip btn-chip-green"
-                title="Prayer Mode"
-              >
-                <span>Pray</span>
-              </a>
-              <button
-                (click)="openPrayerRequest()"
-                class="flex items-center gap-1 px-3 py-2 text-sm font-medium btn-chip btn-chip-blue"
-              >
-                <span>Request</span>
-              </button>
-              @if (canAccessAdminFeatures) {
-              <button
-                (click)="navigateToAdmin()"
-                class="flex items-center gap-1 border border-red-600 dark:border-red-500 text-red-600 dark:text-red-500 px-2 py-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors text-sm cursor-pointer"
-                title="Admin Portal"
-              >
-                <span>Admin</span>
-              </button>
-              }
-            </div>
-
-            <!-- Desktop layout: Logo on left, controls on right -->
-            <div class="hidden sm:flex items-start justify-between">
-              <!-- Logo on left -->
-              <div class="flex items-center gap-3">
-                <app-logo (logoStatusChange)="hasLogo = $event"></app-logo>
-              </div>
-
-              <!-- Right side: Email and controls -->
-              <div class="flex flex-col items-end gap-2">
-                <!-- Top row: Admin button and Email Indicator -->
-                <div class="flex items-center gap-2">
-                  @if (canAccessAdminFeatures) {
-                  <button
-                    (click)="navigateToAdmin()"
-                    class="flex items-center gap-1 border border-red-600 dark:border-red-500 text-red-600 dark:text-red-500 px-2 py-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors text-xs cursor-pointer"
-                    title="Admin Portal"
-                  >
-                    <span>Admin</span>
-                  </button>
-                  } @if ((userSessionService.userSession$ | async); as session)
-                  {
-                  <button
-                    (click)="showLogoutConfirmation = true"
-                    class="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors cursor-pointer"
-                    title="Click to log out"
-                  >
-                    <span class="hidden sm:inline">{{ session.email }}</span>
-                    <span class="sm:hidden">Logged In</span>
-                  </button>
-                  } @else {
-                  <button
-                    (click)="showLogoutConfirmation = true"
-                    class="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors cursor-pointer"
-                    title="Click to log out"
-                  >
-                    <span class="hidden sm:inline">{{ getUserEmail() }}</span>
-                    <span class="sm:hidden">Logged In</span>
-                  </button>
-                  }
-                </div>
-
-                <!-- Controls: Desktop only - h-12 for uniform button height -->
-                <div class="flex items-center gap-2">
-                  <button
-                    (click)="showHelp = true"
-                    class="flex items-center justify-center h-12 gap-1 px-3 text-sm font-medium btn-chip btn-chip-gray"
-                    title="Help & Guidance"
-                  >
-                    <svg
-                      class="w-6 h-6 flex-shrink-0"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      aria-hidden="true"
-                    >
-                      <circle
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      ></circle>
-                      <text
-                        x="12"
-                        y="16"
-                        text-anchor="middle"
-                        fill="currentColor"
-                        font-size="14"
-                        font-weight="bold"
-                      >
-                        ?
-                      </text>
-                    </svg>
-                  </button>
-                  <button
-                    (click)="showSettings = true"
-                    class="flex items-center justify-center h-12 gap-1 px-3 text-sm font-medium btn-chip btn-chip-gray"
-                    title="Settings"
-                  >
-                    <svg
-                      class="w-6 h-6 flex-shrink-0"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
-                      ></path>
-                      <circle cx="12" cy="12" r="3"></circle>
-                    </svg>
-                  </button>
-                  <a
-                    id="tour-btn-prayer-mode-desktop"
-                    routerLink="/presentation"
-                    [queryParams]="presentationHandoffQueryParams"
-                    (click)="onPresentationLinkClick($event)"
-                    class="flex items-center justify-center h-12 gap-1 px-3 text-sm font-medium btn-chip btn-chip-green"
-                    title="Prayer Mode"
-                  >
-                    <span>Pray</span>
-                  </a>
-                  <button
-                    (click)="openPrayerRequest()"
-                    class="flex items-center justify-center h-12 gap-1 px-3 text-sm font-medium btn-chip btn-chip-blue"
-                  >
-                    <span>Request</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <!-- Main Content -->
-        <main class="w-full max-w-6xl mx-auto px-4 py-6">
-          <!-- Top refresh indicator -->
-          <div
-            *ngIf="isRefreshing"
-            class="flex items-center justify-center mb-3 text-xs text-gray-500 dark:text-gray-400"
-            aria-live="polite"
-          >
-            <svg
-              class="animate-spin mr-2 h-4 w-4 text-gray-500 dark:text-gray-300"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                class="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                stroke-width="4"
-              ></circle>
-              <path
-                class="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-              ></path>
-            </svg>
-            <span>Refreshing prayers…</span>
-          </div>
-
-          <!-- Prayer Filters -->
-          <app-prayer-filters
-            [filters]="filters"
-            (filtersChange)="onFiltersChange($event)"
-          ></app-prayer-filters>
-          <!-- Stats Cards -->
-          <div
-            [class]="
-              'grid gap-4 mb-6 ' +
-              (canAccessShared ? 'grid-cols-3 sm:grid-cols-6' : 'grid-cols-2')
-            "
-          >
-            @if (canAccessShared) {
-            <button
-              (click)="setFilter('current')"
-              title="Show current prayers"
-              [class]="
-                'rounded-lg shadow-md p-2 sm:p-4 text-center transition-all duration-200 cursor-pointer relative flex flex-col items-center justify-center ' +
-                (activeFilter === 'current'
-                  ? 'border !border-[#0047AB] dark:!border-[#0047AB] bg-blue-100 dark:bg-blue-950 ring ring-[#0047AB] dark:ring-[#0047AB] ring-offset-0'
-                  : 'bg-white dark:bg-gray-800 border-[2px] !border-gray-200 dark:!border-gray-700 hover:!border-[#0047AB] dark:hover:!border-[#0047AB] hover:shadow-lg')
-              "
-            >
-              @let currentCount = (currentPrayerBadge$ | async) || 0; @if
-              ((currentCount > 0) &&
-              (badgeService.getBadgeFunctionalityEnabled$() | async)) {
-              <button
-                (click)="$event.stopPropagation(); markAllCurrentAsRead()"
-                class="absolute -top-2 -right-2 inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-[#39704D] dark:bg-[#39704D] text-white rounded-full text-xs font-bold hover:bg-[#2d5a3f] dark:hover:bg-[#2d5a3f] focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors"
-                title="Mark all current prayers as read"
-                aria-label="Mark all current prayers as read"
-              >
-                {{ currentCount }}
-              </button>
-              }
-              <div
-                class="text-sm sm:text-xl sm:sm:text-2xl font-bold text-gray-700 dark:text-gray-300 tabular-nums"
-              >
-                {{ currentPrayersCount }}
-              </div>
-              <div class="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
-                Current
-              </div>
-            </button>
-            <button
-              (click)="setFilter('answered')"
-              title="Show answered prayers"
-              [class]="
-                'rounded-lg shadow-md p-2 sm:p-4 text-center transition-all duration-200 cursor-pointer relative flex flex-col items-center justify-center ' +
-                (activeFilter === 'answered'
-                  ? 'border !border-[#39704D] dark:!border-[#39704D] bg-green-100 dark:bg-green-950 ring ring-[#39704D] dark:ring-[#39704D] ring-offset-0'
-                  : 'bg-white dark:bg-gray-800 border-[2px] !border-gray-200 dark:!border-gray-700 hover:!border-[#39704D] dark:hover:!border-[#39704D] hover:shadow-lg')
-              "
-            >
-              @let answeredCount = (answeredPrayerBadge$ | async) || 0; @if
-              ((answeredCount > 0) &&
-              (badgeService.getBadgeFunctionalityEnabled$() | async)) {
-              <button
-                (click)="$event.stopPropagation(); markAllAnsweredAsRead()"
-                class="absolute -top-2 -right-2 inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-[#39704D] dark:bg-[#39704D] text-white rounded-full text-xs font-bold hover:bg-[#2d5a3f] dark:hover:bg-[#2d5a3f] focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors"
-                title="Mark all answered prayers as read"
-                aria-label="Mark all answered prayers as read"
-              >
-                {{ answeredCount }}
-              </button>
-              }
-              <div
-                class="text-sm sm:text-xl sm:sm:text-2xl font-bold text-gray-700 dark:text-gray-300 tabular-nums"
-              >
-                {{ answeredPrayersCount }}
-              </div>
-              <div class="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
-                Answered
-              </div>
-            </button>
-            <button
-              (click)="setFilter('total')"
-              title="Show all prayers"
-              [class]="
-                'rounded-lg shadow-md p-2 sm:p-4 text-center transition-all duration-200 cursor-pointer relative flex flex-col items-center justify-center ' +
-                (activeFilter === 'total'
-                  ? 'border !border-[#C9A961] dark:!border-[#C9A961] bg-amber-100 dark:bg-amber-900/40 ring ring-[#C9A961] dark:ring-[#C9A961] ring-offset-0'
-                  : 'bg-white dark:bg-gray-800 border-[2px] !border-gray-200 dark:!border-gray-700 hover:!border-[#C9A961] dark:hover:!border-[#C9A961] hover:shadow-lg')
-              "
-            >
-              <div
-                class="text-sm sm:text-xl sm:sm:text-2xl font-bold text-gray-700 dark:text-gray-300 tabular-nums"
-              >
-                {{ totalPrayersCount }}
-              </div>
-              <div class="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
-                Total
-              </div>
-            </button>
-            <button
-              (click)="setFilter('prompts')"
-              title="Show prayer prompts"
-              [class]="
-                'rounded-lg shadow-md p-2 sm:p-4 text-center transition-all duration-200 cursor-pointer relative flex flex-col items-center justify-center ' +
-                (activeFilter === 'prompts'
-                  ? 'border !border-[#988F83] dark:!border-[#988F83] bg-stone-100 dark:bg-stone-900/40 ring ring-[#988F83] dark:ring-[#988F83] ring-offset-0'
-                  : 'bg-white dark:bg-gray-800 border-[2px] !border-gray-200 dark:!border-gray-700 hover:!border-[#988F83] dark:hover:!border-[#988F83] hover:shadow-lg')
-              "
-            >
-              @let promptCount = (promptBadge$ | async) || 0; @if ((promptCount
-              > 0) && (badgeService.getBadgeFunctionalityEnabled$() | async)) {
-              <button
-                (click)="$event.stopPropagation(); markAllPromptsAsRead()"
-                class="absolute -top-2 -right-2 inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-[#39704D] dark:bg-[#39704D] text-white rounded-full text-xs font-bold hover:bg-[#2d5a3f] dark:hover:bg-[#2d5a3f] focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors"
-                title="Mark all prompts as read"
-                aria-label="Mark all prompts as read"
-              >
-                {{ promptCount }}
-              </button>
-              }
-              <div
-                class="text-sm sm:text-xl sm:sm:text-2xl font-bold text-gray-700 dark:text-gray-300 tabular-nums"
-              >
-                {{ promptsCount }}
-              </div>
-              <div class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                Prompts
-              </div>
-            </button>
-            }
-
-            <!-- Personal Prayers Filter -->
-            <button
-              (click)="setFilter('personal')"
-              title="Show your personal prayers"
-              [class]="
-                'rounded-lg shadow-md p-2 sm:p-4 text-center transition-all duration-200 cursor-pointer relative flex flex-col items-center justify-center ' +
-                (activeFilter === 'personal'
-                  ? 'border !border-[#2F5F54] dark:!border-[#2F5F54] bg-slate-100 dark:bg-green-900/40 ring ring-[#2F5F54] dark:ring-[#2F5F54] ring-offset-0'
-                  : 'bg-white dark:bg-gray-800 border-[2px] !border-gray-200 dark:!border-gray-700 hover:!border-[#2F5F54] dark:hover:!border-[#2F5F54] hover:shadow-lg')
-              "
-            >
-              <div
-                class="text-sm sm:text-xl sm:sm:text-2xl font-bold text-gray-700 dark:text-gray-300 tabular-nums"
-              >
-                {{ personalPrayersCount }}
-              </div>
-              <div class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                Personal
-              </div>
-            </button>
-
-            <button
-              (click)="setFilter('memorize')"
-              title="Memorize Bible verses"
-              [class]="
-                'rounded-lg shadow-md p-2 sm:p-4 text-center transition-all duration-200 cursor-pointer relative flex flex-col items-center justify-center ' +
-                (activeFilter === 'memorize'
-                  ? 'border !border-[#0047AB] dark:!border-[#0047AB] bg-blue-100 dark:bg-blue-950 ring ring-[#0047AB] dark:ring-[#0047AB] ring-offset-0'
-                  : 'bg-white dark:bg-gray-800 border-[2px] !border-gray-200 dark:!border-gray-700 hover:!border-[#0047AB] dark:hover:!border-[#0047AB] hover:shadow-lg')
-              "
-            >
-              <div
-                class="text-sm sm:text-xl sm:sm:text-2xl font-bold text-gray-700 dark:text-gray-300 tabular-nums"
-              >
-                {{ memorizedItemsCount }}
-              </div>
-              <div class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                Memorize
-              </div>
-            </button>
-          </div>
-
-          <!-- Loading State -->
-          @if (!viewReady || (loading$ | async) || (activeFilter === 'personal'
-          && (prayerService.loadingPersonalPrayers$ | async)) || (activeFilter ===
-          'memorize' && (memorizationService.loading$ | async))) {
-          <app-skeleton-loader [count]="5" type="card"></app-skeleton-loader>
-          }
-
-          <!-- Error State -->
-          @if ((error$ | async); as error) {
-          <div
-            class="bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-800 dark:text-red-300 px-4 py-3 rounded-lg mb-6"
-          >
-            {{ error }}
-          </div>
-          }
-
-          <!-- Prompt Type Filters -->
-          @if (activeFilter === 'prompts' && promptsCount > 0) {
-          <div class="flex flex-wrap gap-2 mb-4">
-            <!-- All Types Button -->
-            <button
-              (click)="selectedPromptTypes = []"
-              [class]="
-                'flex-1 whitespace-nowrap px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ' +
-                (selectedPromptTypes.length === 0
-                  ? promptTypeActiveClass
-                  : promptTypeInactiveClass)
-              "
-            >
-              All Types ({{ promptsCount }})
-            </button>
-
-            <!-- Individual Type Buttons -->
-            @for (type of getUniquePromptTypes(); track type) {
-            <button
-              (click)="togglePromptType(type)"
-              [class]="
-                'flex-1 whitespace-nowrap px-3 py-2 rounded-lg text-xs font-medium transition-all relative cursor-pointer ' +
-                (isPromptTypeSelected(type)
-                  ? promptTypeActiveClass
-                  : promptTypeInactiveClass)
-              "
-            >
-              {{ type }} ({{ getPromptCountByType(type) }}) @if
-              ((badgeService.getBadgeFunctionalityEnabled$() | async) &&
-              getUnreadPromptCountByType(type) > 0) {
-              <span
-                class="absolute -top-2 -right-2 inline-flex items-center justify-center w-5 h-5 bg-[#39704D] dark:bg-[#39704D] text-white rounded-full text-xs font-bold"
-              >
-                {{ getUnreadPromptCountByType(type) }}
-              </span>
-              }
-            </button>
-            }
-          </div>
-          }
-
-          <!-- Personal Category Filters -->
-          @if (activeFilter === 'personal' && uniquePersonalCategories.length >
-          0) {
-          <div
-            cdkDropList
-            cdkDropListOrientation="mixed"
-            [cdkDropListData]="uniquePersonalCategories"
-            (cdkDropListDropped)="onCategoryDrop($event)"
-            [cdkDropListDisabled]="isSwappingCategories"
-            class="flex flex-wrap gap-2 mb-4"
-          >
-            <!-- All Categories Button -->
-            <button
-              (click)="selectedPersonalCategories = []"
-              [disabled]="isSwappingCategories"
-              [class]="
-                'flex-1 whitespace-nowrap px-3 py-2 rounded-lg text-xs font-medium transition-all ' +
-                (selectedPersonalCategories.length === 0
-                  ? personalCategoryActiveClass
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:border-[#2F5F54] dark:hover:border-[#2F5F54]') +
-                (isSwappingCategories
-                  ? ' opacity-50 cursor-not-allowed'
-                  : ' cursor-pointer')
-              "
-            >
-              All Categories ({{ personalPrayersCount }})
-            </button>
-
-            <!-- Individual Category Buttons -->
-            @for (category of uniquePersonalCategories; let i = $index; track
-            category) {
-            <div
-              cdkDrag
-              [cdkDragData]="category"
-              [cdkDragDisabled]="isSwappingCategories"
-              (cdkDragStarted)="onCategoryDragStarted()"
-              (cdkDragEnded)="onCategoryDragEnded()"
-              class="flex-1 relative"
-            >
-              <button
-                (click)="togglePersonalCategory(category)"
-                [disabled]="isSwappingCategories"
-                [class]="
-                  'w-full whitespace-nowrap pl-7 pr-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-2 relative ' +
-                  (isPersonalCategorySelected(category)
-                    ? personalCategoryActiveClass
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:border-[#2F5F54] dark:hover:border-[#2F5F54]') +
-                  (isSwappingCategories
-                    ? ' opacity-50 cursor-not-allowed'
-                    : ' cursor-pointer')
-                "
-              >
-                <svg
-                  cdkDragHandle
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  [class]="
-                    'flex-shrink-0 absolute left-2 top-1/2 -translate-y-1/2 ' +
-                    (isSwappingCategories
-                      ? 'cursor-not-allowed'
-                      : 'cursor-grab')
-                  "
-                >
-                  <circle cx="9" cy="5" r="1"></circle>
-                  <circle cx="9" cy="12" r="1"></circle>
-                  <circle cx="9" cy="19" r="1"></circle>
-                  <circle cx="15" cy="5" r="1"></circle>
-                  <circle cx="15" cy="12" r="1"></circle>
-                  <circle cx="15" cy="19" r="1"></circle>
-                </svg>
-                <span class="cursor-pointer flex-1 text-center"
-                  >{{ category }} ({{
-                    getPersonalCategoryCount(category)
-                  }})</span
-                >
-                @if (isSwappingCategories) {
-                <svg
-                  class="animate-spin h-4 w-4"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    class="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    stroke-width="4"
-                  ></circle>
-                  <path
-                    class="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                }
-              </button>
-            </div>
-            }
-          </div>
-          }
-
-          <!-- Prayers or Prompts List -->
-          @if (viewReady && !(loading$ | async) && !(error$ | async) &&
-          !(activeFilter === 'personal' &&
-          (prayerService.loadingPersonalPrayers$ | async)) && !(activeFilter ===
-          'memorize' && (memorizationService.loading$ | async))) {
-          <div class="space-y-4">
-            <!-- Empty State for Prayers -->
-            @if (activeFilter !== 'prompts' && activeFilter !== 'personal' &&
-            activeFilter !== 'memorize' && (prayers$ | async)?.length === 0) {
-            <div
-              class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center border border-gray-200 dark:border-gray-700"
-            >
-              @if (filters.searchTerm && filters.searchTerm.trim()) {
-              <svg
-                class="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.5"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                ></path>
-              </svg>
-              }
-              <h3
-                class="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2"
-              >
-                @if (filters.searchTerm && filters.searchTerm.trim()) {
-                <span>No prayers found</span>
-                } @else { @if (activeFilter === 'current') {
-                <span>No current prayer requests yet</span>
-                } @if (activeFilter === 'answered') {
-                <span>No answered prayers yet</span>
-                } @if (activeFilter === 'total') {
-                <span>No prayer requests yet</span>
-                } }
-              </h3>
-              <p class="text-gray-500 dark:text-gray-400">
-                @if (filters.searchTerm && filters.searchTerm.trim()) {
-                <span>Try adjusting your search terms</span>
-                } @else {
-                <span
-                  >Be the first to add a prayer request to build your church's
-                  prayer community.</span
-                >
-                }
-              </p>
-            </div>
-            }
-
-            <!-- Empty State for Personal Prayers -->
-            @if (activeFilter === 'personal' &&
-            !(prayerService.loadingPersonalPrayers$ | async) &&
-            getFilteredPersonalPrayers().length === 0) {
-            <div
-              class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center border border-gray-200 dark:border-gray-700"
-            >
-              @if (filters.searchTerm && filters.searchTerm.trim()) {
-              <svg
-                class="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.5"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                ></path>
-              </svg>
-              }
-              <h3
-                class="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2"
-              >
-                @if (filters.searchTerm && filters.searchTerm.trim()) {
-                <span>No prayers found</span>
-                } @else {
-                <span>No personal prayers yet</span>
-                }
-              </h3>
-              <p class="text-gray-500 dark:text-gray-400">
-                @if (filters.searchTerm && filters.searchTerm.trim()) {
-                <span>Try adjusting your search terms</span>
-                } @else {
-                <span
-                  >Click the Add Request button and choose Personal Prayer to
-                  create prayers that stays private to you.</span
-                >
-                }
-              </p>
-            </div>
-            }
-
-            <!-- Prayer Cards (only show when not on prompts, personal, or memorize filter) -->
-            @if (activeFilter !== 'prompts' && activeFilter !== 'personal' &&
-            activeFilter !== 'memorize') {
-            @for (prayer of prayers$ | async; track prayer.id) {
-            <app-prayer-card
-              [prayer]="prayer"
-              [isAdmin]="(isAdmin$ | async) || false"
-              [activeFilter]="activeFilter"
-              [deletionsAllowed]="deletionsAllowed"
-              [updatesAllowed]="updatesAllowed"
-              (delete)="deletePrayer($event)"
-              (addUpdate)="addUpdate($event)"
-              (deleteUpdate)="deleteUpdate($event)"
-              (requestDeletion)="requestDeletion($event)"
-              (requestUpdateDeletion)="requestUpdateDeletion($event)"
-            ></app-prayer-card>
-            } }
-
-            <!-- Personal Prayer Cards (show when personal filter is active) -->
-            @if (activeFilter === 'personal') {
-            <div
-              cdkDropList
-              (cdkDropListDropped)="onPersonalPrayerDrop($event)"
-              [cdkDropListDisabled]="selectedPersonalCategories.length !== 1"
-              class="space-y-3"
-            >
-              @for (prayer of getFilteredPersonalPrayers(); track prayer.id) {
-              <div cdkDrag>
-                <ng-template #dragHandle>
-                  <div
-                    cdkDragHandle
-                    class="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 dark:text-gray-600 dark:hover:text-gray-400 flex-shrink-0 absolute left-3 top-1/2 -translate-y-1/2 pr-2"
-                  >
-                    <svg
-                      class="block"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <circle cx="9" cy="5" r="1"></circle>
-                      <circle cx="9" cy="12" r="1"></circle>
-                      <circle cx="9" cy="19" r="1"></circle>
-                      <circle cx="15" cy="5" r="1"></circle>
-                      <circle cx="15" cy="12" r="1"></circle>
-                      <circle cx="15" cy="19" r="1"></circle>
-                    </svg>
-                  </div>
-                </ng-template>
-                <app-prayer-card
-                  [prayer]="prayer"
-                  [isAdmin]="(isAdmin$ | async) || false"
-                  [activeFilter]="activeFilter"
-                  [isPersonal]="true"
-                  [deletionsAllowed]="'everyone'"
-                  [updatesAllowed]="'everyone'"
-                  [isDragging]="true"
-                  (delete)="deletePersonalPrayer($event)"
-                  (addUpdate)="addPersonalUpdate($event)"
-                  (deleteUpdate)="deletePersonalUpdate($event)"
-                  (editPersonalPrayer)="openEditModal($event)"
-                  (editPersonalUpdate)="openEditUpdateModal($event)"
-                  [dragHandle]="
-                    selectedPersonalCategories.length === 1 ? dragHandle : null
-                  "
-                ></app-prayer-card>
-              </div>
-              }
-            </div>
-            }
-
-            @if (activeFilter === 'memorize') {
-            <app-memorization-action-bar
-              [addVersesActive]="showAddMemorizedVerse"
-              [bibleBooksActive]="showAddMemorizedBibleBooks"
-              [recommendedActive]="showMemorizationRecommendations"
-              (addVerses)="showAddMemorizedVerse = true"
-              (addBibleBooks)="showAddMemorizedBibleBooks = true"
-              (openRecommended)="openMemorizationRecommendations()"
-            />
-            @if (!(memorizationService.loading$ | async) && memorizedItems.length
-            === 0) {
-            <div
-              class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center border border-gray-200 dark:border-gray-700"
-            >
-              <h3 class="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2">
-                No memorized passages yet
-              </h3>
-              <p class="text-gray-500 dark:text-gray-400">
-                @if (memorizationRecommendationsService.hasRecommendations$ | async) {
-                  Add verses, Bible books, or pick from Recommended to start practicing.
-                } @else {
-                  Add verses or Bible books to start practicing.
-                }
-              </p>
-            </div>
-            } @for (section of memorizedVerseSections; track section.title) {
-            <p [class]="section.headingClass">
-              {{ section.title }}
-            </p>
-            <div [class]="memorizedVerseGridClass" role="list">
-            @for (item of section.items; track item.id) {
-            <app-memorized-verse-card
-              [item]="item"
-              (practice)="openMemorizationPractice($event)"
-              (remove)="confirmRemoveMemorizedItem($event)"
-            />
-            }
-            </div>
-            } }
-
-            <!-- Empty State for Prompts -->
-            @if (activeFilter === 'prompts' && (prompts$ | async)?.length === 0)
-            {
-            <div
-              class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center border border-gray-200 dark:border-gray-700"
-            >
-              <h3
-                class="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2"
-              >
-                No prayer prompts yet
-              </h3>
-              <p class="text-gray-500 dark:text-gray-400">
-                Prompts help guide prayer requests.
-              </p>
-            </div>
-            }
-
-            <!-- Prompt Cards (only show when on prompts filter) -->
-            @if (activeFilter === 'prompts') { @for (prompt of
-            getDisplayedPrompts(); track prompt.id) {
-            <app-prompt-card
-              [prompt]="prompt"
-              [isAdmin]="(isAdmin$ | async) || false"
-              [isTypeSelected]="isPromptTypeSelected(prompt.type)"
-              (delete)="deletePrompt($event)"
-              (onTypeClick)="togglePromptType($event)"
-            ></app-prompt-card>
-            } }
-          </div>
-          }
-        </main>
-        <!-- Native app: bottom safe zone bar - matches header (bg-white/50 dark:bg-gray-800/50 backdrop-blur-md) -->
-        <footer
-          class="bottom-safe-bar w-full bg-white/50 dark:bg-gray-800/50 backdrop-blur-md border-t border-gray-200 dark:border-gray-700 sticky bottom-0 z-50"
-          aria-hidden="true"
-        ></footer>
-      </div>
-
-      <!-- Overlays outside scroll viewport so position:fixed covers full screen on iOS Safari -->
-      <app-prayer-form
-        [isOpen]="showPrayerForm"
-        [defaultPersonalPrayer]="activeFilter === 'personal'"
-        (close)="onPrayerFormClose($event)"
-      ></app-prayer-form>
-
-      <app-user-settings
-        [isOpen]="showSettings"
-        (onClose)="showSettings = false"
-      ></app-user-settings>
-
-      <app-help-modal
-        [isOpen]="showHelp"
-        (closeModal)="showHelp = false"
-      ></app-help-modal>
-
-      @if (showLogoutConfirmation) {
-      <app-confirmation-dialog
-        title="Log Out?"
-        message="Are you sure you want to log out?"
-        confirmText="Log Out"
-        cancelText="Cancel"
-        [isDangerous]="false"
-        (confirm)="handleLogout()"
-        (cancel)="showLogoutConfirmation = false"
-      ></app-confirmation-dialog>
-      }
-
-      <app-personal-prayer-edit-modal
-        [isOpen]="showEditPersonalPrayer"
-        [prayer]="editingPrayer"
-        (close)="showEditPersonalPrayer = false"
-        (save)="onPersonalPrayerSaved()"
-      ></app-personal-prayer-edit-modal>
-
-      <app-personal-prayer-update-edit-modal
-        [isOpen]="showEditPersonalUpdate"
-        [update]="editingUpdate"
-        [prayerId]="editingUpdatePrayerId"
-        (close)="showEditPersonalUpdate = false"
-        (save)="onPersonalUpdateSaved()"
-      ></app-personal-prayer-update-edit-modal>
-
-      <app-add-memorized-verse-modal
-        [isOpen]="showAddMemorizedVerse"
-        (onClose)="showAddMemorizedVerse = false"
-        (translationChange)="preferredBibleTranslation = $event"
-      />
-      <app-add-memorized-bible-books-modal
-        [isOpen]="showAddMemorizedBibleBooks"
-        [translation]="preferredBibleTranslation"
-        (onClose)="showAddMemorizedBibleBooks = false"
-      />
-      <app-memorization-recommendations-modal
-        [isOpen]="showMemorizationRecommendations"
-        [groups]="(memorizationRecommendationsService.grouped$ | async) ?? []"
-        [alreadyAddedReferences]="memorizationRecommendationOwnedKeys"
-        [busyId]="addingRecommendationId"
-        [loading]="!!(memorizationRecommendationsService.loading$ | async)"
-        [translation]="preferredBibleTranslation"
-        (translationChange)="preferredBibleTranslation = $event"
-        (onClose)="showMemorizationRecommendations = false"
-        (add)="addRecommendedVerse($event)"
-      />
-      @if (practiceMemorizedItem) {
-      <app-memorization-practice-session
-        [item]="practiceMemorizedItem"
-        [isOpen]="!!practiceMemorizedItem"
-        (closed)="closeMemorizationPractice()"
-        (completed)="onMemorizationPracticeComplete($event)"
-        (persistInProgress)="onMemorizationPersistInProgress($event)"
-        (clearInProgress)="onMemorizationClearInProgress()"
-      />
-      }
-      @if (showRemoveMemorizedConfirm && memorizedItemToRemove) {
-      <app-confirmation-dialog
-        title="Remove from list?"
-        [message]="'Remove ' + memorizedItemToRemove.reference + ' from your memorization list?'"
-        confirmText="Remove"
-        cancelText="Cancel"
-        [isDangerous]="true"
-        (confirm)="removeMemorizedItemConfirmed()"
-        (cancel)="showRemoveMemorizedConfirm = false"
-      />
-      }
-
-      <!-- No Footer Links -->
-    </div>
-  `,
+  templateUrl: "./home.component.html",
+  styleUrl: "./home.component.css",
 })
-export class HomeComponent implements OnInit, OnDestroy {
+export class HomeComponent implements OnInit, OnDestroy, HomeCoordinatorWiringPage, HomeLifecyclePageBindings {
   readonly promptTypeActiveClass = PROMPT_TYPE_CHIP_ACTIVE_CLASS;
   readonly promptTypeInactiveClass = PROMPT_TYPE_CHIP_INACTIVE_CLASS;
 
@@ -1214,14 +216,14 @@ export class HomeComponent implements OnInit, OnDestroy {
     | "personal"
     | "memorize" = "current";
   viewReady = false;
-  private pendingHomeReturnContext: HomeReturnContext | null = null;
+  pendingHomeReturnContext: HomeReturnContext | null = null;
   selectedPromptTypes: string[] = [];
   selectedPersonalCategories: string[] = [];
   isCategoryDragging = false;
   uniquePersonalCategories: string[] = [];
   isSwappingCategories = false;
   isRefreshing = false;
-  private lastExplicitRefreshAt = 0;
+  lastExplicitRefreshAt = 0;
   canAccessShared = false;
   get canAccessAdminFeatures(): boolean {
     return this.tenantPermissionService.canAccessAdmin();
@@ -1245,6 +247,19 @@ export class HomeComponent implements OnInit, OnDestroy {
       this.tenantSwitchOptions.length > 1
     );
   }
+
+
+  readonly catalog = new HomeCatalogStore();
+  readonly filter = new HomeFilterCoordinator();
+  readonly personalCategory = new HomePersonalCategoryController();
+  readonly memorizationPanel = new HomeMemorizationPanelController();
+  readonly lifecycleCoordinator = new HomeLifecycleCoordinator();
+  readonly modals = new HomeModalController();
+  readonly refresh = new HomeRefreshCoordinator();
+  readonly deepLinkCoordinator = new HomeDeepLinkCoordinator();
+  readonly prayerCardActions: HomePrayerCardActionsController;
+  readonly presentationNav: HomePresentationNavigationController;
+  private deepLinkHost!: HomeDeepLinkHostAdapter;
 
   isAdmin = false;
   // Admin settings for access control policies
@@ -1288,47 +303,82 @@ export class HomeComponent implements OnInit, OnDestroy {
         ? useLogoStored === "true"
         : windowCacheApplies && windowCache?.useLogo === true;
     this.hasLogo = useLogo;
+
+    this.prayerCardActions = new HomePrayerCardActionsController(
+      this.prayerService,
+      this.promptService,
+      this.toastService,
+      this.userSessionService
+    );
+    const homeHandoff = new PresentationHomeHandoffCoordinator();
+    this.presentationNav = new HomePresentationNavigationController(
+      this.router,
+      homeHandoff
+    );
+
+    const wired = wireHomeCoordinators({
+      page: this,
+      filterPage: this,
+      lifecyclePage: this,
+      cdr: this.cdr,
+      router: this.router,
+      route: this.route,
+      prayerService: this.prayerService,
+      promptService: this.promptService,
+      adminAuthService: this.adminAuthService,
+      userSessionService: this.userSessionService,
+      badgeService: this.badgeService,
+      memorizationService: this.memorizationService,
+      memorizationRecommendationsService: this.memorizationRecommendationsService,
+      scriptureService: this.scriptureService,
+      personalCategoryColorService: this.personalCategoryColorService,
+      toastService: this.toastService,
+      analyticsService: this.analyticsService,
+      tenantContextService: this.tenantContextService,
+      tenantPermissionService: this.tenantPermissionService,
+      connectivity: this.connectivity,
+      supabaseService: this.supabaseService,
+      prayerCardActions: this.prayerCardActions,
+      deepLinkCoordinator: this.deepLinkCoordinator,
+      helpTourLauncher: null,
+      catalog: this.catalog,
+      filterCoordinator: this.filter,
+      personalCategory: this.personalCategory,
+      memorizationPanel: this.memorizationPanel,
+      lifecycleCoordinator: this.lifecycleCoordinator,
+      modals: this.modals,
+      refreshCoordinator: this.refresh,
+      presentationNav: this.presentationNav,
+    });
+    this.deepLinkHost = wired.deepLinkHost;
+  }
+
+  getCatalogBindings() {
+    return createHomeCatalogBindings({
+      personalPrayers: this.personalPrayers,
+      planningCenterPrayers: [],
+      prompts: this.promptService.promptsSubject.value,
+      activeFilter: this.activeFilter,
+      filters: this.filters,
+      personalCategoryFilterMode: this.personalCategory.personalCategoryFilterMode,
+      selectedPersonalCategories: this.selectedPersonalCategories,
+      selectedPromptTypes: this.selectedPromptTypes,
+    });
+  }
+
+  refreshHomeCatalog(): void {
+    syncHomeCatalog(this.catalog, this.getCatalogBindings());
+  }
+
+  getPrayerFormComp(): PrayerFormComponent | undefined {
+    return undefined;
+  }
+
+  getMemorizeKeyboardBridge(): HTMLInputElement | undefined {
+    return this.memorizeKeyboardBridge?.nativeElement;
   }
 
   ngOnInit(): void {
-    this.pendingHomeReturnContext = this.consumeHomeReturnContext();
-
-    // Track page view on home component load
-    this.analyticsService.trackPageView();
-
-    this.router.events
-      .pipe(
-        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
-        takeUntil(this.destroy$)
-      )
-      .subscribe((e) => {
-        if (!this.isRouterUrlHome(e.urlAfterRedirects)) {
-          return;
-        }
-        const returnContext = this.consumeHomeReturnContext();
-        if (returnContext) {
-          if (this.viewReady) {
-            this.applyHomeReturnContext(returnContext);
-            this.cdr.markForCheck();
-          } else {
-            this.pendingHomeReturnContext = returnContext;
-          }
-        }
-      });
-
-    this.route.queryParams
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((params) => {
-        if (!this.viewReady) {
-          return;
-        }
-        if (params["filter"] === "memorize") {
-          this.setFilter("memorize");
-          this.clearMemorizeFilterQueryParam();
-          this.cdr.markForCheck();
-        }
-      });
-
     this.isOnline = this.connectivity.isOnline();
     this.connectivity.isOnline$
       .pipe(takeUntil(this.destroy$))
@@ -1336,193 +386,37 @@ export class HomeComponent implements OnInit, OnDestroy {
         this.isOnline = online;
         this.cdr.markForCheck();
       });
-
-    this.prayers$ = this.prayerService.prayers$;
-    this.prompts$ = this.promptService.prompts$;
-    this.loading$ = this.prayerService.loading$;
-    this.error$ = this.prayerService.error$;
-    this.isAdmin$ = this.adminAuthService.isAdmin$;
-
-    // Initialize badge observables immediately so badges can show on first load
-    // (no longer waiting for prompts$; refreshBadgeCounts runs when prayers/prompts load and once below)
-    this.currentPrayerBadge$ = this.badgeService.getBadgeCount$(
-      "prayers",
-      "current"
-    );
-    this.answeredPrayerBadge$ = this.badgeService.getBadgeCount$(
-      "prayers",
-      "answered"
-    );
-    this.promptBadge$ = this.badgeService.getBadgeCount$("prompts");
-    // Ensure prompts (and prompts_cache) are loaded when Home is shown. Required after logout:
-    // logout invalidates prompts_cache, but PromptService does not re-run loadPrompts() until
-    // next full page load; calling loadPrompts() here repopulates cache so badge counts are correct.
-    this.promptService.loadPrompts();
-    if (this.tenantContextService?.activeTenant$) {
-      this.tenantContextService.activeTenant$
-        .pipe(
-          map((tenant) => tenant?.id ?? null),
-          distinctUntilChanged(),
-          skip(1),
-          takeUntil(this.destroy$)
-        )
-        .subscribe(async () => {
-          this.canAccessShared = this.tenantPermissionService.canAccessShared();
-          if (
-            !this.canAccessShared &&
-            this.activeFilter !== "personal" &&
-            this.activeFilter !== "memorize"
-          ) {
-            this.setFilter("personal");
-          } else {
-            await Promise.all([
-              this.prayerService.loadPrayers(),
-              this.promptService.loadPrompts(),
-              this.prayerService.loadPersonalPrayers(false),
-              this.memorizationService.loadItems(),
-            ]);
-          }
-          this.cdr.markForCheck();
-        });
-    }
-
-    if (this.tenantContextService?.memberships$) {
-      this.tenantContextService.memberships$
-        .pipe(takeUntil(this.destroy$))
-        .subscribe((memberships) => {
-          this.tenantMemberships = memberships;
-          this.cdr.markForCheck();
-        });
-    }
-
-    if (this.tenantContextService?.loading$) {
-      this.tenantContextService.loading$
-        .pipe(takeUntil(this.destroy$))
-        .subscribe((loading) => {
-          this.tenantContextLoading = loading;
-          this.cdr.markForCheck();
-        });
-    }
-
-    if (this.tenantContextService?.isSuperAdmin$) {
-      this.tenantContextService.isSuperAdmin$
-        .pipe(takeUntil(this.destroy$))
-        .subscribe(() => this.cdr.markForCheck());
-    }
-
-    if (this.tenantContextService?.availableTenants$) {
-      this.tenantContextService.availableTenants$
-        .pipe(takeUntil(this.destroy$))
-        .subscribe((tenants) => {
-          this.availableTenants = tenants;
-          this.cdr.markForCheck();
-        });
-    }
-
-    if (this.tenantContextService?.subscriberTenants$) {
-      this.tenantContextService.subscriberTenants$
-        .pipe(takeUntil(this.destroy$))
-        .subscribe(() => this.cdr.markForCheck());
-    }
-
-    this.badgeService.refreshBadgeCounts();
-    this.cdr.markForCheck();
-
-    // Subscribe to prayers for filtering
-    this.prayers$.pipe(takeUntil(this.destroy$)).subscribe((prayers) => {
-      this.currentPrayers = prayers;
-      this.cdr.markForCheck();
-    });
-
-    // Load admin settings (deletion and update policies)
-    this.loadAdminSettings();
-
-    // Subscribe to ALL prayers to update counts (not filtered) - with cleanup
-    this.prayerService.allPrayers$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((prayers) => {
-        this.currentPrayersCount = prayers.filter(
-          (p) => p.status === "current"
-        ).length;
-        this.answeredPrayersCount = prayers.filter(
-          (p) => p.status === "answered"
-        ).length;
-        this.totalPrayersCount = prayers.length;
-
-        // Refresh badge counts when prayers data loads/changes (ensures badges show on first load)
-        this.badgeService.refreshBadgeCounts();
-        this.cdr.markForCheck();
-      });
-
-    // Subscribe to prompts for count - with cleanup
-    this.prompts$.pipe(takeUntil(this.destroy$)).subscribe((prompts) => {
-      this.promptsCount = prompts.length;
-      this.cdr.markForCheck();
-
-      // Refresh badge counts when prompts data loads/changes (ensures badges show on first load)
-      this.badgeService.refreshBadgeCounts();
-      this.cdr.markForCheck();
-    });
-
-    // Subscribe to admin status - with cleanup
-    this.adminAuthService.isAdmin$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((isAdmin) => {
-        this.isAdmin = isAdmin;
-      });
-
-    // Subscribe to personal prayers from the service (automatically loaded by service on session change)
-    this.prayerService.allPersonalPrayers$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(async (prayers) => {
-        this.personalPrayers = prayers;
-        this.personalPrayersCount = prayers.length;
-        if (prayers.length > 0) {
-          await this.extractUniqueCategories(prayers);
-        }
-        this.cdr.markForCheck();
-      });
-
     this.preferredBibleTranslation = this.memorizationService.getPreferredTranslation();
+    this.subscribeDestTenantPageFields();
+    this.lifecycleCoordinator.initialize(this.destroy$);
+  }
 
-    this.memorizationService.memorizedItems$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((items) => {
-        this.memorizedItems = items;
-        this.memorizedItemsCount = items.length;
-        const grouped = groupItemsByMasterLevel(items);
-        this.memorizedLearning = grouped.learning;
-        this.memorizedPracticing = grouped.practicing;
-        this.memorizedMastered = grouped.mastered;
-        this.memorizationRecommendationOwnedKeys = new Set(
-          items
-            .filter((item) => item.kind === "verse" || item.kind == null)
-            .map((item) => `${item.translation}:${item.reference}`)
-        );
+  private subscribeDestTenantPageFields(): void {
+    const tenant = this.tenantContextService;
+    tenant.memberships$
+      ?.pipe(takeUntil(this.destroy$))
+      .subscribe((memberships) => {
+        this.tenantMemberships = memberships;
         this.cdr.markForCheck();
       });
-
-    // Apply default view only after tenant context and user session have finished loading.
-    // Otherwise canAccessShared stays false and setFilter forces personal prayers.
-    combineLatest([
-      this.userSessionService.userSession$.pipe(
-        filter((session): session is UserSessionData => !!session)
-      ),
-      this.userSessionService.isLoading$.pipe(filter((loading) => !loading), take(1)),
-      this.tenantContextService.loading$.pipe(filter((loading) => !loading), take(1)),
-    ])
-      .pipe(take(1), takeUntil(this.destroy$))
-      .subscribe(([session]) => {
-        if (this.pendingHomeReturnContext) {
-          this.canAccessShared = this.tenantPermissionService.canAccessShared();
-          this.applyHomeReturnContext(this.pendingHomeReturnContext);
-          this.pendingHomeReturnContext = null;
-          this.viewReady = true;
-          this.cdr.markForCheck();
-        } else {
-          this.applyInitialView(session);
-        }
+    tenant.loading$
+      ?.pipe(takeUntil(this.destroy$))
+      .subscribe((loading) => {
+        this.tenantContextLoading = loading;
+        this.cdr.markForCheck();
       });
+    tenant.availableTenants$
+      ?.pipe(takeUntil(this.destroy$))
+      .subscribe((tenants) => {
+        this.availableTenants = tenants;
+        this.cdr.markForCheck();
+      });
+    tenant.isSuperAdmin$
+      ?.pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.cdr.markForCheck());
+    tenant.subscriberTenants$
+      ?.pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.cdr.markForCheck());
   }
 
   onPrayerFormClose(event: { isPersonal?: boolean }): void {
@@ -1533,49 +427,16 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     // Complete the subject to unsubscribe from all observables
+    this.personalCategory.dispose();
     this.destroy$.next();
     this.destroy$.complete();
   }
 
   async onPullToRefresh(): Promise<void> {
-    if (!this.connectivity.requireOnline('refresh prayers')) {
-      return;
-    }
-    const now = Date.now();
-    // Avoid hammering Supabase if user pulls repeatedly
-    const minIntervalMs = 30_000; // 30 seconds
-    if (now - this.lastExplicitRefreshAt < minIntervalMs) {
-      return;
-    }
-
-    this.lastExplicitRefreshAt = now;
-    this.isRefreshing = true;
-    this.cdr.markForCheck();
-
-    try {
-      const tasks: Promise<unknown>[] = [];
-      // Always refresh public prayers from DB (cache-first still shows existing data immediately)
-      tasks.push(this.prayerService.loadPrayers(false));
-
-      // If user is logged in, refresh personal prayers as well
-      const session = this.userSessionService.getCurrentSession();
-      if (session && session.email) {
-        tasks.push(this.prayerService.loadPersonalPrayers(false));
-        tasks.push(this.personalCategoryColorService.loadColors(true));
-        tasks.push(this.memorizationService.loadItems());
-      }
-
-      await Promise.all(tasks);
-    } catch (error) {
-      console.error("[HomeComponent] Error during pull-to-refresh:", error);
-      this.toastService.error("Failed to refresh. Showing last saved data.");
-    } finally {
-      this.isRefreshing = false;
-      this.cdr.markForCheck();
-    }
+    await this.refresh.onPullToRefresh();
   }
 
-  private async loadAdminSettings(): Promise<void> {
+  async loadAdminSettings(): Promise<void> {
     try {
       const { data, error } = await this.supabaseService.client
         .from("admin_settings")
@@ -1601,16 +462,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   }
 
   onFiltersChange(filters: PrayerFilters): void {
-    // Preserve current filter state when search changes
-    this.filters = {
-      ...this.filters,
-      searchTerm: filters.searchTerm,
-    };
-    this.prayerService.applyFilters({
-      status: this.filters.status,
-      type: this.filters.type,
-      search: this.filters.searchTerm,
-    });
+    this.filter.onFiltersChange(filters);
   }
 
   setFilter(
@@ -1622,48 +474,10 @@ export class HomeComponent implements OnInit, OnDestroy {
       | "personal"
       | "memorize"
   ): void {
-    this.canAccessShared = this.tenantPermissionService.canAccessShared();
-    if (
-      !this.canAccessShared &&
-      filter !== "personal" &&
-      filter !== "memorize"
-    ) {
-      this.activeFilter = "personal";
-      this.prayerService.applyFilters({ search: this.filters.searchTerm });
-      return;
-    }
-    this.activeFilter = filter;
-
-    if (filter === "prompts") {
-      // Clear prayer filters and reset prompt type selections
-      this.filters = { searchTerm: this.filters.searchTerm };
-      this.selectedPromptTypes = [];
-      // Don't show any prayers when prompts filter is active
-      this.prayerService.applyFilters({ search: "" }); // Empty results
-    } else if (filter === "personal") {
-      // Show personal prayers only
-      this.filters = { searchTerm: this.filters.searchTerm };
-      this.prayerService.applyFilters({ search: this.filters.searchTerm });
-      // Personal prayers are automatically loaded via service observable subscription
-    } else if (filter === "memorize") {
-      this.filters = { searchTerm: this.filters.searchTerm };
-      this.prayerService.applyFilters({ search: "" });
-      void this.memorizationService.loadItems();
-    } else if (filter === "total") {
-      this.filters = { searchTerm: this.filters.searchTerm };
-      this.prayerService.applyFilters({
-        search: this.filters.searchTerm,
-      });
-    } else {
-      this.filters = { status: filter, searchTerm: this.filters.searchTerm };
-      this.prayerService.applyFilters({
-        status: this.filters.status,
-        search: this.filters.searchTerm,
-      });
-    }
+    this.filter.setFilter(filter);
   }
 
-  private applyInitialView(session: UserSessionData): void {
+  applyInitialView(session: UserSessionData): void {
     if (this.viewReady) {
       return;
     }
@@ -2121,7 +935,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     return sections;
   }
 
-  private async extractUniqueCategories(
+  async extractUniqueCategories(
     prayers: PrayerRequest[]
   ): Promise<void> {
     // Use prayer service method which sorts by display_order, pass the prayers directly
@@ -2554,7 +1368,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     });
   }
 
-  private consumeHomeReturnContext(): HomeReturnContext | null {
+  consumeHomeReturnContext(): HomeReturnContext | null {
     const state = history.state as Record<string, unknown> | null;
     const returnContext = parseHomeReturnContextFromState(state);
     if (!returnContext) {
@@ -2575,7 +1389,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     return path === "/" || path === "";
   }
 
-  private applyHomeReturnContext(context: HomeReturnContext): void {
+  applyHomeReturnContext(context: HomeReturnContext): void {
     this.setFilter(context.activeFilter);
     if (
       context.activeFilter === "prompts" &&

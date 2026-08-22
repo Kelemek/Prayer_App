@@ -17,6 +17,10 @@ const makeMocks = () => {
     allPersonalPrayers$: allPersonalPrayersSubject.asObservable(),
     promptsSubject,
     applyFilters: vi.fn(),
+    loadPrayers: vi.fn().mockResolvedValue(undefined),
+    loadPersonalPrayers: vi.fn().mockResolvedValue(undefined),
+    getAllCommunityPrayersSnapshot: vi.fn(() => prayersSubject.value),
+    getPersonalPrayersSnapshot: vi.fn(() => allPersonalPrayersSubject.value),
     updatePrayerStatus: vi.fn(),
     deletePrayer: vi.fn(),
     addUpdate: vi.fn(),
@@ -38,7 +42,9 @@ const makeMocks = () => {
     prompts$: promptsSubject.asObservable(),
     promptsSubject,
     deletePrompt: vi.fn(),
-    loadPrompts: vi.fn(() => Promise.resolve())
+    loadPrompts: vi.fn(() => Promise.resolve()),
+    getPromptsSnapshot: vi.fn(() => promptsSubject.value),
+    getActivePromptCategories: vi.fn(() => []),
   };
 
   const adminAuthService: any = {
