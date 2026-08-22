@@ -1,4 +1,4 @@
-import type { PrayerRequest } from "../services/prayer.service";
+import type { PrayerRequest } from "./prayer-types";
 
 type CategoryOrderPrayer = Pick<PrayerRequest, "category" | "display_order">;
 
