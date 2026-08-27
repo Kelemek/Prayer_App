@@ -30,8 +30,10 @@ export interface AdminData {
     email: string;
     first_name: string;
     last_name: string;
-    approval_status: string;
+    affiliation_reason?: string | null;
+    approval_status: 'pending' | 'approved' | 'denied';
     created_at: string;
+    updated_at: string;
   }>;
   approvedPrayers: PrayerRequest[];
   approvedUpdates: (PrayerUpdate & { prayer_title?: string })[];

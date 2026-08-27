@@ -115,6 +115,8 @@ export class CardActionsOverflowMenuComponent implements OnDestroy {
   private positionRaf = 0;
   private scrollListener: (() => void) | null = null;
   private resizeListener: (() => void) | null = null;
+  private documentClickCaptureListener: ((event: MouseEvent) => void) | null =
+    null;
 
   get layoutClasses() {
     return getMetaHeaderBandLayoutClasses(this.bandSize);
@@ -159,6 +161,7 @@ export class CardActionsOverflowMenuComponent implements OnDestroy {
     }
     this.menuOpen = true;
     this.cdr.markForCheck();
+    this.attachDocumentClickCaptureListener();
     this.schedulePositionUpdate();
   }
 
@@ -167,6 +170,7 @@ export class CardActionsOverflowMenuComponent implements OnDestroy {
       return;
     }
     this.menuOpen = false;
+    this.detachDocumentClickCaptureListener();
     this.detachMenuPortal();
     this.detachPositionListeners();
     this.cdr.markForCheck();
@@ -179,12 +183,13 @@ export class CardActionsOverflowMenuComponent implements OnDestroy {
     this.triggerRef?.nativeElement.focus();
   }
 
-  @HostListener('document:mousedown', ['$event'])
-  onDocumentMouseDown(event: MouseEvent): void {
+  onDocumentClick(event: MouseEvent): void {
     if (!this.menuOpen) return;
     const target = event.target as Node;
     if (this.triggerRef?.nativeElement.contains(target)) return;
     if (this.getMenuElement()?.contains(target)) return;
+    event.preventDefault();
+    event.stopPropagation();
     this.closeMenu();
   }
 
@@ -196,6 +201,7 @@ export class CardActionsOverflowMenuComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.detachDocumentClickCaptureListener();
     this.detachMenuPortal();
     this.detachPositionListeners();
     if (this.positionRaf) {
@@ -252,6 +258,28 @@ export class CardActionsOverflowMenuComponent implements OnDestroy {
       window.removeEventListener('resize', this.resizeListener);
       this.resizeListener = null;
     }
+  }
+
+  private attachDocumentClickCaptureListener(): void {
+    if (this.documentClickCaptureListener) {
+      return;
+    }
+    this.documentClickCaptureListener = (event: MouseEvent) => {
+      this.onDocumentClick(event);
+    };
+    document.addEventListener('click', this.documentClickCaptureListener, true);
+  }
+
+  private detachDocumentClickCaptureListener(): void {
+    if (!this.documentClickCaptureListener) {
+      return;
+    }
+    document.removeEventListener(
+      'click',
+      this.documentClickCaptureListener,
+      true
+    );
+    this.documentClickCaptureListener = null;
   }
 
   private attachMenuPortal(): void {

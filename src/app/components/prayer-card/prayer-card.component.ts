@@ -10,8 +10,10 @@ import {
   OnChanges,
   SimpleChanges,
   TemplateRef,
+  Optional,
 } from '@angular/core';
 import { CommonModule, NgTemplateOutlet } from '@angular/common';
+import { CdkVirtualScrollViewport } from '@angular/cdk/scrolling';
 import { Observable, Subject, of } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { PrayerRequest, PrayerService, type PrayerUpdate } from '../../services/prayer.service';
@@ -48,7 +50,18 @@ import {
   buildPrayerCardDeletionRequest,
   buildPrayerCardUpdateDeletionRequest,
 } from '../../lib/prayer-card-delete-requests';
-import { getPrayerCardUserEmail } from '../../lib/prayer-card-user-context';
+import {
+  getPrayerCardUserEmail,
+} from '../../lib/prayer-card-user-context';
+import {
+  ensurePrayerCardItemRemindersLoaded,
+  remindersForPrayerCard,
+} from '../../lib/prayer-card-reminders';
+import { PrayerItemReminderService } from '../../services/prayer-item-reminder.service';
+import {
+  resolvePrayerItemKind,
+  type PrayerItemReminder,
+} from '../../types/prayer-item-reminder';
 import { PrayerCardBadgeWire } from '../../lib/prayer-card-badge-wire';
 import {
   applyPrayerCardDeleteUiPatch,
@@ -84,6 +97,7 @@ import {
   getPrayerStatusPillClasses,
 } from '../../lib/prayer-status-header';
 import { formatPrayerCardShortDate } from '../../lib/prayer-update-header';
+import { scheduleHomePrayerVirtualScrollRemeasure } from '../../lib/home-prayer-virtual-scroll';
 
 @Component({
   selector: 'app-prayer-card',
@@ -103,7 +117,7 @@ import { formatPrayerCardShortDate } from '../../lib/prayer-update-header';
     '[class.block]': 'variant !== "presentation"',
   },
   templateUrl: './prayer-card.component.html',
-  styles: [],
+  styleUrl: './prayer-card.component.css',
 })
 export class PrayerCardComponent
   implements OnInit, OnChanges, OnDestroy, PrayerCardDeleteUiState
@@ -150,6 +164,7 @@ export class PrayerCardComponent
     category: string | null;
     status: string;
   }>();
+  @Output() memorizeVerse = new EventEmitter<void>();
 
   prayerBadge$: Observable<boolean> | null = null;
   canPrayFor$ = of(true);
@@ -170,17 +185,21 @@ export class PrayerCardComponent
   updateConfirmationMessage = '';
   updateConfirmationId: string | null = null;
   showPrayForModal = false;
+  showReminderModal = false;
   richTextEditorsEnabled = true;
   categoryPickerOpen = false;
   private isTogglingPersonalAnswered = false;
+  private allPrayerItemReminders: PrayerItemReminder[] = [];
 
   constructor(
     public userSessionService: UserSessionService,
     public badgeService: BadgeService,
     private prayerService: PrayerService,
     public prayerEncouragementService: PrayerEncouragementService,
+    private prayerItemReminderService: PrayerItemReminderService,
     private cdr: ChangeDetectorRef,
-    richTextEditorsSettings: RichTextEditorsSettingsService
+    richTextEditorsSettings: RichTextEditorsSettingsService,
+    @Optional() private virtualScrollViewport?: CdkVirtualScrollViewport
   ) {
     this.badgeWire = new PrayerCardBadgeWire(this.badgeService, () => this.prayer);
     richTextEditorsSettings
@@ -200,6 +219,7 @@ export class PrayerCardComponent
     this.prayerBadge$ = this.badgeWire.prayerBadge$;
     this.badgeWire.init(this.destroy$);
     this.refreshCanPrayFor$();
+    this.prefetchItemRemindersIfNeeded();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -211,6 +231,8 @@ export class PrayerCardComponent
       const currentId = changes['prayer'].currentValue?.id;
       if (previousId !== currentId) {
         this.showPrayForModal = false;
+        this.showReminderModal = false;
+        this.allPrayerItemReminders = [];
         this.cdr.markForCheck();
       }
       if (!changes['prayer'].firstChange) {
@@ -249,9 +271,82 @@ export class PrayerCardComponent
       activeFilter: this.activeFilter,
       deletionsAllowed: this.deletionsAllowed,
       updatesAllowed: this.updatesAllowed,
-      reminderSessionEmail: '',
+      reminderSessionEmail: getPrayerCardUserEmail(this.userSessionService),
       currentUserEmail: getPrayerCardUserEmail(this.userSessionService),
     });
+  }
+
+  get hasPrayerReminder(): boolean {
+    return this.remindersForThisPrayer().length > 0;
+  }
+
+  reminderSessionEmail(): string {
+    return getPrayerCardUserEmail(this.userSessionService).trim();
+  }
+
+  prayerItemKind() {
+    return resolvePrayerItemKind({
+      prayerId: this.prayer?.id ?? '',
+      isPersonal: this.isPersonal,
+    });
+  }
+
+  remindersForThisPrayer(): PrayerItemReminder[] {
+    return remindersForPrayerCard(
+      this.prayerItemReminderService,
+      this.userSessionService,
+      this.allPrayerItemReminders,
+      this.prayer?.id ?? '',
+      this.isPersonal
+    );
+  }
+
+  openReminderModal(): void {
+    this.showReminderModal = true;
+    void this.ensurePrayerItemRemindersLoaded();
+    this.cdr.markForCheck();
+  }
+
+  onPrayerRemindersChanged(all: PrayerItemReminder[]): void {
+    this.allPrayerItemReminders = all;
+    this.cdr.markForCheck();
+  }
+
+  onCategoryPickerOpenChange(open: boolean): void {
+    this.categoryPickerOpen = open;
+    this.categoryPickerOpenChange.emit(open);
+    this.cdr.markForCheck();
+  }
+
+  readonly prepareOverflowMenuOpen = async (): Promise<void> => {
+    await this.ensurePrayerItemRemindersLoaded();
+    this.cdr.detectChanges();
+  };
+
+  private ensurePrayerItemRemindersLoaded(): Promise<void> {
+    if (!this.reminderSessionEmail()) {
+      this.allPrayerItemReminders = [];
+      this.cdr.markForCheck();
+      return Promise.resolve();
+    }
+    return ensurePrayerCardItemRemindersLoaded(
+      this.userSessionService,
+      this.prayerItemReminderService
+    ).then((rows) => {
+      this.allPrayerItemReminders = rows;
+      this.cdr.markForCheck();
+    });
+  }
+
+  onReminderClick(): void {
+    this.openReminderModal();
+  }
+
+  private prefetchItemRemindersIfNeeded(): void {
+    if (!this.viewState.showReminderButton) {
+      return;
+    }
+    void this.ensurePrayerItemRemindersLoaded();
   }
 
   getBorderClass(): string {
@@ -490,6 +585,7 @@ export class PrayerCardComponent
   toggleShowAllUpdates(): void {
     this.showAllUpdates = !this.showAllUpdates;
     this.cdr.markForCheck();
+    scheduleHomePrayerVirtualScrollRemeasure(this.virtualScrollViewport);
   }
 
   onUpdateDeleteRequestSubmit(payload: PrayerDeleteRequestPayload): void {

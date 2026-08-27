@@ -38,7 +38,7 @@ describe('PresentationSettingsService', () => {
       displayDuration: 10,
       loop: true,
       timeFilter: 'all',
-      statusFilters: { current: true, answered: true },
+      statusFilters: { current: true, answered: true, archived: false },
       prayerTimerMinutes: 10,
     });
   });
@@ -55,7 +55,7 @@ describe('PresentationSettingsService', () => {
       displayDuration: 20,
       loop: false,
       timeFilter: 'week' as const,
-      statusFilters: { current: true, answered: false },
+      statusFilters: { current: true, answered: false, archived: false },
       prayerTimerMinutes: 25,
     };
 
@@ -75,7 +75,7 @@ describe('PresentationSettingsService', () => {
         contentType: 'prompts',
         randomize: true,
         timeFilter: 'week',
-        statusFilters: { current: true, answered: false },
+        statusFilters: { current: true, answered: false, archived: false },
         prayerTimerMinutes: 25,
       })
     );
@@ -87,7 +87,7 @@ describe('PresentationSettingsService', () => {
       displayDuration: 10,
       loop: true,
       timeFilter: 'week',
-      statusFilters: { current: true, answered: false },
+      statusFilters: { current: true, answered: false, archived: false },
       prayerTimerMinutes: 25,
     });
   });
@@ -101,7 +101,7 @@ describe('PresentationSettingsService', () => {
         smartMode: true,
         displayDuration: 10,
         timeFilter: 'all',
-        statusFilters: { current: true, answered: true },
+        statusFilters: { current: true, answered: true, archived: false },
         prayerTimerMinutes: 10,
       })
     );
@@ -116,7 +116,7 @@ describe('PresentationSettingsService', () => {
         contentType: 'all',
         randomize: false,
         timeFilter: 'month',
-        statusFilters: { current: true, answered: true },
+        statusFilters: { current: true, answered: true, archived: false },
         prayerTimerMinutes: 10,
       })
     );
@@ -133,7 +133,7 @@ describe('PresentationSettingsService', () => {
         smartMode: true,
         displayDuration: 10,
         timeFilter: 'month',
-        statusFilters: { current: true, answered: true },
+        statusFilters: { current: true, answered: true, archived: false },
         prayerTimerMinutes: 10,
       })
     );

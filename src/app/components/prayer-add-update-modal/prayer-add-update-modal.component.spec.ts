@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PrayerAddUpdateModalComponent } from "./prayer-add-update-modal.component";
 import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.component";
+import { ToastService } from "../../services/toast.service";
 
 describe("PrayerAddUpdateModalComponent", () => {
   let component: PrayerAddUpdateModalComponent;
+  let toast: { error: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
-    component = new PrayerAddUpdateModalComponent();
+    toast = { error: vi.fn() };
+    component = new PrayerAddUpdateModalComponent(
+      toast as unknown as ToastService
+    );
   });
 
   it("should create", () => {
@@ -71,6 +76,12 @@ describe("PrayerAddUpdateModalComponent", () => {
     component.handleSubmit();
 
     expect(spy).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith("Update content is required");
+  });
+
+  it("canSubmitUpdate returns false for whitespace-only content", () => {
+    component.updateContent = "   \n\t";
+    expect(component.canSubmitUpdate()).toBe(false);
   });
 
   it("closeModal emits close and resets form fields", () => {

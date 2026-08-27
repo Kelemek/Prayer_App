@@ -482,7 +482,7 @@ describe('PresentationSettingsModalComponent', () => {
 
       component.applyStatusFilter();
 
-      expect(emitSpy).toHaveBeenCalledWith({ current: false, answered: false });
+      expect(emitSpy).toHaveBeenCalledWith({ current: false, answered: false, archived: false });
     });
   });
 
@@ -514,7 +514,7 @@ describe('PresentationSettingsModalComponent', () => {
       
       component.applyStatusFilter();
       
-      expect(emitSpy).toHaveBeenCalledWith({ current: true, answered: true });
+      expect(emitSpy).toHaveBeenCalledWith({ current: true, answered: true, archived: false });
     });
 
     it('should close the dropdown', () => {

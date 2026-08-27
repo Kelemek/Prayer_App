@@ -11,7 +11,7 @@ describe("PresentationSettingsCoordinator", () => {
         displayDuration: 25,
         loop: false,
         timeFilter: "week",
-        statusFilters: { current: false, answered: true },
+        statusFilters: { current: false, answered: true, archived: false },
         prayerTimerMinutes: 15,
       })),
       save: vi.fn(),
@@ -24,7 +24,7 @@ describe("PresentationSettingsCoordinator", () => {
       displayDuration: 10,
       loop: true,
       timeFilter: "all" as const,
-      statusFilters: { current: true, answered: true },
+      statusFilters: { current: true, answered: true, archived: false },
       prayerTimerMinutes: 10,
     };
 
@@ -47,7 +47,7 @@ describe("PresentationSettingsCoordinator", () => {
       displayDuration: 10,
       loop: true,
       timeFilter: "month" as const,
-      statusFilters: { current: true, answered: false },
+      statusFilters: { current: true, answered: false, archived: false },
       prayerTimerMinutes: 20,
     };
 
@@ -60,7 +60,7 @@ describe("PresentationSettingsCoordinator", () => {
       displayDuration: 10,
       loop: true,
       timeFilter: "month",
-      statusFilters: { current: true, answered: false },
+      statusFilters: { current: true, answered: false, archived: false },
       prayerTimerMinutes: 20,
     });
   });
@@ -73,7 +73,7 @@ describe("PresentationSettingsCoordinator", () => {
       displayDuration: 12,
       loop: false,
       timeFilter: "week" as const,
-      statusFilters: { current: false, answered: true },
+      statusFilters: { current: false, answered: true, archived: false },
       prayerTimerMinutes: 8,
     };
     const service = { load: vi.fn(() => loaded), save: vi.fn() };
@@ -85,7 +85,7 @@ describe("PresentationSettingsCoordinator", () => {
       displayDuration: 10,
       loop: true,
       timeFilter: "all" as const,
-      statusFilters: { current: true, answered: true },
+      statusFilters: { current: true, answered: true, archived: false },
       prayerTimerMinutes: 10,
     };
 
@@ -93,7 +93,7 @@ describe("PresentationSettingsCoordinator", () => {
 
     expect(page.contentTypes).toEqual(["prayers", "prompts"]);
     expect(page.contentTypes).not.toBe(loaded.contentTypes);
-    expect(page.statusFilters).toEqual({ current: false, answered: true });
+    expect(page.statusFilters).toEqual({ current: false, answered: true, archived: false });
     expect(page.statusFilters).not.toBe(loaded.statusFilters);
   });
 
@@ -107,7 +107,7 @@ describe("PresentationSettingsCoordinator", () => {
       displayDuration: 10,
       loop: true,
       timeFilter: "all" as const,
-      statusFilters: { current: true, answered: true },
+      statusFilters: { current: true, answered: true, archived: false },
       prayerTimerMinutes: 10,
     };
 

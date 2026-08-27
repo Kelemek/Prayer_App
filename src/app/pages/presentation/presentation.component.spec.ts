@@ -77,11 +77,12 @@ describe('PresentationComponent', () => {
         displayDuration: 10,
         loop: true,
         timeFilter: 'all',
-        statusFilters: { current: true, answered: true },
+        statusFilters: { current: true, answered: true, archived: false },
         prayerTimerMinutes: 10,
       })),
       save: vi.fn(),
     };
+    const mockPrayerAllowancePolicy = { load: vi.fn().mockResolvedValue(undefined) };
     component = new PresentationComponent(
       mockRouter,
       mockRoute as any,
@@ -95,7 +96,8 @@ describe('PresentationComponent', () => {
       connectivityMock,
       cdr,
       ngZone as any,
-      mockPresentationSettings as any
+      mockPresentationSettings as any,
+      mockPrayerAllowancePolicy as any
     );
     component.canAccessSharedContent = true;
   });
@@ -239,7 +241,7 @@ describe('PresentationComponent', () => {
       displayDuration: 10,
       loop: true,
       timeFilter: 'all',
-      statusFilters: { current: true, answered: true },
+      statusFilters: { current: true, answered: true, archived: false },
       prayerTimerMinutes: 10,
     });
     vi.stubGlobal('history', {
@@ -277,7 +279,7 @@ describe('PresentationComponent', () => {
       displayDuration: 10,
       loop: true,
       timeFilter: 'all',
-      statusFilters: { current: true, answered: true },
+      statusFilters: { current: true, answered: true, archived: false },
       prayerTimerMinutes: 10,
     });
     const replaceState = vi.fn();
@@ -306,7 +308,7 @@ describe('PresentationComponent', () => {
       displayDuration: 10,
       loop: true,
       timeFilter: 'all',
-      statusFilters: { current: true, answered: true },
+      statusFilters: { current: true, answered: true, archived: false },
       prayerTimerMinutes: 10,
     });
     const replaceState = vi.fn();
@@ -340,7 +342,7 @@ describe('PresentationComponent', () => {
       displayDuration: 10,
       loop: true,
       timeFilter: 'all',
-      statusFilters: { current: true, answered: true },
+      statusFilters: { current: true, answered: true, archived: false },
       prayerTimerMinutes: 10,
     });
     mockRoute.snapshot.queryParamMap.get.mockImplementation((key: string) => {
@@ -356,7 +358,7 @@ describe('PresentationComponent', () => {
     await Promise.resolve();
 
     expect(component.contentTypes).toEqual(['prompts']);
-    expect(component.statusFilters).toEqual({ current: false, answered: true });
+    expect(component.statusFilters).toEqual({ current: false, answered: true, archived: false });
     expect(mockPresentationSettings.save).not.toHaveBeenCalled();
     expect(mockRouter.navigate).toHaveBeenCalledWith([], {
       relativeTo: mockRoute,
@@ -380,7 +382,7 @@ describe('PresentationComponent', () => {
       displayDuration: 10,
       loop: true,
       timeFilter: 'all',
-      statusFilters: { current: true, answered: true },
+      statusFilters: { current: true, answered: true, archived: false },
       prayerTimerMinutes: 10,
     });
     mockRoute.snapshot.queryParamMap.get.mockImplementation((key: string) => {
@@ -588,11 +590,13 @@ describe('PresentationComponent', () => {
         displayDuration: 10,
         loop: true,
         timeFilter: 'all',
-        statusFilters: { current: true, answered: true },
+        statusFilters: { current: true, answered: true, archived: false },
         prayerTimerMinutes: 10,
       })),
       save: vi.fn(),
     };
+
+    const mockPrayerAllowancePolicy = { load: vi.fn().mockResolvedValue(undefined) };
 
     component = new PresentationComponent(
       mockRouter as unknown as Router,
@@ -607,7 +611,8 @@ describe('PresentationComponent', () => {
       connectivityMock,
       mockCdr as unknown as ChangeDetectorRef,
       mockNgZone as unknown as NgZone,
-      mockPresentationSettings as any
+      mockPresentationSettings as any,
+      mockPrayerAllowancePolicy as any
     );
     component.canAccessSharedContent = true;
   });
@@ -908,7 +913,7 @@ describe('PresentationComponent', () => {
     mockSupabase.client.from = vi.fn().mockReturnValue(q);
     component.contentTypes = ['prayers'];
     component.timeFilter = 'week';
-    component.statusFilters = { current: true, answered: false };
+    component.statusFilters = { current: true, answered: false, archived: false };
     await component.fetchPrayers();
     expect(component.prayers.length).toBe(1);
   });
@@ -1121,7 +1126,7 @@ describe('PresentationComponent', () => {
       const q = createQuery({ data: [current], error: null });
       mockSupabase.client.from = vi.fn().mockReturnValue(q);
       component.contentTypes = ['prayers'];
-      component.statusFilters = { current: true, answered: false };
+      component.statusFilters = { current: true, answered: false, archived: false };
       await component.fetchPrayers();
       expect(component.prayers.length).toBe(1);
     });
@@ -1131,7 +1136,7 @@ describe('PresentationComponent', () => {
       const q = createQuery({ data: [answered], error: null });
       mockSupabase.client.from = vi.fn().mockReturnValue(q);
       component.contentTypes = ['prayers'];
-      component.statusFilters = { current: false, answered: true };
+      component.statusFilters = { current: false, answered: true, archived: false };
       await component.fetchPrayers();
       expect(component.prayers.length).toBe(1);
     });
@@ -1683,7 +1688,7 @@ describe('PresentationComponent', () => {
       const q = createQuery({ data: [], error: null });
       mockSupabase.client.from = vi.fn().mockReturnValue(q);
       component.contentTypes = ['prayers'];
-      component.statusFilters = { current: false, answered: false };
+      component.statusFilters = { current: false, answered: false, archived: false };
       await component.fetchPrayers();
       expect(component.prayers).toEqual([]);
     });
@@ -1759,7 +1764,7 @@ describe('PresentationComponent', () => {
 
         component.contentTypes = ['prayers'];
         component.timeFilter = 'week';
-        component.statusFilters = { current: true, answered: true };
+        component.statusFilters = { current: true, answered: true, archived: false };
         const query = createQuery({ data, error: null });
         mockSupabase.client.from = vi.fn().mockReturnValue(query);
 
@@ -1802,7 +1807,7 @@ describe('PresentationComponent', () => {
         } as any;
 
         component.timeFilter = 'week';
-        component.statusFilters = { current: true, answered: false };
+        component.statusFilters = { current: true, answered: false, archived: false };
 
         await component.fetchPersonalPrayers();
 
@@ -1948,7 +1953,7 @@ describe('PresentationComponent', () => {
           displayDuration: 15,
           loop: false,
           timeFilter: 'month' as const,
-          statusFilters: { current: false, answered: true },
+          statusFilters: { current: false, answered: true, archived: false },
           prayerTimerMinutes: 5,
         };
         const mockService = {

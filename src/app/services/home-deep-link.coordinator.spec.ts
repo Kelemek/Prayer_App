@@ -21,6 +21,10 @@ describe("HomeDeepLinkCoordinator", () => {
       isPromptInCatalog: vi.fn(() => true),
       arePromptsStillLoading: vi.fn(() => false),
       requestFreshPromptCatalog: vi.fn(),
+      applyPendingVerseMemorizationDeepLink: vi.fn(),
+      stripQueryParams: vi.fn(),
+      scrollPromptIntoView: vi.fn(() => false),
+      scrollPrayerIntoView: vi.fn(() => false),
     };
     coordinator.bindHost(host);
   });

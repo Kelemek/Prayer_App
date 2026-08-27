@@ -20,6 +20,7 @@ import type { ConnectivityService } from "./connectivity.service";
 import type { SupabaseService } from "./supabase.service";
 import { HomeDeepLinkCoordinator } from "./home-deep-link.coordinator";
 import { HomeDeepLinkHostAdapter, type HomeActiveFilter } from "./home-deep-link-host.adapter";
+import { applyVerseMemorizationDeepLink } from "../lib/verse-memorization-deep-link";
 import { HomeHelpTourLauncher } from "./home-help-tour.launcher";
 import {
   HomeHelpTourHostAdapter,
@@ -64,6 +65,8 @@ export interface HomeCoordinatorWiringPage {
   getFilteredPersonalPrayers(): PrayerRequest[];
   getPrayerFormComp(): PrayerFormComponent | undefined;
   getMemorizeKeyboardBridge(): HTMLInputElement | undefined;
+  scrollHomePromptIntoView(promptId: string): boolean;
+  scrollHomePrayerIntoView(prayerId: string): boolean;
   loadAdminSettings(): Promise<void>;
   applyInitialView(session: { defaultPrayerView?: "current" | "personal" | null }): void;
   consumeHomeReturnContext(): HomeReturnContext | null;
@@ -144,6 +147,22 @@ export function wireHomeCoordinators(
       deps.personalCategory.selectPersonalCategoryFilterMode(mode),
     applyPrayerFilters: (filters) => deps.prayerService.applyFilters(filters),
     refreshHomeCatalog: () => page.refreshHomeCatalog(),
+    applyPendingVerseMemorizationDeepLink: () => {
+      applyVerseMemorizationDeepLink({
+        consumePending: () =>
+          deps.deepLinkCoordinator.consumePendingVerseMemorization(),
+        stripQueryParams: () => {
+          deepLinkHost.stripQueryParams("verseRef", "verseTranslation");
+        },
+        beginFromCard: (reference, translation) =>
+          deps.memorizationPanel.beginVerseMemorizationFromCard(
+            reference,
+            translation
+          ),
+      });
+    },
+    scrollPromptIntoView: (promptId) => page.scrollHomePromptIntoView(promptId),
+    scrollPrayerIntoView: (prayerId) => page.scrollHomePrayerIntoView(prayerId),
   });
   deps.deepLinkCoordinator.bindHost(deepLinkHost);
 
@@ -221,6 +240,7 @@ export function wireHomeCoordinators(
     { markForCheck: () => cdr.markForCheck() },
     {
       adminAuthService: deps.adminAuthService,
+      reloadMemberPrayerUpdates: () => {},
     }
   );
 

@@ -4,6 +4,10 @@ import { DEFAULT_PUBLIC_APP_URL } from '../constants/app-defaults';
 import { SupabaseService } from './supabase.service';
 import { PushNotificationService } from './push-notification.service';
 import { markdownToPlainText, markdownToSafeHtml, htmlToPlainText, sanitizeEmailHtml } from '../../utils/markdown';
+import {
+  buildMemorizeVerseAppLink,
+  buildViewPrayerAppLink,
+} from '../lib/email-notification-links';
 
 export const ADMIN_SUBSCRIBER_MANUAL_BROADCAST_TEMPLATE_KEY = 'admin_subscriber_manual_broadcast';
 
@@ -94,6 +98,15 @@ export interface AdminNotificationPayload {
   reason?: string;
   requestId?: string;
   tenantId?: string;
+}
+
+export interface VerseMemorizationPrayerPayload {
+  prayerId: string;
+  verseReference: string;
+  verseTranslation: string;
+  verseText: string;
+  adminMessage?: string | null;
+  tenantId?: string | null;
 }
 
 @Injectable({
@@ -691,6 +704,83 @@ export class EmailNotificationService {
       );
     } catch (error) {
       console.error('Error in sendApprovedUpdateNotification:', error);
+    }
+  }
+
+  /**
+   * Broadcast when admin sends a verse memorization prayer (immediate, no approval queue).
+   */
+  async sendVerseMemorizationPrayerNotification(
+    payload: VerseMemorizationPrayerPayload
+  ): Promise<void> {
+    try {
+      const tenantId = await this.resolveEmailTenantId(payload.tenantId);
+      if (!tenantId) {
+        console.warn('sendVerseMemorizationPrayerNotification: no tenant id, skipping');
+        return;
+      }
+
+      const baseUrl = this.getEmailBaseUrl();
+      const memorizeAppLink = buildMemorizeVerseAppLink(
+        baseUrl,
+        payload.verseReference,
+        payload.verseTranslation
+      );
+      const viewPrayerAppLink = buildViewPrayerAppLink(baseUrl, payload.prayerId);
+      const adminMessageTrimmed = payload.adminMessage?.trim() ?? '';
+      const adminMessageBlock = adminMessageTrimmed
+        ? `<div style="background-color:#ffffff;padding:15px;border-radius:6px;border-left:4px solid #C9A961;margin-bottom:16px;">${markdownToSafeHtml(adminMessageTrimmed)}</div>`
+        : '';
+
+      const variables = {
+        verseReference: payload.verseReference,
+        verseTextHtml: markdownToSafeHtml(payload.verseText),
+        verseTextText: markdownToPlainText(payload.verseText),
+        adminMessageBlock,
+        memorizeAppLink,
+        viewPrayerAppLink,
+      };
+
+      const { data: subscribers, error: fetchError } = await this.supabase.client
+        .from('tenant_memberships')
+        .select('user_email, unsubscribe_token')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .eq('is_blocked', false);
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      if (!subscribers || subscribers.length === 0) {
+        console.log('No active subscribers to notify');
+        return;
+      }
+
+      const queuePromises = subscribers.map((sub) =>
+        this.enqueueEmail(
+          sub.user_email,
+          'verse_memorization_prayer',
+          {
+            ...variables,
+            ...this.queueUnsubscribeVars(sub.unsubscribe_token),
+          },
+          tenantId
+        ).catch((err) =>
+          console.error(`Failed to queue verse memorization email for ${sub.user_email}:`, err)
+        )
+      );
+
+      await Promise.all(queuePromises);
+      console.log(
+        `📧 Queued verse memorization prayer notification to ${subscribers.length} subscriber(s)`
+      );
+
+      await this.triggerEmailProcessor().catch((err) =>
+        console.error('Failed to trigger email processor:', err)
+      );
+    } catch (error) {
+      console.error('Error in sendVerseMemorizationPrayerNotification:', error);
     }
   }
 

@@ -11,6 +11,10 @@ import { SendNotificationDialogComponent } from '../send-notification-dialog/sen
 import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
 import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
 import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
+import {
+  AdminFilterSelectComponent,
+  type AdminFilterSelectOption,
+} from '../admin-filter-select/admin-filter-select.component';
 
 interface EmailSubscriber {
   id: string;
@@ -41,6 +45,7 @@ interface CSVRow {
     ConfirmationDialogComponent,
     AdminSectionLoadingComponent,
     AdminCollapsibleSectionComponent,
+    AdminFilterSelectComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -527,16 +532,15 @@ interface CSVRow {
           <!-- Page Size Selector -->
           <div class="flex items-center gap-2">
             <label for="pageSize" class="text-sm text-gray-600 dark:text-gray-400">Items per page:</label>
-            <select
-              id="pageSize"
-              [(ngModel)]="pageSize"
-              (change)="changePageSize()"
-              class="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option [value]="10">10</option>
-              <option [value]="50">50</option>
-              <option [value]="100">100</option>
-            </select>
+            <div class="w-[4.75rem] shrink-0">
+              <app-admin-filter-select
+                triggerId="pageSize"
+                [value]="pageSize.toString()"
+                (valueChange)="onPageSizeChange($event)"
+                [options]="pageSizeOptions"
+                ariaLabel="Items per page"
+              />
+            </div>
           </div>
 
           <!-- Pagination Controls: fewer page buttons on small screens to avoid overflow -->
@@ -705,6 +709,11 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
   // Pagination properties
   currentPage = 1;
   pageSize = 10;
+  readonly pageSizeOptions: readonly AdminFilterSelectOption[] = [
+    { value: '10', label: '10' },
+    { value: '50', label: '50' },
+    { value: '100', label: '100' },
+  ];
   totalItems = 0;
   totalActiveCount = 0;
   allSubscribers: EmailSubscriber[] = [];
@@ -1182,6 +1191,15 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
         }, 0);
       }
     }
+  }
+
+  onPageSizeChange(value: string): void {
+    const next = Number.parseInt(value, 10);
+    if (!Number.isFinite(next) || next <= 0) {
+      return;
+    }
+    this.pageSize = next;
+    this.changePageSize();
   }
 
   changePageSize() {

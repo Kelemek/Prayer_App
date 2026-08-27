@@ -8,6 +8,7 @@ import { TenantContextService } from './tenant-context.service';
 import { first } from 'rxjs/operators';
 import type { UserPrayerHourReminderSlot } from '../types/user-prayer-hour-reminder';
 import type { UserHourReminderSlot } from '../types/user-hour-reminder';
+import type { PrayerItemReminder } from '../types/prayer-item-reminder';
 
 export const PRAYER_COOLDOWN_MIN_HOURS = 1;
 export const PRAYER_COOLDOWN_MAX_HOURS = 168;
@@ -50,6 +51,8 @@ export interface UserSessionData {
   prayerHourRemindersFetchedAt?: number;
   memorizationHourReminders?: UserHourReminderSlot[];
   memorizationHourRemindersFetchedAt?: number;
+  prayerItemReminders?: PrayerItemReminder[];
+  prayerItemRemindersFetchedAt?: number;
 }
 
 /**

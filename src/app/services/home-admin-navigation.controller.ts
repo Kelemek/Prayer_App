@@ -1,27 +1,35 @@
 import { Injectable } from "@angular/core";
 import { Router } from "@angular/router";
-import { take } from "rxjs";
-import { AdminAuthService } from "./admin-auth.service";
 import { ToastService } from "./toast.service";
 import { UserSessionService } from "./user-session.service";
+import { TenantPermissionService } from "./tenant-permission.service";
+import { TenantContextService } from "./tenant-context.service";
+import { ConnectivityService } from "./connectivity.service";
 
 @Injectable()
 export class HomeAdminNavigationController {
   constructor(
-    private readonly adminAuthService: AdminAuthService,
     private readonly router: Router,
     private readonly toastService: ToastService,
-    private readonly userSessionService: UserSessionService
+    private readonly userSessionService: UserSessionService,
+    private readonly tenantPermissionService: TenantPermissionService,
+    private readonly tenantContextService: TenantContextService,
+    private readonly connectivity: ConnectivityService
   ) {}
 
   navigateToAdmin(): void {
-    this.adminAuthService.isAdmin$.pipe(take(1)).subscribe((isAdmin) => {
-      if (isAdmin) {
-        this.router.navigate(["/admin"]);
-        return;
-      }
-      this.showAdminMfaModal();
-    });
+    if (!this.connectivity.requireOnline("open the admin portal")) {
+      return;
+    }
+    const memberships = this.tenantContextService.getMemberships();
+    if (
+      !this.tenantPermissionService.canAccessAdmin() &&
+      memberships.length > 0
+    ) {
+      this.toastService.error("Admin access is not available for this account");
+      return;
+    }
+    this.router.navigate(["/admin"]);
   }
 
   getUserEmail(): string {
@@ -38,27 +46,5 @@ export class HomeAdminNavigationController {
     if (prayerappEmail) return prayerappEmail;
 
     return "Not logged in";
-  }
-
-  private showAdminMfaModal(): void {
-    let userEmail = localStorage.getItem("userEmail");
-    if (!userEmail) {
-      userEmail = localStorage.getItem("prayerapp_user_email");
-    }
-    if (!userEmail) {
-      userEmail = localStorage.getItem("approvalAdminEmail");
-    }
-
-    if (!userEmail) {
-      this.toastService.error("Email not found. Please log in again.");
-      return;
-    }
-
-    this.router.navigate(["/login"], {
-      queryParams: {
-        email: userEmail,
-        sessionExpired: true,
-      },
-    });
   }
 }

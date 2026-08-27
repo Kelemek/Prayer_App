@@ -1,0 +1,50 @@
+<div>
+  <div [class]="personalSubFilterGroupClass">
+  <div [class]="chipRowClass">
+    <button
+      type="button"
+      (click)="openPersonalCategories.emit()"
+      [class]="subFilterChipBaseClass + ' flex-1 cursor-pointer ' + personalSubFilterChipActiveClass"
+    >
+      Current (10)
+    </button>
+    <button
+      type="button"
+      (click)="openPersonalCategories.emit()"
+      [class]="subFilterChipBaseClass + ' flex-1 cursor-pointer ' + namedChipInactiveClass"
+    >
+      Answered (3)
+    </button>
+    <button
+      type="button"
+      (click)="openPersonalCategories.emit()"
+      [class]="subFilterChipBaseClass + ' flex-1 cursor-pointer ' + namedChipInactiveClass"
+    >
+      Total (13)
+    </button>
+  </div>
+  <div [class]="chipRowClass + ' mt-2'">
+    <button
+      type="button"
+      (click)="openPersonalCategories.emit()"
+      [class]="subFilterChipWrapClass + ' cursor-pointer ' + namedChipInactiveClass"
+    >
+      Health (4)
+    </button>
+    <button
+      type="button"
+      (click)="openPersonalCategories.emit()"
+      [class]="subFilterChipWrapClass + ' cursor-pointer ' + namedChipInactiveClass"
+    >
+      Family (5)
+    </button>
+    <button
+      type="button"
+      (click)="openPersonalCategories.emit()"
+      [class]="subFilterChipWrapClass + ' cursor-pointer ' + namedChipInactiveClass"
+    >
+      Work (2)
+    </button>
+  </div>
+  </div>
+</div>

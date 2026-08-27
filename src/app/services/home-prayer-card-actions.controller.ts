@@ -2,6 +2,7 @@ import { Injectable } from "@angular/core";
 import type {
   PrayerCardAddUpdateEvent,
   PrayerCardDeleteUpdateEvent,
+  PrayerCardToggleAnsweredEvent,
 } from "../lib/prayer-card-events";
 import {
   PrayerService,
@@ -132,5 +133,11 @@ export class HomePrayerCardActionsController {
     this.prayerService.deletePersonalPrayer(id).catch((error) => {
       console.error("Error deleting personal prayer:", error);
     });
+  }
+
+  async toggleMemberUpdateAnswered(
+    _event: PrayerCardToggleAnsweredEvent
+  ): Promise<void> {
+    // Prayer_App has no Planning Center member prayers; kept for modals host compatibility.
   }
 }

@@ -314,15 +314,24 @@ describe('PersonalPrayerEditModalComponent', () => {
       );
     });
 
-    it('should not close when category color save fails after prayer update', async () => {
+    it('should emit save but stay open when category color save fails after prayer update', async () => {
       prayerService.updatePersonalPrayer.mockResolvedValue(true);
       personalCategoryColorService.setColor.mockResolvedValue(false);
       vi.spyOn(component.close, 'emit');
+      vi.spyOn(component.save, 'emit');
       component.onCategoryColorChange('#111111');
 
       await component.handleSubmit();
 
+      expect(component.save.emit).toHaveBeenCalledWith({
+        prayer_for: 'Test Prayer',
+        description: 'Test Description',
+        category: 'Health',
+      });
       expect(component.close.emit).not.toHaveBeenCalled();
+      expect(toastService.error).toHaveBeenCalledWith(
+        'Prayer saved, but the category color could not be saved. Please try again.'
+      );
     });
 
     it('should call markForCheck when setting isSubmitting to true', async () => {
@@ -354,6 +363,15 @@ describe('PersonalPrayerEditModalComponent', () => {
     beforeEach(() => {
       component.availableCategories = ['Health', 'Family', 'Work'];
       component.formData.category = '';
+    });
+
+    it('should preserve a custom category color while editing category text', () => {
+      component.onCategoryColorChange('#111111');
+      personalCategoryColorService.getColor.mockReturnValue('#2563EB');
+
+      component.onCategoryInput({ target: { value: 'Health ' } } as any);
+
+      expect(component.categoryColor).toBe('#111111');
     });
 
     it('should filter categories and open dropdown on input', () => {

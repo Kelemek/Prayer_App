@@ -15,8 +15,65 @@
     var(--color-church-green-medium) 30%,
     var(--color-church-cream)
   );
+  /* Selected sub-filter chips — slightly lighter than folder panel / tab fill. */
+  --color-home-panel-blue-chip-active: color-mix(in srgb, #bfdbfe 48%, white);
+  --color-home-panel-blue-chip-active-dark: color-mix(
+    in srgb,
+    rgb(30 58 138) 42%,
+    rgb(3 7 18)
+  );
+  --color-home-panel-personal-chip-active: color-mix(
+    in srgb,
+    var(--color-church-green-tint) 58%,
+    white
+  );
+  --color-home-panel-personal-chip-active-dark: color-mix(
+    in srgb,
+    rgb(20 83 45) 40%,
+    rgb(3 7 18)
+  );
+  --color-home-panel-stone-chip-active: color-mix(in srgb, #d6d3d1 58%, white);
+  --color-home-panel-stone-chip-active-dark: color-mix(
+    in srgb,
+    rgb(68 64 60) 40%,
+    rgb(3 7 18)
+  );
+  --color-home-panel-green-status-chip-active: color-mix(in srgb, #bbf7d0 52%, white);
+  --color-home-panel-green-status-chip-active-dark: color-mix(
+    in srgb,
+    rgb(20 83 45) 32%,
+    rgb(3 7 18)
+  );
+  --color-home-panel-amber-status-chip-active: color-mix(in srgb, #fde68a 52%, white);
+  --color-home-panel-amber-status-chip-active-dark: color-mix(
+    in srgb,
+    rgb(120 53 15) 32%,
+    rgb(3 7 18)
+  );
+  --color-home-panel-gray-status-chip-active: color-mix(in srgb, #f3f4f6 55%, white);
+  --color-home-panel-gray-status-chip-active-dark: color-mix(
+    in srgb,
+    rgb(55 65 81) 38%,
+    rgb(3 7 18)
+  );
   --color-church-gray-warm: #988f83;
   --color-church-cream: #e8e5e1;
+  /* Inactive tab/chip fill — warm off-white, not pure white on cream canvas. */
+  --color-church-surface-inactive: color-mix(
+    in srgb,
+    var(--color-church-cream) 42%,
+    white
+  );
+  --color-church-surface-inactive-hover: color-mix(
+    in srgb,
+    var(--color-church-cream) 55%,
+    white
+  );
+  --color-church-surface-inactive-border: color-mix(
+    in srgb,
+    var(--color-church-gray-warm) 28%,
+    #9ca3af
+  );
   --color-church-surface-inactive-tab-border: color-mix(
     in srgb,
     var(--color-church-green-medium) 90%,
@@ -54,6 +111,11 @@
   --header-bg-dark: rgba(31, 41, 55, 0.5);
   --z-index-sticky-chrome: 50;
   --z-index-modal-overlay: 100;
+  --z-index-modal-dropdown-backdrop: 101;
+  --z-index-modal-dropdown-panel: 102;
+  /* Native Home: shared bottom inset for sticky footer + scroll-to-top button */
+  --native-bottom-safe-min: 34px;
+  --scroll-to-top-extra-bottom: 0.75rem;
 }
 
 /*
@@ -171,6 +233,25 @@
   .dark & {
     background-color: var(--color-card-meta-header-band-dark) !important;
   }
+}
+/* Personal category pill: light tint in light mode; dark surface + light accent in dark mode. */
+.personal-category-pill {
+  background-color: var(--category-pill-bg);
+  border-color: var(--category-pill-border);
+  color: var(--category-pill-text);
+}
+html.dark .personal-category-pill {
+  background-color: var(--category-pill-bg-dark);
+  border-color: var(--category-pill-border-dark);
+  color: var(--category-pill-text-dark);
+}
+.personal-category-header-band {
+  background-color: transparent;
+  color: var(--category-pill-text);
+}
+html.dark .personal-category-header-band {
+  background-color: transparent;
+  color: var(--category-pill-text-dark);
 }
 /* Presentation slide card: larger symmetric shadow (replaces bottom-heavy shadow-2xl). */
 .presentation-card-elevation {
@@ -509,11 +590,78 @@ html, body {
   margin-inline: -20px;
 }
 
+/* Presentation mode: fixed viewport shell (no document scroll behind slides). */
+.presentation-page-shell {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.presentation-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.presentation-content-with-toolbar {
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.presentation-scroll {
+  container-type: size;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior: contain;
+}
+.presentation-scroll::-webkit-scrollbar {
+  display: none;
+}
+.presentation-card-scroll {
+  max-height: 100%;
+  max-height: 100cqh;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.presentation-card-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+@supports (padding: env(safe-area-inset-top)) {
+  html:not(.native-app) .presentation-page-shell {
+    top: env(safe-area-inset-top);
+    right: env(safe-area-inset-right);
+    bottom: env(safe-area-inset-bottom);
+    left: env(safe-area-inset-left);
+    height: auto;
+  }
+  .native-app .presentation-page-shell {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Home scroll-to-top button (position refined under @supports safe-area below). */
+.app-scroll-to-top-button {
+  position: fixed;
+  z-index: 40;
+  right: 1rem;
+  bottom: 1rem;
+}
+
 /* Viewport scroll container: fallback when safe-area not supported (e.g. desktop) */
 .safe-area-viewport {
   height: 100vh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -608,12 +756,27 @@ html, body {
   .native-app .bottom-safe-bar {
     display: block;
     flex-shrink: 0;
-    min-height: max(env(safe-area-inset-bottom, 0px), 34px);
+    min-height: max(env(safe-area-inset-bottom, 0px), var(--native-bottom-safe-min));
     -webkit-transform: translateZ(0);
     transform: translateZ(0);
   }
+  /* Home scroll-to-top: above native bottom safe bar + extra gesture-nav clearance */
+  .app-scroll-to-top-button {
+    right: max(1rem, env(safe-area-inset-right, 0px));
+    bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  }
+  .native-app .app-scroll-to-top-button {
+    bottom: calc(
+      1rem + max(env(safe-area-inset-bottom, 0px), var(--native-bottom-safe-min)) +
+        var(--scroll-to-top-extra-bottom)
+    );
+  }
   .native-app header.sticky {
     top: 0;
+    padding-top: env(safe-area-inset-top);
+  }
+  /* Home shell: sticky wrapper holds header + search panel (header itself is not sticky). */
+  .native-app .home-sticky-header-shell > header {
     padding-top: env(safe-area-inset-top);
   }
   /* Utility class for full-screen overlays/modals to respect safe area */
@@ -629,6 +792,9 @@ html, body {
     -webkit-overflow-scrolling: touch;
   }
   .safe-area-viewport header.sticky {
+    top: 0;
+  }
+  .safe-area-viewport .home-sticky-header-shell {
     top: 0;
   }
 
@@ -647,7 +813,8 @@ html, body {
   .native-app .main-page-shell .safe-area-viewport {
     height: 100%;
   }
-  .native-app .safe-area-viewport > header {
+  .native-app .safe-area-viewport > header,
+  .native-app .safe-area-viewport > .home-sticky-header-shell {
     flex-shrink: 0;
   }
   .native-app .safe-area-viewport > main {
@@ -669,6 +836,10 @@ html, body {
   html:not(.native-app) .main-page-shell {
     min-height: 0;
     height: calc(100vh - env(safe-area-inset-top));
+  }
+  /* Multi-tenant switcher bar sits above home; reserve its height in the shell. */
+  html:not(.native-app) app-root > div:has(> app-tenant-switcher-bar) .main-page-shell {
+    height: calc(100vh - env(safe-area-inset-top) - 2.75rem);
   }
   html:not(.native-app) .main-page-shell .safe-area-viewport {
     height: 100%;

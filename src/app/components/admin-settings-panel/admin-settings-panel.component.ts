@@ -23,6 +23,7 @@ import { GitHubSettingsComponent } from '../github-settings/github-settings.comp
 import { GitHubFeedbackFormComponent } from '../github-feedback-form/github-feedback-form.component';
 import { PrayerEncouragementSettingsComponent } from '../prayer-encouragement-settings/prayer-encouragement-settings.component';
 import { MemorizationRecommendationsManagerComponent } from '../memorization-recommendations-manager/memorization-recommendations-manager.component';
+import { VerseMemorizationPrayerManagerComponent } from '../verse-memorization-prayer-manager/verse-memorization-prayer-manager.component';
 import { MemorizationReciteSettingsComponent } from '../memorization-recite-settings/memorization-recite-settings.component';
 import { TenantManagementComponent } from '../tenant-management/tenant-management.component';
 import { AdminSiteAnalyticsPanelComponent } from '../admin-site-analytics-panel/admin-site-analytics-panel.component';
@@ -53,6 +54,7 @@ import type { AnalyticsStats } from '../../services/analytics.service';
     GitHubFeedbackFormComponent,
     PrayerEncouragementSettingsComponent,
     MemorizationRecommendationsManagerComponent,
+    VerseMemorizationPrayerManagerComponent,
     MemorizationReciteSettingsComponent,
     TenantManagementComponent,
   ],

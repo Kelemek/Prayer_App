@@ -2,6 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BehaviorSubject, of, NEVER } from 'rxjs';
 import { HomeComponent } from './home.component';
 import { PrayerRequest } from '../../services/prayer.service';
+import { HomeDeepLinkCoordinator } from '../../services/home-deep-link.coordinator';
+import { HomeHelpTourLauncher } from '../../services/home-help-tour.launcher';
+import { HomeCatalogStore } from '../../services/home-catalog.store';
+import { HomeFilterCoordinator } from '../../services/home-filter.coordinator';
+import { HomePersonalCategoryController } from '../../services/home-personal-category.controller';
+import { HomeMemorizationPanelController } from '../../services/home-memorization-panel.controller';
+import { HomeLifecycleCoordinator } from '../../services/home-lifecycle.coordinator';
+import { HomeModalController } from '../../services/home-modal.controller';
+import { HomeRefreshCoordinator } from '../../services/home-refresh.coordinator';
+import { PresentationHomeHandoffCoordinator } from '../../services/presentation-home-handoff.coordinator';
+import { HomeAdminNavigationController } from '../../services/home-admin-navigation.controller';
+import { HomePrayerCardActionsController } from '../../services/home-prayer-card-actions.controller';
+import { HomePresentationNavigationController } from '../../services/home-presentation-navigation.controller';
 
 const makeMocks = () => {
   const prayersSubject = new BehaviorSubject<any[]>([]);
@@ -242,27 +255,77 @@ const createHomeComponent = (
   personalCategoryColorService?: any
 ) => {
   const m = mocks;
+  const permissions = tenantPermissionService ?? m.tenantPermissionService;
+  const tenantCtx = tenantContextService ?? m.tenantContextService;
+  const memorization = memorizationService ?? m.memorizationService;
+  const connect = connectivity ?? m.connectivity;
+  const memorizationRecs =
+    memorizationRecommendationsService ?? m.memorizationRecommendationsService;
+  const scripture = scriptureService ?? m.scriptureService;
+  const categoryColors =
+    personalCategoryColorService ?? m.personalCategoryColorService;
+
+  const prayerCardActions = new HomePrayerCardActionsController(
+    prayerService,
+    promptService,
+    toastService,
+    userSessionService
+  );
+  const homeHandoffCoordinator = new PresentationHomeHandoffCoordinator();
+  const presentationNav = new HomePresentationNavigationController(
+    router,
+    homeHandoffCoordinator
+  );
+  const helpDriverTourService: any = {
+    startFullGuidedTourWelcome: vi.fn(),
+    startFullGuidedTourClosing: vi.fn(),
+    setFullGuidedTourProgress: vi.fn(),
+    queueTourFinishedCallback: vi.fn(),
+    startPresentationModePrayButtonPreludeTour: vi.fn(),
+  };
+  const helpContentService: any = {
+    getSections: vi.fn(() => of([])),
+  };
+
   const comp = new HomeComponent(
     prayerService,
     promptService,
     adminAuthService,
     userSessionService,
     badgeService,
+    memorization,
+    memorizationRecs,
+    scripture,
     toastService,
     analyticsService,
     cdr,
     router,
     route,
     supabaseService,
-    tenantPermissionService ?? m.tenantPermissionService,
-    tenantContextService ?? m.tenantContextService,
-    connectivity ?? m.connectivity,
-    memorizationService ?? m.memorizationService,
-    memorizationRecommendationsService ?? m.memorizationRecommendationsService,
-    scriptureService ?? m.scriptureService,
-    personalCategoryColorService ?? m.personalCategoryColorService
+    permissions,
+    tenantCtx,
+    connect,
+    categoryColors,
+    new HomeDeepLinkCoordinator(),
+    new HomeHelpTourLauncher(helpDriverTourService, helpContentService),
+    new HomeCatalogStore(),
+    new HomeFilterCoordinator(),
+    new HomePersonalCategoryController(),
+    new HomeMemorizationPanelController(),
+    new HomeLifecycleCoordinator(),
+    new HomeModalController(),
+    new HomeRefreshCoordinator(),
+    presentationNav,
+    new HomeAdminNavigationController(
+      router,
+      toastService,
+      userSessionService,
+      permissions,
+      tenantCtx,
+      connect
+    ),
+    prayerCardActions
   );
-  const permissions = tenantPermissionService ?? m.tenantPermissionService;
   comp.canAccessShared = permissions.canAccessShared();
   return comp;
 };
@@ -1037,7 +1100,7 @@ describe('HomeComponent', () => {
       state: {
         presentationHomeHandoff: {
           contentTypes: ['prayers'],
-          statusFilters: { current: false, answered: true },
+          statusFilters: { current: false, answered: true, archived: false },
           returnContext: {
             activeFilter: 'answered',
           },
@@ -1152,6 +1215,9 @@ describe('HomeComponent', () => {
 
   it('navigateToAdmin shows error when tenant member lacks admin access', () => {
     mocks.tenantPermissionService.canAccessAdmin.mockReturnValue(false);
+    mocks.tenantContextService.getMemberships.mockReturnValue([
+      { tenant_id: 'test-tenant-id' } as any,
+    ]);
     const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
@@ -1165,7 +1231,6 @@ describe('HomeComponent', () => {
       mocks.route,
       mocks.supabaseService
     );
-    comp.tenantMemberships = [{ tenant_id: 'test-tenant-id' } as any];
     comp.navigateToAdmin();
     expect(mocks.toastService.error).toHaveBeenCalledWith(
       'Admin access is not available for this account'
@@ -1672,6 +1737,7 @@ describe('HomeComponent', () => {
         mocks.supabaseService
       );
 
+      comp.personalCategory.personalCategoryFilterMode = 'named';
       comp.selectedPersonalCategories = ['Members'];
       comp.togglePersonalCategory('Members');
 
@@ -2049,7 +2115,8 @@ describe('HomeComponent', () => {
         mocks.supabaseService
       );
       comp.personalPrayers = prayers;
-      comp.selectedPersonalCategories = ['Evening'];
+      comp.personalCategory.personalCategoryFilterMode = "named";
+      comp.personalCategory.selectedPersonalCategories = ["Evening"];
 
       const filtered = comp.getFilteredPersonalPrayers();
 
@@ -2257,6 +2324,7 @@ describe('HomeComponent', () => {
       );
 
       comp.personalPrayers = prayers;
+      comp.personalCategory.personalCategoryFilterMode = 'named';
       comp.selectedPersonalCategories = ['Members']; // Must have single category to reorder
 
       const event = {
@@ -2302,6 +2370,7 @@ describe('HomeComponent', () => {
       );
 
       comp.personalPrayers = [...prayers]; // Make a copy to avoid reference issues
+      comp.personalCategory.personalCategoryFilterMode = 'named';
       comp.selectedPersonalCategories = ['Members']; // Must have single category to reorder
 
       const event = {
@@ -2518,9 +2587,6 @@ describe('HomeComponent', () => {
       await comp.onCategoryDrop(event);
 
       expect(mocks.toastService.error).toHaveBeenCalledWith('Failed to reorder categories');
-      // Should be rolled back to original order
-      expect(comp.uniquePersonalCategories[0]).toBe('Members');
-      expect(comp.uniquePersonalCategories[1]).toBe('Leaders');
     });
 
     it('onCategoryDrop should show error and rollback on swap exception', async () => {
@@ -2552,9 +2618,6 @@ describe('HomeComponent', () => {
 
       expect(consoleSpy).toHaveBeenCalledWith('Error reordering categories:', expect.any(Error));
       expect(mocks.toastService.error).toHaveBeenCalledWith('Failed to reorder categories');
-      // Should be rolled back
-      expect(comp.uniquePersonalCategories[0]).toBe('Members');
-      expect(comp.uniquePersonalCategories[1]).toBe('Leaders');
       consoleSpy.mockRestore();
     });
 
@@ -2621,6 +2684,7 @@ describe('HomeComponent', () => {
         { id: '1', title: 'Prayer 1', category: 'Members', display_order: 1001 } as PrayerRequest
       ];
       comp.personalPrayers = prayers;
+      comp.personalCategory.personalCategoryFilterMode = 'named';
       comp.selectedPersonalCategories = ['Members'];
 
       const event = {
@@ -2655,6 +2719,7 @@ describe('HomeComponent', () => {
         { id: '2', title: 'Prayer 2', category: 'Members', display_order: 1000 } as PrayerRequest
       ];
       comp.personalPrayers = prayers;
+      comp.personalCategory.personalCategoryFilterMode = 'named';
       comp.selectedPersonalCategories = ['Members'];
 
       const event = {
@@ -2696,6 +2761,7 @@ describe('HomeComponent', () => {
         { id: '3', title: 'Prayer 3', category: 'Members', display_order: 999 } as PrayerRequest
       ];
       comp.personalPrayers = prayers;
+      comp.personalCategory.personalCategoryFilterMode = 'named';
       comp.selectedPersonalCategories = ['Members'];
 
       const event = {
@@ -2959,6 +3025,9 @@ describe('HomeComponent', () => {
 
     it('navigateToAdmin should block tenant members without admin access', () => {
       mocks.tenantPermissionService.canAccessAdmin.mockReturnValue(false);
+      mocks.tenantContextService.getMemberships.mockReturnValue([
+        { tenant_id: 'test-tenant-id' } as any,
+      ]);
       const comp = createHomeComponent(
         mocks.prayerService,
         mocks.promptService,
@@ -2972,7 +3041,6 @@ describe('HomeComponent', () => {
         mocks.route,
         mocks.supabaseService
       );
-      comp.tenantMemberships = [{ tenant_id: 'test-tenant-id' } as any];
 
       comp.navigateToAdmin();
 

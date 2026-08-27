@@ -3,6 +3,7 @@ import type { PrayerPrompt } from "../components/prompt-card/prompt-card.compone
 import type { PrayerFilters } from "../components/prayer-filters/prayer-filters.component";
 import type { HomeActiveFilter } from "./home-deep-link-host.adapter";
 import { isPublicTabFilter } from "../lib/home-community-filter";
+import { resetHomeScrollViewport } from "../lib/home-scroll-viewport";
 
 export interface HomeFilterPageState {
   activeFilter: HomeActiveFilter;
@@ -79,7 +80,11 @@ export class HomeFilterCoordinator {
     } else if (filter === "total") {
       host.setFilters({ searchTerm: page.filters.searchTerm });
       host.applyPrayerFilters({ search: page.filters.searchTerm });
-    } else if (filter === "current" || filter === "answered") {
+    } else if (
+      filter === "current" ||
+      filter === "answered" ||
+      filter === "archived"
+    ) {
       host.setFilters({
         status: filter,
         searchTerm: page.filters.searchTerm,
@@ -94,6 +99,8 @@ export class HomeFilterCoordinator {
     }
 
     host.onFilterChanged();
+    resetHomeScrollViewport();
+    requestAnimationFrame(() => resetHomeScrollViewport());
   }
 
   selectPublicTab(): void {

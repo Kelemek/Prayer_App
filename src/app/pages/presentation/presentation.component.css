@@ -1,6 +1,12 @@
 :host {
-        display: block;
-      }
-      .presentation-content-with-toolbar {
-        padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
-      }
+  display: block;
+  height: 100%;
+  overflow: hidden;
+}
+.presentation-slide-fade {
+  transition: opacity 400ms ease-in-out;
+  opacity: 1;
+}
+.presentation-slide-faded {
+  opacity: 0;
+}

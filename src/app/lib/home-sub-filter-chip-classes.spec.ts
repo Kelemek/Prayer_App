@@ -4,6 +4,8 @@ import {
   HOME_MEMORIZE_SUB_FILTER_GROUP_CLASS,
   HOME_PERSONAL_SUB_FILTER_GROUP_CLASS,
   HOME_PROMPTS_SUB_FILTER_GROUP_CLASS,
+  HOME_PUBLIC_STATUS_CHIP_HOST_CLASS,
+  HOME_PUBLIC_STATUS_CHIP_ROW_CLASS,
   HOME_PUBLIC_STATUS_CHIP_THEMES,
   HOME_PUBLIC_SUB_FILTER_GROUP_CLASS,
   HOME_SHELL_FOOTER_BORDER_TOP_CLASS,
@@ -111,6 +113,16 @@ describe("homeFilterTabClass", () => {
     expect(cls).toContain("border-church-surface-inactive-tab-border");
     expect(cls).not.toContain("border-[2px]");
     expect(cls).not.toContain("z-10");
+  });
+});
+
+describe("HOME_PUBLIC_STATUS_CHIP layout classes", () => {
+  it("uses equal-width nowrap row hosts for the four public status chips", () => {
+    expect(HOME_PUBLIC_STATUS_CHIP_HOST_CLASS).toContain("flex-1");
+    expect(HOME_PUBLIC_STATUS_CHIP_HOST_CLASS).toContain("min-w-0");
+    expect(HOME_PUBLIC_STATUS_CHIP_HOST_CLASS).toContain("basis-0");
+    expect(HOME_PUBLIC_STATUS_CHIP_HOST_CLASS).not.toContain("min-w-max");
+    expect(HOME_PUBLIC_STATUS_CHIP_ROW_CLASS).toContain("flex-nowrap");
   });
 });
 

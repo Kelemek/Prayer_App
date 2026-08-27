@@ -11,6 +11,7 @@ import { TenantContextService } from './tenant-context.service';
 interface CachedItem {
   id: string;
   status?: 'current' | 'answered' | 'archived';
+  type?: string;
   updated_at: string;
   updates?: Array<{ id: string; created_at: string; updated_at?: string }>;
 }
@@ -446,6 +447,60 @@ export class BadgeService {
     } catch (error) {
       console.warn(
         `Failed to mark all ${type} with status ${status} as read:`,
+        error
+      );
+    }
+  }
+
+  markAllAsReadByPromptType(promptType: string): void {
+    const cacheKey = this.getPromptsCacheStorageKey();
+
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (!cached) {
+        return;
+      }
+      const parsedCache = JSON.parse(cached);
+      const items = parsedCache?.data || parsedCache || [];
+      if (!Array.isArray(items)) {
+        return;
+      }
+
+      const itemsWithType = items.filter(
+        (item: CachedItem) => item.type === promptType
+      );
+      if (itemsWithType.length === 0) {
+        return;
+      }
+
+      const ids = itemsWithType.map((item: CachedItem) => item.id).filter(Boolean);
+      const updateIds = this.collectUpdateIds(itemsWithType);
+
+      const receipts: BadgeReceiptRow[] = [];
+      this.addIdsToReadState('prompts', ids).forEach((id) =>
+        receipts.push({ item_kind: 'prompt', item_id: id })
+      );
+      this.addIdsToReadState('promptUpdates', updateIds).forEach((id) =>
+        receipts.push({ item_kind: 'prompt_update', item_id: id })
+      );
+
+      this.persistReadStateLocally();
+      void this.upsertReceiptsToDatabase(receipts);
+
+      itemsWithType.forEach((item: CachedItem) => {
+        const key = `prompts_${item.id}`;
+        if (this.individualBadgeSubject$.has(key)) {
+          (
+            this.individualBadgeSubject$.get(key) as BehaviorSubject<boolean>
+          ).next(false);
+        }
+      });
+
+      this.refreshBadgeCounts();
+      this.updateBadgesChanged$.next();
+    } catch (error) {
+      console.warn(
+        `Failed to mark all prompts with type ${promptType} as read:`,
         error
       );
     }

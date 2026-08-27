@@ -305,36 +305,21 @@ describe('SecurityPolicySettingsComponent', () => {
     });
   });
 
-  describe('custom policy dropdowns', () => {
+  describe('admin filter select policy fields', () => {
     it('getAllowanceLabel returns display labels', () => {
       expect(component.getAllowanceLabel('everyone')).toBe('Everyone');
       expect(component.getAllowanceLabel('original-requestor')).toBe('Original Requestor Only');
       expect(component.getAllowanceLabel('admin-only')).toBe('Admin Only');
     });
 
-    it('selectDeletionsAllowed updates value and closes dropdown', () => {
-      component.showDeletionsDropdown = true;
-      component.selectDeletionsAllowed('admin-only');
+    it('onDeletionsAllowedChange updates deletionsAllowed', () => {
+      component.onDeletionsAllowedChange('admin-only');
       expect(component.deletionsAllowed).toBe('admin-only');
-      expect(component.showDeletionsDropdown).toBe(false);
     });
 
-    it('selectUpdatesAllowed updates value and closes dropdown', () => {
-      component.showUpdatesDropdown = true;
-      component.selectUpdatesAllowed('original-requestor');
+    it('onUpdatesAllowedChange updates updatesAllowed', () => {
+      component.onUpdatesAllowedChange('original-requestor');
       expect(component.updatesAllowed).toBe('original-requestor');
-      expect(component.showUpdatesDropdown).toBe(false);
-    });
-
-    it('opening one policy dropdown closes the other', () => {
-      component.showUpdatesDropdown = true;
-      component.toggleDeletionsDropdown();
-      expect(component.showDeletionsDropdown).toBe(true);
-      expect(component.showUpdatesDropdown).toBe(false);
-
-      component.toggleUpdatesDropdown();
-      expect(component.showUpdatesDropdown).toBe(true);
-      expect(component.showDeletionsDropdown).toBe(false);
     });
   });
 

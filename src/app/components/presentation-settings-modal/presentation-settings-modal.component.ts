@@ -832,6 +832,7 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
   @Input() timeFilter: PresentationTimeFilter = "all";
   @Input() statusFiltersCurrent = true;
   @Input() statusFiltersAnswered = true;
+  @Input() statusFiltersArchived = false;
   @Input() prayerTimerMinutes = 10;
   @Input() availableCategories: string[] = [];
   @Input() selectedCategories: string[] = [];
@@ -851,6 +852,7 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
   @Output() statusFiltersChange = new EventEmitter<{
     current: boolean;
     answered: boolean;
+    archived: boolean;
   }>();
   @Output() prayerTimerMinutesChange = new EventEmitter<number>();
   @Output() startPrayerTimer = new EventEmitter<void>();
@@ -943,13 +945,18 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
   }
 
   initPendingStatusFilter() {
-    if (!this.statusFiltersCurrent && !this.statusFiltersAnswered) {
+    if (
+      !this.statusFiltersCurrent &&
+      !this.statusFiltersAnswered &&
+      !this.statusFiltersArchived
+    ) {
       this.pendingStatusFilter = [...this.getAvailableStatusFilters()];
       return;
     }
     const filters: string[] = [];
     if (this.statusFiltersCurrent) filters.push("current");
     if (this.statusFiltersAnswered) filters.push("answered");
+    if (this.statusFiltersArchived) filters.push("archived");
     this.pendingStatusFilter = filters;
   }
 
@@ -1361,13 +1368,15 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
   private resolveAppliedStatusFilters(): {
     current: boolean;
     answered: boolean;
+    archived: boolean;
   } {
     if (this.isAllPendingStatusSelected()) {
-      return { current: false, answered: false };
+      return { current: false, answered: false, archived: false };
     }
     return {
       current: this.pendingStatusFilter.includes("current"),
       answered: this.pendingStatusFilter.includes("answered"),
+      archived: this.pendingStatusFilter.includes("archived"),
     };
   }
 
@@ -1376,15 +1385,16 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
   }
 
   applyStatusFilter() {
-    const { current, answered } = this.resolveAppliedStatusFilters();
+    const { current, answered, archived } = this.resolveAppliedStatusFilters();
     if (
       current === this.statusFiltersCurrent &&
-      answered === this.statusFiltersAnswered
+      answered === this.statusFiltersAnswered &&
+      archived === this.statusFiltersArchived
     ) {
       this.showStatusDropdown = false;
       return;
     }
-    this.statusFiltersChange.emit({ current, answered });
+    this.statusFiltersChange.emit({ current, answered, archived });
     this.showStatusDropdown = false;
   }
 
@@ -1392,6 +1402,7 @@ export class PresentationSettingsModalComponent implements OnInit, OnChanges {
     const filters: string[] = [];
     if (this.statusFiltersCurrent) filters.push("Current");
     if (this.statusFiltersAnswered) filters.push("Answered");
+    if (this.statusFiltersArchived) filters.push("Archived");
 
     if (filters.length === 0) return "All Statuses";
     return filters.join(", ");

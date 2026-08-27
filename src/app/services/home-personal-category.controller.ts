@@ -598,6 +598,10 @@ export class HomePersonalCategoryController {
     this.setSwappingCategories(categories);
   }
 
+  setUniquePersonalCategoriesForTests(categories: string[]): void {
+    this.pendingCategoryOrder = [...categories];
+  }
+
   private setSwappingCategories(categories: string[]): void {
     this.swappingCategories = new Set(
       categories.filter((category): category is string => !!category)

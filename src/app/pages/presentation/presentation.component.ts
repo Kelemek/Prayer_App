@@ -6,6 +6,8 @@ import {
   ChangeDetectorRef,
   NgZone,
   ChangeDetectionStrategy,
+  ViewChild,
+  ElementRef,
 } from "@angular/core";
 import { Router, ActivatedRoute } from "@angular/router";
 import { interval, Subject, Subscription } from "rxjs";
@@ -29,8 +31,15 @@ import {
   wirePresentationControllers,
 } from "../../services/presentation-coordinator-wiring";
 import { PresentationToolbarComponent } from "../../components/presentation-toolbar/presentation-toolbar.component";
-import { PrayerDisplayCardComponent } from "../../components/prayer-display-card/prayer-display-card.component";
+import { PresentationSlideCardComponent } from "../../components/presentation-slide-card/presentation-slide-card.component";
 import { PresentationSettingsModalComponent } from "../../components/presentation-settings-modal/presentation-settings-modal.component";
+import { PrayerAllowancePolicyService } from "../../services/prayer-allowance-policy.service";
+import {
+  prayerFromSlideItem,
+  promptFromSlideItem,
+} from "../../lib/presentation-slide-item";
+import type { PresentationSlideItem } from "../../services/presentation-catalog.store";
+import type { PrayerRequest } from "../../services/prayer.service";
 import { markdownToPlainText } from "../../../utils/markdown";
 import {
   parsePresentationHomeHandoffFromState,
@@ -85,7 +94,7 @@ type ThemeOption = "light" | "dark" | "system";
   standalone: true,
   imports: [
     PresentationToolbarComponent,
-    PrayerDisplayCardComponent,
+    PresentationSlideCardComponent,
     PresentationSettingsModalComponent,
   ],
   templateUrl: "./presentation.component.html",
@@ -135,7 +144,7 @@ export class PresentationComponent implements OnInit, OnDestroy {
   loading = true;
   showControls = true;
   contentTypes: SelectablePresentationContentType[] = ["prayers"];
-  statusFilters = { current: true, answered: true };
+  statusFilters = { current: true, answered: true, archived: false };
   timeFilter: PresentationTimeFilter = "all";
   theme: ThemeOption = "system";
   randomize = false;
@@ -173,6 +182,12 @@ export class PresentationComponent implements OnInit, OnDestroy {
   private homeReturnContext: HomeReturnContext | null = null;
   private readonly destroy$ = new Subject<void>();
 
+  @ViewChild("presentationScroll")
+  presentationScrollRef?: ElementRef<HTMLElement>;
+
+  readonly slidePrayerFromItem = prayerFromSlideItem;
+  readonly slidePromptFromItem = promptFromSlideItem;
+
   constructor(
     private router: Router,
     private route: ActivatedRoute,
@@ -186,7 +201,8 @@ export class PresentationComponent implements OnInit, OnDestroy {
     private connectivity: ConnectivityService,
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone,
-    private presentationSettingsService: PresentationSettingsService
+    private presentationSettingsService: PresentationSettingsService,
+    private prayerAllowancePolicy: PrayerAllowancePolicyService
   ) {
     this.playback = new PresentationPlaybackController(this.ngZone);
     this.prayerTimer = new PresentationPrayerTimerController(this.ngZone);
@@ -237,6 +253,7 @@ export class PresentationComponent implements OnInit, OnDestroy {
       });
 
     this.loadContent();
+    void this.prayerAllowancePolicy.load();
     this.setupControlsAutoHide();
 
     this.tenantChangeSub = this.tenantContext.activeTenant$
@@ -461,6 +478,7 @@ export class PresentationComponent implements OnInit, OnDestroy {
         const statuses: string[] = [];
         if (this.statusFilters.current) statuses.push("current");
         if (this.statusFilters.answered) statuses.push("answered");
+        if (this.statusFilters.archived) statuses.push("archived");
 
         if (statuses.length > 0) {
           query = query.in("status", statuses);
@@ -886,8 +904,58 @@ export class PresentationComponent implements OnInit, OnDestroy {
     this.uniquePersonalCategories = Array.from(categories).sort();
   }
 
-  get currentItem(): any {
+  get currentItem(): PresentationSlideItem | undefined {
     return this.items[this.currentIndex];
+  }
+
+  onPresentationPromptPrayedForCountChange(event: {
+    promptId: string;
+    count: number;
+  }): void {
+    this.catalog.setPromptPrayedForFloor(event.promptId, event.count);
+    this.catalog.patchItem(event.promptId, { prayed_for_count: event.count });
+    this.cdr.markForCheck();
+  }
+
+  onPresentationPrayerPrayedForCountChange(event: {
+    prayerId: string;
+    count: number;
+  }): void {
+    this.catalog.patchItem(event.prayerId, { prayed_for_count: event.count });
+    this.cdr.markForCheck();
+  }
+
+  onPresentationPersonalPrayerCategoryChange(event: {
+    prayerId: string;
+    category: string | null;
+    status: string;
+  }): void {
+    this.catalog.patchItem(event.prayerId, {
+      category: event.category,
+      status: event.status as PrayerRequest["status"],
+    });
+    this.cdr.markForCheck();
+  }
+
+  onSlideItemRemoved(id: string): void {
+    this.catalog.removeItem(id);
+    this.clampCurrentIndexToVisibleDeck();
+    this.cdr.markForCheck();
+  }
+
+  private clampCurrentIndexToVisibleDeck(): void {
+    if (this.currentIndex >= this.items.length) {
+      this.currentIndex = Math.max(0, this.items.length - 1);
+    }
+  }
+
+  async onSlideItemMutated(id: string): Promise<void> {
+    await this.loadContent();
+    const index = this.items.findIndex((item) => item.id === id);
+    if (index >= 0) {
+      this.currentIndex = index;
+    }
+    this.cdr.markForCheck();
   }
 
   isPrayer(item: any): item is Prayer {

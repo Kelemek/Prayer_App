@@ -1,30 +1,46 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
-import { InfoComponent } from './info.component';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  beforeAll,
+} from "vitest";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { By } from "@angular/platform-browser";
+import { InfoFeatureOverviewComponent } from "../../components/info-feature-overview/info-feature-overview.component";
+import { InfoPreviewModalsComponent } from "../../components/info-preview-modals/info-preview-modals.component";
+import { provideRouter } from "@angular/router";
+import { InfoComponent } from "./info.component";
+import { setupInfoPreviewComponentResources } from "../../components/info-preview-component-resources.spec-helper";
 
-describe('InfoComponent', () => {
+describe("InfoComponent", () => {
+  beforeAll(async () => {
+    await setupInfoPreviewComponentResources();
+  });
+
   let component: InfoComponent;
   let fixture: ComponentFixture<InfoComponent>;
 
   beforeEach(async () => {
-    Object.defineProperty(window, 'matchMedia', {
+    Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
-        matches: query === '(prefers-color-scheme: dark)' ? false : true,
+        matches: query === "(prefers-color-scheme: dark)" ? false : true,
         media: query,
         onchange: null,
         addListener: vi.fn(),
         removeListener: vi.fn(),
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
-        dispatchEvent: vi.fn()
-      }))
+        dispatchEvent: vi.fn(),
+      })),
     });
 
     await TestBed.configureTestingModule({
       imports: [InfoComponent],
-      providers: [provideRouter([])]
+      providers: [provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(InfoComponent);
@@ -36,133 +52,105 @@ describe('InfoComponent', () => {
     fixture?.destroy();
   });
 
-  it('should create', () => {
+  it("should create", () => {
     expect(component).toBeTruthy();
   });
 
-  describe('default state', () => {
-    it('should have previewFilter as current', () => {
-      expect(component.previewFilter).toBe('current');
-    });
-    it('should have headerPreview as null', () => {
-      expect(component.headerPreview).toBeNull();
-    });
-    it('should have showPromptCategoriesModal false', () => {
-      expect(component.showPromptCategoriesModal).toBe(false);
-    });
-    it('should have showBadgesModal false', () => {
-      expect(component.showBadgesModal).toBe(false);
-    });
-    it('should have showPersonalCategoriesModal false', () => {
-      expect(component.showPersonalCategoriesModal).toBe(false);
-    });
-    it('should have personalActionModal null', () => {
-      expect(component.personalActionModal).toBeNull();
-    });
-    it('should have empty webAppQrUrl and iosStoreQrUrl before init', () => {
-      expect(component.webAppQrUrl).toBe('');
-      expect(component.iosStoreQrUrl).toBe('');
+  function previewFilter(): string {
+    return featureOverview().previewFilter;
+  }
+
+  function previewModals(): InfoPreviewModalsComponent {
+    fixture.detectChanges();
+    return fixture.debugElement.query(By.directive(InfoPreviewModalsComponent))
+      .componentInstance as InfoPreviewModalsComponent;
+  }
+
+  function featureOverview(): InfoFeatureOverviewComponent {
+    fixture.detectChanges();
+    return fixture.debugElement.query(By.directive(InfoFeatureOverviewComponent))
+      .componentInstance as InfoFeatureOverviewComponent;
+  }
+
+  describe("default state", () => {
+    it("should have empty webAppQrUrl before init", () => {
+      expect(component.webAppQrUrl).toBe("");
+      expect(component.iosStoreQrUrl).toBe("");
     });
   });
 
-  describe('ngOnInit', () => {
-    it('should set webAppQrUrl and iosStoreQrUrl with encoded URLs', () => {
+  describe("ngOnInit", () => {
+    it("should set webAppQrUrl and store QR URLs with encoded URLs", () => {
       component.ngOnInit();
-      expect(component.webAppQrUrl).toContain('api.qrserver.com');
+      expect(component.webAppQrUrl).toContain("api.qrserver.com");
       expect(component.webAppQrUrl).toContain(
-        encodeURIComponent('https://prayerapp.romans8.net/')
+        encodeURIComponent("https://prayerapp.romans8.net/")
       );
-      expect(component.iosStoreQrUrl).toContain('api.qrserver.com');
-      expect(component.iosStoreQrUrl).toContain(encodeURIComponent('https://apps.apple.com/us/app/cross-pointe-prayer/id6759469929'));
-    });
-  });
-
-  describe('openIosStore', () => {
-    it('should call window.open with iOS store URL', () => {
-      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
-      component.openIosStore();
-      expect(openSpy).toHaveBeenCalledWith(
-        'https://apps.apple.com/us/app/cross-pointe-prayer/id6759469929',
-        '_blank',
-        'noopener'
+      expect(component.iosStoreQrUrl).toContain("api.qrserver.com");
+      expect(component.iosStoreQrUrl).toContain(
+        encodeURIComponent(
+          "https://apps.apple.com/us/app/cross-pointe-prayer/id6759469929"
+        )
       );
-      openSpy.mockRestore();
     });
   });
 
-  describe('openAndroidStore', () => {
-    it('should call window.open with Google Play store URL', () => {
-      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
-      component.openAndroidStore();
-      expect(openSpy).toHaveBeenCalledWith(
-        'https://play.google.com/store/apps/details?id=com.prayerapp.mobile',
-        '_blank',
-        'noopener'
-      );
-      openSpy.mockRestore();
-    });
-  });
-
-  describe('header modal', () => {
-    it('should set headerPreview when openHeaderModal is called', () => {
-      component.openHeaderModal('help');
-      expect(component.headerPreview).toBe('help');
-    });
-
-    it('should clear headerPreview when closeHeaderModal is called', () => {
-      component.headerPreview = 'help';
-      component.closeHeaderModal();
-      expect(component.headerPreview).toBeNull();
-    });
-  });
-
-  describe('prompt categories modal', () => {
-    it('should open and close prompt categories modal', () => {
-      component.openPromptCategoriesModal();
-      expect(component.showPromptCategoriesModal).toBe(true);
-      component.closePromptCategoriesModal();
-      expect(component.showPromptCategoriesModal).toBe(false);
-    });
-  });
-
-  describe('badges modal', () => {
-    it('should open and close badges modal', () => {
-      component.openBadgesModal();
-      expect(component.showBadgesModal).toBe(true);
-      component.closeBadgesModal();
-      expect(component.showBadgesModal).toBe(false);
-    });
-  });
-
-  describe('personal action modal', () => {
-    it('should open and close personal action modal', () => {
-      component.openPersonalActionModal('edit');
-      expect(component.personalActionModal).toBe('edit');
-      component.closePersonalActionModal();
-      expect(component.personalActionModal).toBeNull();
-    });
-  });
-
-  describe('personal categories modal', () => {
-    it('should open and close personal categories modal', () => {
-      component.openPersonalCategoriesModal();
-      expect(component.showPersonalCategoriesModal).toBe(true);
-      component.closePersonalCategoriesModal();
-      expect(component.showPersonalCategoriesModal).toBe(false);
-    });
-  });
-
-  describe('template content', () => {
-    it('should render hero title and preview header label', () => {
+  describe("template", () => {
+    it("should render hero title and description after detectChanges", () => {
       component.ngOnInit();
       fixture.detectChanges();
       const el = fixture.nativeElement as HTMLElement;
-      expect(el.textContent).toContain('Prayer Community');
-      expect(el.textContent).toContain('Manager');
-      const previewHeaders = Array.from(el.querySelectorAll('h2')).map((h) =>
-        h.textContent?.trim()
-      );
-      expect(previewHeaders).toContain('Prayer Manager');
+      expect(el.textContent).toContain("Prayer Community");
+      expect(el.textContent).toContain("Rejoice always");
+    });
+
+    it("should show theme toggle and CTA buttons", () => {
+      component.ngOnInit();
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector("app-theme-toggle")).toBeTruthy();
+      expect(el.textContent).toContain("Web Site");
+      expect(el.textContent).toContain("App Store");
+      expect(el.textContent).toContain("Play Store");
+    });
+
+    it("should show filter tabs with Public, Personal, Prompts and public sub-chips", () => {
+      component.ngOnInit();
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.textContent).toContain("Public");
+      expect(el.textContent).toContain("Current");
+      expect(el.textContent).toContain("Answered");
+      expect(el.textContent).toContain("Total");
+      expect(el.textContent).toContain("Prompts");
+      expect(el.textContent).toContain("Personal");
+    });
+
+    it("should open badges modal when badge button is clicked", () => {
+      component.ngOnInit();
+      fixture.detectChanges();
+      const badgeBtn = fixture.nativeElement.querySelector(
+        'button[aria-label="About badges"]'
+      ) as HTMLButtonElement;
+      expect(badgeBtn).toBeTruthy();
+      badgeBtn.click();
+      fixture.detectChanges();
+      expect(previewModals().activeModal).toEqual({ kind: "badges" });
+    });
+
+    it("should set previewFilter when filter tab is clicked", () => {
+      component.ngOnInit();
+      fixture.detectChanges();
+      const buttons = fixture.nativeElement.querySelectorAll("button");
+      let answeredBtn: HTMLButtonElement | null = null;
+      buttons.forEach((b: HTMLButtonElement) => {
+        if (b.textContent?.includes("Answered")) answeredBtn = b;
+      });
+      if (answeredBtn) {
+        answeredBtn.click();
+        fixture.detectChanges();
+        expect(previewFilter()).toBe("answered");
+      }
     });
   });
 });

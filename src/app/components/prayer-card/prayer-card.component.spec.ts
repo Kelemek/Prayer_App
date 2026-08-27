@@ -12,6 +12,10 @@ describe('PrayerCardComponent', () => {
   const mockRichTextEditorsSettingsService = {
     getRichTextEditorsEnabled$: vi.fn().mockReturnValue(of(true)),
   };
+  const mockPrayerItemReminderService = {
+    ensureLoaded: vi.fn().mockResolvedValue([]),
+    remindersForPrayer: vi.fn().mockReturnValue([]),
+  };
   const now = new Date();
 
   beforeEach(() => {
@@ -73,6 +77,7 @@ describe('PrayerCardComponent', () => {
       mockBadgeService,
       {} as any,
       { getCanPrayFor$: vi.fn().mockReturnValue(of(true)) } as any,
+      mockPrayerItemReminderService as any,
       { markForCheck: vi.fn() } as any,
       mockRichTextEditorsSettingsService as any
     );
@@ -465,6 +470,7 @@ describe('PrayerCardComponent', () => {
         { getBadgeFunctionalityEnabled$: () => of(false) } as any,
         localPrayerService as any,
         localPrayerEncouragementService as any,
+        mockPrayerItemReminderService as any,
         localCdr as any,
         mockRichTextEditorsSettingsService as any
       );
@@ -541,6 +547,7 @@ describe('PrayerCardComponent', () => {
         { getBadgeFunctionalityEnabled$: () => of(false) } as any,
         mockPrayerService,
         mockPrayerEncouragementService,
+        mockPrayerItemReminderService as any,
         mockCdr as any,
         mockRichTextEditorsSettingsService as any
       );
@@ -652,6 +659,7 @@ describe('PrayerCardComponent', () => {
         {} as any,
         {} as any,
         {} as any,
+        mockPrayerItemReminderService as any,
         { markForCheck: vi.fn() } as any,
         mockRichTextEditorsSettingsService as any
       );
@@ -790,6 +798,7 @@ describe('PrayerCardComponent', () => {
         {} as any,
         {} as any,
         {} as any,
+        mockPrayerItemReminderService as any,
         { markForCheck: vi.fn() } as any,
         mockRichTextEditorsSettingsService as any
       );
@@ -893,6 +902,7 @@ describe('PrayerCardComponent', () => {
         {} as any,
         {} as any,
         {} as any,
+        mockPrayerItemReminderService as any,
         { markForCheck: vi.fn() } as any,
         mockRichTextEditorsSettingsService as any
       );
@@ -974,6 +984,7 @@ describe('PrayerCardComponent', () => {
         {} as any,
         {} as any,
         {} as any,
+        mockPrayerItemReminderService as any,
         { markForCheck: vi.fn() } as any,
         mockRichTextEditorsSettingsService as any
       );
@@ -1055,6 +1066,7 @@ describe('PrayerCardComponent', () => {
         {} as any,
         {} as any,
         {} as any,
+        mockPrayerItemReminderService as any,
         { markForCheck: vi.fn() } as any,
         mockRichTextEditorsSettingsService as any
       );
@@ -1109,6 +1121,7 @@ describe('PrayerCardComponent', () => {
         {} as any,
         {} as any,
         {} as any,
+        mockPrayerItemReminderService as any,
         { markForCheck: vi.fn() } as any,
         mockRichTextEditorsSettingsService as any
       );

@@ -1,0 +1,288 @@
+<!-- Prayers or Prompts List -->
+@if (!contentHidden && !(error$ | async)) {
+<div [class]="stackGapClass">
+  <!-- Empty State for Prayers -->
+  @if (activeFilter !== 'prompts' && activeFilter !== 'personal' &&
+  activeFilter !== 'memorize' && (prayers$ | async)?.length === 0) {
+  <div
+    class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center border border-gray-200 dark:border-gray-700"
+  >
+    @if (filters.searchTerm && filters.searchTerm.trim()) {
+    <svg
+      class="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="1.5"
+        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+      ></path>
+    </svg>
+    }
+    <h3
+      class="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2"
+    >
+      @if (filters.searchTerm && filters.searchTerm.trim()) {
+      <span>No prayers found</span>
+      } @else { @if (activeFilter === 'current') {
+      <span>No current prayer requests yet</span>
+      } @if (activeFilter === 'answered') {
+      <span>No answered prayers yet</span>
+      } @if (activeFilter === 'archived') {
+      <span>No archived prayers yet</span>
+      } @if (activeFilter === 'total') {
+      <span>No prayer requests yet</span>
+      } }
+    </h3>
+    <p class="text-gray-500 dark:text-gray-400">
+      @if (filters.searchTerm && filters.searchTerm.trim()) {
+      <span>Try adjusting your search terms</span>
+      } @else {
+      <span
+        >Be the first to add a prayer request to build your church's
+        prayer community.</span
+      >
+      }
+    </p>
+  </div>
+  }
+
+  <!-- Empty State for Personal Prayers -->
+  @if (activeFilter === 'personal' &&
+  !(loadingPersonalPrayers$ | async) &&
+  filteredPersonalPrayers.length === 0) {
+  <div
+    class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center border border-gray-200 dark:border-gray-700"
+  >
+    @if (filters.searchTerm && filters.searchTerm.trim()) {
+    <svg
+      class="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="1.5"
+        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+      ></path>
+    </svg>
+    }
+    <h3
+      class="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2"
+    >
+      @if (filters.searchTerm && filters.searchTerm.trim()) {
+      <span>No prayers found</span>
+      } @else {
+      <span>No personal prayers yet</span>
+      }
+    </h3>
+    <p class="text-gray-500 dark:text-gray-400">
+      @if (filters.searchTerm && filters.searchTerm.trim()) {
+      <span>Try adjusting your search terms</span>
+      } @else {
+      <span
+        >Click the Add Request button and choose Personal Prayer to
+        create prayers that stays private to you.</span
+      >
+      }
+    </p>
+  </div>
+  }
+
+  <!-- Prayer Cards (only show when not on prompts, personal, or memorize filter) -->
+  @if (activeFilter !== 'prompts' && activeFilter !== 'personal' &&
+  activeFilter !== 'memorize') {
+  @if (isCommunityPrayerFilter(activeFilter) &&
+  displayedPublicPrayers.length > 0) {
+  <cdk-virtual-scroll-viewport
+    #publicVirtualScrollViewport
+    autosize
+    [minBufferPx]="prayerVirtualScrollMinBufferPx"
+    [maxBufferPx]="prayerVirtualScrollMaxBufferPx"
+    class="home-prayer-virtual-scroll-viewport block w-full"
+  >
+    <app-prayer-card
+      *cdkVirtualFor="
+        let prayer of displayedPublicPrayers;
+        trackBy: trackPrayer;
+        let i = index
+      "
+      [attr.id]="'prayer-card-' + prayer.id"
+      [class]="prayerVirtualScrollItemClass"
+      [prayer]="prayer"
+      [isAdmin]="(isAdmin$ | async) || false"
+      [activeFilter]="activeFilter"
+      [deletionsAllowed]="deletionsAllowed"
+      [updatesAllowed]="updatesAllowed"
+      [tourUpdateAnchors]="i === 0"
+      [tourPrayForEncouragementAnchors]="i === 0"
+      [tourPrayerReminderBellAnchors]="i === 0"
+      (delete)="handlers.deleteCard(prayer)"
+      (addUpdate)="handlers.onCardAddUpdate(prayer, $event)"
+      (deleteUpdate)="handlers.onCardDeleteUpdate(prayer, $event)"
+      (requestDeletion)="handlers.requestDeletion($event)"
+      (requestUpdateDeletion)="handlers.requestUpdateDeletion($event)"
+      (memorizeVerse)="handlers.onCardMemorizeVerse(prayer)"
+    ></app-prayer-card>
+  </cdk-virtual-scroll-viewport>
+  } }
+
+  @if (activeFilter === 'memorize') {
+  <app-memorize-passages-panel
+    [items]="memorizedItems"
+    [searchTerm]="filters.searchTerm ?? ''"
+    [loading]="!!(memorizeLoading$ | async)"
+    [addVersesActive]="showAddMemorizedVerse"
+    [bibleBooksActive]="showAddMemorizedBibleBooks"
+    [recommendedActive]="showMemorizationRecommendations"
+    (addVerses)="handlers.openMemorizationAddVerses()"
+    (addBibleBooks)="handlers.openMemorizationBibleBooks()"
+    (openRecommended)="handlers.openMemorizationRecommendations()"
+    (practice)="handlers.openMemorizationPractice($event)"
+    (remove)="handlers.confirmRemoveMemorizedItem($event)"
+  />
+  }
+
+  <!-- Personal Prayer Cards (show when personal filter is active) -->
+  @if (activeFilter === 'personal') {
+  <div
+    cdkDropList
+    (cdkDropListDropped)="handlers.onPersonalPrayerDrop($event)"
+    [cdkDropListDisabled]="!canReorderPersonalPrayers"
+    [class]="stackGapClass"
+  >
+    @for (prayer of filteredPersonalPrayers; track prayer.id; let
+    isFirstPrayer = $first) {
+    <div
+      cdkDrag
+      [attr.id]="'prayer-card-' + prayer.id"
+      [class.relative]="personalCategoryPickerPrayerId === prayer.id"
+      [class.z-30]="personalCategoryPickerPrayerId === prayer.id"
+    >
+      <app-prayer-card
+        [prayer]="prayer"
+        [isAdmin]="(isAdmin$ | async) || false"
+        [activeFilter]="activeFilter"
+        [isPersonal]="true"
+        [deletionsAllowed]="'everyone'"
+        [updatesAllowed]="'everyone'"
+        [personalDragHandle]="canReorderPersonalPrayers"
+        [personalDragTourId]="
+          prayer.prayer_for === personalWalkthroughPrayerFor
+            ? 'tour-walkthrough-personal-drag-handle'
+            : null
+        "
+        [tourUpdateAnchors]="
+          isFirstPrayer &&
+          prayer.prayer_for !== personalWalkthroughPrayerFor
+        "
+        [tourPersonalWalkthroughAnchors]="
+          prayer.prayer_for === personalWalkthroughPrayerFor &&
+          prayer.description === personalWalkthroughDescription
+        "
+        (delete)="handlers.deleteCard(prayer)"
+        (addUpdate)="handlers.onCardAddUpdate(prayer, $event)"
+        (deleteUpdate)="handlers.onCardDeleteUpdate(prayer, $event)"
+        (editPersonalPrayer)="handlers.editPersonalPrayer($event)"
+        (editPersonalUpdate)="handlers.editPersonalUpdate($event)"
+        (categoryPickerOpenChange)="
+          onCategoryPickerOpenChange(prayer.id, $event)
+        "
+      ></app-prayer-card>
+    </div>
+    }
+  </div>
+  }
+
+  <!-- Empty State for Prompts -->
+  @if (activeFilter === 'prompts' && displayedPrompts.length === 0) {
+  @if ((prompts$ | async)?.length === 0) {
+  <div
+    id="tour-prompt-empty-state"
+    class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center border border-gray-200 dark:border-gray-700"
+  >
+    <h3
+      class="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2"
+    >
+      No prayer prompts yet
+    </h3>
+    <p class="text-gray-500 dark:text-gray-400">
+      Prompts help guide prayer requests.
+    </p>
+  </div>
+  } @else {
+  <div
+    class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center border border-gray-200 dark:border-gray-700"
+  >
+    @if (filters.searchTerm && filters.searchTerm.trim()) {
+    <svg
+      class="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="1.5"
+        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+      ></path>
+    </svg>
+    }
+    <h3
+      class="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2"
+    >
+      No prompts found
+    </h3>
+    <p class="text-gray-500 dark:text-gray-400">
+      @if (filters.searchTerm && filters.searchTerm.trim()) {
+      <span>Try adjusting your search terms</span>
+      } @else {
+      <span>Try clearing prompt type filters or adjusting your search</span>
+      }
+    </p>
+  </div>
+  }
+  }
+
+  <!-- Prompt Cards: @for when short (stable scroll); virtual scroll when long -->
+  @if (activeFilter === 'prompts' && displayedPrompts.length > 0) {
+  @if (shouldUsePromptVirtualScroll(displayedPrompts.length)) {
+  <cdk-virtual-scroll-viewport
+    #promptVirtualScrollViewport
+    autosize
+    [minBufferPx]="promptVirtualScrollMinBufferPx"
+    [maxBufferPx]="promptVirtualScrollMaxBufferPx"
+    class="home-prompt-virtual-scroll-viewport block w-full"
+  >
+    <app-prompt-card
+      *cdkVirtualFor="let prompt of displayedPrompts; trackBy: trackPrompt"
+      [class]="promptVirtualScrollItemClass"
+      [prompt]="prompt"
+      [isAdmin]="(isAdmin$ | async) || false"
+      [isTypeSelected]="isPromptTypeSelected(prompt.type)"
+      (delete)="handlers.deletePrompt($event)"
+      (onTypeClick)="handlers.togglePromptType($event)"
+    ></app-prompt-card>
+  </cdk-virtual-scroll-viewport>
+  } @else {
+  <div [class]="stackGapClass">
+    @for (prompt of displayedPrompts; track prompt.id) {
+    <app-prompt-card
+      [prompt]="prompt"
+      [isAdmin]="(isAdmin$ | async) || false"
+      [isTypeSelected]="isPromptTypeSelected(prompt.type)"
+      (delete)="handlers.deletePrompt($event)"
+      (onTypeClick)="handlers.togglePromptType($event)"
+    ></app-prompt-card>
+    }
+  </div>
+  }
+  }
+</div>
+}

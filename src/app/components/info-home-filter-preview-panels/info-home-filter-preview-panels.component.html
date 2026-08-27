@@ -1,0 +1,25 @@
+@switch (previewFilter) {
+  @case ('current') {
+    <app-info-home-filter-preview-public-current-panel
+      (openBadges)="openBadges.emit()"
+      (openHeaderPreview)="openHeaderPreview.emit($event)"
+    />
+  }
+  @case ('answered') {
+    <app-info-home-filter-preview-public-answered-panel />
+  }
+  @case ('archived') {
+    <app-info-home-filter-preview-public-archived-panel />
+  }
+  @case ('total') {
+    <app-info-home-filter-preview-public-total-panel />
+  }
+  @case ('prompts') {
+    <app-info-home-filter-preview-prompts-card />
+  }
+  @case ('personal') {
+    <app-info-home-filter-preview-personal-card
+      (openPersonalAction)="openPersonalAction.emit($event)"
+    />
+  }
+}

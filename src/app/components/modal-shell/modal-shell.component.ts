@@ -249,9 +249,58 @@ export class ModalShellComponent implements OnInit, AfterViewInit, OnDestroy {
   onBodyFocusIn(event: FocusEvent): void {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+    if (!this.shouldScrollFocusedFieldIntoView(target)) return;
+
+    const scroller = this.bodyScroller?.nativeElement;
+    if (!scroller) return;
+
     requestAnimationFrame(() => {
-      target.scrollIntoView({ block: "center", behavior: "smooth" });
+      if (!this.isElementVisibleInScroller(target, scroller)) {
+        target.scrollIntoView({ block: "nearest", behavior: "auto" });
+      }
     });
+  }
+
+  private shouldScrollFocusedFieldIntoView(el: HTMLElement): boolean {
+    if (el.closest("button, a, [role='button']")) {
+      return false;
+    }
+
+    const tag = el.tagName;
+    if (tag === "TEXTAREA" || tag === "SELECT") {
+      return true;
+    }
+    if (tag !== "INPUT") {
+      return el.isContentEditable;
+    }
+
+    const type = (el as HTMLInputElement).type.toLowerCase();
+    switch (type) {
+      case "button":
+      case "submit":
+      case "reset":
+      case "checkbox":
+      case "radio":
+      case "file":
+      case "hidden":
+      case "image":
+        return false;
+      default:
+        return true;
+    }
+  }
+
+  private isElementVisibleInScroller(
+    el: HTMLElement,
+    scroller: HTMLElement
+  ): boolean {
+    const elRect = el.getBoundingClientRect();
+    const scrollerRect = scroller.getBoundingClientRect();
+    const inset = 8;
+    return (
+      elRect.top >= scrollerRect.top + inset &&
+      elRect.bottom <= scrollerRect.bottom - inset
+    );
   }
 
   private isAllowedScrollTouch(event: TouchEvent): boolean {

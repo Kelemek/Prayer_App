@@ -18,8 +18,9 @@
         [status]="prayer.status"
         [showStatus]="viewState.showStatusPillInHeader"
         [showDelete]="viewState.showDeleteButton"
-        [showReminder]="false"
-        [hasReminder]="false"
+        [showReminder]="viewState.showReminderButton"
+        [hasReminder]="hasPrayerReminder"
+        [reminderBellTourId]="showTourAnchors && tourPrayerReminderBellAnchors ? 'tour-prayer-reminder-bell' : null"
         [showCenterDateTime]="true"
         [personalEditTourId]="showTourAnchors && tourPersonalWalkthroughAnchors ? 'tour-walkthrough-personal-edit' : null"
         [personalAnsweredTourId]="showTourAnchors && tourPersonalWalkthroughAnchors ? 'tour-walkthrough-personal-answered' : null"
@@ -30,6 +31,8 @@
         (edit)="editPersonalPrayer.emit(prayer)"
         (share)="showShareModal = true"
         (delete)="handleDeleteClick()"
+        (reminder)="onReminderClick()"
+        (pickerOpenChange)="onCategoryPickerOpenChange($event)"
       />
 
       <app-prayer-card-title-body
@@ -42,13 +45,25 @@
         [personalDragTourId]="personalDragTourId"
         [displayRequester]="viewState.displayRequester"
         [showDescription]="viewState.showDescription"
+        [isVerseMemorization]="viewState.isVerseMemorizationPrayer"
         [showsCommunityUnreadBadges]="viewState.showsCommunityUnreadBadges"
         [prayerBadge$]="prayerBadge$"
         [badgeService]="badgeService"
         (markPrayerRead)="markPrayerAsRead()"
       />
 
-      @if (viewState.showAddUpdateButton) {
+      @if (viewState.showMemorizeButton) {
+      <div [class]="'contrast-chip-surface flex flex-nowrap items-center min-w-0 ' + variantLayout.actionRowGap">
+        <button
+          type="button"
+          (click)="memorizeVerse.emit()"
+          title="Open Memorize tab and practice this verse"
+          [class]="variantLayout.actionButtonClasses + ' btn-chip btn-chip-blue'"
+        >
+          Memorize
+        </button>
+      </div>
+      } @else if (viewState.showAddUpdateButton) {
       <app-prayer-card-actions-row
         [variantLayout]="variantLayout"
         [showTourAnchors]="showTourAnchors"
@@ -67,6 +82,7 @@
       />
       }
 
+      @if (!viewState.showMemorizeButton) {
       <app-prayer-card-updates-section
         [variantLayout]="variantLayout"
         [prayerUpdates]="prayerUpdateList"
@@ -87,6 +103,7 @@
         (toggleAnswered)="onUpdateAnsweredToggle($event)"
         (markUpdateRead)="markUpdateAsRead($event)"
       />
+      }
     </div>
 
     <!-- Outside bg-card-shell-fill (isolation: isolate) so fixed modals stack above filter tabs and later cards. -->
@@ -103,6 +120,12 @@
       [updateConfirmationTitle]="updateConfirmationTitle"
       [updateConfirmationMessage]="updateConfirmationMessage"
       [personalAnsweredStatusModalMode]="personalAnsweredStatusModalMode"
+      [showReminderModal]="showReminderModal"
+      [reminderSessionEmail]="reminderSessionEmail()"
+      [prayerItemKind]="prayerItemKind()"
+      [prayerFor]="prayer.prayer_for"
+      [titleSnapshot]="prayer.title || ('Prayer for ' + prayer.prayer_for)"
+      [reminders]="remindersForThisPrayer()"
       [showShareModal]="showShareModal"
       [showPrayForModal]="showPrayForModal"
       [usesPersonalCooldown]="viewState.usesPersonalCooldown"
@@ -117,6 +140,8 @@
       (closePersonalAnsweredStatus)="closePersonalAnsweredStatusModal()"
       (confirmPersonalAnswered)="onConfirmPersonalAnswered()"
       (confirmPersonalUnanswered)="onConfirmPersonalUnanswered($event)"
+      (closeReminder)="showReminderModal = false"
+      (remindersChange)="onPrayerRemindersChanged($event)"
       (confirmShare)="handleSharePrayer()"
       (cancelShare)="showShareModal = false"
       (confirmPrayFor)="onConfirmPrayForFromModal($event)"

@@ -7,10 +7,11 @@ import {
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { CommonModule } from "@angular/common";
+import { CHURCH_GREEN_SHELL_BORDER_CLASS } from "../../lib/home-sub-filter-chip-classes";
 
 export interface PrayerFilters {
   searchTerm?: string;
-  status?: "current" | "answered";
+  status?: "current" | "answered" | "archived";
   type?: "prompt";
 }
 
@@ -21,7 +22,11 @@ export interface PrayerFilters {
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div
-      class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 mb-6 transition-colors"
+      [class]="
+        embedded
+          ? ''
+          : 'bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 mb-6 transition-colors'
+      "
     >
       <div class="grid grid-cols-1 gap-4">
         <!-- Search -->
@@ -44,10 +49,13 @@ export interface PrayerFilters {
             <input
               id="tour-prayer-search"
               type="text"
-              placeholder="Search prayers..."
+              [placeholder]="searchPlaceholder"
               [(ngModel)]="filters.searchTerm"
               (ngModelChange)="onSearchChange($event)"
-              class="pl-10 pr-24 py-2 sm:py-3 w-full border border-gray-300 dark:border-gray-600 rounded-md bg-inset-surface-muted text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+              [class]="
+                'pl-10 pr-24 py-2 sm:py-3 w-full rounded-md bg-inset-surface-muted text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base ' +
+                searchInputBorder
+              "
             />
             <!-- Clear Search Button (inside input) -->
             @if (filters.searchTerm) {
@@ -68,7 +76,11 @@ export interface PrayerFilters {
 })
 export class PrayerFiltersComponent {
   @Input() filters: PrayerFilters = {};
+  @Input() searchPlaceholder = "Search prayers...";
+  @Input() embedded = false;
   @Output() filtersChange = new EventEmitter<PrayerFilters>();
+
+  readonly searchInputBorder = CHURCH_GREEN_SHELL_BORDER_CLASS;
 
   onSearchChange(searchTerm: string) {
     const newFilters = {

@@ -39,7 +39,10 @@ import {
         @if (isPersonal) {
           @if (category) {
           <app-personal-category-pill
+            variant="header"
+            [bandSize]="bandSize"
             [category]="category"
+            (pickerOpenChange)="pickerOpenChange.emit($event)"
           />
           }
         } @else if (showStatus) {

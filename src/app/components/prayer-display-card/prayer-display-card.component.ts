@@ -91,7 +91,7 @@ interface PrayerPrompt {
       >
         @if (prayer.category && isPersonalPrayer()) {
         <span
-          class="inline-block px-3 py-1 rounded-full text-sm font-medium border"
+          class="personal-category-pill inline-block px-3 py-1 rounded-full text-sm font-medium border"
           [ngStyle]="getCategoryPillStyles()"
         >
           {{ prayer.category }}

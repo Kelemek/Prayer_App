@@ -347,19 +347,23 @@ export class PersonalPrayerEditModalComponent implements OnInit, OnChanges {
       );
 
       if (success) {
+        let closeAfterSave = true;
         if (this.formData.category.trim() && this.categoryColorDirty) {
           const colorSaved = await this.personalCategoryColorService.setColor(
             this.formData.category,
             this.categoryColor
           );
-          this.save.emit(updates);
           if (!colorSaved) {
-            return;
+            this.toast.error(
+              "Prayer saved, but the category color could not be saved. Please try again."
+            );
+            closeAfterSave = false;
           }
-        } else {
-          this.save.emit(updates);
         }
-        this.close.emit();
+        this.save.emit(updates);
+        if (closeAfterSave) {
+          this.close.emit();
+        }
       }
     } catch (error) {
       console.error("Error updating prayer:", error);
@@ -378,11 +382,10 @@ export class PersonalPrayerEditModalComponent implements OnInit, OnChanges {
 
   private syncCategoryColorForInput(category: string): void {
     const trimmed = category.trim();
-    if (!trimmed) {
+    if (!trimmed || this.categoryColorDirty) {
       return;
     }
     this.categoryColor = this.personalCategoryColorService.getColor(trimmed);
-    this.categoryColorDirty = false;
     this.cdr.markForCheck();
   }
 

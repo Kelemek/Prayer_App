@@ -9,6 +9,8 @@ import {
   SimpleChanges,
   ChangeDetectionStrategy,
   ChangeDetectorRef,
+  ElementRef,
+  ViewChild,
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
@@ -16,14 +18,40 @@ import { FormsModule } from "@angular/forms";
 import { Observable, BehaviorSubject, Subject, of } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { BadgeService } from "../../services/badge.service";
-import {
-  PROMPT_TYPE_CHIP_ACTIVE_CLASS,
-  PROMPT_TYPE_CHIP_INACTIVE_CLASS,
-} from "../../lib/prompt-type-chip-classes";
 import { ConfirmationDialogComponent } from "../confirmation-dialog/confirmation-dialog.component";
+import { CardMetaHeaderBandComponent } from "../card-meta-header-band/card-meta-header-band.component";
+import { CardActionsOverflowMenuComponent } from "../card-actions-overflow-menu/card-actions-overflow-menu.component";
+import type { CardActionsOverflowItem } from "../card-actions-overflow-menu/card-actions-overflow-menu.types";
 import { UserSessionService } from "../../services/user-session.service";
 import { PrayerEncouragementService } from "../../services/prayer-encouragement.service";
 import { PromptService } from "../../services/prompt.service";
+import {
+  getPromptCardVariantLayout,
+  getMetaHeaderBandLayoutClasses,
+  type PrayerCardVariant,
+} from "../../lib/prayer-card-layout";
+import {
+  getPromptCardShellClasses,
+  prayedForCountLabelForPromptCard,
+  promptCardTypeHeaderTextClasses,
+  showPromptCardPrayedForBadge,
+  showPromptCardReminderButton,
+} from "../../lib/prompt-card-display";
+import {
+  ensurePrayerCardItemRemindersLoaded,
+  remindersForPrayerCard,
+} from "../../lib/prayer-card-reminders";
+import { getPrayerCardUserEmail } from "../../lib/prayer-card-user-context";
+import { PrayerItemReminderService } from "../../services/prayer-item-reminder.service";
+import { PrayerItemReminderModalComponent } from "../prayer-item-reminder-modal/prayer-item-reminder-modal.component";
+import type { PrayerItemReminder } from "../../types/prayer-item-reminder";
+import {
+  isInsideCdkVirtualScrollContent,
+  portalPrayerCardModalsHostToBody,
+  promptCardHasOpenModal,
+  restorePrayerCardModalsHostFromBody,
+  type PrayerCardModalsPortalAnchor,
+} from "../../lib/prayer-card-modals-portal";
 
 const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = "prayer_encouragement_modal_do_not_show";
 
@@ -40,251 +68,102 @@ export interface PrayerPrompt {
 @Component({
   selector: "app-prompt-card",
   standalone: true,
-  imports: [CommonModule, FormsModule, ConfirmationDialogComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ConfirmationDialogComponent,
+    CardMetaHeaderBandComponent,
+    CardActionsOverflowMenuComponent,
+    PrayerItemReminderModalComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div
-      class="prompt-card bg-white dark:bg-gray-800 rounded-lg shadow-md border-[2px] !border-[#988F83] dark:!border-[#988F83] p-6 mb-4 hover:shadow-lg transition-shadow relative"
-    >
-      <!-- Header -->
-      <div class="flex items-start justify-between mb-4">
-        <div class="flex items-center gap-2 flex-1">
-          <svg
-            class="text-[#988F83] dark:text-[#988F83] w-[24px] h-[24px] flex-shrink-0"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M9 18h6"></path>
-            <path d="M10 22h4"></path>
-            <path
-              d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"
-            ></path>
-          </svg>
-          <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300">
-            {{ prompt.title }}
-          </h3>
-        </div>
-        <div class="flex items-center gap-2 ml-4">
-          <!-- Type Badge -->
-          <button
-            (click)="onTypeClick.emit(prompt.type)"
-            [class]="
-              'inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors cursor-pointer ' +
-              (isTypeSelected
-                ? promptTypeChipActiveClass
-                : promptTypeChipInactiveClass)
-            "
-            [title]="
-              isTypeSelected
-                ? 'Remove ' + prompt.type + ' filter'
-                : 'Filter by ' + prompt.type
-            "
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path
-                d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"
-              ></path>
-              <line x1="7" y1="7" x2="7.01" y2="7"></line>
-            </svg>
-            {{ prompt.type }}
-          </button>
-          @if (isAdmin) {
-          <button
-            (click)="handleDelete()"
-            class="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors cursor-pointer"
-            title="Delete prompt"
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path
-                d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-              ></path>
-            </svg>
-          </button>
-          }
-        </div>
-      </div>
-
-      <!-- Badge in top-right corner -->
-      @if ((promptBadge$ | async) && (badgeService.getBadgeFunctionalityEnabled$() | async)) {
-        <button
-          (click)="markPromptAsRead()"
-          class="absolute -top-2 -right-2 inline-flex items-center justify-center w-6 h-6 bg-[#39704D] dark:bg-[#39704D] text-white rounded-full text-xs font-bold hover:bg-[#2d5a3f] dark:hover:bg-[#2d5a3f] focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors"
-          title="Mark as read"
-          aria-label="Mark prompt as read"
-        >
-          1
-        </button>
-      }
-
-      <!-- Description -->
-      <p class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed mb-4">
-        {{ prompt.description }}
-      </p>
-
-      <!-- Pray For actions -->
-      <div class="flex flex-nowrap gap-1 items-center min-w-0">
-        @if ((userSessionService.getShowPrayForButton$() | async) && (prayerEncouragementService.getPrayerEncouragementEnabled$() | async)) {
-          @if (canPrayFor$ | async) {
-            <button
-              type="button"
-              (click)="onPrayForClick()"
-              title="Record that you prayed using this prompt"
-              class="flex-shrink-0 px-2 py-1 text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md border border-blue-600 dark:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 cursor-pointer whitespace-nowrap"
-            >
-              Pray For
-            </button>
-          } @else {
-            <button
-              type="button"
-              disabled
-              [title]="
-                'You can pray for this again in ' +
-                ((prayerEncouragementService.getCooldownHoursForPrayer$(true) | async) ?? 4) +
-                ' hours'
-              "
-              class="flex-shrink-0 px-2 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-md border border-gray-300 dark:border-gray-600 cursor-not-allowed whitespace-nowrap"
-            >
-              Prayed For
-            </button>
-          }
-        }
-        @if ((userSessionService.getShowPrayingCount$() | async) && (prayerEncouragementService.getPrayerEncouragementEnabled$() | async) && showPrayedForBadge()) {
-          <span
-            class="flex-shrink-0 px-1.5 py-1 text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md border border-blue-600 dark:border-blue-500 whitespace-nowrap"
-            title="How many times you have prayed with this prompt"
-          >
-            {{ (prompt.prayed_for_count ?? 0) }} Prayers
-          </span>
-        }
-      </div>
-
-      <!-- Confirmation Dialog -->
-      @if (showConfirmationDialog) {
-      <app-confirmation-dialog
-        [title]="'Delete Prayer Prompt'"
-        [message]="'Are you sure you want to delete this prayer prompt?'"
-        [isDangerous]="true"
-        [confirmText]="'Delete'"
-        (confirm)="onConfirmDelete()"
-        (cancel)="onCancelDelete()"
-      ></app-confirmation-dialog>
-      }
-
-      <!-- Pray For explanation modal -->
-      @if (showPrayForModal) {
-      <div class="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full">
-          <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Pray For This Prompt
-            </h2>
-          </div>
-          <div class="px-6 py-4">
-            <p class="text-gray-600 dark:text-gray-300 mb-4">
-              When you click Pray For, your private count for this prompt increases
-              so you can track how often you have prayed with it. Only you see this
-              count.
-            </p>
-            <div
-              class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4"
-            >
-              <p class="text-sm text-blue-700 dark:text-blue-300">
-                You can pray with the same prompt again in
-                {{ (prayerEncouragementService.getCooldownHoursForPrayer$(true) | async) ?? 4 }}
-                hours. Change this cooldown in Settings under Prayer encouragement on
-                cards.
-              </p>
-            </div>
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                [(ngModel)]="prayForDoNotShowAgain"
-                name="prayForDoNotShowAgain"
-                class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-              />
-              <span class="text-sm text-gray-700 dark:text-gray-300"
-                >Do not show this again</span
-              >
-            </label>
-          </div>
-          <div
-            class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex gap-3 justify-end"
-          >
-            <button
-              type="button"
-              (click)="showPrayForModal = false; prayForDoNotShowAgain = false"
-              class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              (click)="onConfirmPrayForFromModal()"
-              class="px-4 py-2 btn-chip btn-chip-blue"
-            >
-              Pray For
-            </button>
-          </div>
-        </div>
-      </div>
-      }
-    </div>
-  `,
-  styles: [],
+  host: {
+    "[class.contents]": 'variant === "presentation"',
+    "[class.block]": 'variant !== "presentation"',
+  },
+  templateUrl: "./prompt-card.component.html",
+  styleUrl: "./prompt-card.component.css",
 })
 export class PromptCardComponent implements OnInit, OnChanges, OnDestroy {
+  private readonly host = inject(ElementRef<HTMLElement>, { optional: true });
+  private modalsPortalAnchor: PrayerCardModalsPortalAnchor | null = null;
+
+  @ViewChild("promptCardModalsHost")
+  private modalsHost?: ElementRef<HTMLElement>;
+  @Input() variant: PrayerCardVariant = "home";
   @Input() prompt!: PrayerPrompt;
   @Input() isAdmin = false;
   @Input() isTypeSelected = false;
 
   @Output() delete = new EventEmitter<string>();
   @Output() onTypeClick = new EventEmitter<string>();
-
-  readonly promptTypeChipActiveClass = PROMPT_TYPE_CHIP_ACTIVE_CLASS;
-  readonly promptTypeChipInactiveClass = PROMPT_TYPE_CHIP_INACTIVE_CLASS;
+  @Output() prayedForCountChange = new EventEmitter<{
+    promptId: string;
+    count: number;
+  }>();
 
   readonly userSessionService = inject(UserSessionService);
   readonly prayerEncouragementService = inject(PrayerEncouragementService);
   private readonly promptService = inject(PromptService);
+  private readonly prayerItemReminderService = inject(PrayerItemReminderService);
   private readonly cdr = inject(ChangeDetectorRef);
 
   promptBadge$: Observable<boolean> | null = null;
   showConfirmationDialog = false;
   showPrayForModal = false;
+  showReminderModal = false;
   prayForDoNotShowAgain = false;
   canPrayFor$ = of(true);
+  private allPrayerItemReminders: PrayerItemReminder[] = [];
 
   private storageListener: ((event: StorageEvent) => void) | null = null;
   private promptBadgeSubject$ = new BehaviorSubject<boolean>(false);
   private destroy$ = new Subject<void>();
 
   constructor(public badgeService: BadgeService) {}
+
+  get variantLayout() {
+    return getPromptCardVariantLayout(this.variant);
+  }
+
+  get headerInsetClasses(): string {
+    return this.variantLayout.headerInsetClasses;
+  }
+
+  get metaHeaderTextSmClasses(): string {
+    return getMetaHeaderBandLayoutClasses(this.variantLayout.bandSize)
+      .textSmClasses;
+  }
+
+  get overflowItems(): CardActionsOverflowItem[] {
+    const items: CardActionsOverflowItem[] = [];
+    if (this.showReminderButton()) {
+      const hasReminder = this.hasReminderForPrompt();
+      items.push({
+        id: "reminder",
+        label: hasReminder ? "Manage prayer reminders" : "Add prayer reminder",
+        icon: "bell",
+        tone: "blue",
+        filled: hasReminder,
+        onSelect: () => this.openReminderModal(),
+      });
+    }
+    if (this.isAdmin) {
+      items.push({
+        id: "delete",
+        label: "Delete prompt",
+        ariaLabel: "Delete prayer prompt",
+        icon: "trash",
+        tone: "red",
+        onSelect: () => this.handleDelete(),
+      });
+    }
+    return items;
+  }
+
+  shellClasses(): string {
+    return getPromptCardShellClasses(this.variantLayout);
+  }
 
   ngOnInit(): void {
     this.initializePromptBadge();
@@ -309,16 +188,74 @@ export class PromptCardComponent implements OnInit, OnChanges, OnDestroy {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes["prompt"]) {
+      const previousId = changes["prompt"].previousValue?.id;
+      const currentId = changes["prompt"].currentValue?.id;
+      if (previousId !== currentId) {
+        this.showPrayForModal = false;
+        this.showReminderModal = false;
+        this.showConfirmationDialog = false;
+        this.allPrayerItemReminders = [];
+        if (!changes["prompt"].firstChange) {
+          this.promptBadgeSubject$.next(false);
+          this.updatePromptBadge();
+        }
+        this.afterModalStateChange();
+      }
       this.refreshCanPrayFor$();
+      this.cdr.markForCheck();
     }
   }
 
   ngOnDestroy(): void {
+    const modalsHost = this.modalsHost?.nativeElement;
+    if (modalsHost) {
+      restorePrayerCardModalsHostFromBody(modalsHost, this.modalsPortalAnchor);
+      this.modalsPortalAnchor = null;
+    }
     if (this.storageListener) {
       window.removeEventListener("storage", this.storageListener);
     }
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  private afterModalStateChange(): void {
+    this.cdr.markForCheck();
+    queueMicrotask(() => this.syncModalsBodyPortal());
+  }
+
+  private syncModalsBodyPortal(): void {
+    const modalsHost = this.modalsHost?.nativeElement;
+    if (!modalsHost) {
+      return;
+    }
+
+    const shouldManagePortal =
+      this.modalsPortalAnchor !== null ||
+      (this.host
+        ? isInsideCdkVirtualScrollContent(this.host.nativeElement)
+        : false);
+
+    if (!shouldManagePortal) {
+      return;
+    }
+
+    if (
+      promptCardHasOpenModal({
+        showConfirmationDialog: this.showConfirmationDialog,
+        showPrayForModal: this.showPrayForModal,
+        showReminderModal: this.showReminderModal,
+      })
+    ) {
+      this.modalsPortalAnchor = portalPrayerCardModalsHostToBody(
+        modalsHost,
+        this.modalsPortalAnchor
+      );
+      return;
+    }
+
+    restorePrayerCardModalsHostFromBody(modalsHost, this.modalsPortalAnchor);
+    this.modalsPortalAnchor = null;
   }
 
   private initializePromptBadge(): void {
@@ -342,15 +279,18 @@ export class PromptCardComponent implements OnInit, OnChanges, OnDestroy {
 
   handleDelete(): void {
     this.showConfirmationDialog = true;
+    this.afterModalStateChange();
   }
 
   onConfirmDelete(): void {
     this.delete.emit(this.prompt.id);
     this.showConfirmationDialog = false;
+    this.afterModalStateChange();
   }
 
   onCancelDelete(): void {
     this.showConfirmationDialog = false;
+    this.afterModalStateChange();
   }
 
   markPromptAsRead(): void {
@@ -358,7 +298,77 @@ export class PromptCardComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   showPrayedForBadge(): boolean {
-    return (this.prompt?.prayed_for_count ?? 0) > 0;
+    return showPromptCardPrayedForBadge(this.prompt?.prayed_for_count);
+  }
+
+  prayedForCountLabel(): string {
+    return prayedForCountLabelForPromptCard(this.prompt?.prayed_for_count);
+  }
+
+  getTypeHeaderTextClasses(): string {
+    return promptCardTypeHeaderTextClasses(this.isTypeSelected);
+  }
+
+  reminderSessionEmail(): string {
+    return getPrayerCardUserEmail(this.userSessionService).trim();
+  }
+
+  showReminderButton(): boolean {
+    return showPromptCardReminderButton(
+      this.reminderSessionEmail(),
+      this.prompt?.id
+    );
+  }
+
+  remindersForThisPrompt(): PrayerItemReminder[] {
+    return remindersForPrayerCard(
+      this.prayerItemReminderService,
+      this.userSessionService,
+      this.allPrayerItemReminders,
+      this.prompt?.id ?? "",
+      false,
+      true
+    );
+  }
+
+  hasReminderForPrompt(): boolean {
+    return this.remindersForThisPrompt().length > 0;
+  }
+
+  openReminderModal(): void {
+    this.showReminderModal = true;
+    void this.ensurePrayerItemRemindersLoaded();
+    this.afterModalStateChange();
+  }
+
+  onCloseReminderModal(): void {
+    this.showReminderModal = false;
+    this.afterModalStateChange();
+  }
+
+  onPromptRemindersChanged(all: PrayerItemReminder[]): void {
+    this.allPrayerItemReminders = all;
+    this.cdr.markForCheck();
+  }
+
+  readonly prepareOverflowMenuOpen = async (): Promise<void> => {
+    await this.ensurePrayerItemRemindersLoaded();
+    this.cdr.detectChanges();
+  };
+
+  private ensurePrayerItemRemindersLoaded(): Promise<void> {
+    if (!this.reminderSessionEmail()) {
+      this.allPrayerItemReminders = [];
+      this.cdr.markForCheck();
+      return Promise.resolve();
+    }
+    return ensurePrayerCardItemRemindersLoaded(
+      this.userSessionService,
+      this.prayerItemReminderService
+    ).then((rows) => {
+      this.allPrayerItemReminders = rows;
+      this.cdr.markForCheck();
+    });
   }
 
   onPrayForClick(): void {
@@ -367,7 +377,7 @@ export class PromptCardComponent implements OnInit, OnChanges, OnDestroy {
       return;
     }
     this.showPrayForModal = true;
-    this.cdr.markForCheck();
+    this.afterModalStateChange();
   }
 
   onConfirmPrayForFromModal(): void {
@@ -381,7 +391,13 @@ export class PromptCardComponent implements OnInit, OnChanges, OnDestroy {
     this.showPrayForModal = false;
     this.prayForDoNotShowAgain = false;
     void this.confirmPrayFor();
-    this.cdr.markForCheck();
+    this.afterModalStateChange();
+  }
+
+  onCancelPrayForModal(): void {
+    this.showPrayForModal = false;
+    this.prayForDoNotShowAgain = false;
+    this.afterModalStateChange();
   }
 
   async confirmPrayFor(): Promise<void> {
@@ -394,10 +410,11 @@ export class PromptCardComponent implements OnInit, OnChanges, OnDestroy {
     const newCount = await this.promptService.incrementPromptPrayedFor(promptId);
     if (newCount !== null) {
       prayedForPrompt.prayed_for_count = newCount;
+      this.prayedForCountChange.emit({ promptId, count: newCount });
     } else {
       this.prayerEncouragementService.clearPrayedForCooldown(promptId, true);
     }
     this.refreshCanPrayFor$();
-    this.cdr.markForCheck();
+    this.afterModalStateChange();
   }
 }

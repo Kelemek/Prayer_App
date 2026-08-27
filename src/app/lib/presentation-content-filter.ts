@@ -19,6 +19,9 @@ export function filterCommunityPrayersByStatus(
   if (statusFilters.answered) {
     statuses.push("answered");
   }
+  if (statusFilters.archived) {
+    statuses.push("archived");
+  }
   if (statuses.length === 0) {
     return prayers;
   }
@@ -31,7 +34,8 @@ export function filterPersonalPrayersByStatus(
 ): PrayerRequest[] {
   const showCurrent = statusFilters.current;
   const showAnswered = statusFilters.answered;
-  if (!showCurrent && !showAnswered) {
+  const showArchived = statusFilters.archived;
+  if (!showCurrent && !showAnswered && !showArchived) {
     return prayers;
   }
   return prayers.filter((prayer) => {
@@ -48,13 +52,9 @@ export function sortPrayersByLatestActivity(
       prayer,
       latestActivity: Math.max(
         new Date(prayer.created_at).getTime(),
-        (prayer.updates?.length ?? 0) > 0
-          ? Math.max(
-              ...prayer.updates.map((update) =>
-                new Date(update.created_at).getTime()
-              )
-            )
-          : 0
+        ...(prayer.updates ?? []).map((update) =>
+          new Date(update.created_at).getTime()
+        )
       ),
     }))
     .sort((a, b) => b.latestActivity - a.latestActivity)

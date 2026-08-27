@@ -10,6 +10,7 @@ import type { Observable } from 'rxjs';
 import { RichTextViewComponent } from '../rich-text-view/rich-text-view.component';
 import type { BadgeService } from '../../services/badge.service';
 import type { PrayerRequest } from '../../services/prayer.service';
+import { verseMemorizationTextForDisplay } from '../../lib/verse-memorization-description';
 import type { PrayerCardVariantLayout } from '../../lib/prayer-card-layout';
 
 @Component({
@@ -29,11 +30,19 @@ export class PrayerCardTitleBodyComponent {
   @Input() personalDragTourId: string | null = null;
   @Input({ required: true }) displayRequester!: string;
   @Input() showDescription = false;
+  @Input() isVerseMemorization = false;
   @Input() showsCommunityUnreadBadges = false;
   @Input() prayerBadge$: Observable<boolean> | null = null;
   @Input({ required: true }) badgeService!: BadgeService;
 
   @Output() markPrayerRead = new EventEmitter<void>();
+
+  verseTextForDisplay(): string {
+    return verseMemorizationTextForDisplay(
+      this.prayer.description,
+      this.prayer.verse_reference
+    );
+  }
 
   onMarkPrayerRead(): void {
     this.markPrayerRead.emit();

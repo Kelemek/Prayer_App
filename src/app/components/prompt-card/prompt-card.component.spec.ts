@@ -7,6 +7,7 @@ import { BadgeService } from '../../services/badge.service';
 import { UserSessionService } from '../../services/user-session.service';
 import { PrayerEncouragementService } from '../../services/prayer-encouragement.service';
 import { PromptService } from '../../services/prompt.service';
+import { PrayerItemReminderService } from '../../services/prayer-item-reminder.service';
 
 function createPromptCard(
   badgeService: any,
@@ -45,6 +46,13 @@ function createPromptCard(
         useValue: {
           incrementPromptPrayedFor: vi.fn().mockResolvedValue(5),
           ...extras?.promptService,
+        },
+      },
+      {
+        provide: PrayerItemReminderService,
+        useValue: {
+          ensureLoaded: vi.fn().mockResolvedValue([]),
+          remindersForPrayer: vi.fn().mockReturnValue([]),
         },
       },
     ],
@@ -1214,6 +1222,31 @@ describe('PromptCardComponent - Core Logic', () => {
       expect(component.showConfirmationDialog).toBe(true);
       component.onConfirmDelete();
       expect(component.showConfirmationDialog).toBe(false);
+    });
+
+    it('getTypeHeaderTextClasses uses stone color when type filter is active', () => {
+      component.isTypeSelected = true;
+      expect(component.getTypeHeaderTextClasses()).toContain('#988F83');
+    });
+
+    it('getTypeHeaderTextClasses uses neutral text when type filter is inactive', () => {
+      component.isTypeSelected = false;
+      expect(component.getTypeHeaderTextClasses()).toContain('text-gray-700');
+    });
+
+    it('overflowItems includes reminder when signed in and delete only for admins', () => {
+      component.prompt = {
+        id: 'prompt-1',
+        title: 'T',
+        type: 'Family',
+        description: 'D',
+        created_at: '',
+        updated_at: '',
+      };
+      component.isAdmin = false;
+      expect(component.overflowItems.map((item) => item.id)).toEqual(['reminder']);
+      component.isAdmin = true;
+      expect(component.overflowItems.map((item) => item.id)).toEqual(['reminder', 'delete']);
     });
   });
 });

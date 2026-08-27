@@ -755,8 +755,8 @@ describe('PrayerDisplayCardComponent', () => {
       });
 
       const styles = fixture.componentInstance.getCategoryPillStyles();
-      expect(styles.color).toBe('#DC2626');
-      expect(styles.backgroundColor).toContain('color-mix');
+      expect(styles['--category-pill-text']).toBe('#DC2626');
+      expect(styles['--category-pill-bg']).toContain('color-mix');
     });
   });
 });

@@ -106,16 +106,54 @@ describe("HomeFilterCoordinator", () => {
     expect(host.setActiveFilter).not.toHaveBeenCalled();
   });
 
-  it("selectPublicTab preserves total when already on public", () => {
+  it("selectPublicTab preserves archived when already on public", () => {
     host.getPageState = vi.fn(() => ({
-      activeFilter: "total" as const,
-      filters: { searchTerm: "" },
+      activeFilter: "archived" as const,
+      filters: { status: "archived" as const, searchTerm: "" },
       selectedPromptTypes: [],
     }));
 
     coordinator.selectPublicTab();
 
     expect(host.setActiveFilter).not.toHaveBeenCalled();
+  });
+
+  it("applies archived status filters", () => {
+    coordinator.setFilter("archived");
+
+    expect(host.setActiveFilter).toHaveBeenCalledWith("archived");
+    expect(host.setFilters).toHaveBeenCalledWith({
+      status: "archived",
+      searchTerm: "find",
+    });
+    expect(host.applyPrayerFilters).toHaveBeenCalledWith({
+      status: "archived",
+      search: "find",
+    });
+  });
+
+  it("resets the home scroll viewport when switching filters", () => {
+    const shell = document.createElement("div");
+    shell.className = "main-page-shell";
+    const viewport = document.createElement("div");
+    viewport.className = "safe-area-viewport";
+    viewport.scrollTop = 320;
+    shell.appendChild(viewport);
+    document.body.appendChild(shell);
+
+    const rafSpy = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((cb: FrameRequestCallback) => {
+        cb(0);
+        return 1;
+      });
+
+    coordinator.setFilter("answered");
+
+    expect(viewport.scrollTop).toBe(0);
+    expect(rafSpy).toHaveBeenCalled();
+    rafSpy.mockRestore();
+    document.body.innerHTML = "";
   });
 
   it("getUnreadPromptCountByType counts only unread prompts of that type", () => {

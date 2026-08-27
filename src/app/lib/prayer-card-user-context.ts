@@ -1,3 +1,4 @@
+import type { UserSessionData } from '../services/user-session.service';
 import type { UserSessionService } from '../services/user-session.service';
 
 export function getPrayerCardUserEmail(
@@ -5,6 +6,12 @@ export function getPrayerCardUserEmail(
 ): string {
   const session = userSessionService.getCurrentSession?.() ?? null;
   return session?.email || '';
+}
+
+export function hasPrayerHourReminders(
+  session: UserSessionData | null | undefined
+): boolean {
+  return (session?.prayerHourReminders?.length ?? 0) > 0;
 }
 
 export function getPrayerCardUserNameFromStorage(): string {

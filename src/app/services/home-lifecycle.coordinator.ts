@@ -127,6 +127,8 @@ export class HomeLifecycleCoordinator {
         filter: initialTree.queryParams["filter"],
         prayerId: initialTree.queryParams["prayerId"],
         promptId: initialTree.queryParams["promptId"],
+        verseRef: initialTree.queryParams["verseRef"],
+        verseTranslation: initialTree.queryParams["verseTranslation"],
       });
     }
 
@@ -160,6 +162,8 @@ export class HomeLifecycleCoordinator {
               filter: tree.queryParams["filter"],
               prayerId: tree.queryParams["prayerId"],
               promptId: tree.queryParams["promptId"],
+              verseRef: tree.queryParams["verseRef"],
+              verseTranslation: tree.queryParams["verseTranslation"],
             },
             host.getViewReady()
           );

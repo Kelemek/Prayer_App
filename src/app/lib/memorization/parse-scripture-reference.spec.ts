@@ -9,6 +9,7 @@ import {
   scriptureChapterReferenceKey,
   scriptureReferenceForPassageQuery,
   singleChapterBookVerseCount,
+  splitScriptureReferenceDisplay,
 } from './parse-scripture-reference';
 
 describe('parse-scripture-reference', () => {
@@ -62,5 +63,35 @@ describe('parse-scripture-reference', () => {
     expect(isSingleChapterBookChapterOneReference('Genesis 1')).toBe(false);
     expect(scriptureReferenceForPassageQuery('Jude 1')).toMatch(/^Jude 1:1-/);
     expect(singleChapterBookVerseCount('Jude')).toBeGreaterThan(0);
+  });
+});
+
+describe('splitScriptureReferenceDisplay', () => {
+  it('splits book from verse citation', () => {
+    expect(splitScriptureReferenceDisplay('John 3:16')).toEqual({
+      book: 'John',
+      citation: '3:16',
+    });
+  });
+
+  it('splits numbered books and ranges', () => {
+    expect(splitScriptureReferenceDisplay('1 Thessalonians 5:16-18')).toEqual({
+      book: '1 Thessalonians',
+      citation: '5:16-18',
+    });
+  });
+
+  it('splits chapter-only references', () => {
+    expect(splitScriptureReferenceDisplay('Psalm 23')).toEqual({
+      book: 'Psalm',
+      citation: '23',
+    });
+  });
+
+  it('returns whole label for non-verse references', () => {
+    expect(splitScriptureReferenceDisplay('Bible Books (OT)')).toEqual({
+      book: 'Bible Books (OT)',
+      citation: null,
+    });
   });
 });

@@ -136,4 +136,79 @@ describe("ModalShellComponent", () => {
     fixture.componentInstance.onOverlayTouchMove(insideEvent);
     expect(insideEvent.preventDefault).not.toHaveBeenCalled();
   });
+
+  describe("onBodyFocusIn", () => {
+    beforeEach(() => {
+      if (!HTMLElement.prototype.scrollIntoView) {
+        HTMLElement.prototype.scrollIntoView = vi.fn();
+      }
+    });
+
+    it("does not scroll when a button receives focus", () => {
+      fixture = TestBed.createComponent(ModalShellComponent);
+      fixture.detectChanges();
+      const component = fixture.componentInstance;
+      const button = document.createElement("button");
+      const scrollSpy = vi.spyOn(button, "scrollIntoView");
+
+      component.onBodyFocusIn({ target: button } as FocusEvent);
+
+      expect(scrollSpy).not.toHaveBeenCalled();
+    });
+
+    it("does not scroll when a text field is already visible", () => {
+      fixture = TestBed.createComponent(ModalShellComponent);
+      fixture.detectChanges();
+      const component = fixture.componentInstance;
+      const scroller = fixture.nativeElement.querySelector(
+        ".modal-shell-body"
+      ) as HTMLElement;
+      const input = document.createElement("input");
+      scroller.appendChild(input);
+      scroller.getBoundingClientRect = () =>
+        ({ top: 0, bottom: 400, left: 0, right: 300 }) as DOMRect;
+      input.getBoundingClientRect = () =>
+        ({ top: 50, bottom: 80, left: 0, right: 200 }) as DOMRect;
+      const scrollSpy = vi.spyOn(input, "scrollIntoView");
+      const rafCallbacks: FrameRequestCallback[] = [];
+      vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+        rafCallbacks.push(cb);
+        return rafCallbacks.length;
+      });
+
+      component.onBodyFocusIn({ target: input } as FocusEvent);
+      rafCallbacks.forEach((cb) => cb(0));
+
+      expect(scrollSpy).not.toHaveBeenCalled();
+    });
+
+    it("scrolls obscured text fields into view with nearest positioning", () => {
+      fixture = TestBed.createComponent(ModalShellComponent);
+      fixture.detectChanges();
+      const component = fixture.componentInstance;
+      const scroller = fixture.nativeElement.querySelector(
+        ".modal-shell-body"
+      ) as HTMLElement;
+      const input = document.createElement("input");
+      scroller.appendChild(input);
+      scroller.getBoundingClientRect = () =>
+        ({ top: 0, bottom: 200, left: 0, right: 300 }) as DOMRect;
+      input.getBoundingClientRect = () =>
+        ({ top: 250, bottom: 280, left: 0, right: 200 }) as DOMRect;
+      const scrollSpy = vi.spyOn(input, "scrollIntoView");
+      const rafCallbacks: FrameRequestCallback[] = [];
+      vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+        rafCallbacks.push(cb);
+        return rafCallbacks.length;
+      });
+
+      component.onBodyFocusIn({ target: input } as FocusEvent);
+      rafCallbacks.forEach((cb) => cb(0));
+
+      expect(scrollSpy).toHaveBeenCalledWith({
+        block: "nearest",
+        behavior: "auto",
+      });
+    });
+  });
 });

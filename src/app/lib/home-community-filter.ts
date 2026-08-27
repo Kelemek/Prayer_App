@@ -1,12 +1,19 @@
 import type { HomeActiveFilter } from "../services/home-deep-link-host.adapter";
 
-export type CommunityPrayerFilter = "current" | "answered" | "total";
+export type CommunityPrayerFilter =
+  | "current"
+  | "answered"
+  | "archived"
+  | "total";
 
 export function isCommunityPrayerFilter(
   filter: HomeActiveFilter
 ): filter is CommunityPrayerFilter {
   return (
-    filter === "current" || filter === "answered" || filter === "total"
+    filter === "current" ||
+    filter === "answered" ||
+    filter === "archived" ||
+    filter === "total"
   );
 }
 

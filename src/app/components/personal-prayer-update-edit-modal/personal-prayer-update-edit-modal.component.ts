@@ -71,7 +71,7 @@ import { ModalShellComponent } from "../modal-shell/modal-shell.component";
         <div class="flex justify-end pt-4">
           <button
             type="submit"
-            [disabled]="!editForm.valid || isSubmitting"
+            [disabled]="!editForm.valid || isSubmitting || !canSubmitUpdate()"
             class="min-h-12 px-8 py-3 text-base font-medium btn-chip btn-chip-green disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Save changes"
           >
@@ -129,18 +129,23 @@ export class PersonalPrayerUpdateEditModalComponent
     }
   }
 
+  canSubmitUpdate(): boolean {
+    return (this.formData.content ?? "").trim().length > 0;
+  }
+
   async handleSubmit(): Promise<void> {
     if (this.isSubmitting || !this.update) return;
+
+    const content =
+      this.contentEditor?.flushMarkdownToForm() ?? this.formData.content ?? "";
+    if (!content.trim()) {
+      this.toast.error("Update content is required");
+      return;
+    }
 
     try {
       this.isSubmitting = true;
       this.cdr.markForCheck();
-
-      const content =
-        this.contentEditor?.flushMarkdownToForm() ?? this.formData.content ?? '';
-      if (!content.trim()) {
-        return;
-      }
 
       const updates: Partial<PrayerUpdate> = {
         content,

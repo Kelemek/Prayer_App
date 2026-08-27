@@ -1,5 +1,7 @@
 export type PrayerStatus = 'current' | 'answered' | 'archived';
 
+export type PrayerContentKind = 'standard' | 'verse_memorization';
+
 export interface PrayerUpdate {
   id: string;
   prayer_id: string;
@@ -20,7 +22,7 @@ export interface PrayerRequest {
   title: string;
   description: string;
   status: PrayerStatus;
-  approval_status?: 'pending' | 'approved' | 'rejected';
+  approval_status?: 'pending' | 'approved' | 'denied';
   requester: string;
   prayer_for: string;
   email?: string | null;
@@ -34,11 +36,18 @@ export interface PrayerRequest {
   category?: string | null;
   display_order?: number;
   prayer_image?: string | null;
-  updates: PrayerUpdate[];
+  updates?: PrayerUpdate[];
   prayed_for_count?: number;
   /** Set on personal-prayer rows (legacy cache entries may only have email). */
   user_email?: string;
   is_shared_personal_prayer?: boolean;
+  denial_reason?: string | null;
+  approved_at?: string | null;
+  denied_at?: string | null;
+  content_kind?: PrayerContentKind;
+  verse_reference?: string | null;
+  verse_translation?: string | null;
+  admin_message?: string | null;
 }
 
 export interface PrayerFilters {

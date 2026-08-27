@@ -30,6 +30,10 @@ export class PromptService {
     return this.promptsSubject.value;
   }
 
+  isPromptsLoading(): boolean {
+    return this.loadingSubject.value;
+  }
+
   getActivePromptCategories(): string[] {
     const seen = new Set<string>();
     const categories: string[] = [];

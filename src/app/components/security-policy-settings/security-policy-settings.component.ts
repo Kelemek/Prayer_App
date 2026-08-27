@@ -3,6 +3,10 @@ import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
 import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
 import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
+import {
+  AdminFilterSelectComponent,
+  type AdminFilterSelectOption,
+} from '../admin-filter-select/admin-filter-select.component';
 
 type AllowanceLevel = 'everyone' | 'original-requestor' | 'admin-only';
 
@@ -14,7 +18,11 @@ interface AllowanceOption {
 @Component({
   selector: 'app-security-policy-settings',
   standalone: true,
-  imports: [AdminSectionLoadingComponent, AdminCollapsibleSectionComponent],
+  imports: [
+    AdminSectionLoadingComponent,
+    AdminCollapsibleSectionComponent,
+    AdminFilterSelectComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-admin-collapsible-section
@@ -64,69 +72,13 @@ interface AllowanceOption {
               <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3" id="deletions-policy-label">
                 Prayer & Update Deletion Policy
               </h4>
-              <div class="relative">
-                <div
-                  [class.border-blue-500]="showDeletionsDropdown"
-                  [class.ring-1]="showDeletionsDropdown"
-                  [class.ring-blue-500/40]="showDeletionsDropdown"
-                  class="overflow-hidden rounded-md border border-gray-300 bg-white transition-all dark:border-gray-600 dark:bg-gray-800"
-                >
-                  <button
-                    type="button"
-                    id="deletionsAllowed"
-                    (click)="toggleDeletionsDropdown()"
-                    [disabled]="saving"
-                    [attr.aria-expanded]="showDeletionsDropdown"
-                    aria-haspopup="listbox"
-                    aria-labelledby="deletions-policy-label"
-                    aria-label="Policy for prayer and update deletions"
-                    class="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <span>{{ getAllowanceLabel(deletionsAllowed) }}</span>
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      class="shrink-0 text-gray-600 transition-transform dark:text-gray-400"
-                      [class.rotate-180]="showDeletionsDropdown"
-                      aria-hidden="true"
-                    >
-                      <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
-                  </button>
-                </div>
-
-                @if (showDeletionsDropdown) {
-                  <div class="fixed inset-0 z-10" (click)="closeDeletionsDropdown()"></div>
-                  <div
-                    role="listbox"
-                    aria-label="Policy for prayer and update deletions"
-                    class="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
-                  >
-                    @for (option of allowanceOptions; track option.value) {
-                      <button
-                        type="button"
-                        role="option"
-                        [attr.aria-selected]="deletionsAllowed === option.value"
-                        (click)="selectDeletionsAllowed(option.value)"
-                        class="flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-blue-50 dark:text-gray-200 dark:hover:bg-blue-900/30"
-                        [class.bg-blue-50]="deletionsAllowed === option.value"
-                        [class.dark:bg-blue-900/40]="deletionsAllowed === option.value"
-                      >
-                        <span>{{ option.label }}</span>
-                        @if (deletionsAllowed === option.value) {
-                          <span class="ml-2 shrink-0 text-blue-600 dark:text-blue-400" aria-hidden="true">✓</span>
-                        }
-                      </button>
-                    }
-                  </div>
-                }
-              </div>
+              <app-admin-filter-select
+                triggerId="deletionsAllowed"
+                [value]="deletionsAllowed"
+                (valueChange)="onDeletionsAllowedChange($event)"
+                [options]="allowanceSelectOptions"
+                ariaLabel="Policy for prayer and update deletions"
+              />
               <p class="text-xs text-gray-500 dark:text-gray-400 mt-3">
                 <strong class="text-gray-700 dark:text-gray-300">Everyone:</strong> Users can request to delete any prayer requests and updates. Deletions require admin approval before taking effect.
               </p>
@@ -143,69 +95,13 @@ interface AllowanceOption {
               <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3" id="updates-policy-label">
                 Prayer Update Policy
               </h4>
-              <div class="relative">
-                <div
-                  [class.border-blue-500]="showUpdatesDropdown"
-                  [class.ring-1]="showUpdatesDropdown"
-                  [class.ring-blue-500/40]="showUpdatesDropdown"
-                  class="overflow-hidden rounded-md border border-gray-300 bg-white transition-all dark:border-gray-600 dark:bg-gray-800"
-                >
-                  <button
-                    type="button"
-                    id="updatesAllowed"
-                    (click)="toggleUpdatesDropdown()"
-                    [disabled]="saving"
-                    [attr.aria-expanded]="showUpdatesDropdown"
-                    aria-haspopup="listbox"
-                    aria-labelledby="updates-policy-label"
-                    aria-label="Policy for prayer updates"
-                    class="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <span>{{ getAllowanceLabel(updatesAllowed) }}</span>
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      class="shrink-0 text-gray-600 transition-transform dark:text-gray-400"
-                      [class.rotate-180]="showUpdatesDropdown"
-                      aria-hidden="true"
-                    >
-                      <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
-                  </button>
-                </div>
-
-                @if (showUpdatesDropdown) {
-                  <div class="fixed inset-0 z-10" (click)="closeUpdatesDropdown()"></div>
-                  <div
-                    role="listbox"
-                    aria-label="Policy for prayer updates"
-                    class="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
-                  >
-                    @for (option of allowanceOptions; track option.value) {
-                      <button
-                        type="button"
-                        role="option"
-                        [attr.aria-selected]="updatesAllowed === option.value"
-                        (click)="selectUpdatesAllowed(option.value)"
-                        class="flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-blue-50 dark:text-gray-200 dark:hover:bg-blue-900/30"
-                        [class.bg-blue-50]="updatesAllowed === option.value"
-                        [class.dark:bg-blue-900/40]="updatesAllowed === option.value"
-                      >
-                        <span>{{ option.label }}</span>
-                        @if (updatesAllowed === option.value) {
-                          <span class="ml-2 shrink-0 text-blue-600 dark:text-blue-400" aria-hidden="true">✓</span>
-                        }
-                      </button>
-                    }
-                  </div>
-                }
-              </div>
+              <app-admin-filter-select
+                triggerId="updatesAllowed"
+                [value]="updatesAllowed"
+                (valueChange)="onUpdatesAllowedChange($event)"
+                [options]="allowanceSelectOptions"
+                ariaLabel="Policy for prayer updates"
+              />
               <p class="text-xs text-gray-500 dark:text-gray-400 mt-3">
                 <strong class="text-gray-700 dark:text-gray-300">Everyone:</strong> Users can submit updates to any existing prayer requests. Updates require admin approval before being displayed.
               </p>
@@ -257,10 +153,11 @@ export class SecurityPolicySettingsComponent {
     { value: 'admin-only', label: 'Admin Only' },
   ];
 
+  readonly allowanceSelectOptions: readonly AdminFilterSelectOption[] =
+    this.allowanceOptions;
+
   deletionsAllowed: AllowanceLevel = 'everyone';
   updatesAllowed: AllowanceLevel = 'everyone';
-  showDeletionsDropdown = false;
-  showUpdatesDropdown = false;
   loading = false;
   saving = false;
   error: string | null = null;
@@ -287,50 +184,18 @@ export class SecurityPolicySettingsComponent {
     }
   }
 
-  toggleDeletionsDropdown(): void {
-    this.showDeletionsDropdown = !this.showDeletionsDropdown;
-    if (this.showDeletionsDropdown) {
-      this.showUpdatesDropdown = false;
-    }
+  onDeletionsAllowedChange(value: string): void {
+    this.deletionsAllowed = value as AllowanceLevel;
     this.cdr.markForCheck();
   }
 
-  closeDeletionsDropdown(): void {
-    this.showDeletionsDropdown = false;
-    this.cdr.markForCheck();
-  }
-
-  selectDeletionsAllowed(value: AllowanceLevel): void {
-    this.deletionsAllowed = value;
-    this.showDeletionsDropdown = false;
-    this.cdr.markForCheck();
-  }
-
-  toggleUpdatesDropdown(): void {
-    this.showUpdatesDropdown = !this.showUpdatesDropdown;
-    if (this.showUpdatesDropdown) {
-      this.showDeletionsDropdown = false;
-    }
-    this.cdr.markForCheck();
-  }
-
-  closeUpdatesDropdown(): void {
-    this.showUpdatesDropdown = false;
-    this.cdr.markForCheck();
-  }
-
-  selectUpdatesAllowed(value: AllowanceLevel): void {
-    this.updatesAllowed = value;
-    this.showUpdatesDropdown = false;
+  onUpdatesAllowedChange(value: string): void {
+    this.updatesAllowed = value as AllowanceLevel;
     this.cdr.markForCheck();
   }
 
   onExpandedChange(expanded: boolean): void {
     this.sectionExpanded = expanded;
-    if (!this.sectionExpanded) {
-      this.showDeletionsDropdown = false;
-      this.showUpdatesDropdown = false;
-    }
     if (this.sectionExpanded && !this.sectionInitialLoadDone) {
       this.sectionInitialLoadDone = true;
       void this.loadSettings();
@@ -372,8 +237,6 @@ export class SecurityPolicySettingsComponent {
     try {
       this.saving = true;
       this.error = null;
-      this.showDeletionsDropdown = false;
-      this.showUpdatesDropdown = false;
       this.cdr.markForCheck();
 
       const { error } = await this.supabase.client

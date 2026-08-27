@@ -20,6 +20,21 @@ export function getMasterLevel(item: MemorizedItem): MemorizationMasterLevel {
   return masterLevelFromCompletedCount(countCompletedSessions(item));
 }
 
+export function masterLevelLabel(level: MemorizationMasterLevel): string {
+  switch (level) {
+    case 'learning':
+      return 'Learning';
+    case 'practicing':
+      return 'Practicing';
+    case 'mastered':
+      return 'Mastered';
+    default: {
+      const _exhaustive: never = level;
+      return _exhaustive;
+    }
+  }
+}
+
 export function groupItemsByMasterLevel(items: MemorizedItem[]): {
   learning: MemorizedItem[];
   practicing: MemorizedItem[];

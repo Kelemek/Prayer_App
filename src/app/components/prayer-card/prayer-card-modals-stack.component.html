@@ -60,6 +60,20 @@
   (confirmUnmark)="confirmPersonalUnanswered.emit($event)"
 />
 
+@if (showReminderModal) {
+<app-prayer-item-reminder-modal
+  [isOpen]="showReminderModal"
+  [email]="reminderSessionEmail"
+  [prayerId]="prayerId"
+  [prayerKind]="prayerItemKind"
+  [prayerFor]="prayerFor"
+  [titleSnapshot]="titleSnapshot"
+  [reminders]="reminders"
+  (close)="closeReminder.emit()"
+  (remindersChange)="remindersChange.emit($event)"
+/>
+}
+
 <app-prayer-card-pray-for-modal
   [isOpen]="showPrayForModal"
   [isPersonal]="isPersonal"

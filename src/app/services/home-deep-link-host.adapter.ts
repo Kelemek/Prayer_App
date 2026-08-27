@@ -10,10 +10,18 @@ import type { PrayerFilters } from "../components/prayer-filters/prayer-filters.
 export type HomeActiveFilter =
   | "current"
   | "answered"
+  | "archived"
   | "total"
   | "prompts"
   | "personal"
   | "memorize";
+
+export type HomeDeepLinkQueryParamKey =
+  | "filter"
+  | "prayerId"
+  | "promptId"
+  | "verseRef"
+  | "verseTranslation";
 
 export interface HomeDeepLinkPageState {
   activeFilter: HomeActiveFilter;
@@ -27,7 +35,8 @@ export interface HomeDeepLinkHost {
   markForCheck(): void;
   getActiveFilter(): HomeActiveFilter;
   setFilter(filter: HomeActiveFilter): void;
-  stripQueryParam(key: "filter" | "prayerId" | "promptId"): void;
+  stripQueryParam(key: HomeDeepLinkQueryParamKey): void;
+  stripQueryParams(...keys: HomeDeepLinkQueryParamKey[]): void;
   clearDeepLinkFilters(options?: { prayerId?: string }): void;
   resolvePrayerDeepLinkTab(prayerId: string): HomeActiveFilter | null;
   isPrayerInLoadedCatalog(prayerId: string): boolean;
@@ -36,6 +45,11 @@ export interface HomeDeepLinkHost {
   isPromptInCatalog(promptId: string): boolean;
   arePromptsStillLoading(): boolean;
   requestFreshPromptCatalog(): void;
+  applyPendingVerseMemorizationDeepLink(): void;
+  /** Scroll the prompts virtual list toward `promptId` (returns false if not on Prompts). */
+  scrollPromptIntoView(promptId: string): boolean;
+  /** Scroll the Public community virtual list toward `prayerId` (returns false if not on a community tab). */
+  scrollPrayerIntoView(prayerId: string): boolean;
 }
 
 export interface HomeDeepLinkHostDependencies {
@@ -55,6 +69,9 @@ export interface HomeDeepLinkHostDependencies {
     search?: string;
   }) => void;
   refreshHomeCatalog: () => void;
+  applyPendingVerseMemorizationDeepLink: () => void;
+  scrollPromptIntoView: (promptId: string) => boolean;
+  scrollPrayerIntoView: (prayerId: string) => boolean;
 }
 
 export class HomeDeepLinkHostAdapter implements HomeDeepLinkHost {
@@ -72,12 +89,22 @@ export class HomeDeepLinkHostAdapter implements HomeDeepLinkHost {
     this.deps.setFilter(filter);
   }
 
-  stripQueryParam(key: "filter" | "prayerId" | "promptId"): void {
-    const queryParams: Params = { [key]: null };
+  stripQueryParam(key: HomeDeepLinkQueryParamKey): void {
+    this.stripQueryParams(key);
+  }
+
+  stripQueryParams(...keys: HomeDeepLinkQueryParamKey[]): void {
+    if (keys.length === 0) {
+      return;
+    }
+    const q: Params = { ...(this.deps.route.snapshot?.queryParams ?? {}) };
+    for (const key of keys) {
+      delete q[key];
+    }
     void this.deps.router.navigate([], {
       relativeTo: this.deps.route,
-      queryParams,
-      queryParamsHandling: "merge",
+      queryParams: q,
+      queryParamsHandling: "",
       replaceUrl: true,
     });
   }
@@ -99,9 +126,6 @@ export class HomeDeepLinkHostAdapter implements HomeDeepLinkHost {
       this.deps.prayerService.getAllCommunityPrayersSnapshot(),
       this.deps.prayerService.getPersonalPrayersSnapshot()
     );
-    if (tab === "archived") {
-      return "current";
-    }
     return tab;
   }
 
@@ -128,10 +152,22 @@ export class HomeDeepLinkHostAdapter implements HomeDeepLinkHost {
   }
 
   arePromptsStillLoading(): boolean {
-    return false;
+    return this.deps.promptService.isPromptsLoading();
   }
 
   requestFreshPromptCatalog(): void {
     this.deps.promptService.loadPrompts();
+  }
+
+  applyPendingVerseMemorizationDeepLink(): void {
+    this.deps.applyPendingVerseMemorizationDeepLink();
+  }
+
+  scrollPromptIntoView(promptId: string): boolean {
+    return this.deps.scrollPromptIntoView(promptId);
+  }
+
+  scrollPrayerIntoView(prayerId: string): boolean {
+    return this.deps.scrollPrayerIntoView(prayerId);
   }
 }

@@ -700,10 +700,10 @@ export class PrayerArchiveTimelineComponent implements OnInit, OnDestroy {
       }
 
       // Use already-loaded updates from prayer (no extra Supabase egress)
-      const lastActivityDate: Date | null =
-        prayer.updates?.length > 0
-          ? new Date(prayer.updates[0].created_at)
-          : null;
+      const latestUpdateAt = prayer.updates?.[0]?.created_at;
+      const lastActivityDate: Date | null = latestUpdateAt
+        ? new Date(latestUpdateAt)
+        : null;
 
       const lastReminderSent = prayer.last_reminder_sent;
       const lastActivityExactDate = lastActivityDate ? new Date(lastActivityDate) : new Date(prayer.created_at);

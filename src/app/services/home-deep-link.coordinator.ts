@@ -6,7 +6,12 @@ export type HomeEmailFilterTab =
   | "answered"
   | "memorize";
 
-export type HomeDeepLinkQueryParamKey = "filter" | "prayerId" | "promptId";
+export type HomeDeepLinkQueryParamKey =
+  | "filter"
+  | "prayerId"
+  | "promptId"
+  | "verseRef"
+  | "verseTranslation";
 
 const MAX_DEEP_LINK_SCROLL_BURSTS = 12;
 
@@ -23,6 +28,10 @@ export class HomeDeepLinkCoordinator {
   private promptDeepLinkScrollGeneration = 0;
   private promptDeepLinkScrollBurstCount = 0;
   private promptDeepLinkFreshCatalogRequested = false;
+  private pendingVerseMemorization: {
+    reference: string;
+    translation?: string;
+  } | null = null;
 
   bindHost(host: HomeDeepLinkHost): void {
     this.host = host;
@@ -32,6 +41,8 @@ export class HomeDeepLinkCoordinator {
     filter?: string | null;
     prayerId?: string | null;
     promptId?: string | null;
+    verseRef?: string | null;
+    verseTranslation?: string | null;
   }): void {
     const filter = params.filter;
     if (
@@ -51,6 +62,26 @@ export class HomeDeepLinkCoordinator {
       this.pendingPromptIdScroll = promptId;
       this.promptDeepLinkScrollBurstCount = 0;
     }
+    this.captureVerseMemorizationParams(
+      params.verseRef,
+      params.verseTranslation
+    );
+  }
+
+  consumePendingVerseMemorization(): {
+    reference: string;
+    translation?: string;
+  } | null {
+    const pending = this.pendingVerseMemorization;
+    if (!pending) {
+      return null;
+    }
+    this.pendingVerseMemorization = null;
+    return pending;
+  }
+
+  hasPendingVerseMemorization(): boolean {
+    return !!this.pendingVerseMemorization;
   }
 
   consumeInitialEmailFilterTab(): HomeEmailFilterTab | null {
@@ -64,6 +95,8 @@ export class HomeDeepLinkCoordinator {
       filter?: string | null;
       prayerId?: string | null;
       promptId?: string | null;
+      verseRef?: string | null;
+      verseTranslation?: string | null;
     },
     viewReady: boolean
   ): void {
@@ -71,37 +104,47 @@ export class HomeDeepLinkCoordinator {
     const deepLinkPrayerId = this.normalizeId(params.prayerId);
     const deepLinkPromptId = this.normalizeId(params.promptId);
 
-    if (viewReady) {
+    if (!viewReady) {
       if (deepLinkFilter) {
-        this.host?.setFilter(deepLinkFilter);
-        this.host?.markForCheck();
-        this.host?.stripQueryParam("filter");
-      }
-      if (deepLinkPrayerId) {
+        this.initialEmailFilterTab = deepLinkFilter;
+      } else if (deepLinkPrayerId) {
         this.pendingPrayerIdScroll = deepLinkPrayerId;
         this.prayerDeepLinkScrollBurstCount = 0;
-        this.openPrayerDeepLink(deepLinkPrayerId);
-        this.host?.stripQueryParam("prayerId");
-      }
-      if (deepLinkPromptId) {
+      } else if (deepLinkPromptId) {
         this.pendingPromptIdScroll = deepLinkPromptId;
         this.promptDeepLinkScrollBurstCount = 0;
-        this.openPromptDeepLink(deepLinkPromptId);
-        this.host?.markForCheck();
-        this.host?.stripQueryParam("promptId");
       }
+      this.captureVerseMemorizationParams(
+        params.verseRef,
+        params.verseTranslation
+      );
       return;
     }
 
+    this.captureVerseMemorizationParams(
+      params.verseRef,
+      params.verseTranslation
+    );
+
     if (deepLinkFilter) {
-      this.initialEmailFilterTab = deepLinkFilter;
-    } else if (deepLinkPrayerId) {
+      this.host?.setFilter(deepLinkFilter);
+      this.host?.markForCheck();
+      this.host?.stripQueryParam("filter");
+    }
+    if (deepLinkPrayerId) {
       this.pendingPrayerIdScroll = deepLinkPrayerId;
       this.prayerDeepLinkScrollBurstCount = 0;
-    } else if (deepLinkPromptId) {
+      this.openPrayerDeepLink(deepLinkPrayerId);
+      this.host?.stripQueryParam("prayerId");
+    }
+    if (deepLinkPromptId) {
       this.pendingPromptIdScroll = deepLinkPromptId;
       this.promptDeepLinkScrollBurstCount = 0;
+      this.openPromptDeepLink(deepLinkPromptId);
+      this.host?.markForCheck();
+      this.host?.stripQueryParam("promptId");
     }
+    this.applyPendingVerseMemorizationIfNeeded();
   }
 
   applyPendingDeepLinksOnViewReady(): void {
@@ -115,6 +158,7 @@ export class HomeDeepLinkCoordinator {
       this.openPromptDeepLink(id);
       this.host?.stripQueryParam("promptId");
     }
+    this.applyPendingVerseMemorizationIfNeeded();
   }
 
   retryPendingPrayerDeepLinkIfNeeded(): void {
@@ -204,6 +248,31 @@ export class HomeDeepLinkCoordinator {
     return trimmed ? trimmed : null;
   }
 
+  private captureVerseMemorizationParams(
+    verseRef: string | null | undefined,
+    verseTranslation?: string | null | undefined
+  ): void {
+    const reference = this.normalizeId(verseRef);
+    if (!reference) {
+      return;
+    }
+    const translation = this.normalizeId(verseTranslation);
+    this.pendingVerseMemorization = translation
+      ? { reference, translation }
+      : { reference };
+  }
+
+  private applyPendingVerseMemorizationIfNeeded(): void {
+    if (!this.hasPendingVerseMemorization()) {
+      return;
+    }
+    if (this.host?.getActiveFilter() !== "memorize") {
+      this.host?.setFilter("memorize");
+      this.host?.markForCheck();
+    }
+    this.host?.applyPendingVerseMemorizationDeepLink();
+  }
+
   private ensureFreshCatalogForPrayerDeepLink(prayerId: string): void {
     if (!this.host || this.prayerDeepLinkFreshCatalogRequested) {
       return;
@@ -259,6 +328,7 @@ export class HomeDeepLinkCoordinator {
       shouldRetryBurst: () =>
         this.host?.isPrayerInLoadedCatalog(prayerId) ?? false,
       reschedule: () => this.scheduleScrollToPrayerId(prayerId),
+      prepareScroll: () => this.host?.scrollPrayerIntoView(prayerId) ?? false,
     });
   }
 
@@ -283,6 +353,7 @@ export class HomeDeepLinkCoordinator {
       },
       shouldRetryBurst: () => this.host?.isPromptInCatalog(promptId) ?? false,
       reschedule: () => this.scheduleScrollToPromptId(promptId),
+      prepareScroll: () => this.host?.scrollPromptIntoView(promptId) ?? false,
     });
   }
 
@@ -297,12 +368,14 @@ export class HomeDeepLinkCoordinator {
     incrementBurstCount: () => void;
     shouldRetryBurst: () => boolean;
     reschedule: () => void;
+    prepareScroll?: () => boolean;
   }): void {
     const generation = options.incrementGeneration();
     const tryScroll = (attempt: number): void => {
       if (generation !== options.generationRef()) {
         return;
       }
+      options.prepareScroll?.();
       const el = document.getElementById(options.elementId);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });

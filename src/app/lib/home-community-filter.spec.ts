@@ -9,6 +9,7 @@ describe("isCommunityPrayerFilter", () => {
   it("returns true for community prayer filters", () => {
     expect(isCommunityPrayerFilter("current")).toBe(true);
     expect(isCommunityPrayerFilter("answered")).toBe(true);
+    expect(isCommunityPrayerFilter("archived")).toBe(true);
     expect(isCommunityPrayerFilter("total")).toBe(true);
   });
 
@@ -23,6 +24,7 @@ describe("isPublicTabFilter", () => {
   it("returns true for community prayer filters", () => {
     expect(isPublicTabFilter("current")).toBe(true);
     expect(isPublicTabFilter("answered")).toBe(true);
+    expect(isPublicTabFilter("archived")).toBe(true);
     expect(isPublicTabFilter("total")).toBe(true);
   });
 
@@ -37,6 +39,7 @@ describe("homeHasSubFilterRowBelowTabs", () => {
   it("returns true when a sub-filter row renders under the main tabs", () => {
     expect(homeHasSubFilterRowBelowTabs("current", false)).toBe(true);
     expect(homeHasSubFilterRowBelowTabs("answered", false)).toBe(true);
+    expect(homeHasSubFilterRowBelowTabs("archived", false)).toBe(true);
     expect(homeHasSubFilterRowBelowTabs("total", false)).toBe(true);
     expect(homeHasSubFilterRowBelowTabs("personal", false)).toBe(true);
     expect(homeHasSubFilterRowBelowTabs("memorize", false)).toBe(true);

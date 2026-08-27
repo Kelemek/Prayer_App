@@ -11,6 +11,7 @@ import {
 import { FormsModule } from "@angular/forms";
 import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.component";
 import { ModalShellComponent } from "../modal-shell/modal-shell.component";
+import { ToastService } from "../../services/toast.service";
 
 export interface PrayerAddUpdatePayload {
   content: string;
@@ -105,7 +106,7 @@ export interface PrayerAddUpdatePayload {
           <button
             type="submit"
             [attr.id]="submitButtonId"
-            [disabled]="!updateForm.valid"
+            [disabled]="!updateForm.valid || !canSubmitUpdate()"
             class="btn-chip btn-chip-green min-h-11 px-6 py-2.5 text-base rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Submit prayer update"
           >
@@ -120,6 +121,8 @@ export interface PrayerAddUpdatePayload {
 })
 export class PrayerAddUpdateModalComponent implements OnChanges {
   @ViewChild("addUpdateRichText") addUpdateRichText?: RichTextEditorComponent;
+
+  constructor(private readonly toast: ToastService) {}
 
   @Input() isOpen = false;
   @Input() prayerId = "";
@@ -181,9 +184,14 @@ export class PrayerAddUpdateModalComponent implements OnChanges {
     return !this.isPersonal;
   }
 
+  canSubmitUpdate(): boolean {
+    return (this.updateContent ?? "").trim().length > 0;
+  }
+
   handleSubmit(): void {
     const content = this.resolveUpdateContent();
     if (!content.trim()) {
+      this.toast.error("Update content is required");
       return;
     }
     this.submit.emit({

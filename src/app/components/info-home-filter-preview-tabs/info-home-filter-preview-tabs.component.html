@@ -1,0 +1,93 @@
+<!-- Filter-style preview tabs (mock of home filters): Public, Personal, Prompts -->
+<div class="flex w-full gap-1 mb-0">
+  @if (canAccessShared) {
+  <div
+    class="relative flex-1 min-w-0"
+    role="button"
+    tabindex="0"
+    (click)="selectPublicPreviewTab()"
+    (keydown.enter)="selectPublicPreviewTab()"
+    (keydown.space)="selectPublicPreviewTab(); $event.preventDefault()"
+  >
+    <button
+      type="button"
+      (click)="$event.stopPropagation(); openBadges.emit()"
+      class="absolute -top-2 -right-2 z-10 inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-[#39704D] dark:bg-[#39704D] text-white rounded-full text-xs font-bold hover:bg-[#2d5a3f] dark:hover:bg-[#2d5a3f] focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors cursor-pointer"
+      title="About badges"
+      aria-label="About badges"
+    >
+      1
+    </button>
+    <div [class]="publicTabClass() + ' w-full'">Public</div>
+  </div>
+  }
+  <button
+    type="button"
+    (click)="setPreviewFilter('personal')"
+    [class]="personalTabClass()"
+  >
+    Personal
+  </button>
+  @if (canAccessShared) {
+  <button
+    type="button"
+    (click)="setPreviewFilter('prompts')"
+    [class]="promptsTabClass()"
+  >
+    Prompts
+  </button>
+  }
+</div>
+
+@if (canAccessShared && isPublicTabActive()) {
+<div [class]="publicSubFilterGroupClass + ' ' + chipRowClass">
+  <div [class]="chipHostClass">
+    <button
+      type="button"
+      (click)="setPreviewFilter('current')"
+      [class]="subFilterChipClass('current')"
+    >
+      Current (22)
+    </button>
+  </div>
+  <div [class]="chipHostClass">
+    <button
+      type="button"
+      (click)="setPreviewFilter('answered')"
+      [class]="subFilterChipClass('answered')"
+    >
+      Answered (4)
+    </button>
+  </div>
+  <div [class]="chipHostClass">
+    <button
+      type="button"
+      (click)="setPreviewFilter('archived')"
+      [class]="subFilterChipClass('archived')"
+    >
+      Archived (21)
+    </button>
+  </div>
+  <div [class]="chipHostClass">
+    <button
+      type="button"
+      (click)="setPreviewFilter('total')"
+      [class]="subFilterChipClass('total')"
+    >
+      Total (47)
+    </button>
+  </div>
+</div>
+}
+
+@if (previewFilter === 'personal') {
+<app-info-home-filter-preview-personal-filters
+  (openPersonalCategories)="openPersonalCategories.emit()"
+/>
+}
+
+@if (previewFilter === 'prompts') {
+<app-info-home-filter-preview-prompts-filters
+  (openPromptCategories)="openPromptCategories.emit()"
+/>
+}

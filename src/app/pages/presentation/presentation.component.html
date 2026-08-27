@@ -1,5 +1,6 @@
+
     <div
-      class="w-full min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white relative"
+      class="presentation-page-shell bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white relative"
     >
       @if (!isOnline) {
       <div
@@ -11,7 +12,7 @@
       }
       <!-- Loading State -->
       @if (loading) {
-      <div class="w-full min-h-screen flex items-center justify-center">
+      <div class="presentation-main flex items-center justify-center px-3 md:px-6">
         <div class="flex flex-col items-center gap-4">
           <div
             class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"
@@ -27,17 +28,32 @@
       @if (!loading && items.length > 0) {
       <div
         [class]="
-          'h-screen flex flex-col justify-center px-3 md:px-6 py-6 transition-all duration-300 relative z-0 ' +
-          (showControls ? 'presentation-content-with-toolbar' : 'pb-6')
+          'presentation-main px-3 md:px-6 pt-3 md:pt-4 transition-all duration-300 relative z-0 ' +
+          (showControls ? 'presentation-content-with-toolbar' : 'pb-3 md:pb-4')
         "
       >
-        <div class="w-full max-w-6xl mx-auto h-full">
-          <div class="presentation-scroll-area hide-scrollbar h-full overflow-y-auto flex items-center px-2">
-            <app-prayer-display-card
-              [prayer]="isPrayer(currentItem) ? currentItem : undefined"
-              [prompt]="isPrompt(currentItem) ? currentItem : undefined"
+        <div class="flex-1 min-h-0 w-full min-w-0 max-w-6xl mx-auto">
+          <div
+            #presentationScroll
+            class="presentation-scroll card-stack-shadow grid h-full min-h-0 place-items-center overflow-hidden overflow-x-hidden overscroll-none"
+          >
+            <div
+              class="presentation-card-slot presentation-slide-fade w-full min-w-0 max-h-full min-h-0"
+              [class.presentation-slide-faded]="playback.slideCardFaded"
             >
-            </app-prayer-display-card>
+              @let slideItem = currentItem;
+              @if (slideItem) {
+              <app-presentation-slide-card
+                [prayer]="slidePrayerFromItem(slideItem)"
+                [prompt]="slidePromptFromItem(slideItem)"
+                (prayerPrayedForCountChange)="onPresentationPrayerPrayedForCountChange($event)"
+                (promptPrayedForCountChange)="onPresentationPromptPrayedForCountChange($event)"
+                (personalPrayerCategoryChange)="onPresentationPersonalPrayerCategoryChange($event)"
+                (itemRemoved)="onSlideItemRemoved($event)"
+                (itemMutated)="onSlideItemMutated($event)"
+              />
+              }
+            </div>
           </div>
         </div>
       </div>
@@ -45,7 +61,7 @@
 
       <!-- No Content Message -->
       @if (!loading && items.length === 0) {
-      <div class="w-full min-h-screen flex items-center justify-center">
+      <div class="presentation-main flex items-center justify-center px-3 md:px-6">
         <div class="text-center p-8">
           <div class="text-6xl mb-4">🙏</div>
           <h2
@@ -93,6 +109,7 @@
         [timeFilter]="timeFilter"
         [statusFiltersCurrent]="statusFilters.current"
         [statusFiltersAnswered]="statusFilters.answered"
+        [statusFiltersArchived]="statusFilters.archived"
         [prayerTimerMinutes]="prayerTimerMinutes"
         [availableCategories]="uniquePersonalCategories"
         [selectedCategories]="selectedPersonalCategories"
@@ -123,11 +140,11 @@
         class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 safe-area-overlay"
       >
         <div
-          class="bg-gradient-to-br from-green-600 to-green-700 rounded-3xl p-12 shadow-2xl border-4 border-green-400 text-center max-w-2xl mx-4 animate-pulse relative"
+          class="bg-white dark:bg-gray-800 rounded-3xl p-12 shadow-2xl border border-gray-200 dark:border-gray-700 text-center max-w-2xl mx-4 relative"
         >
           <button
             (click)="showTimerNotification = false"
-            class="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-full transition-colors"
+            class="absolute top-4 right-4 p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
           >
             <svg
               width="32"
@@ -136,7 +153,6 @@
               fill="none"
               stroke="currentColor"
               stroke-width="2"
-              class="text-white"
             >
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -149,15 +165,15 @@
             fill="none"
             stroke="currentColor"
             stroke-width="2"
-            class="mx-auto mb-6 text-white"
+            class="mx-auto mb-6 text-[#39704D] dark:text-[#5FB876]"
           >
             <circle cx="12" cy="12" r="10"></circle>
             <path d="M12 6v6l4 2"></path>
           </svg>
-          <h2 class="text-6xl font-bold mb-4 text-white">
+          <h2 class="text-6xl font-bold mb-4 text-gray-900 dark:text-gray-100">
             Prayer Timer Complete! 🙏
           </h2>
-          <p class="text-2xl opacity-90 text-white">
+          <p class="text-2xl text-gray-600 dark:text-gray-300">
             Your prayer time has ended
           </p>
         </div>

@@ -8,8 +8,11 @@ import type {
   MemorizedItem,
   MemorizationInProgressSavePayload,
   MemorizationRecommendation,
+  MemorizationRecommendationAddPayload,
   MemorizationRecommendationCategoryGroup,
+  BibleTranslation,
 } from "../types/memorization";
+import { isBibleTranslation } from "../types/memorization";
 
 export interface HomeMemorizationPanelHost {
   markForCheck(): void;
@@ -31,6 +34,9 @@ export class HomeMemorizationPanelController {
   practiceMemorizedItem: MemorizedItem | null = null;
   showRemoveMemorizedConfirm = false;
   memorizedItemToRemove: MemorizedItem | null = null;
+  showVerseMemorizationTranslationModal = false;
+  pendingVerseMemorizationReference: string | null = null;
+  pendingVerseMemorizationSuggestedTranslation: BibleTranslation | null = null;
 
   private host: HomeMemorizationPanelHost | null = null;
   private memorizationService: MemorizationService | null = null;
@@ -88,8 +94,10 @@ export class HomeMemorizationPanelController {
       });
   }
 
-  isRecommendationAlreadyAdded(rec: MemorizationRecommendation): boolean {
-    const translation = this.requireMemorizationService().getPreferredTranslation();
+  isRecommendationAlreadyAdded(
+    rec: MemorizationRecommendation,
+    translation = this.requireMemorizationService().getPreferredTranslation()
+  ): boolean {
     return this.memorizedItems.some(
       (item) =>
         (item.kind === "verse" || item.kind == null) &&
@@ -98,8 +106,10 @@ export class HomeMemorizationPanelController {
     );
   }
 
-  async addRecommendedVerse(rec: MemorizationRecommendation): Promise<void> {
-    if (this.addingRecommendationId || this.isRecommendationAlreadyAdded(rec)) {
+  async addRecommendedVerse(payload: MemorizationRecommendationAddPayload): Promise<void> {
+    const rec = payload.recommendation;
+    const translation = payload.translation;
+    if (this.addingRecommendationId || this.isRecommendationAlreadyAdded(rec, translation)) {
       return;
     }
     this.addingRecommendationId = rec.id;
@@ -108,7 +118,6 @@ export class HomeMemorizationPanelController {
       const memorizationService = this.requireMemorizationService();
       const scriptureService = this.requireScriptureService();
       const toastService = this.requireToastService();
-      const translation = memorizationService.getPreferredTranslation();
       const passage = await scriptureService.getPassage(
         rec.reference,
         translation
@@ -143,6 +152,100 @@ export class HomeMemorizationPanelController {
       this.addingRecommendationId = null;
       this.requireHost().markForCheck();
     }
+  }
+
+  promptVerseMemorizationTranslation(
+    reference: string,
+    suggestedTranslation?: BibleTranslation | string | null
+  ): void {
+    const normalizedRef = reference.trim();
+    if (!normalizedRef) {
+      return;
+    }
+    this.pendingVerseMemorizationReference = normalizedRef;
+    this.pendingVerseMemorizationSuggestedTranslation =
+      this.normalizeRequestedTranslation(suggestedTranslation) ?? null;
+    this.showVerseMemorizationTranslationModal = true;
+    this.requireHost().markForCheck();
+  }
+
+  async beginVerseMemorizationFromCard(
+    reference: string,
+    suggestedTranslation?: BibleTranslation | string | null
+  ): Promise<void> {
+    const normalizedRef = reference.trim();
+    if (!normalizedRef) {
+      return;
+    }
+
+    const memorizationService = this.requireMemorizationService();
+    await memorizationService.loadItems();
+
+    const existing = this.findExistingVerseMemorizationItem(normalizedRef);
+    if (existing) {
+      await this.openVerseMemorizationPractice(
+        normalizedRef,
+        existing.translation,
+        { itemsAlreadyLoaded: true }
+      );
+      return;
+    }
+
+    this.promptVerseMemorizationTranslation(
+      normalizedRef,
+      suggestedTranslation
+    );
+  }
+
+  confirmVerseMemorizationTranslation(translation: BibleTranslation): void {
+    const reference = this.pendingVerseMemorizationReference;
+    this.showVerseMemorizationTranslationModal = false;
+    this.pendingVerseMemorizationReference = null;
+    this.pendingVerseMemorizationSuggestedTranslation = null;
+    this.requireHost().markForCheck();
+    if (reference) {
+      void this.openVerseMemorizationPractice(reference, translation);
+    }
+  }
+
+  cancelVerseMemorizationTranslation(): void {
+    this.showVerseMemorizationTranslationModal = false;
+    this.pendingVerseMemorizationReference = null;
+    this.pendingVerseMemorizationSuggestedTranslation = null;
+    this.requireHost().markForCheck();
+  }
+
+  private async openVerseMemorizationPractice(
+    reference: string,
+    translation: string,
+    options?: { itemsAlreadyLoaded?: boolean }
+  ): Promise<void> {
+    const toastService = this.requireToastService();
+    const normalizedRef = reference.trim();
+    const trimmedTranslation = translation.trim();
+    const normalizedTranslation: BibleTranslation = isBibleTranslation(
+      trimmedTranslation
+    )
+      ? trimmedTranslation
+      : this.requireMemorizationService().getPreferredTranslation();
+
+    if (!normalizedRef) {
+      return;
+    }
+
+    const item = await this.ensureVerseMemorizedItem(
+      normalizedRef,
+      normalizedTranslation,
+      options
+    );
+
+    if (!item) {
+      toastService.error("Could not open this passage for memorization.");
+      return;
+    }
+
+    this.syncMemorizedItems(this.requireMemorizationService().items);
+    this.openMemorizationPractice(item);
   }
 
   openMemorizationPractice(item: MemorizedItem): void {
@@ -259,5 +362,85 @@ export class HomeMemorizationPanelController {
       throw new Error("HomeMemorizationPanelController toastService is not bound");
     }
     return this.toastService;
+  }
+
+  private normalizeRequestedTranslation(
+    translation?: BibleTranslation | string | null
+  ): BibleTranslation | undefined {
+    const trimmed = translation?.trim();
+    if (trimmed && isBibleTranslation(trimmed)) {
+      return trimmed;
+    }
+    return undefined;
+  }
+
+  private async ensureVerseMemorizedItem(
+    reference: string,
+    translation: BibleTranslation,
+    options?: { itemsAlreadyLoaded?: boolean }
+  ): Promise<MemorizedItem | null> {
+    const memorizationService = this.requireMemorizationService();
+    const toastService = this.requireToastService();
+
+    if (!options?.itemsAlreadyLoaded) {
+      await memorizationService.loadItems();
+    }
+
+    const existing = this.findVerseMemorizationItem(reference, translation);
+    if (existing) {
+      return existing;
+    }
+
+    const result = await memorizationService.addVerse(reference, translation);
+    if (!result.ok && result.reason === "no_user") {
+      toastService.error("Sign in to add verses to memorize.");
+      return null;
+    }
+    if (!result.ok && result.reason !== "duplicate") {
+      toastService.error("Could not save this passage.");
+      return null;
+    }
+
+    return this.findVerseMemorizationItem(reference, translation);
+  }
+
+  private findVerseMemorizationItem(
+    reference: string,
+    translation: BibleTranslation
+  ): MemorizedItem | null {
+    const memorizationService = this.requireMemorizationService();
+    return (
+      memorizationService.items.find(
+        (item) =>
+          (item.kind === "verse" || item.kind == null) &&
+          item.reference === reference &&
+          item.translation === translation
+      ) ?? null
+    );
+  }
+
+  private findExistingVerseMemorizationItem(
+    reference: string
+  ): MemorizedItem | null {
+    const memorizationService = this.requireMemorizationService();
+    const verseItems = memorizationService.items.filter(
+      (item) =>
+        (item.kind === "verse" || item.kind == null) &&
+        item.reference === reference
+    );
+    if (verseItems.length === 0) {
+      return null;
+    }
+
+    const inProgress = verseItems.find((item) => item.inProgressPractice);
+    if (inProgress) {
+      return inProgress;
+    }
+
+    const preferred = memorizationService.getPreferredTranslation();
+    const preferredMatch = verseItems.find(
+      (item) => item.translation === preferred
+    );
+    return preferredMatch ?? verseItems[0];
   }
 }

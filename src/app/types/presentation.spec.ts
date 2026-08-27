@@ -20,14 +20,22 @@ describe('mapHomeTabToPresentationStatusFilters', () => {
     expect(mapHomeTabToPresentationStatusFilters('current')).toEqual({
       current: true,
       answered: false,
+      archived: false,
     });
     expect(mapHomeTabToPresentationStatusFilters('answered')).toEqual({
       current: false,
       answered: true,
+      archived: false,
+    });
+    expect(mapHomeTabToPresentationStatusFilters('archived')).toEqual({
+      current: false,
+      answered: false,
+      archived: true,
     });
     expect(mapHomeTabToPresentationStatusFilters('total')).toEqual({
       current: false,
       answered: false,
+      archived: false,
     });
   });
 });
@@ -39,7 +47,7 @@ describe('buildPresentationHomeHandoff', () => {
         contentTypes: ['prayers'],
         activeFilter: 'answered',
       }).statusFilters
-    ).toEqual({ current: false, answered: true });
+    ).toEqual({ current: false, answered: true, archived: false });
   });
 
   it('includes prompt categories when a prompt type is selected', () => {
@@ -112,12 +120,12 @@ describe('parsePresentationHomeHandoffFromState', () => {
       parsePresentationHomeHandoffFromState({
         [PRESENTATION_HOME_HANDOFF_STATE_KEY]: {
           contentTypes: ['prayers'],
-          statusFilters: { current: false, answered: true },
+          statusFilters: { current: false, answered: true, archived: false },
         },
       })
     ).toEqual({
       contentTypes: ['prayers'],
-      statusFilters: { current: false, answered: true },
+      statusFilters: { current: false, answered: true, archived: false },
     });
   });
 
@@ -178,7 +186,7 @@ describe('presentation home handoff query params', () => {
   it('serializes answered status for new-tab navigation', () => {
     const params = serializePresentationHomeHandoffQueryParams({
       contentTypes: ['prayers'],
-      statusFilters: { current: false, answered: true },
+      statusFilters: { current: false, answered: true, archived: false },
     });
     expect(params[PRESENTATION_HOME_STATUS_QUERY_PARAM_KEY]).toBe('answered');
 
@@ -187,7 +195,7 @@ describe('presentation home handoff query params', () => {
       if (key === PRESENTATION_HOME_STATUS_QUERY_PARAM_KEY) return 'answered';
       return null;
     });
-    expect(parsed?.statusFilters).toEqual({ current: false, answered: true });
+    expect(parsed?.statusFilters).toEqual({ current: false, answered: true, archived: false });
   });
 
   it('serializes personal categories for new-tab navigation', () => {

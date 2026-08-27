@@ -127,6 +127,14 @@ export const HOME_WRAP_FILTER_CHIP_FLEX_CLASS = [
   "sm:max-w-[min(100%,max(calc((100%-1rem)/3),max-content))]",
 ].join(" ");
 
+/** Equal-width hosts for Public status chips (fixed single row under main tabs). */
+export const HOME_PUBLIC_STATUS_CHIP_HOST_CLASS =
+  "relative flex flex-1 min-w-0 basis-0";
+
+/** Single-row chip strip for Public status filters (no wrap). */
+export const HOME_PUBLIC_STATUS_CHIP_ROW_CLASS =
+  "flex w-full flex-nowrap items-stretch gap-2";
+
 /** Solo-row flex item: full row width, no min-w-max (avoids conflicting with truncation). */
 export const HOME_WRAP_FILTER_CHIP_SOLO_FLEX_CLASS =
   "relative flex min-w-0 w-full max-w-full flex-[1_1_0]";

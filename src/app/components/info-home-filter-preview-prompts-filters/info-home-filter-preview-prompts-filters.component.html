@@ -1,0 +1,13 @@
+<div [class]="promptsSubFilterGroupClass + ' ' + chipRowClass">
+  @for (chip of previewChips; track chip.label) {
+  <div [class]="chipHostClass">
+    <button
+      type="button"
+      (click)="openPromptCategories.emit()"
+      [class]="chipButtonClass(chip.active)"
+    >
+      {{ chip.label }}
+    </button>
+  </div>
+  }
+</div>

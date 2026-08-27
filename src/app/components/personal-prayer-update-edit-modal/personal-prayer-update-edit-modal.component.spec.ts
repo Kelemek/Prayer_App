@@ -343,9 +343,7 @@ describe('PersonalPrayerUpdateEditModalComponent', () => {
   });
 
   describe('Form Submission Integration', () => {
-    it('should allow empty content to be submitted', async () => {
-      prayerService.updatePersonalPrayerUpdate.mockResolvedValue(true);
-
+    it('should reject empty content with a toast', async () => {
       component.isOpen = true;
       component.update = mockUpdate;
       component.prayerId = 'prayer-123';
@@ -353,13 +351,8 @@ describe('PersonalPrayerUpdateEditModalComponent', () => {
 
       await component.handleSubmit();
 
-      expect(prayerService.updatePersonalPrayerUpdate).toHaveBeenCalledWith(
-        'update-123',
-        'prayer-123',
-        {
-          content: ''
-        }
-      );
+      expect(prayerService.updatePersonalPrayerUpdate).not.toHaveBeenCalled();
+      expect(toastService.error).toHaveBeenCalledWith('Update content is required');
     });
 
     it('should submit content with special characters', async () => {
@@ -408,6 +401,7 @@ describe('PersonalPrayerUpdateEditModalComponent', () => {
       component.isOpen = true;
       component.update = mockUpdate;
       component.prayerId = 'prayer-123';
+      component.formData.content = 'Updated content';
 
       const firstSubmit = component.handleSubmit();
       const secondSubmit = component.handleSubmit();
@@ -466,8 +460,6 @@ describe('PersonalPrayerUpdateEditModalComponent', () => {
     });
 
     it('should properly handle whitespace-only content', async () => {
-      prayerService.updatePersonalPrayerUpdate.mockResolvedValue(true);
-
       component.isOpen = true;
       component.update = mockUpdate;
       component.prayerId = 'prayer-123';
@@ -475,13 +467,9 @@ describe('PersonalPrayerUpdateEditModalComponent', () => {
 
       await component.handleSubmit();
 
-      expect(prayerService.updatePersonalPrayerUpdate).toHaveBeenCalledWith(
-        'update-123',
-        'prayer-123',
-        {
-          content: '   \n  \t  '
-        }
-      );
+      expect(prayerService.updatePersonalPrayerUpdate).not.toHaveBeenCalled();
+      expect(toastService.error).toHaveBeenCalledWith('Update content is required');
+      expect(component.isSubmitting).toBe(false);
     });
   });
 

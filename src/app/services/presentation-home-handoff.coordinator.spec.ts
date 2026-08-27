@@ -12,7 +12,7 @@ describe("PresentationHomeHandoffCoordinator", () => {
   it("applies handoff filters and return context to page state", () => {
     const page = {
       contentTypes: ["prayers"] as const,
-      statusFilters: { current: true, answered: true },
+      statusFilters: { current: true, answered: true, archived: false },
       selectedPromptCategories: [] as string[],
       selectedPersonalCategories: [] as string[],
       homeReturnContext: null,
@@ -20,7 +20,7 @@ describe("PresentationHomeHandoffCoordinator", () => {
 
     coordinator.applyHandoff(page, {
       contentTypes: ["personal"],
-      statusFilters: { current: false, answered: true },
+      statusFilters: { current: false, answered: true, archived: false },
       promptCategories: ["encouragement"],
       personalCategories: ["Family"],
       returnContext: {
@@ -31,7 +31,7 @@ describe("PresentationHomeHandoffCoordinator", () => {
     });
 
     expect(page.contentTypes).toEqual(["personal"]);
-    expect(page.statusFilters).toEqual({ current: false, answered: true });
+    expect(page.statusFilters).toEqual({ current: false, answered: true, archived: false });
     expect(page.selectedPromptCategories).toEqual(["encouragement"]);
     expect(page.selectedPersonalCategories).toEqual(["Family"]);
     expect(page.homeReturnContext).toEqual({
