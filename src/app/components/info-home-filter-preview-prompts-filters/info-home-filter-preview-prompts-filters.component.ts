@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output } from "@angular/core";
+import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import {
   HOME_PROMPTS_SUB_FILTER_GROUP_CLASS,
@@ -20,6 +20,8 @@ import {
   host: { class: "block" },
 })
 export class InfoHomeFilterPreviewPromptsFiltersComponent {
+  @Input() attachedUnderPublic = false;
+
   readonly chipHostClass = HOME_WRAP_FILTER_CHIP_FLEX_CLASS;
   readonly chipButtonStretchClass = HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS;
   readonly chipRowClass = HOME_SUB_FILTER_CHIP_ROW_CLASS;
@@ -43,5 +45,10 @@ export class InfoHomeFilterPreviewPromptsFiltersComponent {
       activeClass: this.promptTypeActiveClass,
       inactiveClass: this.promptTypeInactiveClass,
     });
+  }
+
+  get panelGroupClass(): string {
+    const shape = this.attachedUnderPublic ? "rounded-t-none" : "rounded-b-lg";
+    return `${this.promptsSubFilterGroupClass} ${shape}`;
   }
 }

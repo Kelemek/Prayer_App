@@ -36,6 +36,7 @@ describe("HomePublicStatusFiltersComponent", () => {
         useValue: {
           getBadgeFunctionalityEnabled$: () => of(false),
           markAllAsReadByStatus: vi.fn(),
+          markAllAsRead: vi.fn(),
         },
       })
       .compileComponents();
@@ -46,8 +47,10 @@ describe("HomePublicStatusFiltersComponent", () => {
     fixture.componentInstance.answeredPrayersCount = 3;
     fixture.componentInstance.archivedPrayersCount = 15;
     fixture.componentInstance.totalPrayersCount = 22;
+    fixture.componentInstance.promptsCount = 12;
     fixture.componentInstance.currentPrayerBadge$ = of(0);
     fixture.componentInstance.answeredPrayerBadge$ = of(0);
+    fixture.componentInstance.promptBadge$ = of(0);
     fixture.detectChanges();
   });
 
@@ -61,9 +64,10 @@ describe("HomePublicStatusFiltersComponent", () => {
       "tour-filter-answered",
       "tour-filter-archived",
       "tour-filter-total",
+      "tour-filter-prompts",
     ];
     const row = fixture.nativeElement.querySelector(
-      ".rounded-b-lg"
+      ".rounded-b-lg, .rounded-b-none"
     ) as HTMLElement;
     expect(row.className).toContain("flex-nowrap");
 
@@ -84,5 +88,29 @@ describe("HomePublicStatusFiltersComponent", () => {
     expect(
       fixture.nativeElement.querySelector("#tour-filter-members")
     ).toBeNull();
+  });
+
+  it("emits prompts when the Prompts chip is clicked", () => {
+    const emitted: string[] = [];
+    fixture.componentInstance.selectFilter.subscribe((value) =>
+      emitted.push(value)
+    );
+
+    const promptsChip = fixture.nativeElement.querySelector(
+      "#tour-filter-prompts"
+    ) as HTMLButtonElement;
+    promptsChip.click();
+
+    expect(emitted).toEqual(["prompts"]);
+  });
+
+  it("removes bottom rounding when prompts panel is expanded", () => {
+    fixture.componentRef.setInput("promptsPanelExpanded", true);
+    fixture.detectChanges();
+
+    const row = fixture.nativeElement.querySelector(
+      ".rounded-b-none"
+    ) as HTMLElement;
+    expect(row).toBeTruthy();
   });
 });

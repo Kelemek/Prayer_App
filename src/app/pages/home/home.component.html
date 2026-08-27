@@ -146,26 +146,55 @@
 
       <app-home-filter-tabs
         [activeFilter]="activeFilter"
-        [hasPromptSubFilters]="promptsCount > 0"
         [currentPrayerBadge$]="currentPrayerBadge$"
         [answeredPrayerBadge$]="answeredPrayerBadge$"
-        [promptBadge$]="promptBadge$"
         [canAccessShared]="canAccessShared"
         (tabSelected)="filter.setFilter($event)"
         (publicTabSelected)="filter.selectPublicTab()"
       ></app-home-filter-tabs>
 
-      @if (canAccessShared && isPublicTabFilter(activeFilter)) {
-      <app-home-public-status-filters
-        [activeFilter]="activeFilter"
-        [currentPrayersCount]="currentPrayersCount"
-        [answeredPrayersCount]="answeredPrayersCount"
-        [archivedPrayersCount]="archivedPrayersCount"
-        [totalPrayersCount]="totalPrayersCount"
-        [currentPrayerBadge$]="currentPrayerBadge$"
-        [answeredPrayerBadge$]="answeredPrayerBadge$"
-        (selectFilter)="filter.setFilter($event)"
-      ></app-home-public-status-filters>
+      @if (canAccessShared && isPublicAreaFilter(activeFilter)) {
+      <div class="mb-2 sm:mb-3">
+        <app-home-public-status-filters
+          [activeFilter]="activeFilter"
+          [currentPrayersCount]="currentPrayersCount"
+          [answeredPrayersCount]="answeredPrayersCount"
+          [archivedPrayersCount]="archivedPrayersCount"
+          [totalPrayersCount]="totalPrayersCount"
+          [promptsCount]="promptsCount"
+          [currentPrayerBadge$]="currentPrayerBadge$"
+          [answeredPrayerBadge$]="answeredPrayerBadge$"
+          [promptBadge$]="promptBadge$"
+          [promptsPanelExpanded]="activeFilter === 'prompts' && promptsCount > 0"
+          [sectionGapClass]="''"
+          (selectFilter)="filter.setFilter($event)"
+        ></app-home-public-status-filters>
+
+        <div
+          id="home-prompt-type-slide-panel"
+          class="overflow-hidden transition-[max-height,opacity] duration-300 ease-out"
+          [class.max-h-0]="activeFilter !== 'prompts' || promptsCount === 0"
+          [class.opacity-0]="activeFilter !== 'prompts' || promptsCount === 0"
+          [class.max-h-48]="activeFilter === 'prompts' && promptsCount > 0"
+          [class.opacity-100]="activeFilter === 'prompts' && promptsCount > 0"
+          [class.pointer-events-none]="activeFilter !== 'prompts' || promptsCount === 0"
+          [attr.aria-hidden]="activeFilter !== 'prompts' || promptsCount === 0"
+        >
+          <app-home-prompt-type-filters
+            [promptsCount]="promptsCount"
+            [selectedPromptTypes]="selectedPromptTypes"
+            [uniquePromptTypes]="catalog.uniquePromptTypes"
+            [promptTypeActiveClass]="promptTypeActiveClass"
+            [promptTypeInactiveClass]="promptTypeInactiveClass"
+            [getPromptCountByType]="shell.getPromptCountByType"
+            [getUnreadPromptCountByType]="shell.getUnreadPromptCountByType"
+            [sectionGapClass]="''"
+            [attachedUnderPublic]="true"
+            (clearTypes)="filter.clearSelectedPromptTypes()"
+            (toggleType)="filter.togglePromptType($event)"
+          ></app-home-prompt-type-filters>
+        </div>
+      </div>
       }
 
       @let displayedPublicPrayers = (prayers$ | async) ?? [];
@@ -195,20 +224,6 @@
       >
         {{ error }}
       </div>
-      }
-
-      @if (activeFilter === 'prompts' && promptsCount > 0) {
-      <app-home-prompt-type-filters
-        [promptsCount]="promptsCount"
-        [selectedPromptTypes]="selectedPromptTypes"
-        [uniquePromptTypes]="catalog.uniquePromptTypes"
-        [promptTypeActiveClass]="promptTypeActiveClass"
-        [promptTypeInactiveClass]="promptTypeInactiveClass"
-        [getPromptCountByType]="shell.getPromptCountByType"
-        [getUnreadPromptCountByType]="shell.getUnreadPromptCountByType"
-        (clearTypes)="filter.clearSelectedPromptTypes()"
-        (toggleType)="filter.togglePromptType($event)"
-      ></app-home-prompt-type-filters>
       }
 
       @if (activeFilter === 'personal') {

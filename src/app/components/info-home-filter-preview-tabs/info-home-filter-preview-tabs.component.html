@@ -1,4 +1,4 @@
-<!-- Filter-style preview tabs (mock of home filters): Public, Personal, Prompts -->
+<!-- Filter-style preview tabs (mock of home filters): Public, Personal -->
 <div class="flex w-full gap-1 mb-0">
   @if (canAccessShared) {
   <div
@@ -28,54 +28,72 @@
   >
     Personal
   </button>
-  @if (canAccessShared) {
-  <button
-    type="button"
-    (click)="setPreviewFilter('prompts')"
-    [class]="promptsTabClass()"
-  >
-    Prompts
-  </button>
-  }
 </div>
 
-@if (canAccessShared && isPublicTabActive()) {
-<div [class]="publicSubFilterGroupClass + ' ' + chipRowClass">
-  <div [class]="chipHostClass">
-    <button
-      type="button"
-      (click)="setPreviewFilter('current')"
-      [class]="subFilterChipClass('current')"
-    >
-      Current (22)
-    </button>
+@if (canAccessShared && isPublicAreaActive()) {
+<div>
+  <div [class]="publicPanelGroupClass() + ' ' + chipRowClass">
+    <div [class]="chipHostClass">
+      <button
+        type="button"
+        (click)="setPreviewFilter('current')"
+        [class]="subFilterChipClass('current')"
+      >
+        Current (22)
+      </button>
+    </div>
+    <div [class]="chipHostClass">
+      <button
+        type="button"
+        (click)="setPreviewFilter('answered')"
+        [class]="subFilterChipClass('answered')"
+      >
+        Answered (4)
+      </button>
+    </div>
+    <div [class]="chipHostClass">
+      <button
+        type="button"
+        (click)="setPreviewFilter('archived')"
+        [class]="subFilterChipClass('archived')"
+      >
+        Archived (21)
+      </button>
+    </div>
+    <div [class]="chipHostClass">
+      <button
+        type="button"
+        (click)="setPreviewFilter('total')"
+        [class]="subFilterChipClass('total')"
+      >
+        Total (47)
+      </button>
+    </div>
+    <div [class]="chipHostClass">
+      <button
+        type="button"
+        id="tour-filter-prompts"
+        (click)="setPreviewFilter('prompts')"
+        [class]="subFilterChipClass('prompts')"
+      >
+        Prompts (12)
+      </button>
+    </div>
   </div>
-  <div [class]="chipHostClass">
-    <button
-      type="button"
-      (click)="setPreviewFilter('answered')"
-      [class]="subFilterChipClass('answered')"
-    >
-      Answered (4)
-    </button>
-  </div>
-  <div [class]="chipHostClass">
-    <button
-      type="button"
-      (click)="setPreviewFilter('archived')"
-      [class]="subFilterChipClass('archived')"
-    >
-      Archived (21)
-    </button>
-  </div>
-  <div [class]="chipHostClass">
-    <button
-      type="button"
-      (click)="setPreviewFilter('total')"
-      [class]="subFilterChipClass('total')"
-    >
-      Total (47)
-    </button>
+
+  <div
+    class="overflow-hidden transition-[max-height,opacity] duration-300 ease-out"
+    [class.max-h-0]="previewFilter !== 'prompts'"
+    [class.opacity-0]="previewFilter !== 'prompts'"
+    [class.max-h-48]="previewFilter === 'prompts'"
+    [class.opacity-100]="previewFilter === 'prompts'"
+    [class.pointer-events-none]="previewFilter !== 'prompts'"
+    [attr.aria-hidden]="previewFilter !== 'prompts'"
+  >
+    <app-info-home-filter-preview-prompts-filters
+      [attachedUnderPublic]="true"
+      (openPromptCategories)="openPromptCategories.emit()"
+    />
   </div>
 </div>
 }
@@ -83,11 +101,5 @@
 @if (previewFilter === 'personal') {
 <app-info-home-filter-preview-personal-filters
   (openPersonalCategories)="openPersonalCategories.emit()"
-/>
-}
-
-@if (previewFilter === 'prompts') {
-<app-info-home-filter-preview-prompts-filters
-  (openPromptCategories)="openPromptCategories.emit()"
 />
 }

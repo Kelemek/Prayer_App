@@ -10,6 +10,7 @@ import {
 } from "../../lib/home-sub-filter-chip-classes";
 import { buildHomeSubFilterChipButtonClass } from "../../lib/home-sub-filter-chip-button-class";
 import {
+  isPublicAreaPreviewFilter,
   isPublicPreviewFilter,
   type InfoPreviewFilter,
 } from "../../lib/info-home-filter-preview.types";
@@ -28,7 +29,7 @@ import { InfoHomeFilterPreviewPromptsFiltersComponent } from "../info-home-filte
   host: { class: "block" },
 })
 export class InfoHomeFilterPreviewTabsComponent {
-  /** When false, hide Public/Prompts tabs (matches home filter gating for personal-only tenants). */
+  /** When false, hide Public area tabs (matches home filter gating for personal-only tenants). */
   @Input() canAccessShared = true;
   @Input() previewFilter: InfoPreviewFilter = "current";
   @Output() previewFilterChange = new EventEmitter<InfoPreviewFilter>();
@@ -42,14 +43,14 @@ export class InfoHomeFilterPreviewTabsComponent {
   readonly chipThemes = HOME_PUBLIC_STATUS_CHIP_THEMES;
   readonly publicSubFilterGroupClass = HOME_PUBLIC_SUB_FILTER_GROUP_CLASS;
 
-  isPublicTabActive(): boolean {
-    return isPublicPreviewFilter(this.previewFilter);
+  isPublicAreaActive(): boolean {
+    return isPublicAreaPreviewFilter(this.previewFilter);
   }
 
   publicTabClass(): string {
     return homeFilterTabClass({
       accent: "public",
-      active: this.isPublicTabActive(),
+      active: this.isPublicAreaActive(),
       hasSubRow: true,
     });
   }
@@ -62,16 +63,14 @@ export class InfoHomeFilterPreviewTabsComponent {
     });
   }
 
-  promptsTabClass(): string {
-    return homeFilterTabClass({
-      accent: "prompts",
-      active: this.previewFilter === "prompts",
-      hasSubRow: true,
-    });
+  publicPanelGroupClass(): string {
+    const shape =
+      this.previewFilter === "prompts" ? "rounded-b-none" : "rounded-b-lg";
+    return `${this.publicSubFilterGroupClass} ${shape}`;
   }
 
   subFilterChipClass(
-    filter: "current" | "answered" | "archived" | "total"
+    filter: "current" | "answered" | "archived" | "total" | "prompts"
   ): string {
     const theme = this.chipThemes[filter];
     const active = this.previewFilter === filter;
@@ -84,7 +83,7 @@ export class InfoHomeFilterPreviewTabsComponent {
   }
 
   selectPublicPreviewTab(): void {
-    if (!this.isPublicTabActive()) {
+    if (!isPublicPreviewFilter(this.previewFilter)) {
       this.previewFilterChange.emit("current");
     }
   }

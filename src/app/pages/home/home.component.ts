@@ -80,7 +80,7 @@ import {
 import type { HomeLifecyclePageBindings } from "../../services/home-lifecycle-host.adapter";
 import { updateHomeDefaultViewPreference } from "../../lib/home-default-view-preference";
 import type { HomeActiveFilter } from "../../services/home-deep-link-host.adapter";
-import { isPublicTabFilter, isCommunityPrayerFilter } from "../../lib/home-community-filter";
+import { isPublicAreaFilter, isPublicTabFilter, isCommunityPrayerFilter } from "../../lib/home-community-filter";
 import { HOME_SHELL_FOOTER_BORDER_TOP_CLASS } from "../../lib/home-sub-filter-chip-classes";
 import { HomeHeaderComponent } from "../../components/home-header/home-header.component";
 import { HomeModalsHostComponent } from "../../components/home-modals-host/home-modals-host.component";
@@ -191,6 +191,7 @@ export class HomeComponent
   readonly personalWalkthroughDescription =
     PERSONAL_PRAYER_WALKTHROUGH_DESCRIPTION;
   readonly isPublicTabFilter = isPublicTabFilter;
+  readonly isPublicAreaFilter = isPublicAreaFilter;
   readonly bottomSafeBarClass = `bottom-safe-bar w-full bg-white/50 dark:bg-gray-800/50 backdrop-blur-md ${HOME_SHELL_FOOTER_BORDER_TOP_CLASS} sticky bottom-0 z-50`;
 
   readonly shell: HomePageShell;

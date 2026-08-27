@@ -48,21 +48,33 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
     expect(emitted).toEqual([]);
   });
 
-  it("shows main preview tab labels without catalog counts", () => {
+  it("shows main preview tab labels without a top-level Prompts tab", () => {
     fixture.detectChanges();
     const row = fixture.nativeElement.querySelector(
       ".flex.w-full.gap-1.mb-0"
     ) as HTMLElement;
     const publicTab = row.querySelector('[role="button"]') as HTMLElement;
-    const [personalBtn, promptsBtn] = row.querySelectorAll(
+    const topButtons = row.querySelectorAll(
       ":scope > button"
     ) as NodeListOf<HTMLButtonElement>;
     const normalize = (el: HTMLElement) =>
       el.textContent?.replace(/\s+/g, " ").trim() ?? "";
 
     expect(normalize(publicTab)).toBe("1 Public");
-    expect(normalize(personalBtn)).toBe("Personal");
-    expect(normalize(promptsBtn)).toBe("Prompts");
+    expect(topButtons).toHaveLength(1);
+    expect(normalize(topButtons[0]!)).toBe("Personal");
+    expect(
+      row.querySelector("#tour-filter-prompts")
+    ).toBeNull();
+  });
+
+  it("shows Prompts as the last public sub-filter chip", () => {
+    fixture.detectChanges();
+    const promptsChip = fixture.nativeElement.querySelector(
+      "#tour-filter-prompts"
+    ) as HTMLButtonElement;
+    expect(promptsChip).toBeTruthy();
+    expect(promptsChip.textContent?.trim()).toBe("Prompts (12)");
   });
 
   it("wraps public preview chips with the same flex-wrap host as prompt types", () => {
@@ -71,11 +83,11 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
       "button"
     ) as NodeListOf<HTMLButtonElement>;
     const publicChips = [...buttons].filter((button) =>
-      /^(Current|Answered|Archived|Total) \(/.test(
+      /^(Current|Answered|Archived|Total|Prompts) \(/.test(
         button.textContent?.trim() ?? ""
       )
     );
-    expect(publicChips).toHaveLength(4);
+    expect(publicChips).toHaveLength(5);
     for (const button of publicChips) {
       const host = button.parentElement as HTMLElement;
       expect(host.className).toContain("flex-[1_1_0]");
@@ -84,7 +96,7 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
     }
   });
 
-  it("hides Public and Prompts tabs when canAccessShared is false", () => {
+  it("hides Public area when canAccessShared is false", () => {
     component.canAccessShared = false;
     fixture.detectChanges();
     const row = fixture.nativeElement.querySelector(
@@ -92,6 +104,8 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
     ) as HTMLElement;
     expect(row.textContent).toContain("Personal");
     expect(row.textContent).not.toContain("Public");
-    expect(row.textContent).not.toContain("Prompts");
+    expect(
+      fixture.nativeElement.querySelector("#tour-filter-prompts")
+    ).toBeNull();
   });
 });

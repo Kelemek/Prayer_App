@@ -3,7 +3,7 @@ import { CommonModule } from "@angular/common";
 import { Observable } from "rxjs";
 import type { HomeActiveFilter } from "../../services/home-deep-link-host.adapter";
 import { BadgeService } from "../../services/badge.service";
-import { homeHasSubFilterRowBelowTabs, isPublicTabFilter } from "../../lib/home-community-filter";
+import { homeHasSubFilterRowBelowTabs, isPublicAreaFilter } from "../../lib/home-community-filter";
 import {
   homeFilterTabClass,
   type HomeFilterTabAccent,
@@ -23,23 +23,18 @@ import { HomeFilterBadgeButtonComponent } from "../home-filter-badge-button/home
 })
 export class HomeFilterTabsComponent {
   @Input({ required: true }) activeFilter!: HomeActiveFilter;
-  @Input({ required: true }) hasPromptSubFilters!: boolean;
   @Input({ required: true }) currentPrayerBadge$!: Observable<number>;
   @Input({ required: true }) answeredPrayerBadge$!: Observable<number>;
-  @Input({ required: true }) promptBadge$!: Observable<number>;
-  /** When false, Public and Prompts stay hidden (personal-only plan). */
+  /** When false, Public stays hidden (personal-only plan). */
   @Input() canAccessShared = true;
 
   @Output() tabSelected = new EventEmitter<HomeActiveFilter>();
   @Output() publicTabSelected = new EventEmitter<void>();
 
-  readonly isPublicTabFilter = isPublicTabFilter;
+  readonly isPublicAreaFilter = isPublicAreaFilter;
 
   get hasSubFilterRow(): boolean {
-    return homeHasSubFilterRowBelowTabs(
-      this.activeFilter,
-      this.hasPromptSubFilters
-    );
+    return homeHasSubFilterRowBelowTabs(this.activeFilter);
   }
 
   get tabRowMarginClass(): string {

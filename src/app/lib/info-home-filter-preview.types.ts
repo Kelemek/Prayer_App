@@ -34,3 +34,8 @@ export function isPublicPreviewFilter(
     filter === "total"
   );
 }
+
+/** True when the Public top tab or its sub-tabs (including Prompts) are active in the preview. */
+export function isPublicAreaPreviewFilter(filter: InfoPreviewFilter): boolean {
+  return isPublicPreviewFilter(filter) || filter === "prompts";
+}
