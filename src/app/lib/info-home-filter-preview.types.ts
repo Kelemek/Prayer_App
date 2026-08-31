@@ -22,7 +22,8 @@ export type InfoPreviewFilter =
   | "archived"
   | "total"
   | "prompts"
-  | "personal";
+  | "personal"
+  | "groups";
 
 export function isPublicPreviewFilter(
   filter: InfoPreviewFilter
@@ -38,4 +39,8 @@ export function isPublicPreviewFilter(
 /** True when the Public top tab or its sub-tabs (including Prompts) are active in the preview. */
 export function isPublicAreaPreviewFilter(filter: InfoPreviewFilter): boolean {
   return isPublicPreviewFilter(filter) || filter === "prompts";
+}
+
+export function isGroupsPreviewFilter(filter: InfoPreviewFilter): boolean {
+  return filter === "groups";
 }

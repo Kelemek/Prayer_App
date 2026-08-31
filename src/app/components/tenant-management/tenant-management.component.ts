@@ -77,8 +77,7 @@ import type {
               class="w-full md:max-w-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="free">free</option>
-              <option value="groups">groups</option>
-              <option value="churches">churches</option>
+              <option value="churches">churches (Church)</option>
             </select>
           </div>
         </div>
@@ -414,7 +413,7 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
   isImpersonatingTenant = false;
   newTenantName = "";
   newTenantSlug = "";
-  newTenantPlanTier: PlanTier = "groups";
+  newTenantPlanTier: PlanTier = "churches";
   isCreatingTenant = false;
   private destroy$ = new Subject<void>();
 
@@ -482,7 +481,7 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
       }
       this.newTenantName = "";
       this.newTenantSlug = "";
-      this.newTenantPlanTier = "groups";
+      this.newTenantPlanTier = "churches";
       await this.hydrateFromContext();
     } catch (error) {
       this.toast.error(

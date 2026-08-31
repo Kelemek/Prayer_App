@@ -3,7 +3,7 @@ import { PERSONAL_PRAYERS_LIST_SELECT } from "./prayer-personal-display";
 import { markPersonalPrayerUpdateAnsweredPatch } from "./prayer-personal-mutations";
 import { personalCategoryRenameDbPayload } from "./prayer-personal-rename";
 import { buildClearPersonalPrayerAnsweredFlagsPayload } from "./prayer-personal-update";
-import { maybeEqTenantId } from "./prayer-tenant";
+import { eqTenantIdOrUnaffiliated } from "./prayer-tenant";
 
 export async function fetchPersonalPrayersList(
   client: SupabaseClient,
@@ -14,7 +14,7 @@ export async function fetchPersonalPrayersList(
     .from("personal_prayers")
     .select(PERSONAL_PRAYERS_LIST_SELECT)
     .eq("user_email", userEmail);
-  query = maybeEqTenantId(query, tenantId);
+  query = eqTenantIdOrUnaffiliated(query, tenantId);
   const result = await query
     .order("display_order", { ascending: false })
     .order("created_at", { ascending: false });
@@ -44,7 +44,7 @@ export async function deletePersonalPrayerRow(
     .delete()
     .eq("id", id)
     .eq("user_email", userEmail);
-  query = maybeEqTenantId(query, tenantId);
+  query = eqTenantIdOrUnaffiliated(query, tenantId);
   const result = await query;
   return { error: result.error };
 }
@@ -61,7 +61,7 @@ export async function updatePersonalPrayerRow(
     .update(updateData)
     .eq("id", id)
     .eq("user_email", userEmail);
-  query = maybeEqTenantId(query, tenantId);
+  query = eqTenantIdOrUnaffiliated(query, tenantId);
   const result = await query;
   return { error: result.error };
 }
@@ -86,7 +86,7 @@ export async function fetchPersonalPrayerCategoryIdRows(
     .from("personal_prayers")
     .select("id, category")
     .eq("user_email", userEmail);
-  query = maybeEqTenantId(query, tenantId);
+  query = eqTenantIdOrUnaffiliated(query, tenantId);
   const result = await query;
   return { data: result.data, error: result.error };
 }
@@ -103,7 +103,7 @@ export async function renamePersonalPrayerCategoriesByIds(
     .update(personalCategoryRenameDbPayload(newCategoryName))
     .eq("user_email", userEmail)
     .in("id", prayerIds);
-  query = maybeEqTenantId(query, tenantId);
+  query = eqTenantIdOrUnaffiliated(query, tenantId);
   const result = await query;
   return { error: result.error };
 }

@@ -14,7 +14,8 @@ export type HomeActiveFilter =
   | "total"
   | "prompts"
   | "personal"
-  | "memorize";
+  | "memorize"
+  | "groups";
 
 export type HomeDeepLinkQueryParamKey =
   | "filter"

@@ -119,6 +119,7 @@ describe("InfoComponent", () => {
       fixture.detectChanges();
       const el = fixture.nativeElement as HTMLElement;
       expect(el.textContent).toContain("Public");
+      expect(el.textContent).toContain("Groups");
       expect(el.textContent).toContain("Current");
       expect(el.textContent).toContain("Answered");
       expect(el.textContent).toContain("Total");

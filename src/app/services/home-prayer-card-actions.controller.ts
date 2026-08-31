@@ -8,6 +8,7 @@ import {
   PrayerService,
   type PrayerRequest,
 } from "./prayer.service";
+import { PrayerGroupService } from "./prayer-group.service";
 import type {
   PrayerDeletionRequestInput,
   UpdateDeletionRequestInput,
@@ -20,12 +21,17 @@ import { UserSessionService } from "./user-session.service";
 export class HomePrayerCardActionsController {
   constructor(
     private readonly prayerService: PrayerService,
+    private readonly prayerGroupService: PrayerGroupService,
     private readonly promptService: PromptService,
     private readonly toastService: ToastService,
     private readonly userSessionService: UserSessionService
   ) {}
 
   deleteCard(prayer: PrayerRequest): void {
+    if (prayer.group_id) {
+      void this.prayerGroupService.deleteGroupPrayer(prayer.id);
+      return;
+    }
     void this.prayerService.deletePrayer(prayer.id);
   }
 
@@ -75,6 +81,17 @@ export class HomePrayerCardActionsController {
     prayer: PrayerRequest,
     event: PrayerCardAddUpdateEvent
   ): Promise<void> {
+    if (prayer.group_id) {
+      const userSession = this.userSessionService.getCurrentSession();
+      await this.prayerGroupService.addGroupPrayerUpdate(
+        event.prayer_id,
+        event.content,
+        userSession?.fullName || "Anonymous",
+        userSession?.email || "",
+        event.mark_as_answered || false
+      );
+      return;
+    }
     if (prayer.email || prayer.category != null) {
       await this.addPersonalUpdate(event);
       return;
@@ -104,6 +121,13 @@ export class HomePrayerCardActionsController {
     prayer: PrayerRequest,
     event: PrayerCardDeleteUpdateEvent
   ): Promise<void> {
+    if (prayer.group_id) {
+      await this.prayerGroupService.deleteGroupPrayerUpdate(
+        event.updateId,
+        prayer.id
+      );
+      return;
+    }
     if (prayer.email || prayer.category != null) {
       await this.deletePersonalUpdate(event);
       return;

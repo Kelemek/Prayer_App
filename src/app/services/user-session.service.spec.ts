@@ -1067,6 +1067,36 @@ describe('UserSessionService', () => {
       expect(session?.fullName).toBe('');
     });
 
+    it('should resolve fullName from prayer group membership when there is no tenant', async () => {
+      mockSupabaseService.client.from.mockImplementation((table: string) => {
+        if (table === 'prayer_group_members') {
+          const chain: {
+            eq: ReturnType<typeof vi.fn>;
+            limit: ReturnType<typeof vi.fn>;
+            maybeSingle: ReturnType<typeof vi.fn>;
+          } = {
+            eq: vi.fn(),
+            limit: vi.fn(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { name: 'Pat Lee' },
+              error: null
+            })
+          };
+          chain.eq.mockReturnValue(chain);
+          chain.limit.mockReturnValue(chain);
+          return { select: vi.fn().mockReturnValue(chain) };
+        }
+        return mockTenantMembershipsQuery(null);
+      });
+
+      service.clearSession();
+      await service.loadUserSession('group-only@example.com');
+
+      const session = service.getCurrentSession();
+      expect(session?.email).toBe('group-only@example.com');
+      expect(session?.fullName).toBe('Pat Lee');
+    });
+
     it('should handle receiving user data with missing fields', async () => {
       mockSupabaseService.client.from.mockReturnValue({
         select: vi.fn().mockReturnValue({

@@ -1,0 +1,133 @@
+@if (isOpen && group) {
+<div
+  class="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4"
+  (click)="close.emit()"
+>
+  <div
+    class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-lg w-full max-h-[min(90vh,720px)] flex flex-col modal-panel-edge"
+    (click)="$event.stopPropagation()"
+  >
+    <div class="px-6 py-4 modal-chrome-header shrink-0 flex items-center justify-between gap-3">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        {{ title() }}
+      </h2>
+      <button
+        type="button"
+        class="shrink-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer disabled:opacity-50"
+        aria-label="Close"
+        (click)="close.emit()"
+        [disabled]="submitting"
+      >
+        <svg
+          class="w-6 h-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M6 18L18 6M6 6l12 12"
+          ></path>
+        </svg>
+      </button>
+    </div>
+
+    <div class="px-6 py-4 space-y-4 overflow-y-auto flex-1 min-h-0">
+      <div>
+        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Members
+        </h3>
+        @if (loadingMembers) {
+        <p class="text-sm text-gray-500 dark:text-gray-400">Loading members…</p>
+        } @else if (members.length === 0) {
+        <p class="text-sm text-gray-500 dark:text-gray-400">No members yet.</p>
+        } @else {
+        <ul class="space-y-2">
+          @for (member of members; track member.id) {
+          <li class="flex items-center justify-between gap-2 text-sm">
+            <div class="min-w-0">
+              <div class="truncate text-gray-800 dark:text-gray-100">
+                {{ memberLabel(member) }}
+              </div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                {{ member.role }}
+              </div>
+            </div>
+            @if (canRemoveMember(member)) {
+            <button
+              type="button"
+              class="shrink-0 text-sm font-medium text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+              (click)="requestRemoveMember(member)"
+              [disabled]="submitting"
+            >
+              Remove
+            </button>
+            }
+          </li>
+          }
+        </ul>
+        }
+      </div>
+
+      @if (isOwner()) {
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Invite by email
+          <textarea
+            rows="3"
+            class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            [(ngModel)]="emailsDraft"
+            placeholder="name@example.com, another@example.com"
+            [disabled]="submitting || memberCapReached()"
+          ></textarea>
+        </label>
+        @if (memberCapReached()) {
+        <p class="mt-2 text-sm text-amber-700 dark:text-amber-300">
+          This group has reached the member limit for your plan.
+        </p>
+        } @else if (maxMembersPerGroup != null) {
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {{ remainingInviteSlots() }} invite slot(s) remaining.
+        </p>
+        }
+        <button
+          type="button"
+          class="mt-2 px-3 py-2 rounded-md btn-chip btn-chip-blue cursor-pointer disabled:opacity-50"
+          (click)="sendInvites()"
+          [disabled]="submitting || !emailsDraft.trim() || memberCapReached()"
+        >
+          Send invites
+        </button>
+      </div>
+      }
+
+      @if (canLeaveGroup()) {
+      <div class="flex flex-wrap gap-3 pt-1">
+        <button
+          type="button"
+          class="text-sm font-medium text-gray-600 dark:text-gray-300 hover:underline cursor-pointer"
+          (click)="requestLeaveGroup()"
+          [disabled]="submitting"
+        >
+          Leave group
+        </button>
+      </div>
+      }
+    </div>
+  </div>
+</div>
+}
+
+@if (pendingConfirm) {
+<app-confirmation-dialog
+  [title]="confirmTitle()"
+  [message]="confirmMessage()"
+  confirmText="Confirm"
+  [isDangerous]="pendingConfirm.type === 'removeMember'"
+  (confirm)="onConfirmAction()"
+  (cancel)="cancelConfirm()"
+/>
+}

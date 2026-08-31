@@ -5,6 +5,7 @@ import { SupabaseService } from './supabase.service';
 import { PushNotificationService } from './push-notification.service';
 import { markdownToPlainText, markdownToSafeHtml, htmlToPlainText, sanitizeEmailHtml } from '../../utils/markdown';
 import {
+  buildGroupsTabAppLink,
   buildMemorizeVerseAppLink,
   buildViewPrayerAppLink,
 } from '../lib/email-notification-links';
@@ -107,6 +108,37 @@ export interface VerseMemorizationPrayerPayload {
   verseText: string;
   adminMessage?: string | null;
   tenantId?: string | null;
+}
+
+export interface GroupPrayerAddedPayload {
+  groupId: string;
+  prayerId: string;
+  title: string;
+  description: string;
+  requester: string;
+  prayerFor: string;
+  status: string;
+  authorEmail: string;
+  memberEmails: string[];
+  tenantId: string | null;
+}
+
+export interface GroupPrayerUpdatePayload {
+  groupId: string;
+  prayerId: string;
+  prayerTitle: string;
+  prayerDescription: string;
+  content: string;
+  author: string;
+  authorEmail: string;
+  markedAsAnswered?: boolean;
+  memberEmails: string[];
+  tenantId: string | null;
+}
+
+interface GroupNotificationRecipients {
+  emailRecipients: { user_email: string; unsubscribe_token?: string | null }[];
+  pushRecipients: string[];
 }
 
 @Injectable({
@@ -705,6 +737,218 @@ export class EmailNotificationService {
     } catch (error) {
       console.error('Error in sendApprovedUpdateNotification:', error);
     }
+  }
+
+  async notifyGroupPrayerAdded(payload: GroupPrayerAddedPayload): Promise<void> {
+    try {
+      const tenantId = payload.tenantId;
+      if (!tenantId) {
+        console.warn('notifyGroupPrayerAdded: no tenant id, skipping');
+        return;
+      }
+
+      const { emailRecipients, pushRecipients } =
+        await this.resolveGroupNotificationRecipients(
+          payload.memberEmails,
+          tenantId,
+          payload.authorEmail
+        );
+
+      const isAnswered = payload.status === 'answered';
+      const templateKey = isAnswered ? 'prayer_answered' : 'group_prayer_added';
+      const baseUrl = this.getEmailBaseUrl();
+      const variables = {
+        prayerTitle: payload.title,
+        prayerFor: payload.prayerFor,
+        requesterName: payload.requester,
+        prayerDescription: payload.description,
+        prayerDescriptionText: markdownToPlainText(payload.description),
+        prayerDescriptionHtml: markdownToSafeHtml(payload.description),
+        status: payload.status,
+        appLink: buildGroupsTabAppLink(baseUrl, payload.groupId),
+      };
+
+      if (emailRecipients.length > 0) {
+        await Promise.all(
+          emailRecipients.map((recipient) =>
+            this.enqueueEmail(
+              recipient.user_email,
+              templateKey,
+              {
+                ...variables,
+                ...this.queueUnsubscribeVars(recipient.unsubscribe_token),
+              },
+              tenantId
+            ).catch((err) =>
+              console.error(`Failed to queue group prayer email for ${recipient.user_email}:`, err)
+            )
+          )
+        );
+        console.log(
+          `📧 Queued group prayer notification to ${emailRecipients.length} member(s)`
+        );
+        await this.triggerEmailProcessor().catch((err) =>
+          console.error('Failed to trigger email processor:', err)
+        );
+      }
+
+      if (pushRecipients.length > 0) {
+        const pushTitle =
+          payload.title.length > 50 ? `${payload.title.slice(0, 47)}...` : payload.title;
+        const desc = (payload.description || '').trim();
+        const pushBody =
+          desc.length > 0
+            ? desc.length > 120
+              ? `${desc.slice(0, 117)}...`
+              : desc
+            : 'A new prayer was added to your group.';
+        await this.pushNotification.sendPushToEmails(pushRecipients, {
+          title: pushTitle,
+          body: pushBody,
+          data: {
+            type: 'group_prayer_added',
+            groupId: payload.groupId,
+            prayerId: payload.prayerId,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error in notifyGroupPrayerAdded:', error);
+    }
+  }
+
+  async notifyGroupPrayerUpdate(payload: GroupPrayerUpdatePayload): Promise<void> {
+    try {
+      const tenantId = payload.tenantId;
+      if (!tenantId) {
+        console.warn('notifyGroupPrayerUpdate: no tenant id, skipping');
+        return;
+      }
+
+      const { emailRecipients, pushRecipients } =
+        await this.resolveGroupNotificationRecipients(
+          payload.memberEmails,
+          tenantId,
+          payload.authorEmail
+        );
+
+      const isAnswered = payload.markedAsAnswered || false;
+      const templateKey = isAnswered ? 'prayer_answered' : 'group_prayer_update';
+      const baseUrl = this.getEmailBaseUrl();
+      const variables = {
+        prayerTitle: payload.prayerTitle,
+        prayerDescription: payload.prayerDescription,
+        prayerDescriptionText: markdownToPlainText(payload.prayerDescription),
+        prayerDescriptionHtml: markdownToSafeHtml(payload.prayerDescription),
+        authorName: payload.author,
+        updateContent: payload.content,
+        updateContentText: markdownToPlainText(payload.content),
+        updateContentHtml: markdownToSafeHtml(payload.content),
+        appLink: buildGroupsTabAppLink(baseUrl, payload.groupId),
+      };
+
+      if (emailRecipients.length > 0) {
+        await Promise.all(
+          emailRecipients.map((recipient) =>
+            this.enqueueEmail(
+              recipient.user_email,
+              templateKey,
+              {
+                ...variables,
+                ...this.queueUnsubscribeVars(recipient.unsubscribe_token),
+              },
+              tenantId
+            ).catch((err) =>
+              console.error(
+                `Failed to queue group prayer update email for ${recipient.user_email}:`,
+                err
+              )
+            )
+          )
+        );
+        console.log(
+          `📧 Queued group prayer update notification to ${emailRecipients.length} member(s)`
+        );
+        await this.triggerEmailProcessor().catch((err) =>
+          console.error('Failed to trigger email processor:', err)
+        );
+      }
+
+      if (pushRecipients.length > 0) {
+        const pushTitle =
+          payload.prayerTitle.length > 50
+            ? `${payload.prayerTitle.slice(0, 47)}...`
+            : payload.prayerTitle;
+        const content = (payload.content || '').trim();
+        const pushBody =
+          content.length > 0
+            ? content.length > 120
+              ? `${content.slice(0, 117)}...`
+              : content
+            : 'A group prayer was updated.';
+        await this.pushNotification.sendPushToEmails(pushRecipients, {
+          title: pushTitle,
+          body: pushBody,
+          data: {
+            type: 'group_prayer_update',
+            groupId: payload.groupId,
+            prayerId: payload.prayerId,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error in notifyGroupPrayerUpdate:', error);
+    }
+  }
+
+  private async resolveGroupNotificationRecipients(
+    memberEmails: string[],
+    tenantId: string,
+    excludeEmail: string
+  ): Promise<GroupNotificationRecipients> {
+    const exclude = excludeEmail.trim().toLowerCase();
+    const normalizedMembers = [
+      ...new Set(
+        memberEmails
+          .map((email) => email.trim().toLowerCase())
+          .filter((email) => email && email !== exclude)
+      ),
+    ];
+
+    if (normalizedMembers.length === 0) {
+      return { emailRecipients: [], pushRecipients: [] };
+    }
+
+    const { data, error } = await this.supabase.client
+      .from('tenant_memberships')
+      .select('user_email, unsubscribe_token, is_active, receive_push')
+      .eq('tenant_id', tenantId)
+      .eq('is_blocked', false)
+      .in('user_email', normalizedMembers);
+
+    if (error) {
+      throw error;
+    }
+
+    const rows = (data ?? []) as {
+      user_email: string;
+      unsubscribe_token?: string | null;
+      is_active?: boolean;
+      receive_push?: boolean;
+    }[];
+
+    const emailRecipients = rows
+      .filter((row) => row.is_active === true)
+      .map((row) => ({
+        user_email: row.user_email,
+        unsubscribe_token: row.unsubscribe_token,
+      }));
+
+    const pushRecipients = rows
+      .filter((row) => row.receive_push === true)
+      .map((row) => row.user_email);
+
+    return { emailRecipients, pushRecipients };
   }
 
   /**
@@ -1748,6 +1992,39 @@ export class EmailNotificationService {
     } catch (error) {
       console.error('Error in sendSubscriberWelcomeNotification:', error);
       // Don't re-throw - let the error be logged but don't block subscriber addition
+    }
+  }
+
+  async sendGroupInvitation(params: {
+    to: string;
+    groupName: string;
+    inviterName: string;
+    tenantId?: string | null;
+  }): Promise<void> {
+    try {
+      const template = await this.getTemplate('group_invitation', params.tenantId);
+      const variables = {
+        groupName: params.groupName,
+        inviterName: params.inviterName,
+        appLink: `${this.getEmailBaseUrl()}/login`,
+      };
+      const subject = template
+        ? this.applyTemplateVariables(template.subject, variables)
+        : `You've been invited to ${params.groupName}`;
+      const htmlBody = template
+        ? this.applyTemplateVariables(template.html_body, variables)
+        : `<p>${params.inviterName} invited you to join <strong>${params.groupName}</strong>.</p><p><a href="${variables.appLink}">Open the app</a></p>`;
+      const textBody = template
+        ? this.applyTemplateVariables(template.text_body, variables)
+        : `${params.inviterName} invited you to ${params.groupName}. Log in at ${variables.appLink}`;
+      await this.sendEmail({
+        to: [params.to],
+        subject,
+        htmlBody,
+        textBody,
+      });
+    } catch (error) {
+      console.error('Error in sendGroupInvitation:', error);
     }
   }
 

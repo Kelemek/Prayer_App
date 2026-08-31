@@ -73,3 +73,20 @@ export function buildViewPrayerAppLink(
   }
   return `${base}/?${params.toString()}`;
 }
+
+/** Deep link to the Groups tab (optional group pre-selection). */
+export function buildGroupsTabAppLink(
+  baseUrl: string,
+  groupId?: string | null
+): string {
+  const base = baseUrl.replace(/\/$/, '');
+  const params = new URLSearchParams({ filter: 'groups' });
+  const trimmedGroupId = groupId?.trim();
+  if (trimmedGroupId) {
+    params.set('groupId', trimmedGroupId);
+  }
+  if (!base) {
+    return `/?${params.toString()}`;
+  }
+  return `${base}/?${params.toString()}`;
+}

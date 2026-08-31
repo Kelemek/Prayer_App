@@ -142,13 +142,22 @@
         [pendingVerseMemorizationReference]="shell.modals.pendingVerseMemorizationReference"
         [pendingVerseMemorizationSuggestedTranslation]="shell.modals.pendingVerseMemorizationSuggestedTranslation"
         [handlers]="shell.handlers.modals"
+        [selectedGroupId]="selectedGroupId"
       ></app-home-modals-host>
+
+      <app-home-group-editor-modal
+        [isOpen]="showGroupEditor"
+        [submitting]="groupEditorSubmitting"
+        (close)="closeGroupEditor()"
+        (createGroup)="onCreateGroup($event)"
+      ></app-home-group-editor-modal>
 
       <app-home-filter-tabs
         [activeFilter]="activeFilter"
         [currentPrayerBadge$]="currentPrayerBadge$"
         [answeredPrayerBadge$]="answeredPrayerBadge$"
         [canAccessShared]="canAccessShared"
+        [canAccessGroupsTab]="canAccessGroupsTab"
         (tabSelected)="filter.setFilter($event)"
         (publicTabSelected)="filter.selectPublicTab()"
       ></app-home-filter-tabs>
@@ -205,13 +214,16 @@
         (activeFilter === 'personal' &&
           !!(prayerService.loadingPersonalPrayers$ | async)) ||
         (activeFilter === 'memorize' &&
-          !!(memorizationService.loading$ | async));
+          !!(memorizationService.loading$ | async)) ||
+        (activeFilter === 'groups' &&
+          !!(prayerGroupService.loadingPrayers$ | async));
       @let hasCachedContentForTab =
         activeFilter === 'memorize' ||
         (activeFilter === 'prompts' &&
           (catalog.displayedPrompts.length > 0 || promptsCatalogCount > 0)) ||
         (activeFilter === 'personal' &&
           catalog.filteredPersonalPrayers.length > 0) ||
+        (activeFilter === 'groups' && groupPrayers.length > 0) ||
         (isPublicTabFilter(activeFilter) && displayedPublicPrayers.length > 0);
       @let hidePrayerContentForLoading = contentLoading && !hasCachedContentForTab;
       @if (hidePrayerContentForLoading) {
@@ -224,6 +236,23 @@
       >
         {{ error }}
       </div>
+      }
+
+      @if (activeFilter === 'groups' && canAccessGroupsTab) {
+      <app-home-group-filters
+        [groups]="prayerGroups"
+        [selectedGroupId]="selectedGroupId"
+        [canCreateGroups]="canCreatePrayerGroups"
+        [showProUpgrade]="showGroupProUpgrade"
+        [maxMembersPerGroup]="maxMembersPerGroup"
+        [currentUserEmail]="currentUserEmail"
+        [membersGroupIdToOpen]="membersGroupIdToOpen"
+        (addGroup)="openCreateGroup()"
+        (upgradePro)="onUpgradeToPro()"
+        (selectGroup)="onSelectGroup($event)"
+        (groupsChanged)="onGroupEditorChanged()"
+        (membersGroupOpened)="onMembersGroupOpened()"
+      ></app-home-group-filters>
       }
 
       @if (activeFilter === 'personal') {
@@ -279,6 +308,7 @@
         [personalWalkthroughDescription]="personalWalkthroughDescription"
         [filteredPersonalPrayers]="catalog.filteredPersonalPrayers"
         [displayedPublicPrayers]="displayedPublicPrayers"
+        [groupPrayers]="groupPrayers"
         [displayedPrompts]="catalog.displayedPrompts"
         [loadingPersonalPrayers$]="prayerService.loadingPersonalPrayers$"
         [canReorderPersonalPrayers]="shell.personalCategory.canReorderPersonalPrayers"

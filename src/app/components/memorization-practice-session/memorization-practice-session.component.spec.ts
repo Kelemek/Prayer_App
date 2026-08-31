@@ -11,6 +11,7 @@ import { UserSessionService } from '../../services/user-session.service';
 import { MemorizationReciteService } from '../../services/memorization-recite.service';
 import { MemorizationReciteSettingsService } from '../../services/memorization-recite-settings.service';
 import { TenantContextService } from '../../services/tenant-context.service';
+import { UserSubscriptionService } from '../../services/user-subscription.service';
 import type { MemorizedItem } from '../../types/memorization';
 import { MEMORIZATION_FULL_HIDE_ROUND } from '../../lib/memorization/memorizationPracticeUtils';
 import { MEMORIZE_LISTEN_REPEAT_GAP_MS } from '../../lib/memorization/memorizeListenSpeedStorage';
@@ -53,8 +54,14 @@ const mockReciteSettingsService = {
 };
 
 const mockTenantContext = {
-  getActiveTenant: vi.fn().mockReturnValue({ id: 'tenant-1', name: 'Test Church' }),
-  activeTenant$: new BehaviorSubject({ id: 'tenant-1', name: 'Test Church' }),
+  getActiveTenant: vi.fn().mockReturnValue({ id: 'tenant-1', name: 'Test Church', plan_tier: 'churches' }),
+  activeTenant$: new BehaviorSubject({ id: 'tenant-1', name: 'Test Church', plan_tier: 'churches' }),
+};
+
+const mockUserSubscriptionService = {
+  refreshCapabilities: vi.fn().mockResolvedValue(undefined),
+  isPracticeModeAllowed: vi.fn().mockReturnValue(true),
+  getPracticeModes: vi.fn().mockReturnValue(['type', 'firstLetters', 'word', 'reorder', 'recite']),
 };
 
 function createMockUserSessionService(
@@ -155,6 +162,7 @@ async function renderSession(
       { provide: MemorizationReciteService, useValue: mockReciteService },
       { provide: MemorizationReciteSettingsService, useValue: mockReciteSettingsService },
       { provide: TenantContextService, useValue: mockTenantContext },
+      { provide: UserSubscriptionService, useValue: mockUserSubscriptionService },
     ],
   });
 

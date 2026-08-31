@@ -23,6 +23,7 @@ import { UserSessionService } from '../../services/user-session.service';
 import { MemorizationReciteService } from '../../services/memorization-recite.service';
 import { MemorizationReciteSettingsService } from '../../services/memorization-recite-settings.service';
 import { TenantContextService } from '../../services/tenant-context.service';
+import { UserSubscriptionService } from '../../services/user-subscription.service';
 import type { PracticeSessionResult } from '../../services/memorization.service';
 import {
   isMemorizationListenTranslation,
@@ -209,6 +210,7 @@ export class MemorizationPracticeSessionComponent
   private readonly reciteService = inject(MemorizationReciteService);
   private readonly reciteSettingsService = inject(MemorizationReciteSettingsService);
   private readonly tenantContext = inject(TenantContextService);
+  private readonly userSubscriptionService = inject(UserSubscriptionService);
 
   @Input({ required: true }) item!: MemorizedItem;
   @Input() isOpen = false;
@@ -523,13 +525,29 @@ export class MemorizationPracticeSessionComponent
   }
 
   get reciteModeAvailable(): boolean {
-    return (
-      this.reciteSettingsLoaded &&
-      this.reciteTenantEnabled &&
-      !this.isBibleBooks &&
-      isSingleVerseScriptureReference(this.item.reference) &&
-      (this.reciteSttProvider !== 'browser' || this.reciteService.isBrowserSttSupported())
-    );
+    if (
+      !this.reciteSettingsLoaded ||
+      !this.userSubscriptionService.isPracticeModeAllowed('recite') ||
+      this.isBibleBooks ||
+      !isSingleVerseScriptureReference(this.item.reference)
+    ) {
+      return false;
+    }
+
+    const activeTenant = this.tenantContext.getActiveTenant();
+    const isChurchTenant = activeTenant?.plan_tier === 'churches';
+    if (isChurchTenant) {
+      return (
+        this.reciteTenantEnabled &&
+        (this.reciteSttProvider !== 'browser' || this.reciteService.isBrowserSttSupported())
+      );
+    }
+
+    return this.reciteSttProvider !== 'browser' || this.reciteService.isBrowserSttSupported();
+  }
+
+  isPracticeModeAllowed(mode: MemorizationPracticeMode): boolean {
+    return this.userSubscriptionService.isPracticeModeAllowed(mode);
   }
 
   get reciteScoreSummary(): string {
@@ -678,6 +696,9 @@ export class MemorizationPracticeSessionComponent
   }
 
   beginPracticeWithMode(mode: MemorizationPracticeMode): void {
+    if (!this.isPracticeModeAllowed(mode)) {
+      return;
+    }
     if (mode === 'recite') {
       this.beginRecitePractice();
       return;
@@ -1073,6 +1094,17 @@ export class MemorizationPracticeSessionComponent
   }
 
   private async fetchReciteSettingsFromServer(): Promise<void> {
+    const activeTenant = this.tenantContext.getActiveTenant();
+    if (!activeTenant || activeTenant.plan_tier !== 'churches') {
+      const reciteAllowed = this.userSubscriptionService.isPracticeModeAllowed('recite');
+      this.reciteTenantEnabled = reciteAllowed;
+      this.reciteSttProvider = 'browser';
+      this.reciteWhisperModel = 'whisper-1';
+      this.reciteSettingsLoaded = true;
+      this.cdr.markForCheck();
+      return;
+    }
+
     const settings = await this.reciteSettingsService.getSettingsForActiveTenant();
     this.reciteTenantEnabled = settings.enabled;
     this.reciteSttProvider = settings.sttProvider;
@@ -1408,7 +1440,7 @@ export class MemorizationPracticeSessionComponent
     }
     this.loadAudioUrl();
     this.reciteSettingsLoaded = false;
-    void this.loadReciteSettings();
+    void this.userSubscriptionService.refreshCapabilities().then(() => this.loadReciteSettings());
     this.attachReciteTenantSubscription();
     this.attachViewportListeners();
     this.attachStrictModeSessionSubscription();

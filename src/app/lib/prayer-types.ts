@@ -40,6 +40,8 @@ export interface PrayerRequest {
   prayed_for_count?: number;
   /** Set on personal-prayer rows (legacy cache entries may only have email). */
   user_email?: string;
+  /** Set when the prayer belongs to a prayer group. */
+  group_id?: string;
   is_shared_personal_prayer?: boolean;
   denial_reason?: string | null;
   approved_at?: string | null;

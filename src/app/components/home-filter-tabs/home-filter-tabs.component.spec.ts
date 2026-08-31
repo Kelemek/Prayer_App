@@ -93,5 +93,37 @@ describe("HomeFilterTabsComponent", () => {
     expect(
       fixture.nativeElement.querySelector("#tour-filter-memorize")
     ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector("#tour-filter-groups")
+    ).toBeNull();
+  });
+
+  it("shows Groups when canAccessGroupsTab is true", () => {
+    fixture.componentRef.setInput("canAccessGroupsTab", true);
+    fixture.detectChanges();
+    const groupsTab = fixture.nativeElement.querySelector(
+      "#tour-filter-groups"
+    ) as HTMLButtonElement;
+    expect(groupsTab).toBeTruthy();
+    expect(groupsTab.textContent?.replace(/\s+/g, " ").trim()).toBe("Groups");
+  });
+
+  it("hides Public for group-only users while keeping Groups", () => {
+    fixture.componentRef.setInput("canAccessShared", false);
+    fixture.componentRef.setInput("canAccessGroupsTab", true);
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector("#tour-filter-public")
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector("#tour-filter-groups")
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector("#tour-filter-personal")
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector("#tour-filter-memorize")
+    ).toBeTruthy();
   });
 });

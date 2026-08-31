@@ -116,11 +116,7 @@ describe('MemorizationService', () => {
     });
   });
 
-  it('loadItems clears when tenant or user missing', async () => {
-    tenantContext.getActiveTenant.mockReturnValue(null);
-    await service.loadItems();
-    expect(service.items).toEqual([]);
-
+  it('loadItems clears when user is missing', async () => {
     tenantContext.getActiveTenant.mockReturnValue(TEST_TENANT);
     userSession.getCurrentSession.mockReturnValue(null);
     supabase.client.auth.getUser.mockResolvedValue({ data: { user: null } });
@@ -172,12 +168,6 @@ describe('MemorizationService', () => {
     expect(await service.addVerse('  ', 'esv')).toEqual({
       ok: false,
       reason: 'empty_reference',
-    });
-
-    tenantContext.getActiveTenant.mockReturnValue(null);
-    expect(await service.addVerse('John 3:16', 'esv')).toEqual({
-      ok: false,
-      reason: 'no_tenant',
     });
 
     tenantContext.getActiveTenant.mockReturnValue(TEST_TENANT);
@@ -234,12 +224,6 @@ describe('MemorizationService', () => {
     });
 
     connectivity.requireOnline.mockReturnValue(true);
-    tenantContext.getActiveTenant.mockReturnValue(null);
-    expect(await service.addBibleBooks('nt', 'esv')).toEqual({
-      ok: false,
-      reason: 'no_tenant',
-    });
-
     tenantContext.getActiveTenant.mockReturnValue(TEST_TENANT);
     userSession.getCurrentSession.mockReturnValue(null);
     supabase.client.auth.getUser.mockResolvedValue({ data: { user: null } });

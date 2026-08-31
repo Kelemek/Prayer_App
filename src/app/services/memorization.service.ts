@@ -93,7 +93,7 @@ export class MemorizationService {
   async loadItems(): Promise<void> {
     const tenantId = this.getActiveTenantId();
     const userEmail = await this.getUserEmail();
-    if (!tenantId || !userEmail) {
+    if (!userEmail) {
       this.itemsSubject.next([]);
       this.loadingSubject.next(false);
       return;
@@ -106,10 +106,13 @@ export class MemorizationService {
 
     this.loadingSubject.next(true);
     try {
-      const { data, error } = await this.supabase.client
+      let query = this.supabase.client
         .from('memorized_items')
-        .select('*')
-        .eq('tenant_id', tenantId)
+        .select('*');
+      query = tenantId
+        ? query.eq('tenant_id', tenantId)
+        : query.is('tenant_id', null);
+      const { data, error } = await query
         .ilike('user_email', userEmail)
         .order('date_added', { ascending: false });
 
@@ -149,14 +152,13 @@ export class MemorizationService {
 
     const tenantId = this.getActiveTenantId();
     const userEmail = await this.getUserEmail();
-    if (!tenantId) return { ok: false, reason: 'no_tenant' };
     if (!userEmail) return { ok: false, reason: 'no_user' };
 
     const { data, error } = await this.supabase.client
       .from('memorized_items')
       .insert({
         user_email: userEmail,
-        tenant_id: tenantId,
+        tenant_id: tenantId ?? null,
         reference: normalizedRef,
         text: plain,
         translation,
@@ -193,14 +195,13 @@ export class MemorizationService {
 
     const tenantId = this.getActiveTenantId();
     const userEmail = await this.getUserEmail();
-    if (!tenantId) return { ok: false, reason: 'no_tenant' };
     if (!userEmail) return { ok: false, reason: 'no_user' };
 
     const { data, error } = await this.supabase.client
       .from('memorized_items')
       .insert({
         user_email: userEmail,
-        tenant_id: tenantId,
+        tenant_id: tenantId ?? null,
         reference: bibleBooksReferenceLabel(scope),
         text: plain,
         translation,

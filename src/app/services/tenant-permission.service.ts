@@ -1,22 +1,44 @@
 import { Injectable } from '@angular/core';
 import type { TenantMembershipRole } from '../types/tenant';
 import { TenantContextService } from './tenant-context.service';
+import { PrayerGroupService } from './prayer-group.service';
+import { UserSubscriptionService } from './user-subscription.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class TenantPermissionService {
-  constructor(private tenantContext: TenantContextService) {}
+  constructor(
+    private tenantContext: TenantContextService,
+    private prayerGroupService: PrayerGroupService,
+    private userSubscriptionService: UserSubscriptionService
+  ) {}
 
   canAccessShared(): boolean {
     const tenant = this.tenantContext.getActiveTenant();
     if (!tenant) return false;
-    return tenant.plan_tier === 'groups' || tenant.plan_tier === 'churches';
+    return tenant.plan_tier === 'churches';
+  }
+
+  canCreatePrayerGroups(): boolean {
+    if (this.prayerGroupService.canCreatePrayerGroups()) {
+      return true;
+    }
+    return this.userSubscriptionService.getGroupLimits().can_create_group;
+  }
+
+  canAccessGroupsTab(): boolean {
+    return true;
   }
 
   canAccessAdmin(): boolean {
     if (this.tenantContext.getIsSuperAdmin()) {
       return true;
+    }
+
+    const tenant = this.tenantContext.getActiveTenant();
+    if (!tenant || tenant.plan_tier !== 'churches') {
+      return false;
     }
 
     return this.getActiveRole() === 'tenant_admin';
@@ -27,7 +49,7 @@ export class TenantPermissionService {
   }
 
   canManageTenant(): boolean {
-    return this.tenantContext.getIsSuperAdmin() || this.getActiveRole() === 'tenant_admin';
+    return this.canAccessAdmin();
   }
 
   isPersonalOnlyUser(): boolean {

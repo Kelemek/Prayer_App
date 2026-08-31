@@ -352,7 +352,8 @@ export class HomeLifecycleCoordinator {
         if (
           !canAccessShared &&
           activeFilter !== "personal" &&
-          activeFilter !== "memorize"
+          activeFilter !== "memorize" &&
+          activeFilter !== "groups"
         ) {
           host.setFilter("personal");
         } else {

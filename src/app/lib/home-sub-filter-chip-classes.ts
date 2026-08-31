@@ -49,7 +49,8 @@ export type HomeFilterTabAccent =
   | "personal"
   | "prompts"
   | "memorize"
-  | "members";
+  | "members"
+  | "groups";
 
 /** Light-mode Personal tab/panel fill — church sage (`church-green-tint` in styles.css). */
 export const HOME_PERSONAL_FILL_LIGHT_CLASS =
@@ -67,6 +68,8 @@ export const HOME_FILTER_TAB_ACTIVE_FILL = {
     "bg-stone-300 dark:bg-stone-900/40 border-[#988F83] dark:border-[#988F83]",
   memorize: "bg-blue-200 dark:bg-blue-950 border-[#0047AB] dark:border-[#0047AB]",
   members:
+    "bg-slate-200 dark:bg-blue-900/40 border-[#0047AB] dark:border-[#0047AB]",
+  groups:
     "bg-slate-200 dark:bg-blue-900/40 border-[#0047AB] dark:border-[#0047AB]",
 } as const;
 
@@ -127,13 +130,17 @@ export const HOME_WRAP_FILTER_CHIP_FLEX_CLASS = [
   "sm:max-w-[min(100%,max(calc((100%-1rem)/3),max-content))]",
 ].join(" ");
 
-/** Equal-width hosts for Public status chips (fixed single row under main tabs). */
+/**
+ * Host for Public status chips: share remaining row width equally, wrap only
+ * when labels cannot fit (`min-w-max`). No 2-per-row cap so Current / Answered /
+ * Archived can stay on one row.
+ */
 export const HOME_PUBLIC_STATUS_CHIP_HOST_CLASS =
-  "relative flex flex-1 min-w-0 basis-0";
+  "relative flex min-w-max flex-[1_1_0]";
 
-/** Single-row chip strip for Public status filters (no wrap). */
+/** Wrapping chip row for Public status filters. */
 export const HOME_PUBLIC_STATUS_CHIP_ROW_CLASS =
-  "flex w-full flex-nowrap items-stretch gap-2";
+  "flex w-full flex-wrap items-stretch gap-2";
 
 /** Solo-row flex item: full row width, no min-w-max (avoids conflicting with truncation). */
 export const HOME_WRAP_FILTER_CHIP_SOLO_FLEX_CLASS =
@@ -248,6 +255,7 @@ export const HOME_FILTER_TAB_BORDER = {
   personal: "#2F5F54",
   prompts: "#988F83",
   memorize: "#0047AB",
+  groups: "#0047AB",
 } as const;
 
 /** Folder-tab body: fill + side/bottom accent; no top border so it joins the selected tab. */
@@ -260,3 +268,6 @@ export const HOME_PROMPTS_SUB_FILTER_GROUP_CLASS =
 /** Same blue fill as Public — Memorize tab shares `#0047AB`. */
 export const HOME_MEMORIZE_SUB_FILTER_GROUP_CLASS =
   HOME_PUBLIC_SUB_FILTER_GROUP_CLASS;
+/** Same slate fill as the Groups tab (`HOME_FILTER_TAB_ACTIVE_FILL.groups`). */
+export const HOME_GROUPS_SUB_FILTER_GROUP_CLASS =
+  "rounded-b-lg bg-slate-200 dark:bg-blue-900/40 border-x-[2px] border-b-[2px] border-t-0 border-[#0047AB] dark:border-[#0047AB] px-3 py-2";

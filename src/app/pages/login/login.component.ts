@@ -18,6 +18,8 @@ import { EmailNotificationService } from "../../services/email-notification.serv
 import { TenantContextService } from "../../services/tenant-context.service";
 import { ConnectivityService } from "../../services/connectivity.service";
 import { ToastService } from "../../services/toast.service";
+import { PrayerGroupService } from "../../services/prayer-group.service";
+import { UserSubscriptionService } from "../../services/user-subscription.service";
 import { Subject, takeUntil } from "rxjs";
 
 @Component({
@@ -679,7 +681,9 @@ export class LoginComponent implements OnInit, OnDestroy {
     private toast: ToastService,
     private router: Router,
     private route: ActivatedRoute,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private prayerGroupService: PrayerGroupService,
+    private userSubscriptionService: UserSubscriptionService
   ) {}
 
   /** Tenant for new subscribers / approval requests (active org, localStorage, or default-tenant). */
@@ -701,6 +705,26 @@ export class LoginComponent implements OnInit, OnDestroy {
       .eq("slug", "default-tenant")
       .maybeSingle();
     return data?.id ?? null;
+  }
+
+  private async isExplicitChurchTenantId(tenantId: string): Promise<boolean> {
+    const { data } = await this.supabaseService.client
+      .from("tenants")
+      .select("slug, plan_tier")
+      .eq("id", tenantId)
+      .maybeSingle();
+    return (
+      data?.plan_tier === "churches" &&
+      data?.slug !== "default-tenant"
+    );
+  }
+
+  private async isExplicitChurchSignupContext(): Promise<boolean> {
+    const tenantId = await this.getTenantIdForSignup();
+    if (!tenantId) {
+      return false;
+    }
+    return this.isExplicitChurchTenantId(tenantId);
   }
 
   async ngOnInit() {
@@ -1002,12 +1026,28 @@ export class LoginComponent implements OnInit, OnDestroy {
 
       const isSubscriber = await this.checkEmailSubscriber(userEmail);
 
-      if (!isSubscriber) {
-        this.requiresApproval = true;
-        this.showSubscriberForm = true;
-        this.loading = false;
-        this.cdr?.markForCheck?.();
-        return;
+      if (isSubscriber) {
+        // Tenant member — existing path below.
+      } else {
+        const groupProfile =
+          await this.prayerGroupService.getMembershipProfile(userEmail);
+        if (groupProfile.hasMembership) {
+          if (groupProfile.name) {
+            // Name already on group membership — skip the welcome form.
+          } else {
+            this.requiresApproval = false;
+            this.showSubscriberForm = true;
+            this.loading = false;
+            this.cdr?.markForCheck?.();
+            return;
+          }
+        } else {
+          this.requiresApproval = await this.isExplicitChurchSignupContext();
+          this.showSubscriberForm = true;
+          this.loading = false;
+          this.cdr?.markForCheck?.();
+          return;
+        }
       }
     } catch (blockError) {
       const errorMsg =
@@ -1398,8 +1438,77 @@ export class LoginComponent implements OnInit, OnDestroy {
         return true;
       }
 
-      // Normal subscriber flow
+      const groupProfile = await this.prayerGroupService.getMembershipProfile(
+        this.email
+      );
+      if (groupProfile.hasMembership) {
+        const fullName = `${this.firstName.trim()} ${this.lastName.trim()}`;
+        const saved = await this.prayerGroupService.setMemberName(fullName);
+        if (!saved) {
+          this.error = "Failed to save your name. Please try again.";
+          this.loading = false;
+          this.cdr?.markForCheck?.();
+          return false;
+        }
+
+        this.showSubscriberForm = false;
+        this.firstName = "";
+        this.lastName = "";
+        this.affiliationReason = "";
+        this.loading = false;
+
+        try {
+          await this.userSessionService.loadUserSession(this.email);
+        } catch (sessionError) {
+          console.warn("[AdminLogin] Failed to load user session:", sessionError);
+        }
+
+        const groupDestination =
+          this.returnUrl && this.returnUrl !== "/" && this.returnUrl !== "/admin"
+            ? this.returnUrl
+            : "/";
+        this.router.navigate([groupDestination]);
+        this.cdr?.markForCheck?.();
+        return true;
+      }
+
+      // Normal subscriber flow (church tenant) or free-tier registration
       const subscriberTenantId = await this.getTenantIdForSignup();
+      const useChurchMembership =
+        !!subscriberTenantId &&
+        (await this.isExplicitChurchTenantId(subscriberTenantId));
+
+      if (!useChurchMembership) {
+        const fullName = `${this.firstName.trim()} ${this.lastName.trim()}`;
+        const saved = await this.userSubscriptionService.registerFreeUser(fullName);
+        if (!saved) {
+          this.error = "Failed to create your account. Please try again.";
+          this.loading = false;
+          this.cdr?.markForCheck?.();
+          return false;
+        }
+
+        this.showSubscriberForm = false;
+        this.firstName = "";
+        this.lastName = "";
+        this.affiliationReason = "";
+        this.loading = false;
+
+        try {
+          await this.userSessionService.loadUserSession(this.email);
+        } catch (sessionError) {
+          console.warn("[AdminLogin] Failed to load user session:", sessionError);
+        }
+
+        const destination =
+          this.returnUrl && this.returnUrl !== "/" && this.returnUrl !== "/admin"
+            ? this.returnUrl
+            : "/";
+        this.router.navigate([destination]);
+        this.cdr?.markForCheck?.();
+        return true;
+      }
+
       if (!subscriberTenantId) {
         this.error =
           "Could not determine organization for signup. Please try again.";

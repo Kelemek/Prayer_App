@@ -3,6 +3,8 @@
         #prayerFormComp
         [isOpen]="showPrayerForm"
         [defaultPersonalPrayer]="activeFilter === 'personal'"
+        [defaultGroupPrayer]="activeFilter === 'groups'"
+        [defaultGroupId]="selectedGroupId"
         (close)="handlers.onPrayerFormClose()"
       ></app-prayer-form>
 

@@ -25,6 +25,9 @@ import { resolveAuthorName } from "../../utils/display-name";
 import { SupabaseService } from "../../services/supabase.service";
 import { ToastService } from "../../services/toast.service";
 import { TenantContextService } from "../../services/tenant-context.service";
+import { TenantPermissionService } from "../../services/tenant-permission.service";
+import { PrayerGroupService } from "../../services/prayer-group.service";
+import type { PrayerGroup } from "../../types/prayer-group";
 import { RichTextEditorsSettingsService } from "../../services/rich-text-editors-settings.service";
 import { PersonalCategoryColorService } from "../../services/personal-category-color.service";
 import { PersonalCategoryColorPickerComponent } from "../personal-category-color-picker/personal-category-color-picker.component";
@@ -148,36 +151,22 @@ import {
             >
               Prayer Visibility
             </label>
-            <div class="grid grid-cols-2 gap-3">
-              <!-- Public Prayer Button -->
+            <div [class]="visibilityGridClass">
+              @if (showPublicOption) {
               <button
                 type="button"
-                (click)="formData.is_personal = false"
-                [class.ring-2]="!formData.is_personal"
+                (click)="setVisibility('public')"
+                [class.ring-2]="visibility === 'public'"
                 class="relative flex flex-col items-center justify-start py-3 px-4 rounded-lg border-2 transition-all font-medium cursor-pointer text-left"
                 [ngClass]="
-                  !formData.is_personal
+                  visibility === 'public'
                     ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 ring-blue-500 dark:ring-blue-400 ring-offset-2 dark:ring-offset-gray-800'
                     : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500'
                 "
-                aria-pressed="!formData.is_personal"
+                aria-pressed="visibility === 'public'"
                 aria-label="Select public prayer - requires admin approval"
               >
                 <div class="flex items-center justify-center gap-2 text-left">
-                  <svg
-                    class="hidden sm:block w-6 h-6 flex-shrink-0"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                    />
-                  </svg>
                   <div class="text-left min-w-0">
                     <div class="text-sm sm:text-base font-semibold">
                       Public Prayer
@@ -186,36 +175,45 @@ import {
                   </div>
                 </div>
               </button>
-
-              <!-- Personal Prayer Button -->
+              }
+              @if (showGroupOption) {
               <button
                 type="button"
-                (click)="formData.is_personal = true"
-                [class.ring-2]="formData.is_personal"
+                (click)="setVisibility('group')"
+                [class.ring-2]="visibility === 'group'"
                 class="relative flex flex-col items-center justify-start py-3 px-4 rounded-lg border-2 transition-all font-medium cursor-pointer text-left"
                 [ngClass]="
-                  formData.is_personal
+                  visibility === 'group'
                     ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 ring-blue-500 dark:ring-blue-400 ring-offset-2 dark:ring-offset-gray-800'
                     : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500'
                 "
-                aria-pressed="formData.is_personal"
+                aria-pressed="visibility === 'group'"
+                aria-label="Select group prayer - visible to group members, no approval"
+              >
+                <div class="flex items-center justify-center gap-2 text-left">
+                  <div class="text-left min-w-0">
+                    <div class="text-sm sm:text-base font-semibold">
+                      Group Prayer
+                    </div>
+                    <div class="text-xs opacity-75">Visible to this group, no approval</div>
+                  </div>
+                </div>
+              </button>
+              }
+              <button
+                type="button"
+                (click)="setVisibility('personal')"
+                [class.ring-2]="visibility === 'personal'"
+                class="relative flex flex-col items-center justify-start py-3 px-4 rounded-lg border-2 transition-all font-medium cursor-pointer text-left"
+                [ngClass]="
+                  visibility === 'personal'
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 ring-blue-500 dark:ring-blue-400 ring-offset-2 dark:ring-offset-gray-800'
+                    : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500'
+                "
+                aria-pressed="visibility === 'personal'"
                 aria-label="Select personal prayer - private, no approval needed"
               >
                 <div class="flex items-center justify-center gap-2 text-left">
-                  <svg
-                    class="hidden sm:block w-6 h-6 flex-shrink-0"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                    />
-                  </svg>
                   <div class="text-left min-w-0">
                     <div class="text-sm sm:text-base font-semibold">
                       Personal Prayer
@@ -225,6 +223,20 @@ import {
                 </div>
               </button>
             </div>
+            @if (visibility === 'group' && groups.length > 0) {
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Group
+              <select
+                class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                [(ngModel)]="selectedGroupId"
+                name="group_id"
+              >
+                @for (group of groups; track group.id) {
+                <option [value]="group.id">{{ group.name }}</option>
+                }
+              </select>
+            </label>
+            }
           </div>
 
           @if (publicPrayerBlockedReason) {
@@ -237,7 +249,7 @@ import {
           }
 
           <!-- Anonymous Checkbox - only show for public prayers -->
-          @if (!formData.is_personal) {
+          @if (visibility === 'public') {
           <div class="flex items-center cursor-pointer">
             <input
               type="checkbox"
@@ -256,7 +268,7 @@ import {
           }
 
           <!-- Category Field - only show for personal prayers -->
-          @if (formData.is_personal) {
+          @if (visibility === 'personal') {
           <div class="relative">
             <label
               for="category"
@@ -354,7 +366,12 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
   @Input() isOpen = false;
   /** When true and the modal opens, default to Personal Prayer. */
   @Input() defaultPersonalPrayer = false;
+  @Input() defaultGroupPrayer = false;
+  @Input() defaultGroupId: string | null = null;
   @Output() close = new EventEmitter<{ isPersonal?: boolean }>();
+
+  visibility: "public" | "group" | "personal" = "public";
+  selectedGroupId: string | null = null;
 
   formData: {
     title: string;
@@ -395,6 +412,8 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
     private personalCategoryColorService: PersonalCategoryColorService,
     private cdr: ChangeDetectorRef,
     private tenantContext: TenantContextService,
+    private tenantPermission: TenantPermissionService,
+    private prayerGroupService: PrayerGroupService,
     private destroyRef: DestroyRef,
     richTextEditorsSettings: RichTextEditorsSettingsService
   ) {
@@ -429,7 +448,7 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes["isOpen"]?.currentValue === true) {
-      this.formData.is_personal = this.defaultPersonalPrayer;
+      this.applyDefaultVisibility();
     }
     if (this.isOpen) {
       this.refreshCurrentUserEmail();
@@ -453,15 +472,60 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
       "";
   }
 
-  /** Public prayers require an active tenant with a groups or churches plan (RLS). */
+  get groups(): PrayerGroup[] {
+    return this.prayerGroupService.getGroups();
+  }
+
+  get showPublicOption(): boolean {
+    return this.tenantPermission.canAccessShared();
+  }
+
+  get showGroupOption(): boolean {
+    return this.groups.length > 0;
+  }
+
+  get visibilityGridClass(): string {
+    const count =
+      1 + (this.showPublicOption ? 1 : 0) + (this.showGroupOption ? 1 : 0);
+    return count >= 3 ? "grid grid-cols-3 gap-3" : "grid grid-cols-2 gap-3";
+  }
+
+  setVisibility(visibility: "public" | "group" | "personal"): void {
+    this.visibility = visibility;
+    this.formData.is_personal = visibility === "personal";
+    if (visibility === "group" && !this.selectedGroupId) {
+      this.selectedGroupId = this.defaultGroupId || this.groups[0]?.id || null;
+    }
+  }
+
+  private applyDefaultVisibility(): void {
+    if (this.defaultPersonalPrayer) {
+      this.setVisibility("personal");
+    } else if (this.defaultGroupPrayer && this.showGroupOption) {
+      this.setVisibility("group");
+      this.selectedGroupId = this.defaultGroupId || this.groups[0]?.id || null;
+    } else if (this.showPublicOption) {
+      this.setVisibility("public");
+    } else if (this.showGroupOption) {
+      this.setVisibility("group");
+      this.selectedGroupId = this.defaultGroupId || this.groups[0]?.id || null;
+    } else {
+      this.setVisibility("personal");
+    }
+    if (this.showGroupOption && !this.selectedGroupId) {
+      this.selectedGroupId = this.defaultGroupId || this.groups[0]?.id || null;
+    }
+  }
+
+  /** Public prayers require an active tenant with a churches plan (RLS). */
   get publicPrayerBlockedReason(): string | null {
-    if (this.formData.is_personal) return null;
+    if (this.visibility !== "public") return null;
     const tenant = this.tenantContext.getActiveTenant();
     if (!tenant) {
       return "Public prayers require an active organization. Open Tenant Management (admin) or pick an organization you belong to, then try again.";
     }
     if (tenant.plan_tier === "free") {
-      return "Public prayers are not available on the free plan for this organization. Use a personal prayer, or ask an admin to upgrade the tenant to groups or churches.";
+      return "Public prayers require a Church plan for this organization. Use a personal or group prayer instead.";
     }
     return null;
   }
@@ -488,7 +552,10 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
       !!this.formData.prayer_for.trim() &&
       !!this.formData.description.trim();
     if (!base) return false;
-    if (this.formData.is_personal) return true;
+    if (this.visibility === "personal") return true;
+    if (this.visibility === "group") {
+      return !!this.selectedGroupId;
+    }
     const tenant = this.tenantContext.getActiveTenant();
     if (!tenant) return false;
     if (tenant.plan_tier === "free") return false;
@@ -608,6 +675,30 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
     prayerData: ReturnType<typeof buildPrayerFormSubmitPayload>
   ): Promise<void> {
     try {
+      if (this.visibility === "group") {
+        if (!this.selectedGroupId) {
+          this.toast.error("Select a group for this prayer");
+          return;
+        }
+        const success = await this.prayerGroupService.addGroupPrayer(
+          this.selectedGroupId,
+          prayerData
+        );
+        if (!success) return;
+        this.showSuccessMessage = true;
+        this.cdr.markForCheck();
+        this.close.emit({ isPersonal: false });
+        this.formData = { ...EMPTY_PRAYER_FORM_FIELDS };
+        this.visibility = "public";
+        this.categoryColor = '#2563EB';
+        this.categoryColorDirty = false;
+        setTimeout(() => {
+          this.showSuccessMessage = false;
+          this.cdr.markForCheck();
+        }, 5000);
+        return;
+      }
+
       const result = await submitPrayerFormRequest(
         this.prayerService,
         this.personalCategoryColorService,
@@ -643,6 +734,7 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
 
   cancel(): void {
     this.formData = { ...EMPTY_PRAYER_FORM_FIELDS };
+    this.visibility = "public";
     this.showSuccessMessage = false;
     this.isSubmitting = false;
     this.showCategoryDropdown = false;

@@ -199,10 +199,11 @@ export class UserSessionService {
         this.userSessionSubject.next(sessionData);
         this.saveToCache(sessionData);
       } else {
-        // User not in tenant_memberships yet, create minimal session with email only
+        const groupName = await this.fetchPrayerGroupMemberName(email);
+        const subscriptionName = await this.fetchUserSubscriptionDisplayName(email);
         const sessionData: UserSessionData = {
           email,
-          fullName: '',
+          fullName: groupName || subscriptionName,
           isActive: true,
           receiveNotifications: true,
           receiveAdminEmails: false,
@@ -238,6 +239,45 @@ export class UserSessionService {
       this.saveToCache(sessionData);
     } finally {
       this.isLoadingSubject.next(false);
+    }
+  }
+
+  private async fetchPrayerGroupMemberName(email: string): Promise<string> {
+    try {
+      let query: any = this.supabase.client
+        .from('prayer_group_members')
+        .select('name')
+        .eq('user_email', email.toLowerCase().trim())
+        .eq('is_active', true);
+      if (typeof query.limit === 'function') {
+        query = query.limit(1);
+      }
+      const result =
+        typeof query.maybeSingle === 'function'
+          ? await query.maybeSingle()
+          : await query;
+      const data = result?.data as
+        | { name?: string | null }
+        | Array<{ name?: string | null }>
+        | null
+        | undefined;
+      const row = Array.isArray(data) ? data[0] : data;
+      return row?.name?.trim() || '';
+    } catch {
+      return '';
+    }
+  }
+
+  private async fetchUserSubscriptionDisplayName(email: string): Promise<string> {
+    try {
+      const { data } = await this.supabase.client
+        .from('user_subscriptions')
+        .select('display_name')
+        .eq('user_email', email.toLowerCase().trim())
+        .maybeSingle();
+      return data?.display_name?.trim() || '';
+    } catch {
+      return '';
     }
   }
 

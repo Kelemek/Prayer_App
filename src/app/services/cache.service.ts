@@ -83,6 +83,7 @@ export class CacheService {
           key.startsWith('personalTenant_') ||
           key.startsWith('personalCategoryColors_') ||
           key.startsWith('prompts:') ||
+          key.startsWith('groupPrayers:') ||
           key.startsWith('memorizationRecommendations:')
         ) {
           this.hydrateKeyFromLocalStorage(key);

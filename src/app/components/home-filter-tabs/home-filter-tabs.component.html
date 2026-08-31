@@ -23,6 +23,17 @@
         </button>
         }
 
+        @if (canAccessGroupsTab) {
+        <button
+          id="tour-filter-groups"
+          (click)="tabSelected.emit('groups')"
+          title="Show group prayers"
+          [class]="tabClass('groups', activeFilter === 'groups')"
+        >
+          Groups
+        </button>
+        }
+
         <!-- Personal Prayers Filter -->
         <button
           id="tour-filter-personal"

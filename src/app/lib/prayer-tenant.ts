@@ -16,6 +16,21 @@ export function maybeEqTenantId<T>(
   return maybeEq(query, 'tenant_id', tenantId);
 }
 
+/** Filter to a tenant row, or to unaffiliated (`tenant_id IS NULL`) rows. */
+export function eqTenantIdOrUnaffiliated<T>(
+  query: T,
+  tenantId: string | null | undefined
+): T {
+  if (tenantId) {
+    return maybeEq(query, 'tenant_id', tenantId);
+  }
+  const withIs = query as unknown as { is?: (column: string, value: null) => T };
+  if (query && typeof withIs.is === 'function') {
+    return withIs.is('tenant_id', null);
+  }
+  return query;
+}
+
 export function withTenantId<T extends Record<string, unknown>>(
   row: T,
   tenantId: string | null | undefined
@@ -43,13 +58,19 @@ export function sharedPrayersCacheKeyForTenant(
   return sharedPrayersCacheKey(tenantId);
 }
 
+export const PERSONAL_PRAYERS_UNAFFILIATED_CACHE_KEY = 'personalTenant_unaffiliated';
+
 export function personalPrayersCacheKeyForTenant(
   tenantId: string | null | undefined
-): string | null {
+): string {
   if (!tenantId) {
-    return null;
+    return PERSONAL_PRAYERS_UNAFFILIATED_CACHE_KEY;
   }
   return personalPrayersTenantCacheKey(tenantId);
+}
+
+export function groupPrayersCacheKey(groupId: string): string {
+  return `groupPrayers:${groupId}`;
 }
 
 export function shouldUseSuperAdminTenantPrayerRpc(opts: {

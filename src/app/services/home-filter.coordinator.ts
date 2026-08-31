@@ -25,7 +25,9 @@ export interface HomeFilterHost {
     search?: string;
   }): void;
   loadMemorizationItems(): void;
+  loadGroupPrayers(): void;
   canAccessShared(): boolean;
+  canAccessGroupsArea(): boolean;
   onFilterChanged(): void;
 }
 
@@ -57,7 +59,19 @@ export class HomeFilterCoordinator {
     const host = this.requireHost();
     const page = host.getPageState();
 
-    if (!host.canAccessShared() && filter !== "personal" && filter !== "memorize") {
+    if (
+      !host.canAccessShared() &&
+      filter !== "personal" &&
+      filter !== "memorize" &&
+      filter !== "groups"
+    ) {
+      host.setActiveFilter("personal");
+      host.applyPrayerFilters({ search: page.filters.searchTerm });
+      host.onFilterChanged();
+      return;
+    }
+
+    if (filter === "groups" && !host.canAccessGroupsArea()) {
       host.setActiveFilter("personal");
       host.applyPrayerFilters({ search: page.filters.searchTerm });
       host.onFilterChanged();
@@ -77,6 +91,10 @@ export class HomeFilterCoordinator {
       host.setFilters({ searchTerm: page.filters.searchTerm });
       host.applyPrayerFilters({ search: "" });
       host.loadMemorizationItems();
+    } else if (filter === "groups") {
+      host.setFilters({ searchTerm: page.filters.searchTerm });
+      host.applyPrayerFilters({ search: page.filters.searchTerm });
+      host.loadGroupPrayers();
     } else if (filter === "total") {
       host.setFilters({ searchTerm: page.filters.searchTerm });
       host.applyPrayerFilters({ search: page.filters.searchTerm });

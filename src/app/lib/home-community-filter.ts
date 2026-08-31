@@ -31,6 +31,11 @@ export function isPublicAreaFilter(filter: HomeActiveFilter): boolean {
   return isPublicTabFilter(filter) || filter === "prompts";
 }
 
+/** True when the Groups top tab is selected. */
+export function isGroupsAreaFilter(filter: HomeActiveFilter): boolean {
+  return filter === "groups";
+}
+
 /** True when Home renders a folder-tab panel (sub-filters) directly under the main tab row. */
 export function homeHasSubFilterRowBelowTabs(
   filter: HomeActiveFilter
@@ -38,6 +43,7 @@ export function homeHasSubFilterRowBelowTabs(
   return (
     isPublicAreaFilter(filter) ||
     filter === "personal" ||
-    filter === "memorize"
+    filter === "memorize" ||
+    filter === "groups"
   );
 }

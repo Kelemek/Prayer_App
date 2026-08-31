@@ -80,7 +80,12 @@ const makeMocks = () => {
   };
   const toast = { info: vi.fn(), error: vi.fn(), success: vi.fn(), warning: vi.fn() };
 
-  return { adminAuthService, supabaseService, emailNotificationService, userSessionService, themeService, tenantContextService, connectivity, toast, router, route, cdr, requireSiteLogin$, isAdmin$ };
+  const userSubscriptionService: any = {
+    registerFreeUser: vi.fn(async () => true),
+    refreshCapabilities: vi.fn(async () => undefined),
+  };
+
+  return { adminAuthService, supabaseService, emailNotificationService, userSessionService, themeService, tenantContextService, connectivity, toast, userSubscriptionService, router, route, cdr, requireSiteLogin$, isAdmin$ };
 };
 
 const mockMatchMedia = (matches = false) => ({
@@ -114,13 +119,21 @@ const makeComponent = (mocks: any) => {
 
 // Helper to create LoginComponent with custom service mocks (for tests with modified mocks)
 let componentsToCleanup: LoginComponent[] = [];
-const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, userSession: any, theme: any, tenantContext: any, router: any, route: any, cdr: any, connectivity?: any, toast?: any) => {
+const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, userSession: any, theme: any, tenantContext: any, router: any, route: any, cdr: any, connectivity?: any, toast?: any, userSubscription?: any) => {
   const connectivityMock = connectivity ?? {
     isOnline: vi.fn(() => true),
     isOnline$: new BehaviorSubject(true).asObservable(),
     requireOnline: vi.fn(() => true),
   };
   const toastMock = toast ?? { info: vi.fn(), error: vi.fn(), success: vi.fn(), warning: vi.fn() };
+  const prayerGroupMock = {
+    getMembershipProfile: vi.fn(async () => ({ hasMembership: false, name: null })),
+    setMemberName: vi.fn(async () => true),
+  };
+  const userSubscriptionMock = userSubscription ?? {
+    registerFreeUser: vi.fn(async () => true),
+    refreshCapabilities: vi.fn(async () => undefined),
+  };
   const comp = new LoginComponent(
     adminAuth,
     supabase,
@@ -132,7 +145,9 @@ const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, 
     toastMock,
     router,
     route,
-    cdr
+    cdr,
+    prayerGroupMock as any,
+    userSubscriptionMock as any
   );
   comp.codeInputs = { toArray: () => [{ nativeElement: { focus: vi.fn() } }] } as any;
   // Register for cleanup
@@ -427,9 +442,28 @@ describe('LoginComponent', () => {
     expect(comp.showPendingApproval).toBe(true);
   });
 
-  it('saveNewSubscriber normal flow saves subscriber and navigates', async () => {
+  it('saveNewSubscriber normal flow saves church subscriber and navigates', async () => {
     const mutationSpy = vi.fn(async () => ({ data: [{ id: '1' }], error: null }));
     mocks.supabaseService.directMutation = mutationSpy;
+    mocks.supabaseService.client.from = vi.fn((table: string) => {
+      if (table === 'tenants') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({
+                data: { slug: 'test-tenant', plan_tier: 'churches' },
+                error: null,
+              })),
+            })),
+          })),
+        };
+      }
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: { verification_code_length: 6 }, error: null })) })),
+        })),
+      };
+    });
     const comp = makeComponentWithMocks(
       mocks.adminAuthService,
       mocks.supabaseService,
@@ -624,6 +658,25 @@ describe('LoginComponent', () => {
 
   it('saveNewSubscriber handles directMutation save error and surfaces friendly message', async () => {
     const compMocks = makeMocks();
+    compMocks.supabaseService.client.from = vi.fn((table: string) => {
+      if (table === 'tenants') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({
+                data: { slug: 'test-tenant', plan_tier: 'churches' },
+                error: null,
+              })),
+            })),
+          })),
+        };
+      }
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: { verification_code_length: 6 }, error: null })) })),
+        })),
+      };
+    });
     // simulate directMutation error
     compMocks.supabaseService.directMutation = vi.fn(async () => ({ data: null, error: { message: 'Insert failed', status: 500 } }));
 
@@ -1169,5 +1222,70 @@ describe('LoginComponent', () => {
     
     expect(comp.error).toBe('Access denied');
     expect(comp.loading).toBe(false);
+  });
+
+  it('group-only invitee without a name sees first/last form without approval', async () => {
+    const comp = makeComponent(mocks);
+    vi.spyOn(comp as any, 'checkPendingApprovalRequest').mockResolvedValue(false);
+    vi.spyOn(comp as any, 'checkEmailSubscriber').mockResolvedValue(false);
+    vi.spyOn(comp['prayerGroupService'], 'getMembershipProfile').mockResolvedValue({
+      hasMembership: true,
+      name: null,
+    });
+
+    await (comp as any).checkEmailSubscriberAndNavigate('group@example.com', false);
+
+    expect(comp.showSubscriberForm).toBe(true);
+    expect(comp.requiresApproval).toBe(false);
+    expect(mocks.router.navigate).not.toHaveBeenCalled();
+  });
+
+  it('group-only invitee with a name skips the welcome form', async () => {
+    const comp = makeComponent(mocks);
+    vi.spyOn(comp as any, 'checkPendingApprovalRequest').mockResolvedValue(false);
+    vi.spyOn(comp as any, 'checkEmailSubscriber').mockResolvedValue(false);
+    vi.spyOn(comp['prayerGroupService'], 'getMembershipProfile').mockResolvedValue({
+      hasMembership: true,
+      name: 'Pat Lee',
+    });
+
+    await (comp as any).checkEmailSubscriberAndNavigate('group@example.com', false);
+
+    expect(comp.showSubscriberForm).toBe(false);
+    expect(mocks.userSessionService.loadUserSession).toHaveBeenCalledWith(
+      'group@example.com'
+    );
+    expect(mocks.router.navigate).toHaveBeenCalled();
+  });
+
+  it('saveNewSubscriber for a group-only invitee writes group member name and skips tenant/approval', async () => {
+    const comp = makeComponent(mocks);
+    comp.email = 'group@example.com';
+    comp.firstName = 'Pat';
+    comp.lastName = 'Lee';
+    comp.requiresApproval = false;
+    vi.spyOn(comp['prayerGroupService'], 'getMembershipProfile').mockResolvedValue({
+      hasMembership: true,
+      name: null,
+    });
+    const setMemberName = vi
+      .spyOn(comp['prayerGroupService'], 'setMemberName')
+      .mockResolvedValue(true);
+
+    const res = await comp.saveNewSubscriber();
+
+    expect(res).toBe(true);
+    expect(setMemberName).toHaveBeenCalledWith('Pat Lee');
+    expect(mocks.supabaseService.client.rpc).not.toHaveBeenCalledWith(
+      'create_account_approval_request',
+      expect.anything()
+    );
+    expect(mocks.supabaseService.directMutation).not.toHaveBeenCalledWith(
+      'tenant_memberships',
+      expect.anything()
+    );
+    expect(mocks.userSessionService.loadUserSession).toHaveBeenCalledWith(
+      'group@example.com'
+    );
   });
 });

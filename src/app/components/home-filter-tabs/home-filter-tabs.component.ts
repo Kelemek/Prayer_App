@@ -27,6 +27,8 @@ export class HomeFilterTabsComponent {
   @Input({ required: true }) answeredPrayerBadge$!: Observable<number>;
   /** When false, Public stays hidden (personal-only plan). */
   @Input() canAccessShared = true;
+  /** When false, Groups stays hidden. */
+  @Input() canAccessGroupsTab = false;
 
   @Output() tabSelected = new EventEmitter<HomeActiveFilter>();
   @Output() publicTabSelected = new EventEmitter<void>();

@@ -8,7 +8,9 @@ export type PrayerCardActiveFilter =
   | 'archived'
   | 'total'
   | 'prompts'
-  | 'personal';
+  | 'personal'
+  | 'memorize'
+  | 'groups';
 
 export function displayPrayerCardRequester(
   requester: string,

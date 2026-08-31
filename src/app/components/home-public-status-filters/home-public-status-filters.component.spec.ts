@@ -58,29 +58,40 @@ describe("HomePublicStatusFiltersComponent", () => {
     fixture?.destroy();
   });
 
-  it("uses equal-width hosts in a single nowrap row for public status chips", () => {
-    const chipIds = [
+  it("puts Current, Answered, and Archived on the first wrapping row", () => {
+    const panel = fixture.nativeElement.querySelector(
+      ".rounded-b-lg, .rounded-b-none"
+    ) as HTMLElement;
+    const rows = panel.querySelectorAll(":scope > div");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.className).toContain("flex-wrap");
+    expect(rows[0]!.className).not.toContain("mt-2");
+    expect(rows[1]!.className).toContain("flex-wrap");
+    expect(rows[1]!.className).toContain("mt-2");
+
+    const firstRowIds = [...rows[0]!.querySelectorAll("button")].map(
+      (button) => button.id
+    );
+    const secondRowIds = [...rows[1]!.querySelectorAll("button")].map(
+      (button) => button.id
+    );
+    expect(firstRowIds).toEqual([
       "tour-filter-current",
       "tour-filter-answered",
       "tour-filter-archived",
+    ]);
+    expect(secondRowIds).toEqual([
       "tour-filter-total",
       "tour-filter-prompts",
-    ];
-    const row = fixture.nativeElement.querySelector(
-      ".rounded-b-lg, .rounded-b-none"
-    ) as HTMLElement;
-    expect(row.className).toContain("flex-nowrap");
+    ]);
 
-    for (const id of chipIds) {
+    for (const id of [...firstRowIds, ...secondRowIds]) {
       const button = fixture.nativeElement.querySelector(
         `#${id}`
       ) as HTMLButtonElement;
-      expect(button).toBeTruthy();
       const host = button.closest("div") as HTMLElement;
-      expect(host.className).toContain("flex-1");
-      expect(host.className).toContain("min-w-0");
-      expect(host.className).toContain("basis-0");
-      expect(host.className).not.toContain("min-w-max");
+      expect(host.className).toContain("flex-[1_1_0]");
+      expect(host.className).toContain("min-w-max");
       expect(button.className).toContain(
         HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS.split(" ")[0]
       );

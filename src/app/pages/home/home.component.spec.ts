@@ -138,7 +138,9 @@ const makeMocks = () => {
 
   const tenantPermissionService: any = {
     canAccessShared: vi.fn(() => true),
-    canAccessAdmin: vi.fn(() => false)
+    canAccessAdmin: vi.fn(() => false),
+    canAccessGroupsTab: vi.fn(() => true),
+    canCreatePrayerGroups: vi.fn(() => true),
   };
 
   const tenantContextService: any = {
@@ -199,12 +201,31 @@ const makeMocks = () => {
     requireOnline: vi.fn(() => true),
   };
 
+  const userSubscriptionService: any = {
+    refreshCapabilities: vi.fn().mockResolvedValue(undefined),
+    isPracticeModeAllowed: vi.fn(() => true),
+    getPracticeModes: vi.fn(() => ['type', 'firstLetters', 'word', 'reorder']),
+    getGroupLimits: vi.fn(() => ({
+      can_create_group: true,
+      max_groups_owned: 10,
+      groups_owned: 0,
+      max_members_per_group: 25,
+      individual_plan_tier: 'free',
+      is_church_member: false,
+    })),
+    registerFreeUser: vi.fn().mockResolvedValue(true),
+  };
+
+  const proCheckoutService: any = {
+    startProCheckout: vi.fn().mockResolvedValue(null),
+  };
+
   const personalCategoryColorService: any = {
     colors$: of({}),
     loadColors: vi.fn().mockResolvedValue({}),
   };
 
-  return { prayerService, promptService, adminAuthService, userSessionService, badgeService, cacheService, toastService, analyticsService, cdr, router, route, supabaseService, tenantPermissionService, tenantContextService, memorizationService, memorizationRecommendationsService, scriptureService, connectivity, personalCategoryColorService, prayersSubject, promptsSubject, userSessionSubject, allPersonalPrayersSubject };
+  return { prayerService, promptService, adminAuthService, userSessionService, badgeService, cacheService, toastService, analyticsService, cdr, router, route, supabaseService, tenantPermissionService, tenantContextService, memorizationService, memorizationRecommendationsService, scriptureService, connectivity, personalCategoryColorService, userSubscriptionService, proCheckoutService, prayersSubject, promptsSubject, userSessionSubject, allPersonalPrayersSubject };
 };
 
 let mocks: ReturnType<typeof makeMocks>;
@@ -265,8 +286,24 @@ const createHomeComponent = (
   const categoryColors =
     personalCategoryColorService ?? m.personalCategoryColorService;
 
+  const prayerGroupService: any = {
+    deleteGroupPrayer: vi.fn(),
+    addGroupPrayerUpdate: vi.fn().mockResolvedValue(true),
+    deleteGroupPrayerUpdate: vi.fn().mockResolvedValue(true),
+    loadMyGroups: vi.fn().mockResolvedValue([]),
+    loadGroupPrayers: vi.fn().mockResolvedValue([]),
+    createGroup: vi.fn().mockResolvedValue(null),
+    inviteMembers: vi.fn().mockResolvedValue(0),
+    groups$: of([]),
+    prayers$: of([]),
+    loadingPrayers$: of(false),
+    canCreatePrayerGroups: vi.fn(() => true),
+    canAccessGroupsTab: vi.fn(() => true),
+    getGroups: vi.fn(() => []),
+  };
   const prayerCardActions = new HomePrayerCardActionsController(
     prayerService,
+    prayerGroupService,
     promptService,
     toastService,
     userSessionService
@@ -304,6 +341,9 @@ const createHomeComponent = (
     supabaseService,
     permissions,
     tenantCtx,
+    prayerGroupService,
+    m.userSubscriptionService,
+    m.proCheckoutService,
     connect,
     categoryColors,
     new HomeDeepLinkCoordinator(),
@@ -2186,6 +2226,60 @@ describe('HomeComponent', () => {
   });
 
   describe('Filter functionality for personal prayers', () => {
+    it('setFilter groups loads prayers for the selected group', () => {
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+
+      comp.prayerGroups = [
+        {
+          id: 'g1',
+          name: 'Family',
+          created_by_email: 'owner@example.com',
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+      ];
+      const loadSpy = vi
+        .spyOn(comp, 'loadSelectedGroupPrayers')
+        .mockResolvedValue();
+
+      comp.setFilter('groups');
+
+      expect(comp.activeFilter).toBe('groups');
+      expect(loadSpy).toHaveBeenCalled();
+    });
+
+    it('openCreateGroup opens the create group modal', () => {
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+
+      comp.openCreateGroup();
+
+      expect(comp.showGroupEditor).toBe(true);
+    });
+
     it('setFilter personal sets activeFilter and calls applyFilters', () => {
       const comp = createHomeComponent(
         mocks.prayerService,

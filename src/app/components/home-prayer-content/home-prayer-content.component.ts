@@ -80,6 +80,7 @@ export class HomePrayerContentComponent implements OnChanges {
   @Input({ required: true }) personalWalkthroughDescription!: string;
   @Input({ required: true }) filteredPersonalPrayers!: PrayerRequest[];
   @Input({ required: true }) displayedPublicPrayers!: PrayerRequest[];
+  @Input() groupPrayers: PrayerRequest[] = [];
   @Input({ required: true }) displayedPrompts!: PrayerPrompt[];
   @Input({ required: true }) loadingPersonalPrayers$!: Observable<boolean>;
   @Input({ required: true }) canReorderPersonalPrayers!: boolean;

@@ -61,8 +61,9 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
       el.textContent?.replace(/\s+/g, " ").trim() ?? "";
 
     expect(normalize(publicTab)).toBe("1 Public");
-    expect(topButtons).toHaveLength(1);
-    expect(normalize(topButtons[0]!)).toBe("Personal");
+    expect(topButtons).toHaveLength(2);
+    expect(normalize(topButtons[0]!)).toBe("Groups");
+    expect(normalize(topButtons[1]!)).toBe("Personal");
     expect(
       row.querySelector("#tour-filter-prompts")
     ).toBeNull();
@@ -77,20 +78,32 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
     expect(promptsChip.textContent?.trim()).toBe("Prompts (12)");
   });
 
-  it("wraps public preview chips with the same flex-wrap host as prompt types", () => {
+  it("puts Current, Answered, and Archived on the first public preview row", () => {
     fixture.detectChanges();
-    const buttons = fixture.nativeElement.querySelectorAll(
-      "button"
-    ) as NodeListOf<HTMLButtonElement>;
-    const publicChips = [...buttons].filter((button) =>
-      /^(Current|Answered|Archived|Total|Prompts) \(/.test(
-        button.textContent?.trim() ?? ""
-      )
+    const panel = fixture.nativeElement.querySelector(
+      ".rounded-b-lg, .rounded-b-none"
+    ) as HTMLElement;
+    const rows = panel.querySelectorAll(":scope > div");
+    expect(rows).toHaveLength(2);
+    expect(rows[1]!.className).toContain("mt-2");
+
+    const firstRowLabels = [...rows[0]!.querySelectorAll("button")].map(
+      (button) => button.textContent?.trim() ?? ""
     );
-    expect(publicChips).toHaveLength(5);
-    for (const button of publicChips) {
+    const secondRowLabels = [...rows[1]!.querySelectorAll("button")].map(
+      (button) => button.textContent?.trim() ?? ""
+    );
+    expect(firstRowLabels).toEqual([
+      "Current (22)",
+      "Answered (4)",
+      "Archived (21)",
+    ]);
+    expect(secondRowLabels).toEqual(["Total (47)", "Prompts (12)"]);
+
+    for (const button of [...rows[0]!.querySelectorAll("button"), ...rows[1]!.querySelectorAll("button")]) {
       const host = button.parentElement as HTMLElement;
       expect(host.className).toContain("flex-[1_1_0]");
+      expect(host.className).toContain("min-w-max");
       expect(button.className).toContain("min-w-max");
       expect(button.className).not.toContain("flex-1");
     }
@@ -103,6 +116,7 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
       ".flex.w-full.gap-1.mb-0"
     ) as HTMLElement;
     expect(row.textContent).toContain("Personal");
+    expect(row.textContent).toContain("Groups");
     expect(row.textContent).not.toContain("Public");
     expect(
       fixture.nativeElement.querySelector("#tour-filter-prompts")

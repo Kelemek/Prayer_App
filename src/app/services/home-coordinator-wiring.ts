@@ -69,6 +69,7 @@ export interface HomeCoordinatorWiringPage {
   scrollHomePrayerIntoView(prayerId: string): boolean;
   loadAdminSettings(): Promise<void>;
   applyInitialView(session: { defaultPrayerView?: "current" | "personal" | null }): void;
+  loadSelectedGroupPrayers(): Promise<void>;
   consumeHomeReturnContext(): HomeReturnContext | null;
   applyHomeReturnContext(context: HomeReturnContext): void;
   extractUniqueCategories(prayers: PrayerRequest[]): Promise<void>;
@@ -196,6 +197,10 @@ export function wireHomeCoordinators(
     canAccessShared: () => {
       page.canAccessShared = deps.tenantPermissionService.canAccessShared();
       return page.canAccessShared;
+    },
+    canAccessGroupsArea: () => deps.tenantPermissionService.canAccessGroupsTab(),
+    loadGroupPrayers: () => {
+      void page.loadSelectedGroupPrayers();
     },
     onFilterChanged: refreshCatalog,
   });

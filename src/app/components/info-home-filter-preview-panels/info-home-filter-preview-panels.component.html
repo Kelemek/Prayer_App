@@ -17,6 +17,12 @@
   @case ('prompts') {
     <app-info-home-filter-preview-prompts-card />
   }
+  @case ('groups') {
+    <app-info-home-filter-preview-public-current-panel
+      (openBadges)="openBadges.emit()"
+      (openHeaderPreview)="openHeaderPreview.emit($event)"
+    />
+  }
   @case ('personal') {
     <app-info-home-filter-preview-personal-card
       (openPersonalAction)="openPersonalAction.emit($event)"

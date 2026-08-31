@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   homeHasSubFilterRowBelowTabs,
   isCommunityPrayerFilter,
+  isGroupsAreaFilter,
   isPublicAreaFilter,
   isPublicTabFilter,
 } from "./home-community-filter";
@@ -18,6 +19,7 @@ describe("isCommunityPrayerFilter", () => {
     expect(isCommunityPrayerFilter("prompts")).toBe(false);
     expect(isCommunityPrayerFilter("personal")).toBe(false);
     expect(isCommunityPrayerFilter("memorize")).toBe(false);
+    expect(isCommunityPrayerFilter("groups")).toBe(false);
   });
 });
 
@@ -33,6 +35,7 @@ describe("isPublicTabFilter", () => {
     expect(isPublicTabFilter("prompts")).toBe(false);
     expect(isPublicTabFilter("personal")).toBe(false);
     expect(isPublicTabFilter("memorize")).toBe(false);
+    expect(isPublicTabFilter("groups")).toBe(false);
   });
 });
 
@@ -48,6 +51,15 @@ describe("isPublicAreaFilter", () => {
   it("returns false for other home filters", () => {
     expect(isPublicAreaFilter("personal")).toBe(false);
     expect(isPublicAreaFilter("memorize")).toBe(false);
+    expect(isPublicAreaFilter("groups")).toBe(false);
+  });
+});
+
+describe("isGroupsAreaFilter", () => {
+  it("returns true only for the groups tab", () => {
+    expect(isGroupsAreaFilter("groups")).toBe(true);
+    expect(isGroupsAreaFilter("personal")).toBe(false);
+    expect(isGroupsAreaFilter("current")).toBe(false);
   });
 });
 
@@ -60,5 +72,6 @@ describe("homeHasSubFilterRowBelowTabs", () => {
     expect(homeHasSubFilterRowBelowTabs("prompts")).toBe(true);
     expect(homeHasSubFilterRowBelowTabs("personal")).toBe(true);
     expect(homeHasSubFilterRowBelowTabs("memorize")).toBe(true);
+    expect(homeHasSubFilterRowBelowTabs("groups")).toBe(true);
   });
 });

@@ -123,7 +123,7 @@ export class PrayerPersonalService {
 
   personalPrayersCacheKey(
     tenantId: string | null | undefined
-  ): string | null {
+  ): string {
     return personalPrayersCacheKeyForTenant(tenantId);
   }
 
@@ -192,13 +192,10 @@ export class PrayerPersonalService {
       this.toPersonalServerOnly(this.allPersonalPrayersSubject.value)
     );
     this.allPersonalPrayersSubject.next(updated);
-    const tenantId = this.getActiveTenantId();
-    if (tenantId) {
-      this.cache.set(
-        this.personalPrayersCacheKey(tenantId)!,
-        this.toPersonalServerOnly(updated)
-      );
-    }
+    this.cache.set(
+      this.personalPrayersCacheKey(this.getActiveTenantId()),
+      this.toPersonalServerOnly(updated)
+    );
   }
 
   publishPersonalPrayers(serverPrayers: PrayerRequest[]): void {
@@ -252,15 +249,6 @@ export class PrayerPersonalService {
       console.log("[PrayerService] Loading personal prayers...");
 
       const tenantId = this.getActiveTenantId();
-      if (!tenantId) {
-        console.warn(
-          "[PrayerService] No active tenant — personal prayers unavailable"
-        );
-        this.allPersonalPrayersSubject.next([]);
-        this.loadingPersonalPrayersSubject.next(false);
-        return;
-      }
-
       const userEmail = await this.getUserEmail();
       if (!userEmail) {
         console.warn(
@@ -270,7 +258,7 @@ export class PrayerPersonalService {
         return;
       }
 
-      const cacheKey = this.personalPrayersCacheKey(tenantId)!;
+      const cacheKey = this.personalPrayersCacheKey(tenantId);
       const cachedPersonalPrayers =
         this.cache.get<PrayerRequest[]>(cacheKey) ||
         (!this.connectivity.isOnline()
@@ -392,17 +380,13 @@ export class PrayerPersonalService {
   ): Promise<PrayerRequest[]> {
     try {
       const tenantId = this.getActiveTenantId();
-      if (!tenantId) {
-        return [];
-      }
-
       const userEmail = await this.getUserEmail();
       if (!userEmail) {
         console.error("User email not available");
         return [];
       }
 
-      const cacheKey = this.personalPrayersCacheKey(tenantId)!;
+      const cacheKey = this.personalPrayersCacheKey(tenantId);
       if (!forceRefresh) {
         const cached = this.cache.get<PrayerRequest[]>(cacheKey);
         if (cached) {
@@ -457,11 +441,6 @@ export class PrayerPersonalService {
     }
     try {
       const tenantId = this.getActiveTenantId();
-      if (!tenantId) {
-        this.toast.error("Select an organization to add personal prayers.");
-        return false;
-      }
-
       const userEmail = await this.getUserEmail();
       if (!userEmail) {
         this.toast.error("User email not available");
@@ -528,11 +507,6 @@ export class PrayerPersonalService {
     }
     try {
       const tenantId = this.getActiveTenantId();
-      if (!tenantId) {
-        this.toast.error("Select an organization first.");
-        return false;
-      }
-
       const userEmail = await this.getUserEmail();
       if (!userEmail) {
         this.toast.error("User email not available");
@@ -571,11 +545,6 @@ export class PrayerPersonalService {
     }
     try {
       const tenantId = this.getActiveTenantId();
-      if (!tenantId) {
-        this.toast.error("Select an organization first.");
-        return false;
-      }
-
       const userEmail = await this.getUserEmail();
       if (!userEmail) {
         this.toast.error("User email not available");

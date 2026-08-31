@@ -33,6 +33,10 @@ import { PullToRefreshDirective } from "../../directives/pull-to-refresh.directi
 import { ScrollingModule } from "@angular/cdk/scrolling";
 import { TenantPermissionService } from "../../services/tenant-permission.service";
 import { TenantContextService } from "../../services/tenant-context.service";
+import { UserSubscriptionService } from "../../services/user-subscription.service";
+import { ProCheckoutService } from "../../services/pro-checkout.service";
+import { PrayerGroupService } from "../../services/prayer-group.service";
+import type { PrayerGroup } from "../../types/prayer-group";
 import { ConnectivityService } from "../../services/connectivity.service";
 import { MemorizationService } from "../../services/memorization.service";
 import { MemorizationRecommendationsService } from "../../services/memorization-recommendations.service";
@@ -88,6 +92,8 @@ import { HomeFilterTabsComponent } from "../../components/home-filter-tabs/home-
 import { HomePublicStatusFiltersComponent } from "../../components/home-public-status-filters/home-public-status-filters.component";
 import { HomePromptTypeFiltersComponent } from "../../components/home-prompt-type-filters/home-prompt-type-filters.component";
 import { HomePersonalCategoryFiltersComponent } from "../../components/home-personal-category-filters/home-personal-category-filters.component";
+import { HomeGroupFiltersComponent } from "../../components/home-group-filters/home-group-filters.component";
+import { HomeGroupEditorModalComponent } from "../../components/home-group-editor-modal/home-group-editor-modal.component";
 import { HomePrayerContentComponent } from "../../components/home-prayer-content/home-prayer-content.component";
 import { ScrollToTopButtonComponent } from "../../components/scroll-to-top-button/scroll-to-top-button.component";
 import type { PrayerPrompt } from "../../components/prompt-card/prompt-card.component";
@@ -109,6 +115,8 @@ import {
     HomePublicStatusFiltersComponent,
     HomePromptTypeFiltersComponent,
     HomePersonalCategoryFiltersComponent,
+    HomeGroupFiltersComponent,
+    HomeGroupEditorModalComponent,
     HomePrayerContentComponent,
     ScrollToTopButtonComponent,
     PrayerFiltersComponent,
@@ -169,6 +177,13 @@ export class HomeComponent
   isOnline = true;
   isAdmin = false;
   canAccessShared = false;
+  canAccessGroupsTab = false;
+  prayerGroups: PrayerGroup[] = [];
+  selectedGroupId: string | null = null;
+  showGroupEditor = false;
+  groupEditorSubmitting = false;
+  membersGroupIdToOpen: string | null = null;
+  groupPrayers: PrayerRequest[] = [];
   tenantMemberships: TenantMembership[] = [];
   availableTenants: Tenant[] = [];
   tenantContextLoading = true;
@@ -258,6 +273,9 @@ export class HomeComponent
     private supabaseService: SupabaseService,
     private tenantPermissionService: TenantPermissionService,
     private tenantContextService: TenantContextService,
+    public prayerGroupService: PrayerGroupService,
+    private userSubscriptionService: UserSubscriptionService,
+    private proCheckoutService: ProCheckoutService,
     private connectivity: ConnectivityService,
     private personalCategoryColorService: PersonalCategoryColorService,
     private readonly deepLinkCoordinator: HomeDeepLinkCoordinator,
@@ -352,6 +370,38 @@ export class HomeComponent
       });
     this.subscribeDestTenantPageFields();
     this.lifecycleCoordinator.initialize(this.destroy$);
+    void this.userSubscriptionService.refreshCapabilities();
+    void this.loadPrayerGroups();
+    this.prayerGroupService.groups$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((groups) => {
+        this.prayerGroups = groups;
+        this.canAccessGroupsTab =
+          this.tenantPermissionService.canAccessGroupsTab();
+        const previousSelected = this.selectedGroupId;
+        if (
+          this.selectedGroupId &&
+          !groups.some((group) => group.id === this.selectedGroupId)
+        ) {
+          this.selectedGroupId = groups[0]?.id ?? null;
+        } else if (!this.selectedGroupId && groups.length > 0) {
+          this.selectedGroupId = groups[0].id;
+        }
+        if (
+          this.activeFilter === "groups" &&
+          this.selectedGroupId &&
+          this.selectedGroupId !== previousSelected
+        ) {
+          void this.loadSelectedGroupPrayers();
+        }
+        this.cdr.markForCheck();
+      });
+    this.prayerGroupService.prayers$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((prayers) => {
+        this.groupPrayers = prayers;
+        this.cdr.markForCheck();
+      });
   }
 
   ngOnDestroy(): void {
@@ -468,12 +518,17 @@ export class HomeComponent
     }
 
     this.canAccessShared = this.tenantPermissionService.canAccessShared();
+    this.canAccessGroupsTab = this.tenantPermissionService.canAccessGroupsTab();
     const preferred = session.defaultPrayerView ?? "current";
-    const filter =
-      preferred === "current" || preferred === "personal"
-        ? preferred
-        : "current";
-    this.filter.setFilter(filter);
+    if (!this.canAccessShared && this.canAccessGroupsTab) {
+      this.filter.setFilter("groups");
+    } else {
+      const filter =
+        preferred === "current" || preferred === "personal"
+          ? preferred
+          : "current";
+      this.filter.setFilter(filter);
+    }
     this.viewReady = true;
     this.cdr.markForCheck();
   }
@@ -783,6 +838,124 @@ export class HomeComponent
 
   setFilter(filter: HomeActiveFilter): void {
     this.filter.setFilter(filter);
+  }
+
+  get canCreatePrayerGroups(): boolean {
+    return this.tenantPermissionService.canCreatePrayerGroups();
+  }
+
+  get showGroupProUpgrade(): boolean {
+    const limits = this.userSubscriptionService.getGroupLimits();
+    return !limits.can_create_group && limits.individual_plan_tier === "free";
+  }
+
+  get maxMembersPerGroup(): number {
+    return this.userSubscriptionService.getGroupLimits().max_members_per_group;
+  }
+
+  async onUpgradeToPro(): Promise<void> {
+    if (!this.connectivity.requireOnline("Upgrade to Pro")) {
+      return;
+    }
+    const url = await this.proCheckoutService.startProCheckout();
+    if (url) {
+      window.location.assign(url);
+      return;
+    }
+    this.toastService.error("Could not start checkout. Please try again.");
+  }
+
+  get selectedGroupName(): string {
+    return (
+      this.prayerGroups.find((group) => group.id === this.selectedGroupId)?.name ??
+      ""
+    );
+  }
+
+  async loadPrayerGroups(): Promise<void> {
+    await this.userSubscriptionService.refreshCapabilities();
+    const groups = await this.prayerGroupService.loadMyGroups();
+    this.prayerGroups = groups;
+    this.canAccessGroupsTab = this.tenantPermissionService.canAccessGroupsTab();
+    if (!this.selectedGroupId && groups.length > 0) {
+      this.selectedGroupId = groups[0].id;
+    }
+    if (this.activeFilter === "groups") {
+      await this.loadSelectedGroupPrayers();
+    }
+    this.cdr.markForCheck();
+  }
+
+  async loadSelectedGroupPrayers(): Promise<void> {
+    if (!this.selectedGroupId && this.prayerGroups.length > 0) {
+      this.selectedGroupId = this.prayerGroups[0]!.id;
+    }
+    await this.prayerGroupService.loadGroupPrayers(this.selectedGroupId);
+  }
+
+  openCreateGroup(): void {
+    if (!this.canCreatePrayerGroups) {
+      if (this.showGroupProUpgrade) {
+        void this.onUpgradeToPro();
+      }
+      return;
+    }
+    this.showGroupEditor = true;
+    this.cdr.markForCheck();
+  }
+
+  closeGroupEditor(): void {
+    this.showGroupEditor = false;
+    this.groupEditorSubmitting = false;
+    this.cdr.markForCheck();
+  }
+
+  async onCreateGroup(name: string): Promise<void> {
+    this.groupEditorSubmitting = true;
+    this.cdr.markForCheck();
+    const created = await this.prayerGroupService.createGroup(name);
+    this.groupEditorSubmitting = false;
+    if (created) {
+      this.selectedGroupId = created.id;
+      this.filter.setFilter("groups");
+      await this.loadPrayerGroups();
+      await this.loadSelectedGroupPrayers();
+      this.closeGroupEditor();
+      this.membersGroupIdToOpen = created.id;
+    }
+    this.cdr.markForCheck();
+  }
+
+  async onGroupEditorChanged(): Promise<void> {
+    const previousSelected = this.selectedGroupId;
+    await this.loadPrayerGroups();
+    const stillExists = this.prayerGroups.some(
+      (group) => group.id === previousSelected
+    );
+    if (!stillExists) {
+      this.selectedGroupId = this.prayerGroups[0]?.id ?? null;
+    }
+    if (this.prayerGroups.length === 0) {
+      this.closeGroupEditor();
+    }
+    await this.loadSelectedGroupPrayers();
+    this.cdr.markForCheck();
+  }
+
+  onMembersGroupOpened(): void {
+    this.membersGroupIdToOpen = null;
+    this.cdr.markForCheck();
+  }
+
+  get currentUserEmail(): string {
+    return this.userSessionService.getUserEmail()?.toLowerCase() ?? "";
+  }
+
+  async onSelectGroup(groupId: string): Promise<void> {
+    this.selectedGroupId = groupId;
+    this.filter.setFilter("groups");
+    await this.loadSelectedGroupPrayers();
+    this.cdr.markForCheck();
   }
 
   onFiltersChange(filters: PrayerFilters): void {

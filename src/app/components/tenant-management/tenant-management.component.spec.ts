@@ -124,7 +124,7 @@ describe('TenantManagementComponent', () => {
     component.newTenantSlug = 'New Org!!';
     switchTenant.mockResolvedValue(true);
     await component.createNewTenant();
-    expect(createTenant).toHaveBeenCalledWith('New Org', 'new-org', 'groups');
+    expect(createTenant).toHaveBeenCalledWith('New Org', 'new-org', 'churches');
     expect(toastSuccess).toHaveBeenCalledWith(
       'Organization "Beta Group" created and set as active'
     );

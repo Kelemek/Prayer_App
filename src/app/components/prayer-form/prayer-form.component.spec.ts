@@ -20,6 +20,8 @@ describe('PrayerFormComponent', () => {
   let mockToastService: any;
   let mockPersonalCategoryColorService: any;
   let mockTenantContextService: any;
+  let mockTenantPermission: any;
+  let mockPrayerGroupService: any;
   let mockRichTextEditorsSettings: RichTextEditorsSettingsService;
   let mockUser: User | null;
 
@@ -80,6 +82,14 @@ describe('PrayerFormComponent', () => {
       }))
     };
 
+    mockTenantPermission = {
+      canAccessShared: vi.fn(() => true),
+    };
+    mockPrayerGroupService = {
+      getGroups: vi.fn(() => []),
+      addGroupPrayer: vi.fn().mockResolvedValue(true),
+    };
+
     mockChangeDetectorRef = {
       detectChanges: vi.fn(),
       markForCheck: vi.fn()
@@ -134,6 +144,8 @@ describe('PrayerFormComponent', () => {
       mockPersonalCategoryColorService,
       mockChangeDetectorRef as ChangeDetectorRef,
       mockTenantContextService as any,
+      mockTenantPermission as any,
+      mockPrayerGroupService as any,
       { onDestroy: vi.fn() } as any,
       mockRichTextEditorsSettings
     );
@@ -923,6 +935,51 @@ describe('PrayerFormComponent', () => {
       await component.handleSubmit();
 
       expect(mockPersonalCategoryColorService.setColor).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Group visibility', () => {
+    it('submits a group prayer through PrayerGroupService', async () => {
+      mockPrayerGroupService.getGroups.mockReturnValue([
+        { id: 'group-1', name: 'Family' },
+      ]);
+      component.currentUserEmail = 'test@example.com';
+      component.formData.prayer_for = 'Someone';
+      component.formData.description = 'Details';
+      component.setVisibility('group');
+      component.selectedGroupId = 'group-1';
+
+      await component.handleSubmit();
+
+      expect(mockPrayerGroupService.addGroupPrayer).toHaveBeenCalledWith(
+        'group-1',
+        expect.objectContaining({
+          prayer_for: 'Someone',
+          email: 'test@example.com',
+        })
+      );
+      expect(mockPrayerService.addPrayer).not.toHaveBeenCalled();
+      expect(mockPrayerService.addPersonalPrayer).not.toHaveBeenCalled();
+    });
+
+    it('defaults to Group when opening Request from the Groups tab without Public', () => {
+      mockPrayerGroupService.getGroups.mockReturnValue([
+        { id: 'group-1', name: 'Family' },
+      ]);
+      mockTenantPermission.canAccessShared.mockReturnValue(false);
+      component.defaultGroupPrayer = true;
+      component.defaultGroupId = 'group-1';
+      component.ngOnChanges({
+        isOpen: {
+          currentValue: true,
+          previousValue: false,
+          firstChange: false,
+          isFirstChange: () => false,
+        },
+      });
+
+      expect(component.visibility).toBe('group');
+      expect(component.selectedGroupId).toBe('group-1');
     });
   });
 

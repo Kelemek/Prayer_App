@@ -13,6 +13,11 @@ describe("HomePrayerCardActionsController", () => {
     requestUpdateDeletion: vi.fn().mockResolvedValue(undefined),
     deletePersonalPrayer: vi.fn().mockResolvedValue(undefined),
   };
+  const prayerGroupService = {
+    deleteGroupPrayer: vi.fn(),
+    addGroupPrayerUpdate: vi.fn().mockResolvedValue(true),
+    deleteGroupPrayerUpdate: vi.fn().mockResolvedValue(true),
+  };
   const promptService = {
     deletePrompt: vi.fn(),
   };
@@ -31,6 +36,7 @@ describe("HomePrayerCardActionsController", () => {
     vi.clearAllMocks();
     controller = new HomePrayerCardActionsController(
       prayerService as any,
+      prayerGroupService as any,
       promptService as any,
       toastService as any,
       userSessionService as any

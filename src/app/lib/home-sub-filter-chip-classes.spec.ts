@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   HOME_FILTER_TAB_ACTIVE_FILL,
+  HOME_GROUPS_SUB_FILTER_GROUP_CLASS,
   HOME_MEMORIZE_SUB_FILTER_GROUP_CLASS,
   HOME_PERSONAL_SUB_FILTER_GROUP_CLASS,
   HOME_PROMPTS_SUB_FILTER_GROUP_CLASS,
@@ -33,6 +34,10 @@ describe("HOME_*_SUB_FILTER_GROUP_CLASS", () => {
     );
     expect(HOME_PERSONAL_SUB_FILTER_GROUP_CLASS).toContain("border-[#2F5F54]");
     expect(HOME_PROMPTS_SUB_FILTER_GROUP_CLASS).toContain("border-[#988F83]");
+    expect(HOME_GROUPS_SUB_FILTER_GROUP_CLASS).toContain("bg-slate-200");
+    expect(HOME_GROUPS_SUB_FILTER_GROUP_CLASS).toContain("dark:bg-blue-900/40");
+    expect(HOME_GROUPS_SUB_FILTER_GROUP_CLASS).toContain("border-[#0047AB]");
+    expect(HOME_GROUPS_SUB_FILTER_GROUP_CLASS).not.toContain("bg-blue-200");
   });
 
   it("aliases memorize group fill to public blue", () => {
@@ -117,12 +122,12 @@ describe("homeFilterTabClass", () => {
 });
 
 describe("HOME_PUBLIC_STATUS_CHIP layout classes", () => {
-  it("uses equal-width nowrap row hosts for the four public status chips", () => {
-    expect(HOME_PUBLIC_STATUS_CHIP_HOST_CLASS).toContain("flex-1");
-    expect(HOME_PUBLIC_STATUS_CHIP_HOST_CLASS).toContain("min-w-0");
-    expect(HOME_PUBLIC_STATUS_CHIP_HOST_CLASS).toContain("basis-0");
-    expect(HOME_PUBLIC_STATUS_CHIP_HOST_CLASS).not.toContain("min-w-max");
-    expect(HOME_PUBLIC_STATUS_CHIP_ROW_CLASS).toContain("flex-nowrap");
+  it("uses wrapping equal-share hosts so status chips can wrap when labels do not fit", () => {
+    expect(HOME_PUBLIC_STATUS_CHIP_HOST_CLASS).toContain("flex-[1_1_0]");
+    expect(HOME_PUBLIC_STATUS_CHIP_HOST_CLASS).toContain("min-w-max");
+    expect(HOME_PUBLIC_STATUS_CHIP_HOST_CLASS).not.toContain("min-w-0");
+    expect(HOME_PUBLIC_STATUS_CHIP_ROW_CLASS).toContain("flex-wrap");
+    expect(HOME_PUBLIC_STATUS_CHIP_ROW_CLASS).not.toContain("flex-nowrap");
   });
 });
 

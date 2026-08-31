@@ -26,6 +26,8 @@ export interface HomeFilterHostAdapterDeps {
   memorizationService: MemorizationService;
   badgeService: BadgeService;
   canAccessShared(): boolean;
+  canAccessGroupsArea(): boolean;
+  loadGroupPrayers(): void;
   onFilterChanged(): void;
 }
 
@@ -76,8 +78,16 @@ export class HomeFilterHostAdapter implements HomeFilterHost {
     return this.deps.canAccessShared();
   }
 
+  canAccessGroupsArea(): boolean {
+    return this.deps.canAccessGroupsArea();
+  }
+
   loadMemorizationItems(): void {
     void this.deps.memorizationService.loadItems();
+  }
+
+  loadGroupPrayers(): void {
+    this.deps.loadGroupPrayers();
   }
 
   onFilterChanged(): void {

@@ -96,6 +96,24 @@ Deno.serve(async (req: Request) => {
 
   const userEmail = userData.user.email.toLowerCase().trim();
 
+  const { data: reciteAllowed, error: reciteAllowedError } = await adminClient.rpc(
+    'user_practice_mode_allowed',
+    { p_mode: 'recite', p_email: userEmail }
+  );
+  if (reciteAllowedError) {
+    console.error('user_practice_mode_allowed failed:', reciteAllowedError);
+    return new Response(JSON.stringify({ error: 'Could not verify plan access' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+  if (!reciteAllowed) {
+    return new Response(JSON.stringify({ error: 'Recite mode is not available on your plan' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     const form = await req.formData();
     const audio = form.get('audio');
@@ -140,11 +158,20 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    if (!settings?.memorization_recite_enabled || settings.memorization_recite_stt_provider !== 'whisper') {
-      return new Response(JSON.stringify({ error: 'Recite Whisper is not enabled for this organization' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    const { data: tenantRow } = await adminClient
+      .from('tenants')
+      .select('slug')
+      .eq('id', tenantId)
+      .maybeSingle();
+    const isDefaultTenant = tenantRow?.slug === 'default-tenant';
+
+    if (!isDefaultTenant) {
+      if (!settings?.memorization_recite_enabled || settings.memorization_recite_stt_provider !== 'whisper') {
+        return new Response(JSON.stringify({ error: 'Recite Whisper is not enabled for this organization' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     const { data: membership, error: membershipError } = await adminClient
@@ -162,14 +189,16 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    if (!membership) {
+    if (!membership && !isDefaultTenant) {
       return new Response(JSON.stringify({ error: 'Not a member of this organization' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const whisperModel = resolveWhisperModel(settings?.memorization_recite_whisper_model);
+    const whisperModel = resolveWhisperModel(
+      isDefaultTenant ? DEFAULT_WHISPER_MODEL : settings?.memorization_recite_whisper_model
+    );
     const whisperRate = whisperRateUsdPerMinute(whisperModel);
 
     const openaiForm = new FormData();

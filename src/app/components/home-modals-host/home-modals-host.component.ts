@@ -80,6 +80,7 @@ export class HomeModalsHostComponent {
   @Input() pendingVerseMemorizationSuggestedTranslation: BibleTranslation | null =
     null;
   @Input({ required: true }) handlers!: HomeModalsHostHandlers;
+  @Input() selectedGroupId: string | null = null;
 
   @ViewChild("prayerFormComp") prayerFormComp?: PrayerFormComponent;
 }

@@ -172,6 +172,34 @@ function fromMockWelcomeFlow(templateRow: Record<string, unknown> | null, templa
   });
 }
 
+function fromMockGroupNotificationMembers(
+  rows: {
+    user_email: string;
+    unsubscribe_token?: string;
+    is_active?: boolean;
+    receive_push?: boolean;
+  }[]
+) {
+  return vi.fn((table: string) => {
+    if (table === 'tenant_memberships') {
+      const result = { data: rows, error: null };
+      return {
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              in: () => ({
+                then: (onFulfilled: (r: typeof result) => void) =>
+                  Promise.resolve(result).then(onFulfilled),
+              }),
+            }),
+          }),
+        }),
+      };
+    }
+    return emailQueueInsertMock();
+  });
+}
+
 function fromMockBroadcastAndQueue(subscribers: { user_email: string; unsubscribe_token?: string }[]) {
   return vi.fn((table: string) => {
     if (table === 'tenant_memberships') {
@@ -202,7 +230,8 @@ describe('EmailNotificationService', () => {
     };
 
     mockPushNotification = {
-      sendPushToAdmins: vi.fn().mockResolvedValue(undefined)
+      sendPushToAdmins: vi.fn().mockResolvedValue(undefined),
+      sendPushToEmails: vi.fn().mockResolvedValue(undefined),
     };
 
     service = new EmailNotificationService(mockSupabase as any, mockPushNotification as any);
@@ -912,7 +941,8 @@ describe('EmailNotificationService - Additional Logic', () => {
     };
 
     mockPushNotification = {
-      sendPushToAdmins: vi.fn().mockResolvedValue(undefined)
+      sendPushToAdmins: vi.fn().mockResolvedValue(undefined),
+      sendPushToEmails: vi.fn().mockResolvedValue(undefined),
     };
 
     service = new EmailNotificationService(mockSupabase as any, mockPushNotification as any);
@@ -3031,6 +3061,106 @@ describe('EmailNotificationService - Additional Logic', () => {
         const emailCall = sendEmailSpy.mock.calls[0][0];
         expect(emailCall.htmlBody || emailCall.textBody).toContain('/admin');
       });
+    });
+  });
+
+  describe('group prayer notifications', () => {
+    it('notifyGroupPrayerAdded queues email for subscribed members only', async () => {
+      mockSupabase.client.from = fromMockGroupNotificationMembers([
+        {
+          user_email: 'member@test.com',
+          unsubscribe_token: 'tok',
+          is_active: true,
+          receive_push: false,
+        },
+        {
+          user_email: 'other@test.com',
+          is_active: false,
+          receive_push: true,
+        },
+      ]);
+      const enqueueSpy = vi.spyOn(service as any, 'enqueueEmail').mockResolvedValue(undefined);
+      vi.spyOn(service as any, 'triggerEmailProcessor').mockResolvedValue(undefined);
+
+      await service.notifyGroupPrayerAdded({
+        groupId: 'g1',
+        prayerId: 'p1',
+        title: 'Title',
+        description: 'Desc',
+        requester: 'Owner',
+        prayerFor: 'Friend',
+        status: 'current',
+        authorEmail: 'author@test.com',
+        memberEmails: ['member@test.com', 'other@test.com', 'author@test.com'],
+        tenantId: VITEST_TENANT_ID,
+      });
+
+      expect(enqueueSpy).toHaveBeenCalledTimes(1);
+      expect(enqueueSpy).toHaveBeenCalledWith(
+        'member@test.com',
+        'group_prayer_added',
+        expect.objectContaining({
+          prayerTitle: 'Title',
+          appLink: expect.stringContaining('filter=groups'),
+        }),
+        VITEST_TENANT_ID
+      );
+      expect(mockPushNotification.sendPushToEmails).toHaveBeenCalledWith(
+        ['other@test.com'],
+        expect.objectContaining({
+          data: { type: 'group_prayer_added', groupId: 'g1', prayerId: 'p1' },
+        })
+      );
+    });
+
+    it('notifyGroupPrayerUpdate uses group_prayer_update template', async () => {
+      mockSupabase.client.from = fromMockGroupNotificationMembers([
+        {
+          user_email: 'other@test.com',
+          is_active: true,
+          receive_push: false,
+        },
+      ]);
+      const enqueueSpy = vi.spyOn(service as any, 'enqueueEmail').mockResolvedValue(undefined);
+      vi.spyOn(service as any, 'triggerEmailProcessor').mockResolvedValue(undefined);
+
+      await service.notifyGroupPrayerUpdate({
+        groupId: 'g1',
+        prayerId: 'p1',
+        prayerTitle: 'Title',
+        prayerDescription: 'Desc',
+        content: 'Update body',
+        author: 'Member',
+        authorEmail: 'member@test.com',
+        markedAsAnswered: false,
+        memberEmails: ['member@test.com', 'other@test.com'],
+        tenantId: VITEST_TENANT_ID,
+      });
+
+      expect(enqueueSpy).toHaveBeenCalledWith(
+        'other@test.com',
+        'group_prayer_update',
+        expect.any(Object),
+        VITEST_TENANT_ID
+      );
+    });
+
+    it('notifyGroupPrayerAdded skips when tenant id is missing', async () => {
+      const enqueueSpy = vi.spyOn(service as any, 'enqueueEmail').mockResolvedValue(undefined);
+      await service.notifyGroupPrayerAdded({
+        groupId: 'g1',
+        prayerId: 'p1',
+        title: 'Title',
+        description: 'Desc',
+        requester: 'Owner',
+        prayerFor: 'Friend',
+        status: 'current',
+        authorEmail: 'author@test.com',
+        memberEmails: ['member@test.com'],
+        tenantId: null,
+      });
+      expect(enqueueSpy).not.toHaveBeenCalled();
+      expect(mockPushNotification.sendPushToEmails).not.toHaveBeenCalled();
     });
   });
 });

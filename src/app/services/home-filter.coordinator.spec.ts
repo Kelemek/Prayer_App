@@ -31,7 +31,9 @@ describe("HomeFilterCoordinator", () => {
       isPromptUnread: vi.fn(() => false),
       applyPrayerFilters: vi.fn(),
       loadMemorizationItems: vi.fn(),
+      loadGroupPrayers: vi.fn(),
       canAccessShared: vi.fn(() => true),
+      canAccessGroupsArea: vi.fn(() => true),
       onFilterChanged: vi.fn(),
     };
     coordinator.bindHost(host);
@@ -188,5 +190,33 @@ describe("HomeFilterCoordinator", () => {
     expect(coordinator.getUnreadPromptCountByType("Morning")).toBe(1);
     expect(coordinator.getUnreadPromptCountByType("Evening")).toBe(1);
     expect(coordinator.getUnreadPromptCountByType("Night")).toBe(0);
+  });
+
+  it("loads group prayers when the Groups tab is selected", () => {
+    coordinator.setFilter("groups");
+
+    expect(host.setActiveFilter).toHaveBeenCalledWith("groups");
+    expect(host.loadGroupPrayers).toHaveBeenCalled();
+  });
+
+  it("keeps group-only users on the Groups tab", () => {
+    host.canAccessShared = vi.fn(() => false);
+    host.canAccessGroupsArea = vi.fn(() => true);
+
+    coordinator.setFilter("groups");
+
+    expect(host.setActiveFilter).toHaveBeenCalledWith("groups");
+    expect(host.setActiveFilter).not.toHaveBeenCalledWith("personal");
+    expect(host.loadGroupPrayers).toHaveBeenCalled();
+  });
+
+  it("hides Groups when the user cannot access the groups area", () => {
+    host.canAccessShared = vi.fn(() => false);
+    host.canAccessGroupsArea = vi.fn(() => false);
+
+    coordinator.setFilter("groups");
+
+    expect(host.setActiveFilter).toHaveBeenCalledWith("personal");
+    expect(host.loadGroupPrayers).not.toHaveBeenCalled();
   });
 });

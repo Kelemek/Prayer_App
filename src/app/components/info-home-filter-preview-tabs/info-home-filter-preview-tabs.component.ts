@@ -1,6 +1,9 @@
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import {
+  HOME_GROUPS_SUB_FILTER_GROUP_CLASS,
+  HOME_PUBLIC_STATUS_CHIP_HOST_CLASS,
+  HOME_PUBLIC_STATUS_CHIP_ROW_CLASS,
   HOME_PUBLIC_STATUS_CHIP_THEMES,
   HOME_PUBLIC_SUB_FILTER_GROUP_CLASS,
   HOME_SUB_FILTER_CHIP_ROW_CLASS,
@@ -10,6 +13,7 @@ import {
 } from "../../lib/home-sub-filter-chip-classes";
 import { buildHomeSubFilterChipButtonClass } from "../../lib/home-sub-filter-chip-button-class";
 import {
+  isGroupsPreviewFilter,
   isPublicAreaPreviewFilter,
   isPublicPreviewFilter,
   type InfoPreviewFilter,
@@ -31,6 +35,8 @@ import { InfoHomeFilterPreviewPromptsFiltersComponent } from "../info-home-filte
 export class InfoHomeFilterPreviewTabsComponent {
   /** When false, hide Public area tabs (matches home filter gating for personal-only tenants). */
   @Input() canAccessShared = true;
+  /** When false, hide Groups (matches home for users with no groups). */
+  @Input() canAccessGroupsTab = true;
   @Input() previewFilter: InfoPreviewFilter = "current";
   @Output() previewFilterChange = new EventEmitter<InfoPreviewFilter>();
   @Output() openBadges = new EventEmitter<void>();
@@ -38,6 +44,8 @@ export class InfoHomeFilterPreviewTabsComponent {
   @Output() openPersonalCategories = new EventEmitter<void>();
 
   readonly chipHostClass = HOME_WRAP_FILTER_CHIP_FLEX_CLASS;
+  readonly publicChipHostClass = HOME_PUBLIC_STATUS_CHIP_HOST_CLASS;
+  readonly publicChipRowClass = HOME_PUBLIC_STATUS_CHIP_ROW_CLASS;
   readonly chipButtonClass = HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS;
   readonly chipRowClass = HOME_SUB_FILTER_CHIP_ROW_CLASS;
   readonly chipThemes = HOME_PUBLIC_STATUS_CHIP_THEMES;
@@ -60,6 +68,28 @@ export class InfoHomeFilterPreviewTabsComponent {
       accent: "personal",
       active: this.previewFilter === "personal",
       hasSubRow: true,
+    });
+  }
+
+  groupsTabClass(): string {
+    return homeFilterTabClass({
+      accent: "groups",
+      active: isGroupsPreviewFilter(this.previewFilter),
+      hasSubRow: true,
+    });
+  }
+
+  groupsPanelGroupClass(): string {
+    return HOME_GROUPS_SUB_FILTER_GROUP_CLASS;
+  }
+
+  groupChipClass(active: boolean): string {
+    const theme = this.chipThemes.members;
+    return buildHomeSubFilterChipButtonClass({
+      base: this.chipButtonClass,
+      active,
+      activeClass: theme.active,
+      inactiveClass: theme.inactive,
     });
   }
 
