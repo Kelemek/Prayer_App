@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
-  OnInit,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -41,8 +40,26 @@ const TIER_LABELS: Record<PlatformPlanTier, string> = {
       title="Platform plan settings"
       triggerId="platform-plan-settings-trigger"
       panelId="platform-plan-settings-panel"
-      [expanded]="true"
+      [expanded]="sectionExpanded"
+      (expandedChange)="onExpandedChange($event)"
     >
+      <svg
+        sectionIcon
+        class="text-blue-600 dark:text-blue-400 shrink-0"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <polyline points="12 2 2 7 12 12 22 7 12 2"></polyline>
+        <polyline points="2 17 12 22 22 17"></polyline>
+        <polyline points="2 12 12 17 22 12"></polyline>
+      </svg>
+
       @if (loading) {
         <app-admin-section-loading message="Loading platform plan settings…" />
       } @else {
@@ -120,7 +137,10 @@ const TIER_LABELS: Record<PlatformPlanTier, string> = {
     </app-admin-collapsible-section>
   `,
 })
-export class AdminPlatformPlanSettingsComponent implements OnInit {
+export class AdminPlatformPlanSettingsComponent {
+  sectionExpanded = false;
+  private sectionInitialLoadDone = false;
+
   readonly tiers: PlatformPlanTier[] = ['free', 'pro', 'churches'];
   readonly practiceModes: MemorizationPracticeMode[] = [
     'type',
@@ -132,7 +152,7 @@ export class AdminPlatformPlanSettingsComponent implements OnInit {
   readonly tierLabels = TIER_LABELS;
   readonly practiceModeLabels = PRACTICE_MODE_LABELS;
 
-  loading = true;
+  loading = false;
   savingTier: PlatformPlanTier | null = null;
   successMessage = '';
   errorMessage = '';
@@ -175,8 +195,13 @@ export class AdminPlatformPlanSettingsComponent implements OnInit {
     private cdr: ChangeDetectorRef
   ) {}
 
-  async ngOnInit(): Promise<void> {
-    await this.load();
+  onExpandedChange(expanded: boolean): void {
+    this.sectionExpanded = expanded;
+    if (this.sectionExpanded && !this.sectionInitialLoadDone) {
+      this.sectionInitialLoadDone = true;
+      void this.load();
+    }
+    this.cdr.markForCheck();
   }
 
   async load(): Promise<void> {

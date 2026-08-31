@@ -274,4 +274,12 @@ describe('TenantManagementComponent', () => {
     expect(nextSpy).toHaveBeenCalled();
     expect(completeSpy).toHaveBeenCalled();
   });
+
+  it('starts collapsed and expands from the section header', () => {
+    expect(component.sectionExpanded).toBe(false);
+    component.onExpandedChange(true);
+    expect(component.sectionExpanded).toBe(true);
+    component.onExpandedChange(false);
+    expect(component.sectionExpanded).toBe(false);
+  });
 });

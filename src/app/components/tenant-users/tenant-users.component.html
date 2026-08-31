@@ -1,0 +1,288 @@
+<app-admin-collapsible-section
+  title="Users"
+  triggerId="tenant-users-trigger"
+  panelId="tenant-users-panel"
+  [expanded]="sectionExpanded"
+  (expandedChange)="onExpandedChange($event)"
+>
+  <svg
+    sectionIcon
+    class="text-blue-600 dark:text-blue-400 shrink-0"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+    <circle cx="9" cy="7" r="4"></circle>
+    <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+  </svg>
+
+  @if (isLoading) {
+    <app-admin-section-loading message="Loading users…" />
+  } @else {
+    @if (error) {
+      <p
+        class="text-sm text-red-800 dark:text-red-200 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-4"
+      >
+        {{ error }}
+      </p>
+    }
+
+    <div class="mb-4 max-w-full">
+      <label
+        for="tenantUserListSearch"
+        class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+      >
+        Search users
+      </label>
+      <div class="relative min-w-0 w-full">
+        <input
+          id="tenantUserListSearch"
+          type="text"
+          name="tenantUserListSearch"
+          [(ngModel)]="searchQuery"
+          (ngModelChange)="onListSearchQueryChange($event)"
+          (keydown)="onListSearchKeydown($event)"
+          autocomplete="off"
+          placeholder="Search by name, email, tenant, or group (min. {{ listSearchMinChars }} characters)…"
+          class="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0"
+        />
+        @if (searching) {
+          <div class="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2">
+            <div
+              class="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent dark:border-blue-400 dark:border-t-transparent"
+            ></div>
+          </div>
+        }
+        @if (searchQuery) {
+          <button
+            type="button"
+            (click)="clearListSearch()"
+            class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+            title="Clear search"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        }
+      </div>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+        Debounced ({{ listSearchDebounceMs }}ms). Leave empty to show all users after a short pause.
+      </p>
+    </div>
+
+    @if (searching) {
+      <div class="text-center py-8">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+        <p class="text-gray-500 dark:text-gray-400 text-sm mt-2">Searching...</p>
+      </div>
+    }
+
+    @if (!searching && !hasSearched) {
+      <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+        <p>Users have not been loaded yet</p>
+        <p class="text-sm mt-1">Expand this section or wait for the list to load</p>
+      </div>
+    }
+
+    @if (!searching && hasSearched && users.length === 0) {
+      <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+        <p>No users found</p>
+        <p class="text-sm mt-1">Try a different search term</p>
+      </div>
+    }
+
+    @if (!searching && hasSearched && users.length > 0) {
+      <div>
+        <div
+          class="hidden mb-3 gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-300 sm:grid sm:grid-cols-12"
+        >
+          <button
+            type="button"
+            (click)="toggleSort('name')"
+            class="col-span-3 text-left hover:text-gray-900 dark:hover:text-gray-100 transition-colors cursor-pointer"
+            title="Click to sort by name"
+          >
+            Name{{ getSortIndicator('name') }}
+          </button>
+          <button
+            type="button"
+            (click)="toggleSort('email')"
+            class="col-span-3 text-left hover:text-gray-900 dark:hover:text-gray-100 transition-colors cursor-pointer"
+            title="Click to sort by email"
+          >
+            Email{{ getSortIndicator('email') }}
+          </button>
+          <button
+            type="button"
+            (click)="toggleSort('tenant')"
+            class="col-span-3 text-left hover:text-gray-900 dark:hover:text-gray-100 transition-colors cursor-pointer"
+            title="Click to sort by tenant"
+          >
+            Tenant{{ getSortIndicator('tenant') }}
+          </button>
+          <button
+            type="button"
+            (click)="toggleSort('groups')"
+            class="col-span-3 text-left hover:text-gray-900 dark:hover:text-gray-100 transition-colors cursor-pointer"
+            title="Click to sort by groups"
+          >
+            Groups{{ getSortIndicator('groups') }}
+          </button>
+        </div>
+
+        <div class="space-y-2">
+          @for (user of users; track user.email) {
+            <div
+              class="grid gap-2 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 grid-cols-2 sm:grid-cols-12 sm:items-start"
+            >
+              <div class="text-left col-span-1 sm:col-span-3 min-w-0">
+                <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 sm:hidden">Name</p>
+                <h4
+                  class="font-medium text-gray-900 dark:text-gray-100 truncate"
+                  [title]="user.name || user.email"
+                >
+                  {{ user.name || '—' }}
+                </h4>
+              </div>
+
+              <div class="text-left col-span-2 sm:col-span-3 min-w-0">
+                <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 sm:hidden">Email</p>
+                <p
+                  class="text-sm text-gray-600 dark:text-gray-400 break-all sm:truncate"
+                  [title]="user.email"
+                >
+                  {{ user.email }}
+                </p>
+              </div>
+
+              <div class="text-left col-span-1 sm:col-span-3 min-w-0">
+                <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 sm:hidden">Tenant</p>
+                <div class="flex flex-col gap-0.5">
+                  @for (tenant of user.tenants; track tenant.id) {
+                    <p
+                      class="text-sm text-gray-700 dark:text-gray-300 truncate"
+                      [title]="tenant.name"
+                    >
+                      {{ tenant.name }}
+                    </p>
+                  } @empty {
+                    <p class="text-sm text-gray-400 dark:text-gray-500">—</p>
+                  }
+                </div>
+              </div>
+
+              <div class="text-left col-span-1 sm:col-span-3 min-w-0">
+                <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 sm:hidden">Groups</p>
+                <div class="flex flex-col gap-0.5">
+                  @for (group of user.groups; track group.id) {
+                    <p
+                      class="text-sm text-gray-700 dark:text-gray-300 truncate"
+                      [title]="group.name"
+                    >
+                      {{ group.name }}
+                    </p>
+                  } @empty {
+                    <p class="text-sm text-gray-400 dark:text-gray-500">—</p>
+                  }
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-600 dark:text-gray-400">
+              Found: <span class="font-semibold">{{ totalItems }}</span> user(s)
+              @if (totalItems > 0) {
+                |
+                Showing:
+                <span class="font-semibold">
+                  {{ (currentPage - 1) * pageSize + 1 }}-{{ Math.min(currentPage * pageSize, totalItems) }}
+                </span>
+              }
+            </span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <label for="tenantUsersPageSize" class="text-sm text-gray-600 dark:text-gray-400">
+              Items per page:
+            </label>
+            <div class="w-[4.75rem] shrink-0">
+              <app-admin-filter-select
+                triggerId="tenantUsersPageSize"
+                [value]="pageSize.toString()"
+                (valueChange)="onPageSizeChange($event)"
+                [options]="pageSizeOptions"
+                ariaLabel="Items per page"
+              />
+            </div>
+          </div>
+
+          @if (totalItems > pageSize) {
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex gap-2">
+                <button
+                  type="button"
+                  (click)="previousPage()"
+                  [disabled]="isFirstPage"
+                  class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm cursor-pointer"
+                >
+                  ← Previous
+                </button>
+                <button
+                  type="button"
+                  (click)="nextPage()"
+                  [disabled]="isLastPage"
+                  class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm cursor-pointer"
+                >
+                  Next →
+                </button>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-gray-600 dark:text-gray-400 text-sm">
+                  Page <span class="font-semibold">{{ currentPage }}</span> of
+                  <span class="font-semibold">{{ totalPages }}</span>
+                </span>
+                <div class="flex gap-1">
+                  @for (page of getPaginationRange(); track page) {
+                    <button
+                      type="button"
+                      (click)="goToPage(page)"
+                      [class]="
+                        page === currentPage
+                          ? 'px-3 py-1 bg-blue-600 text-white rounded-lg text-sm cursor-pointer'
+                          : 'px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm cursor-pointer'
+                      "
+                    >
+                      {{ page }}
+                    </button>
+                  }
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  }
+</app-admin-collapsible-section>

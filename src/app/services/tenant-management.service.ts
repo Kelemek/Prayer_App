@@ -1,7 +1,12 @@
 import { Injectable } from '@angular/core';
 import { SupabaseService } from './supabase.service';
-import type { Tenant, TenantMembership } from '../types/tenant';
+import type { Tenant, TenantMembership, TenantUserDirectoryRow } from '../types/tenant';
 import { TenantContextService } from './tenant-context.service';
+import {
+  mergeUsersWithTenantsAndGroups,
+  type TenantUserDirectoryGroupMemberRow,
+  type TenantUserDirectoryMembershipRow,
+} from '../lib/tenant-user-directory';
 
 @Injectable({
   providedIn: 'root'
@@ -195,6 +200,33 @@ export class TenantManagementService {
       throw new Error(error.message);
     }
     return (data || []) as TenantMembership[];
+  }
+
+  /**
+   * Super-admin directory of every person in a tenant or prayer group,
+   * merged by email with stacked tenant and group names.
+   */
+  async listUsersWithTenantsAndGroups(): Promise<TenantUserDirectoryRow[]> {
+    const [membershipsResult, groupMembersResult] = await Promise.all([
+      this.supabase.client
+        .from('tenant_memberships')
+        .select('user_email, name, tenants(id, name)'),
+      this.supabase.client
+        .from('prayer_group_members')
+        .select('user_email, name, prayer_groups(id, name)'),
+    ]);
+
+    if (membershipsResult.error) {
+      throw new Error(membershipsResult.error.message);
+    }
+    if (groupMembersResult.error) {
+      throw new Error(groupMembersResult.error.message);
+    }
+
+    return mergeUsersWithTenantsAndGroups(
+      (membershipsResult.data || []) as TenantUserDirectoryMembershipRow[],
+      (groupMembersResult.data || []) as TenantUserDirectoryGroupMemberRow[]
+    );
   }
 
   private async getCurrentUserEmail(): Promise<string | null> {

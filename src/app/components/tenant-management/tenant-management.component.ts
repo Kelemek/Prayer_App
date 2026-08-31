@@ -11,6 +11,7 @@ import { TenantContextService } from "../../services/tenant-context.service";
 import { TenantManagementService } from "../../services/tenant-management.service";
 import { TenantPermissionService } from "../../services/tenant-permission.service";
 import { ToastService } from "../../services/toast.service";
+import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/admin-collapsible-section.component";
 import type {
   PlanTier,
   PlanStatus,
@@ -21,15 +22,32 @@ import type {
 @Component({
   selector: "app-tenant-management",
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AdminCollapsibleSectionComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <div
-      class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700"
+    <app-admin-collapsible-section
+      title="Tenant Management"
+      triggerId="tenant-management-trigger"
+      panelId="tenant-management-panel"
+      [expanded]="sectionExpanded"
+      (expandedChange)="onExpandedChange($event)"
     >
-      <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
-        Tenant Management
-      </h3>
+      <svg
+        sectionIcon
+        class="text-blue-600 dark:text-blue-400 shrink-0"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M3 21h18"></path>
+        <path d="M5 21V7l7-4 7 4v14"></path>
+        <path d="M9 21v-4h6v4"></path>
+      </svg>
 
       @if (contextLoading) {
       <p class="text-sm text-gray-500 dark:text-gray-400">
@@ -385,10 +403,11 @@ import type {
         </div>
       </div>
       }
-    </div>
+    </app-admin-collapsible-section>
   `,
 })
 export class TenantManagementComponent implements OnInit, OnDestroy {
+  sectionExpanded = false;
   contextLoading = true;
   activeTenantId: string | null = null;
   activeTenantName = "";
@@ -455,6 +474,10 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  onExpandedChange(expanded: boolean): void {
+    this.sectionExpanded = expanded;
   }
 
   async createNewTenant(): Promise<void> {

@@ -30,3 +30,20 @@ export interface TenantMembership {
   auth_user_id?: string | null;
   created_at?: string;
 }
+
+export interface TenantUserDirectoryTenant {
+  id: string;
+  name: string;
+}
+
+export interface TenantUserDirectoryGroup {
+  id: string;
+  name: string;
+}
+
+export interface TenantUserDirectoryRow {
+  email: string;
+  name: string;
+  tenants: TenantUserDirectoryTenant[];
+  groups: TenantUserDirectoryGroup[];
+}

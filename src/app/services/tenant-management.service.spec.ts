@@ -372,4 +372,112 @@ describe('TenantManagementService', () => {
     );
     await expect(service.getMembershipsForActiveTenant()).rejects.toThrow('query failed');
   });
+
+  it('merges two tenant memberships and two groups into one user row', async () => {
+    from.mockImplementation((table: string) => {
+      if (table === 'tenant_memberships') {
+        return {
+          select: vi.fn().mockResolvedValue({
+            data: [
+              {
+                user_email: 'Ada@Example.com',
+                name: 'Ada Lovelace',
+                tenants: { id: 't-beta', name: 'Beta Church' },
+              },
+              {
+                user_email: 'ada@example.com',
+                name: '',
+                tenants: { id: 't-alpha', name: 'Alpha Church' },
+              },
+            ],
+            error: null,
+          }),
+        };
+      }
+      return {
+        select: vi.fn().mockResolvedValue({
+          data: [
+            {
+              user_email: 'ada@example.com',
+              name: 'Ada L.',
+              prayer_groups: { id: 'g-youth', name: 'Youth' },
+            },
+            {
+              user_email: 'ADA@example.com',
+              name: null,
+              prayer_groups: { id: 'g-elders', name: 'Elders' },
+            },
+          ],
+          error: null,
+        }),
+      };
+    });
+
+    const rows = await service.listUsersWithTenantsAndGroups();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].email).toBe('ada@example.com');
+    expect(rows[0].name).toBe('Ada Lovelace');
+    expect(rows[0].tenants.map((tenant) => tenant.name)).toEqual(['Alpha Church', 'Beta Church']);
+    expect(rows[0].groups.map((group) => group.name)).toEqual(['Elders', 'Youth']);
+  });
+
+  it('includes group-only users with empty tenants', async () => {
+    from.mockImplementation((table: string) => {
+      if (table === 'tenant_memberships') {
+        return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+      }
+      return {
+        select: vi.fn().mockResolvedValue({
+          data: [
+            {
+              user_email: 'group-only@example.com',
+              name: 'Pat Group',
+              prayer_groups: { id: 'g-1', name: 'Family' },
+            },
+          ],
+          error: null,
+        }),
+      };
+    });
+
+    const rows = await service.listUsersWithTenantsAndGroups();
+    expect(rows).toEqual([
+      {
+        email: 'group-only@example.com',
+        name: 'Pat Group',
+        tenants: [],
+        groups: [{ id: 'g-1', name: 'Family' }],
+      },
+    ]);
+  });
+
+  it('throws when the tenant memberships directory query fails', async () => {
+    from.mockImplementation((table: string) => {
+      if (table === 'tenant_memberships') {
+        return {
+          select: vi.fn().mockResolvedValue({
+            data: null,
+            error: { message: 'memberships failed' },
+          }),
+        };
+      }
+      return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+    });
+    await expect(service.listUsersWithTenantsAndGroups()).rejects.toThrow('memberships failed');
+  });
+
+  it('throws when the prayer group members directory query fails', async () => {
+    from.mockImplementation((table: string) => {
+      if (table === 'tenant_memberships') {
+        return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+      }
+      return {
+        select: vi.fn().mockResolvedValue({
+          data: null,
+          error: { message: 'groups failed' },
+        }),
+      };
+    });
+    await expect(service.listUsersWithTenantsAndGroups()).rejects.toThrow('groups failed');
+  });
 });

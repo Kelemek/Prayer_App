@@ -26,6 +26,7 @@ import { MemorizationRecommendationsManagerComponent } from '../memorization-rec
 import { VerseMemorizationPrayerManagerComponent } from '../verse-memorization-prayer-manager/verse-memorization-prayer-manager.component';
 import { MemorizationReciteSettingsComponent } from '../memorization-recite-settings/memorization-recite-settings.component';
 import { TenantManagementComponent } from '../tenant-management/tenant-management.component';
+import { TenantUsersComponent } from '../tenant-users/tenant-users.component';
 import { AdminPlatformPlanSettingsComponent } from '../admin-platform-plan-settings/admin-platform-plan-settings.component';
 import { AdminSiteAnalyticsPanelComponent } from '../admin-site-analytics-panel/admin-site-analytics-panel.component';
 import { ADMIN_SETTINGS_TABS, type AdminSettingsTab, type AdminSettingsTabDef } from '../../lib/admin-settings-tabs';
@@ -58,6 +59,7 @@ import type { AnalyticsStats } from '../../services/analytics.service';
     VerseMemorizationPrayerManagerComponent,
     MemorizationReciteSettingsComponent,
     TenantManagementComponent,
+    TenantUsersComponent,
     AdminPlatformPlanSettingsComponent,
   ],
   templateUrl: './admin-settings-panel.component.html',
