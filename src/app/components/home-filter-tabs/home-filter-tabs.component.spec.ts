@@ -54,7 +54,7 @@ describe("HomeFilterTabsComponent", () => {
 
   it("shows main tab labels without catalog counts", () => {
     const labels: Record<string, string> = {
-      "tour-filter-public": "Public",
+      "tour-filter-public": "Church",
       "tour-filter-personal": "Personal",
       "tour-filter-memorize": "Memorize",
     };
@@ -70,7 +70,7 @@ describe("HomeFilterTabsComponent", () => {
     ).toBeNull();
   });
 
-  it("highlights Public when prompts sub-tab is active", () => {
+  it("highlights Church when prompts sub-tab is active", () => {
     fixture.componentRef.setInput("activeFilter", "prompts");
     fixture.detectChanges();
 
@@ -80,7 +80,7 @@ describe("HomeFilterTabsComponent", () => {
     expect(publicTab.className).toContain("bg-blue-200");
   });
 
-  it("hides Public when shared access is off", () => {
+  it("hides Church when shared access is off", () => {
     fixture.componentRef.setInput("canAccessShared", false);
     fixture.detectChanges();
 
@@ -108,7 +108,7 @@ describe("HomeFilterTabsComponent", () => {
     expect(groupsTab.textContent?.replace(/\s+/g, " ").trim()).toBe("Groups");
   });
 
-  it("hides Public for group-only users while keeping Groups", () => {
+  it("hides Church for group-only users while keeping Groups", () => {
     fixture.componentRef.setInput("canAccessShared", false);
     fixture.componentRef.setInput("canAccessGroupsTab", true);
     fixture.detectChanges();

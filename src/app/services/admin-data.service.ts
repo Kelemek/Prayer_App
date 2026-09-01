@@ -1120,9 +1120,10 @@ export class AdminDataService {
   async approveAccountRequest(id: string): Promise<void> {
     const supabaseClient = this.supabase.client;
     const tenantId = this.getRequiredTenantId();
-    if (!tenantId) return;
-    
-    // Get the account request
+    if (!tenantId) {
+      throw new Error('Admin features require an active tenant');
+    }
+
     const { data: request, error: fetchError } = await supabaseClient
       .from('account_approval_requests')
       .select('*')
@@ -1132,77 +1133,32 @@ export class AdminDataService {
 
     if (fetchError) throw fetchError;
     if (!request) throw new Error('Account approval request not found');
-    
-    // Create the tenant membership
-    const { error: insertError } = await supabaseClient
-      .from('tenant_memberships')
-      .insert({
-        user_email: request.email.toLowerCase(),
-        name: `${request.first_name} ${request.last_name}`,
-        is_active: true,
-        role: 'member',
-        receive_admin_emails: false,
-        tenant_id: tenantId
-      });
 
-    if (insertError) throw insertError;
-    
-    // Delete the approval request
+    await this.ensureTenantMembership({
+      tenantId,
+      email: request.email.toLowerCase(),
+      name: `${request.first_name} ${request.last_name}`,
+    });
+
     const { error: deleteError } = await supabaseClient
       .from('account_approval_requests')
       .delete()
       .eq('id', id);
 
     if (deleteError) throw deleteError;
-    
-    // Send approval email to user
-    try {
-      const template = await this.emailNotification.getTemplate('account_approved', tenantId);
-      if (template) {
-        const subject = this.emailNotification.applyTemplateVariables(template.subject, {
-          firstName: request.first_name
-        });
-        const html = this.emailNotification.applyTemplateVariables(template.html_body, {
-          firstName: request.first_name,
-          lastName: request.last_name,
-          email: request.email,
-          loginLink: `${this.emailNotification.getEmailBaseUrl()}/login`
-        });
-        const text = this.emailNotification.applyTemplateVariables(template.text_body, {
-          firstName: request.first_name,
-          lastName: request.last_name,
-          email: request.email,
-          loginLink: `${this.emailNotification.getEmailBaseUrl()}/login`
-        });
 
-        await this.emailNotification.sendEmail({
-          to: request.email,
-          subject,
-          htmlBody: html,
-          textBody: text
-        });
-      }
-    } catch (emailError) {
-      console.error('Failed to send approval email:', emailError);
-    }
-
-    // Send welcome email to the newly approved subscriber
-    try {
-      await this.emailNotification.sendSubscriberWelcomeNotification(request.email, tenantId);
-    } catch (welcomeEmailError) {
-      console.error('Failed to send welcome email:', welcomeEmailError);
-      // Don't fail the approval if welcome email fails
-    }
-    
+    // Refresh first so the pending card leaves the queue even if email delivery hangs.
     await this.fetchAdminData(true, true);
+    void this.sendAccountApprovedNotifications(request, tenantId);
   }
 
   async denyAccountRequest(id: string, reason: string): Promise<void> {
     const supabaseClient = this.supabase.client;
     const tenantId = this.getRequiredTenantId();
-    if (!tenantId) return;
-    
-    // Get the account request
+    if (!tenantId) {
+      throw new Error('Admin features require an active tenant');
+    }
+
     const { data: request, error: fetchError } = await supabaseClient
       .from('account_approval_requests')
       .select('*')
@@ -1212,45 +1168,16 @@ export class AdminDataService {
 
     if (fetchError) throw fetchError;
     if (!request) throw new Error('Account approval request not found');
-    
-    // Delete the approval request
+
     const { error: deleteError } = await supabaseClient
       .from('account_approval_requests')
       .delete()
       .eq('id', id);
 
     if (deleteError) throw deleteError;
-    
-    // Send denial email to user
-    try {
-      const template = await this.emailNotification.getTemplate('account_denied', tenantId);
-      if (template) {
-        const subject = this.emailNotification.applyTemplateVariables(template.subject, {
-          firstName: request.first_name
-        });
-        const html = this.emailNotification.applyTemplateVariables(template.html_body, {
-          firstName: request.first_name,
-          lastName: request.last_name,
-          supportEmail: 'support@example.com' // TODO: Get from settings
-        });
-        const text = this.emailNotification.applyTemplateVariables(template.text_body, {
-          firstName: request.first_name,
-          lastName: request.last_name,
-          supportEmail: 'support@example.com'
-        });
 
-        await this.emailNotification.sendEmail({
-          to: request.email,
-          subject,
-          htmlBody: html,
-          textBody: text
-        });
-      }
-    } catch (emailError) {
-      console.error('Failed to send denial email:', emailError);
-    }
-    
     await this.fetchAdminData(true, true);
+    void this.sendAccountDeniedNotification(request, tenantId);
   }
 
   silentRefresh(): void {
@@ -1276,6 +1203,117 @@ export class AdminDataService {
 
   private getRequiredTenantId(): string | null {
     return this.tenantContext.getActiveTenant()?.id || null;
+  }
+
+  private isUniqueConstraintError(error: { code?: string; message?: string }): boolean {
+    return error.code === '23505' || /duplicate key|unique constraint/i.test(error.message ?? '');
+  }
+
+  private async ensureTenantMembership(params: {
+    tenantId: string;
+    email: string;
+    name: string;
+  }): Promise<void> {
+    const { error: insertError } = await this.supabase.client
+      .from('tenant_memberships')
+      .insert({
+        user_email: params.email,
+        name: params.name,
+        is_active: true,
+        role: 'member',
+        receive_admin_emails: false,
+        tenant_id: params.tenantId,
+      });
+
+    if (!insertError) {
+      return;
+    }
+    if (!this.isUniqueConstraintError(insertError)) {
+      throw insertError;
+    }
+
+    // Already a member (for example a prior subscriber) — keep their role, just activate.
+    const { error: updateError } = await this.supabase.client
+      .from('tenant_memberships')
+      .update({ is_active: true, name: params.name })
+      .eq('tenant_id', params.tenantId)
+      .eq('user_email', params.email);
+
+    if (updateError) throw updateError;
+  }
+
+  private async sendAccountApprovedNotifications(
+    request: { email: string; first_name: string; last_name: string },
+    tenantId: string
+  ): Promise<void> {
+    try {
+      const template = await this.emailNotification.getTemplate('account_approved', tenantId);
+      if (template) {
+        const subject = this.emailNotification.applyTemplateVariables(template.subject, {
+          firstName: request.first_name,
+        });
+        const html = this.emailNotification.applyTemplateVariables(template.html_body, {
+          firstName: request.first_name,
+          lastName: request.last_name,
+          email: request.email,
+          loginLink: `${this.emailNotification.getEmailBaseUrl()}/login`,
+        });
+        const text = this.emailNotification.applyTemplateVariables(template.text_body, {
+          firstName: request.first_name,
+          lastName: request.last_name,
+          email: request.email,
+          loginLink: `${this.emailNotification.getEmailBaseUrl()}/login`,
+        });
+
+        await this.emailNotification.sendEmail({
+          to: request.email,
+          subject,
+          htmlBody: html,
+          textBody: text,
+        });
+      }
+    } catch (emailError) {
+      console.error('Failed to send approval email:', emailError);
+    }
+
+    try {
+      await this.emailNotification.sendSubscriberWelcomeNotification(request.email, tenantId);
+    } catch (welcomeEmailError) {
+      console.error('Failed to send welcome email:', welcomeEmailError);
+    }
+  }
+
+  private async sendAccountDeniedNotification(
+    request: { email: string; first_name: string; last_name: string },
+    tenantId: string
+  ): Promise<void> {
+    try {
+      const template = await this.emailNotification.getTemplate('account_denied', tenantId);
+      if (template) {
+        const subject = this.emailNotification.applyTemplateVariables(template.subject, {
+          firstName: request.first_name,
+        });
+        const html = this.emailNotification.applyTemplateVariables(template.html_body, {
+          firstName: request.first_name,
+          lastName: request.last_name,
+          supportEmail: 'support@example.com',
+        });
+        const text = this.emailNotification.applyTemplateVariables(template.text_body, {
+          firstName: request.first_name,
+          lastName: request.last_name,
+          supportEmail: 'support@example.com',
+        });
+
+        await this.emailNotification.sendEmail({
+          to: request.email,
+          subject,
+          htmlBody: html,
+          textBody: text,
+        });
+      }
+    } catch (emailError) {
+      console.error('Failed to send denial email:', emailError);
+    }
   }
 
   private collectPendingApprovalEmails(

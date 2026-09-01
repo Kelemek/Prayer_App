@@ -1268,37 +1268,47 @@ export class LoginComponent implements OnInit, OnDestroy {
   }
 
   private async checkEmailSubscriber(email: string): Promise<boolean> {
+    const normalized = email.toLowerCase().trim();
     try {
       console.log(
         "[AdminLogin] Checking if user is already a subscriber:",
-        email
+        normalized
       );
-      const { data, error } = await this.supabaseService.directQuery<{
-        id: string;
-        user_email: string;
-        is_blocked: boolean;
-      }>("tenant_memberships", {
-        select: "id, user_email, is_blocked",
-        eq: { user_email: email.toLowerCase() },
-        limit: 1,
-      });
+
+      // Use the signed-in client. directQuery uses the publishable key, so RLS
+      // hides tenant_memberships and approved subscribers look like new users.
+      const { data, error } = await this.supabaseService.client
+        .from("tenant_memberships")
+        .select("id, user_email, is_blocked")
+        .eq("user_email", normalized)
+        .limit(1);
 
       if (error) {
         console.error("[AdminLogin] Error checking subscriber status:", error);
+      } else {
+        const rows = Array.isArray(data) ? data : [];
+        if (rows.length > 0) {
+          if (rows[0]?.is_blocked) {
+            throw new Error(
+              "This account has been blocked. Please contact an administrator."
+            );
+          }
+          console.log("[AdminLogin] Subscriber check result:", true);
+          return true;
+        }
+      }
+
+      const { data: allowed, error: rpcError } =
+        await this.supabaseService.client.rpc("is_login_allowed_email", {
+          p_email: normalized,
+        });
+      if (rpcError) {
+        console.error("[AdminLogin] is_login_allowed_email failed:", rpcError);
         return false;
       }
 
-      const isSubscriber = data && Array.isArray(data) && data.length > 0;
-
-      // Check if user is blocked
-      if (isSubscriber && data[0]?.is_blocked) {
-        throw new Error(
-          "This account has been blocked. Please contact an administrator."
-        );
-      }
-
-      console.log("[AdminLogin] Subscriber check result:", isSubscriber);
-      return isSubscriber || false;
+      console.log("[AdminLogin] Subscriber check result (rpc):", allowed === true);
+      return allowed === true;
     } catch (err) {
       console.error("[AdminLogin] Exception checking subscriber:", err);
       // Re-throw if it's a blocking error so it can be displayed to the user

@@ -866,9 +866,9 @@ export class HelpDriverTourService {
         {
           element: '#tour-prayer-visibility',
           popover: {
-            title: 'Public or personal',
+            title: 'Church or personal',
             description:
-              '<strong>Public Prayer</strong> is reviewed by an admin before it appears for everyone. <strong>Personal Prayer</strong> stays private to you.',
+              '<strong>Church Prayer</strong> is reviewed by an admin before it appears for everyone. <strong>Personal Prayer</strong> stays private to you.',
             side: 'top',
             align: 'start',
           },
@@ -878,7 +878,7 @@ export class HelpDriverTourService {
           popover: {
             title: 'Optional anonymity',
             description:
-              'For public prayers, you can check <strong>Make this prayer anonymous</strong> so your name is not shown.',
+              'For church prayers, you can check <strong>Make this prayer anonymous</strong> so your name is not shown.',
             side: 'top',
             align: 'start',
           },
@@ -888,7 +888,7 @@ export class HelpDriverTourService {
           popover: {
             title: 'Submit for review',
             description:
-              'When you’re ready, tap <strong>Submit Prayer Request</strong>. <strong>Public</strong> prayers are <strong>reviewed by an admin</strong> before they appear for everyone; you may get an email when yours is approved or needs attention. <strong>Personal</strong> prayers stay private and skip that review.',
+              'When you’re ready, tap <strong>Submit Prayer Request</strong>. <strong>Church</strong> prayers are <strong>reviewed by an admin</strong> before they appear for everyone; you may get an email when yours is approved or needs attention. <strong>Personal</strong> prayers stay private and skip that review.',
             side: 'top',
             align: 'start',
             onNextClick: this.popoverNextKillsTour(),
@@ -981,9 +981,9 @@ export class HelpDriverTourService {
         {
           element: '#tour-prayer-visibility',
           popover: {
-            title: 'Personal vs public',
+            title: 'Personal vs church',
             description:
-              '<strong>Personal Prayer</strong> should stay selected for a private request. <strong>Public</strong> would send the request for admin review—switch only if you meant a community prayer.',
+              '<strong>Personal Prayer</strong> should stay selected for a private request. <strong>Church</strong> would send the request for admin review—switch only if you meant a church-wide prayer.',
             side: 'top',
             align: 'start',
           },
@@ -1256,9 +1256,9 @@ export class HelpDriverTourService {
       {
         element: '#tour-prayer-visibility',
         popover: {
-          title: 'Public or personal',
+          title: 'Church or personal',
           description:
-            '<strong>Public Prayer</strong> is reviewed by an admin before it appears for everyone. <strong>Personal Prayer</strong> stays private to you.',
+            '<strong>Church Prayer</strong> is reviewed by an admin before it appears for everyone. <strong>Personal Prayer</strong> stays private to you.',
           side: 'top',
           align: 'start',
         },
@@ -1268,7 +1268,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Optional anonymity',
           description:
-            'For public prayers, you can check <strong>Make this prayer anonymous</strong> so your name is not shown.',
+            'For church prayers, you can check <strong>Make this prayer anonymous</strong> so your name is not shown.',
           side: 'top',
           align: 'start',
         },
@@ -1278,7 +1278,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Submit for review',
           description:
-            'Tap <strong>Submit Prayer Request</strong> when you’re done. <strong>Public</strong> requests go through <strong>admin review</strong> before they show on the community list; you may get an email when yours is approved or needs changes. <strong>Personal</strong> prayers save without that step.',
+            'Tap <strong>Submit Prayer Request</strong> when you’re done. <strong>Church</strong> requests go through <strong>admin review</strong> before they show on the church list; you may get an email when yours is approved or needs changes. <strong>Personal</strong> prayers save without that step.',
           side: 'top',
           align: 'start',
         },

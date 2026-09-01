@@ -90,6 +90,8 @@ export class AdminComponent implements OnInit, OnDestroy {
   isSuperAdmin = false;
   githubFeedbackEnabled = false;
   tenantContextLoading = true;
+  approvingAccountRequestId: string | null = null;
+  denyingAccountRequestId: string | null = null;
 
   constructor(
     private router: Router,
@@ -426,19 +428,33 @@ export class AdminComponent implements OnInit, OnDestroy {
   }
 
   async approveAccountRequest(requestId: string): Promise<void> {
-    await this.runReviewAction(
-      () => this.adminDataService.approveAccountRequest(requestId),
-      'Error approving account request:',
-      () => this.cdr.markForCheck(),
-    );
+    this.approvingAccountRequestId = requestId;
+    this.cdr.markForCheck();
+    try {
+      await this.runReviewAction(
+        () => this.adminDataService.approveAccountRequest(requestId),
+        'Error approving account request:',
+        () => this.cdr.markForCheck(),
+      );
+    } finally {
+      this.approvingAccountRequestId = null;
+      this.cdr.markForCheck();
+    }
   }
 
   async denyAccountRequest(requestId: string, reason: string): Promise<void> {
-    await this.runReviewAction(
-      () => this.adminDataService.denyAccountRequest(requestId, reason),
-      'Error denying account request:',
-      () => this.cdr.markForCheck(),
-    );
+    this.denyingAccountRequestId = requestId;
+    this.cdr.markForCheck();
+    try {
+      await this.runReviewAction(
+        () => this.adminDataService.denyAccountRequest(requestId, reason),
+        'Error denying account request:',
+        () => this.cdr.markForCheck(),
+      );
+    } finally {
+      this.denyingAccountRequestId = null;
+      this.cdr.markForCheck();
+    }
   }
 
   async onConfirmSendNotification(): Promise<void> {
@@ -490,6 +506,10 @@ export class AdminComponent implements OnInit, OnDestroy {
       this.autoProgressTabs();
     } catch (error) {
       console.error(errorLabel, error);
+      const message = error instanceof Error && error.message
+        ? error.message
+        : 'Could not complete that review action';
+      this.toastService.error(message);
     }
   }
 

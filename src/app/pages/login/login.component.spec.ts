@@ -88,6 +88,15 @@ const makeMocks = () => {
   return { adminAuthService, supabaseService, emailNotificationService, userSessionService, themeService, tenantContextService, connectivity, toast, userSubscriptionService, router, route, cdr, requireSiteLogin$, isAdmin$ };
 };
 
+const membershipQuery = (result: { data: unknown; error: unknown }) =>
+  vi.fn(() => ({
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({
+        limit: vi.fn(async () => result),
+      })),
+    })),
+  }));
+
 const mockMatchMedia = (matches = false) => ({
   matches,
   addEventListener: vi.fn(),
@@ -531,9 +540,18 @@ describe('LoginComponent', () => {
 
   it('checkEmailSubscriber throws blocked error surfaces to user', async () => {
     const comp = makeComponent(mocks);
-    // make directQuery return an object shaped { data, error }
-    mocks.supabaseService.directQuery = vi.fn(async () => ({ data: [{ id: '1', is_blocked: true }], error: null }));
+    mocks.supabaseService.client.from = membershipQuery({
+      data: [{ id: '1', is_blocked: true }],
+      error: null,
+    });
     await expect(comp['checkEmailSubscriber']('x@y.com')).rejects.toThrow('blocked');
+  });
+
+  it('checkEmailSubscriber treats login-allowed RPC as a subscriber when the table query is empty', async () => {
+    const comp = makeComponent(mocks);
+    mocks.supabaseService.client.from = membershipQuery({ data: [], error: null });
+    mocks.supabaseService.client.rpc = vi.fn(async () => ({ data: true, error: null }));
+    await expect(comp['checkEmailSubscriber']('x@y.com')).resolves.toBe(true);
   });
 
 
@@ -1019,21 +1037,25 @@ describe('LoginComponent', () => {
 
   it('checkEmailSubscriber returns false when data is not array', async () => {
     const comp = makeComponent(mocks);
-    mocks.supabaseService.directQuery = vi.fn(async () => ({ data: null, error: null }));
+    mocks.supabaseService.client.from = membershipQuery({ data: null, error: null });
+    mocks.supabaseService.client.rpc = vi.fn(async () => ({ data: false, error: null }));
     const result = await (comp as any).checkEmailSubscriber('x@y.com');
     expect(result).toBe(false);
   });
 
   it('checkEmailSubscriber returns false when query returns error', async () => {
     const comp = makeComponent(mocks);
-    mocks.supabaseService.directQuery = vi.fn(async () => ({ data: null, error: { message: 'query failed' } }));
+    mocks.supabaseService.client.from = membershipQuery({ data: null, error: { message: 'query failed' } });
+    mocks.supabaseService.client.rpc = vi.fn(async () => ({ data: false, error: null }));
     const result = await (comp as any).checkEmailSubscriber('x@y.com');
     expect(result).toBe(false);
   });
 
   it('checkEmailSubscriber catches exception and returns false', async () => {
     const comp = makeComponent(mocks);
-    mocks.supabaseService.directQuery = vi.fn(async () => { throw new Error('exception'); });
+    mocks.supabaseService.client.from = vi.fn(() => {
+      throw new Error('exception');
+    });
     const result = await (comp as any).checkEmailSubscriber('x@y.com');
     expect(result).toBe(false);
   });
@@ -1197,10 +1219,11 @@ describe('LoginComponent', () => {
 
   it('checkEmailSubscriber handles error response with no data array', async () => {
     const comp = makeComponent(mocks);
-    mocks.supabaseService.directQuery = vi.fn(async () => ({ 
-      data: { id: 'single_object' }, 
-      error: null 
-    }));
+    mocks.supabaseService.client.from = membershipQuery({
+      data: { id: 'single_object' },
+      error: null,
+    });
+    mocks.supabaseService.client.rpc = vi.fn(async () => ({ data: false, error: null }));
     const result = await (comp as any).checkEmailSubscriber('x@y.com');
     expect(result).toBe(false);
   });

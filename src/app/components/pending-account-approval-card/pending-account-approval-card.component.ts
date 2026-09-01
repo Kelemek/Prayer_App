@@ -109,12 +109,12 @@ export interface AccountApprovalRequest {
 })
 export class PendingAccountApprovalCardComponent {
   @Input() request!: AccountApprovalRequest;
+  @Input() isApproving = false;
+  @Input() isDenyingInProgress = false;
   @Output() approve = new EventEmitter<string>();
   @Output() deny = new EventEmitter<{ id: string; reason: string }>();
 
-  isApproving = false;
   isDenying = false;
-  isDenyingInProgress = false;
   denialReason = '';
 
   formatDate(dateString: string): string {
@@ -130,13 +130,11 @@ export class PendingAccountApprovalCardComponent {
 
   handleApprove() {
     if (this.isApproving) return;
-    this.isApproving = true;
     this.approve.emit(this.request.id);
   }
 
   handleDeny() {
     if (this.isDenyingInProgress) return;
-    this.isDenyingInProgress = true;
     this.deny.emit({ id: this.request.id, reason: this.denialReason.trim() });
   }
 }

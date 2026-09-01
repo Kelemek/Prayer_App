@@ -97,7 +97,7 @@ import { RouterModule } from "@angular/router";
               Your prayer content and account information are stored in our
               database. Administrators of your organization (e.g., church staff)
               can access the data needed to run the app (approve prayers, manage
-              subscribers, send notifications). Public prayers you submit (after
+              subscribers, send notifications). Church prayers you submit (after
               approval) are visible to other logged-in users in your community.
               Personal prayers are visible only to you. We do not sell your
               personal information.

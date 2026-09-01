@@ -140,7 +140,6 @@ describe('PendingAccountApprovalCardComponent', () => {
       await user.click(approveButton);
 
       expect(approveSpy).toHaveBeenCalledWith('123');
-      expect(fixture.componentInstance.isApproving).toBe(true);
     });
 
     it('should not emit approve event when already approving', async () => {
@@ -165,21 +164,18 @@ describe('PendingAccountApprovalCardComponent', () => {
     });
 
     it('should disable approve button while approving', async () => {
-      const user = userEvent.setup();
-      const { fixture } = await render(PendingAccountApprovalCardComponent, {
+      await render(PendingAccountApprovalCardComponent, {
         componentProperties: {
-          request: mockRequest
+          request: mockRequest,
+          isApproving: true
         },
         providers: [
           { provide: SupabaseService, useValue: mockSupabaseService }
         ]
       });
 
-      const approveButton = screen.getByText('Approve') as HTMLButtonElement;
-      await user.click(approveButton);
-
-      // isApproving should be set
-      expect(fixture.componentInstance.isApproving).toBe(true);
+      const approveButton = screen.getByText('Approving...') as HTMLButtonElement;
+      expect(approveButton.disabled).toBe(true);
     });
   });
 
@@ -254,7 +250,6 @@ describe('PendingAccountApprovalCardComponent', () => {
         id: '123',
         reason: 'Some reason'
       });
-      expect(fixture.componentInstance.isDenyingInProgress).toBe(true);
     });
 
     it('should emit deny event with empty string when no reason', async () => {

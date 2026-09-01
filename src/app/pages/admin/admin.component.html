@@ -103,6 +103,8 @@
         @case ('accounts') {
           <app-admin-accounts-panel
             [adminData]="adminData"
+            [approvingRequestId]="approvingAccountRequestId"
+            [denyingRequestId]="denyingAccountRequestId"
             (approveAccount)="approveAccountRequest($event)"
             (denyAccount)="denyAccountRequest($event.id, $event.reason)"
           ></app-admin-accounts-panel>

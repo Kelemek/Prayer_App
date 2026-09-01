@@ -21,6 +21,8 @@ import { AdminEmptyStateComponent } from '../admin-empty-state/admin-empty-state
         @for (request of adminData?.pendingAccountRequests; track trackByAccountRequestId($index, request)) {
           <app-pending-account-approval-card
             [request]="request"
+            [isApproving]="approvingRequestId === request.id"
+            [isDenyingInProgress]="denyingRequestId === request.id"
             (approve)="approveAccount.emit($event)"
             (deny)="denyAccount.emit($event)"
           ></app-pending-account-approval-card>
@@ -31,6 +33,8 @@ import { AdminEmptyStateComponent } from '../admin-empty-state/admin-empty-state
 })
 export class AdminAccountsPanelComponent {
   @Input() adminData: AdminData | null = null;
+  @Input() approvingRequestId: string | null = null;
+  @Input() denyingRequestId: string | null = null;
 
   @Output() approveAccount = new EventEmitter<string>();
   @Output() denyAccount = new EventEmitter<{ id: string; reason: string }>();

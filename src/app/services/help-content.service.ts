@@ -225,7 +225,7 @@ export class HelpContentService {
         content: [
           {
             subtitle: 'Creating a New Prayer Request',
-            text: 'Click the "Add Request" button in the header to create a new prayer request. Fill in who or what the prayer is for, then provide details about the prayer request. You can optionally make your prayer anonymous to protect your privacy. Your request will be reviewed and approved by an administrator before appearing publicly.',
+            text: 'Click the "Add Request" button in the header to create a new prayer request. Fill in who or what the prayer is for, then provide details about the prayer request. You can optionally make your prayer anonymous to protect your privacy. Your request will be reviewed and approved by an administrator before appearing on the Church list.',
             examples: [
               'Example: Prayer For: "Jane", Details: "Please pray for healing as she prepares for surgery next week"',
               'Example: Prayer For: "Job Decision", Details: "I need wisdom and guidance as I consider a new job opportunity"',
@@ -233,7 +233,7 @@ export class HelpContentService {
           },
           {
             subtitle: 'Prayer Approval Process',
-            text: 'When you submit a new prayer request, update or deletion, it will be reviewed and approved by an administrator before it appears publicly. This helps maintain the quality and appropriateness of prayer requests in our community.',
+            text: 'When you submit a new prayer request, update or deletion, it will be reviewed and approved by an administrator before it appears on the Church list. This helps maintain the quality and appropriateness of prayer requests in our community.',
           },
           {
             subtitle: 'Creating Personal Prayers (Private Prayers)',
@@ -444,7 +444,7 @@ export class HelpContentService {
           },
           {
             subtitle: 'Sharing Personal Prayers to the Community',
-            text: 'If you\'d like to share a personal prayer with the prayer community for additional support, you can click the share button (upload icon) on any personal prayer card. This creates a public copy of your prayer that will be submitted for administrator approval. Your original personal prayer remains in your account so you can continue to track it privately. Once approved by an administrator, your shared prayer will appear in the community prayer list along with all its updates. This is a great way to request community prayer support when you\'re ready to share.',
+            text: 'If you\'d like to share a personal prayer with the prayer community for additional support, you can click the share button (upload icon) on any personal prayer card. This creates a copy for the Church list that will be submitted for administrator approval. Your original personal prayer remains in your account so you can continue to track it privately. Once approved by an administrator, your shared prayer will appear in the Church prayer list along with all its updates. This is a great way to request community prayer support when you\'re ready to share.',
           },
           {
             subtitle: 'Privacy & Personal Data',
@@ -465,7 +465,7 @@ export class HelpContentService {
         content: [
           {
             subtitle: 'Filter Options',
-            text: 'Use the main filter buttons to view prayers by category: "Current" shows active community prayers, "Answered" shows prayers that have been answered, "Total" shows all community prayers including archived ones, "Prompts" displays prayer prompt cards, and "Personal" shows your private personal prayers.',
+            text: 'Use the Church tab and its filters to view shared prayers: "Current" shows active church prayers, "Answered" shows prayers that have been answered, "Total" shows all church prayers including archived ones, and "Prompts" displays prayer prompt cards. The Personal tab shows your private personal prayers.',
           },
           {
             subtitle: 'Personal Prayers Filter',
@@ -688,7 +688,7 @@ export class HelpContentService {
           },
           {
             subtitle: 'Default Prayer View',
-            text: 'Set your preferred default view when you log in. Choose between "Current Prayers View" to see public prayers waiting for prayer, or "Personal Prayers View" to see your personal prayer list. Your selection is saved and will be remembered each time you log in.',
+            text: 'Set your preferred default view when you log in. Choose between "Current Prayers View" to see church prayers waiting for prayer, or "Personal Prayers View" to see your personal prayer list. Your selection is saved and will be remembered each time you log in.',
           },
           {
             subtitle: 'Memorization practice',

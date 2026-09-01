@@ -164,12 +164,12 @@ import {
                     : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500'
                 "
                 aria-pressed="visibility === 'public'"
-                aria-label="Select public prayer - requires admin approval"
+                aria-label="Select church prayer - requires admin approval"
               >
                 <div class="flex items-center justify-center gap-2 text-left">
                   <div class="text-left min-w-0">
                     <div class="text-sm sm:text-base font-semibold">
-                      Public Prayer
+                      Church Prayer
                     </div>
                     <div class="text-xs opacity-75">Pending admin approval</div>
                   </div>
@@ -195,7 +195,7 @@ import {
                     <div class="text-sm sm:text-base font-semibold">
                       Group Prayer
                     </div>
-                    <div class="text-xs opacity-75">Visible to this group, no approval</div>
+                    <div class="text-xs opacity-75">Group, no approval</div>
                   </div>
                 </div>
               </button>
@@ -522,10 +522,10 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
     if (this.visibility !== "public") return null;
     const tenant = this.tenantContext.getActiveTenant();
     if (!tenant) {
-      return "Public prayers require an active organization. Open Tenant Management (admin) or pick an organization you belong to, then try again.";
+      return "Church prayers require an active organization. Open Tenant Management (admin) or pick an organization you belong to, then try again.";
     }
     if (tenant.plan_tier === "free") {
-      return "Public prayers require a Church plan for this organization. Use a personal or group prayer instead.";
+      return "Church prayers require a Church plan for this organization. Use a personal or group prayer instead.";
     }
     return null;
   }

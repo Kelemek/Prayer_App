@@ -670,7 +670,26 @@ describe('AdminComponent', () => {
       await component.approveAccountRequest('acc1');
 
       expect(consoleSpy).toHaveBeenCalledWith('Error approving account request:', expect.any(Error));
+      expect(toastService.error).toHaveBeenCalledWith('API error');
+      expect(component.approvingAccountRequestId).toBeNull();
       consoleSpy.mockRestore();
+    });
+
+    it('should clear the approving id after the request finishes', async () => {
+      let resolveApprove: (() => void) | undefined;
+      adminDataService.approveAccountRequest = vi.fn(
+        () => new Promise<void>((resolve) => {
+          resolveApprove = resolve;
+        })
+      );
+
+      const pending = component.approveAccountRequest('acc1');
+      expect(component.approvingAccountRequestId).toBe('acc1');
+
+      resolveApprove?.();
+      await pending;
+
+      expect(component.approvingAccountRequestId).toBeNull();
     });
   });
 
@@ -692,6 +711,8 @@ describe('AdminComponent', () => {
       await component.denyAccountRequest('acc1', 'reason');
 
       expect(consoleSpy).toHaveBeenCalledWith('Error denying account request:', expect.any(Error));
+      expect(toastService.error).toHaveBeenCalledWith('API error');
+      expect(component.denyingAccountRequestId).toBeNull();
       consoleSpy.mockRestore();
     });
   });
