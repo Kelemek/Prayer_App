@@ -2,6 +2,7 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import {
   HOME_GROUPS_SUB_FILTER_GROUP_CLASS,
+  HOME_MEMORIZE_SUB_FILTER_GROUP_CLASS,
   HOME_PUBLIC_STATUS_CHIP_HOST_CLASS,
   HOME_PUBLIC_STATUS_CHIP_ROW_CLASS,
   HOME_PUBLIC_STATUS_CHIP_THEMES,
@@ -14,6 +15,7 @@ import {
 import { buildHomeSubFilterChipButtonClass } from "../../lib/home-sub-filter-chip-button-class";
 import {
   isGroupsPreviewFilter,
+  isMemorizePreviewFilter,
   isPublicAreaPreviewFilter,
   isPublicPreviewFilter,
   type InfoPreviewFilter,
@@ -79,8 +81,20 @@ export class InfoHomeFilterPreviewTabsComponent {
     });
   }
 
+  memorizeTabClass(): string {
+    return homeFilterTabClass({
+      accent: "memorize",
+      active: isMemorizePreviewFilter(this.previewFilter),
+      hasSubRow: true,
+    });
+  }
+
   groupsPanelGroupClass(): string {
     return HOME_GROUPS_SUB_FILTER_GROUP_CLASS;
+  }
+
+  memorizePanelGroupClass(): string {
+    return HOME_MEMORIZE_SUB_FILTER_GROUP_CLASS;
   }
 
   groupChipClass(active: boolean): string {

@@ -23,7 +23,8 @@ export type InfoPreviewFilter =
   | "total"
   | "prompts"
   | "personal"
-  | "groups";
+  | "groups"
+  | "memorize";
 
 export function isPublicPreviewFilter(
   filter: InfoPreviewFilter
@@ -43,4 +44,8 @@ export function isPublicAreaPreviewFilter(filter: InfoPreviewFilter): boolean {
 
 export function isGroupsPreviewFilter(filter: InfoPreviewFilter): boolean {
   return filter === "groups";
+}
+
+export function isMemorizePreviewFilter(filter: InfoPreviewFilter): boolean {
+  return filter === "memorize";
 }

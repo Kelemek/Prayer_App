@@ -1,24 +1,24 @@
-<!-- Filter-style preview tabs (mock of home filters): Public, Personal -->
+<!-- Filter-style preview tabs (mock of home filters): Church, Groups, Personal, Memorize -->
 <div class="flex w-full gap-1 mb-0">
   @if (canAccessShared) {
   <div
-    class="relative flex-1 min-w-0"
+    class="relative z-20 flex-1 min-w-0"
     role="button"
     tabindex="0"
     (click)="selectPublicPreviewTab()"
     (keydown.enter)="selectPublicPreviewTab()"
     (keydown.space)="selectPublicPreviewTab(); $event.preventDefault()"
   >
+    <div [class]="publicTabClass() + ' w-full'">Church</div>
     <button
       type="button"
       (click)="$event.stopPropagation(); openBadges.emit()"
-      class="absolute -top-2 -right-2 z-10 inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-[#39704D] dark:bg-[#39704D] text-white rounded-full text-xs font-bold hover:bg-[#2d5a3f] dark:hover:bg-[#2d5a3f] focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors cursor-pointer"
+      class="absolute -top-2 -right-2 z-20 inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-[#39704D] dark:bg-[#39704D] text-white rounded-full text-xs font-bold hover:bg-[#2d5a3f] dark:hover:bg-[#2d5a3f] focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors cursor-pointer"
       title="About badges"
       aria-label="About badges"
     >
       1
     </button>
-    <div [class]="publicTabClass() + ' w-full'">Public</div>
   </div>
   }
   @if (canAccessGroupsTab) {
@@ -36,6 +36,14 @@
     [class]="personalTabClass()"
   >
     Personal
+  </button>
+  <button
+    type="button"
+    id="tour-filter-memorize"
+    (click)="setPreviewFilter('memorize')"
+    [class]="memorizeTabClass()"
+  >
+    Memorize
   </button>
 </div>
 
@@ -128,4 +136,20 @@
 <app-info-home-filter-preview-personal-filters
   (openPersonalCategories)="openPersonalCategories.emit()"
 />
+}
+
+@if (previewFilter === 'memorize') {
+<div>
+  <div [class]="memorizePanelGroupClass() + ' ' + chipRowClass">
+    <div [class]="chipHostClass">
+      <button type="button" [class]="groupChipClass(true)">Add Verses</button>
+    </div>
+    <div [class]="chipHostClass">
+      <button type="button" [class]="groupChipClass(false)">Bible Books</button>
+    </div>
+    <div [class]="chipHostClass">
+      <button type="button" [class]="groupChipClass(false)">Recommended</button>
+    </div>
+  </div>
+</div>
 }

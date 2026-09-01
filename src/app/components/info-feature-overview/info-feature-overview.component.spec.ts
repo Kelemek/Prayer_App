@@ -67,7 +67,33 @@ describe("InfoFeatureOverviewComponent", () => {
     expect(modals.activeModal).toEqual({ kind: "header", action: "settings" });
   });
 
+  it("hides the mock search bar until the header search button is clicked", () => {
+    fixture.detectChanges();
+
+    const panel = fixture.nativeElement.querySelector(
+      "#info-mock-search-panel"
+    ) as HTMLElement;
+    expect(panel.getAttribute("aria-hidden")).toBe("true");
+    expect(panel.className).toContain("max-h-0");
+
+    const searchButton = fixture.nativeElement.querySelector(
+      'button[title="Search"]'
+    ) as HTMLButtonElement;
+    searchButton.click();
+    fixture.detectChanges();
+
+    expect(component.showSearchPanel).toBe(true);
+    expect(panel.getAttribute("aria-hidden")).toBe("false");
+    expect(panel.className).toContain("max-h-28");
+  });
+
   it("routes mock search open to preview modals", () => {
+    fixture.detectChanges();
+
+    const searchButton = fixture.nativeElement.querySelector(
+      'button[title="Search"]'
+    ) as HTMLButtonElement;
+    searchButton.click();
     fixture.detectChanges();
 
     const modals = fixture.debugElement.query(

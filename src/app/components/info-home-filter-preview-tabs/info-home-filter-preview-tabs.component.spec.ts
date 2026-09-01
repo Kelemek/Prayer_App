@@ -60,10 +60,11 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
     const normalize = (el: HTMLElement) =>
       el.textContent?.replace(/\s+/g, " ").trim() ?? "";
 
-    expect(normalize(publicTab)).toBe("1 Public");
-    expect(topButtons).toHaveLength(2);
+    expect(normalize(publicTab)).toBe("Church 1");
+    expect(topButtons).toHaveLength(3);
     expect(normalize(topButtons[0]!)).toBe("Groups");
     expect(normalize(topButtons[1]!)).toBe("Personal");
+    expect(normalize(topButtons[2]!)).toBe("Memorize");
     expect(
       row.querySelector("#tour-filter-prompts")
     ).toBeNull();
@@ -109,7 +110,7 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
     }
   });
 
-  it("hides Public area when canAccessShared is false", () => {
+  it("hides Church area when canAccessShared is false", () => {
     component.canAccessShared = false;
     fixture.detectChanges();
     const row = fixture.nativeElement.querySelector(
@@ -117,9 +118,22 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
     ) as HTMLElement;
     expect(row.textContent).toContain("Personal");
     expect(row.textContent).toContain("Groups");
-    expect(row.textContent).not.toContain("Public");
+    expect(row.textContent).not.toContain("Church");
+    expect(row.textContent).toContain("Memorize");
     expect(
       fixture.nativeElement.querySelector("#tour-filter-prompts")
     ).toBeNull();
+  });
+
+  it("shows memorize action chips when Memorize is selected", () => {
+    component.previewFilter = "memorize";
+    fixture.detectChanges();
+    const row = fixture.nativeElement.querySelector(
+      ".flex.w-full.gap-1.mb-0"
+    ) as HTMLElement;
+    expect(row.querySelector("#tour-filter-memorize")).toBeTruthy();
+    expect(fixture.nativeElement.textContent).toContain("Add Verses");
+    expect(fixture.nativeElement.textContent).toContain("Bible Books");
+    expect(fixture.nativeElement.textContent).toContain("Recommended");
   });
 });

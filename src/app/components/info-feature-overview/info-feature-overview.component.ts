@@ -22,4 +22,5 @@ import type { InfoPreviewFilter } from "../../lib/info-home-filter-preview.types
 export class InfoFeatureOverviewComponent {
   @Input() brandingImageUrl = "";
   previewFilter: InfoPreviewFilter = "current";
+  showSearchPanel = false;
 }

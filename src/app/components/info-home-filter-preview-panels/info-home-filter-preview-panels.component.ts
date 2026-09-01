@@ -5,6 +5,7 @@ import { InfoHomeFilterPreviewPublicArchivedPanelComponent } from "../info-home-
 import { InfoHomeFilterPreviewPublicTotalPanelComponent } from "../info-home-filter-preview-public-total-panel/info-home-filter-preview-public-total-panel.component";
 import { InfoHomeFilterPreviewPromptsCardComponent } from "../info-home-filter-preview-prompts-card/info-home-filter-preview-prompts-card.component";
 import { InfoHomeFilterPreviewPersonalCardComponent } from "../info-home-filter-preview-personal-card/info-home-filter-preview-personal-card.component";
+import { InfoHomeFilterPreviewMemorizeCardComponent } from "../info-home-filter-preview-memorize-card/info-home-filter-preview-memorize-card.component";
 import type {
   InfoHeaderPreviewAction,
   InfoPersonalActionPreview,
@@ -21,6 +22,7 @@ import type {
     InfoHomeFilterPreviewPublicTotalPanelComponent,
     InfoHomeFilterPreviewPromptsCardComponent,
     InfoHomeFilterPreviewPersonalCardComponent,
+    InfoHomeFilterPreviewMemorizeCardComponent,
   ],
   templateUrl: "./info-home-filter-preview-panels.component.html",
 })
