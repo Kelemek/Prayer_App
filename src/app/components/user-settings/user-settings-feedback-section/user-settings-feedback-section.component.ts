@@ -1,6 +1,5 @@
-import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { GitHubFeedbackFormComponent } from '../../github-feedback-form/github-feedback-form.component';
-import type { UserSettingsFacade } from '../../../lib/user-settings-facade';
 
 @Component({
   selector: 'app-user-settings-feedback-section',
@@ -9,6 +8,4 @@ import type { UserSettingsFacade } from '../../../lib/user-settings-facade';
   templateUrl: './user-settings-feedback-section.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
 })
-export class UserSettingsFeedbackSectionComponent {
-  @Input({ required: true }) host!: UserSettingsFacade;
-}
+export class UserSettingsFeedbackSectionComponent {}

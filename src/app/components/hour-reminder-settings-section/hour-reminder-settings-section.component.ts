@@ -31,7 +31,7 @@ const LOAD_ERROR: Record<UserHourReminderKind, string> = {
   template: `
     <div
       [id]="tourSectionId"
-      class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-2"
+      class="settings-modal-section-card rounded-lg p-3 sm:p-4 space-y-2"
     >
       <div class="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base">
         {{ title }}

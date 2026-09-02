@@ -71,9 +71,14 @@ describe("homeFilterTabClass", () => {
       active: true,
       hasSubRow: true,
     });
-    expect(cls).toContain("text-sm");
+    expect(cls).toContain("text-base");
+    expect(cls).toContain("px-3");
+    expect(cls).toContain("py-2");
     expect(cls).toContain("font-semibold");
     expect(cls).toContain("text-gray-700");
+    expect(cls).not.toContain("text-sm");
+    expect(cls).not.toContain("sm:text-base");
+    expect(cls).not.toContain("sm:px-3");
   });
 
   it("connects the active tab to the panel when a sub-row is present", () => {

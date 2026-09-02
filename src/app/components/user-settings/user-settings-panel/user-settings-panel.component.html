@@ -84,7 +84,9 @@
     addButtonTitle="Add a prayer reminder for the selected hour"
   />
 
-  <app-user-settings-feedback-section [host]="host" />
+  @if (host.githubFeedbackEnabled) {
+  <app-user-settings-feedback-section />
+  }
   <app-user-settings-account-section [host]="host" />
 </div>
 <div

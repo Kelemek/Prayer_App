@@ -58,14 +58,14 @@ type ThemeOption = "light" | "dark" | "system";
         </div>
 
         <div
-          class="presentation-settings-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4"
+          class="presentation-settings-scroll settings-modal-body flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4"
           (mousedown)="onSettingsBodyPointerDown($event)"
         >
 
           <!-- Theme -->
           <div
             id="tour-presentation-setting-theme"
-            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4"
+            class="settings-modal-section-card rounded-lg p-3 sm:p-4"
           >
             <div class="flex items-start gap-2 sm:gap-3">
               <div class="flex-1">
@@ -187,7 +187,7 @@ type ThemeOption = "light" | "dark" | "system";
 
           <!-- Filters -->
           <div
-            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 space-y-4"
+            class="settings-modal-section-card rounded-lg p-3 sm:p-4 space-y-4"
           >
             <div>
               <div class="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base">
@@ -556,7 +556,7 @@ type ThemeOption = "light" | "dark" | "system";
 
           <!-- Display & Timing -->
           <div
-            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4"
+            class="settings-modal-section-card rounded-lg p-3 sm:p-4"
           >
             <div class="font-medium text-gray-800 dark:text-gray-100 mb-3 text-sm sm:text-base">
               Display &amp; Timing
@@ -698,7 +698,7 @@ type ThemeOption = "light" | "dark" | "system";
           <!-- Prayer Timer -->
           <div
             id="tour-presentation-setting-timer"
-            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4"
+            class="settings-modal-section-card rounded-lg p-3 sm:p-4"
           >
             <div class="flex items-start gap-2 sm:gap-3 mb-3 sm:mb-4">
               <div class="flex-1">
