@@ -51,7 +51,7 @@ import { environment } from "../../../environments/environment";
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div
-      class="w-full min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors safe-area-container"
+      class="relative w-full min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors safe-area-container"
     >
       <div class="absolute z-10 safe-area-top-right">
         <app-theme-toggle></app-theme-toggle>

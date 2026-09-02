@@ -136,4 +136,25 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
     expect(fixture.nativeElement.textContent).toContain("Bible Books");
     expect(fixture.nativeElement.textContent).toContain("Recommended");
   });
+
+  it("emits memorize action explanations when Memorize chips are clicked", () => {
+    const emitted: string[] = [];
+    component.openMemorizeAction.subscribe((value) => emitted.push(value));
+    component.previewFilter = "memorize";
+    fixture.detectChanges();
+
+    const clickChip = (label: string) => {
+      const button = [...fixture.nativeElement.querySelectorAll("button")].find(
+        (el: HTMLButtonElement) => el.textContent?.trim() === label
+      ) as HTMLButtonElement | undefined;
+      expect(button).toBeTruthy();
+      button!.click();
+    };
+
+    clickChip("Add Verses");
+    clickChip("Bible Books");
+    clickChip("Recommended");
+
+    expect(emitted).toEqual(["add-verses", "bible-books", "recommended"]);
+  });
 });

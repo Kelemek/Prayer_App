@@ -2163,7 +2163,7 @@ export class HelpDriverTourService {
   }
 
   /**
-   * **Feedback** (`help_feedback`): Settings → **Send Feedback** card → type, details, submit (or note when disabled).
+   * **Feedback** (`help_feedback`): Settings → **Send Feedback** card → type, details, submit.
    */
   startFeedbackHelpSectionTour(
     section: { title: string; description: string },
@@ -2194,12 +2194,9 @@ export class HelpDriverTourService {
     };
 
     const gear = (): HTMLElement => getSettingsHeaderButtonEl()!;
-    const feedbackCard = (): HTMLElement =>
-      document.getElementById(TOUR_SETTINGS_FEEDBACK_SECTION_ID) ?? gear();
-    const typeRow = (): HTMLElement =>
-      document.getElementById(TOUR_SETTINGS_FEEDBACK_TYPE_ID) ?? feedbackCard();
-    const detailsBlock = (): HTMLElement =>
-      document.getElementById(TOUR_SETTINGS_FEEDBACK_DETAILS_ID) ?? feedbackCard();
+    const feedbackCardSel = `#${TOUR_SETTINGS_FEEDBACK_SECTION_ID}`;
+    const typeRowSel = `#${TOUR_SETTINGS_FEEDBACK_TYPE_ID}`;
+    const detailsBlockSel = `#${TOUR_SETTINGS_FEEDBACK_DETAILS_ID}`;
 
     const steps: DriveStep[] = [
       {
@@ -2213,17 +2210,17 @@ export class HelpDriverTourService {
         },
       },
       {
-        element: () => feedbackCard(),
+        element: feedbackCardSel,
         popover: {
           title: 'Send Feedback',
           description:
-            'When enabled for your church, you’ll see the full form here—**Suggestion**, **Feature request**, or **Bug report**. If you only see a short note, in-app feedback isn’t turned on for this app yet.',
+            'Use this form to send **Suggestion**, **Feature request**, or **Bug report** feedback to the development team.',
           side: 'bottom',
           align: 'start',
         },
       },
       {
-        element: () => typeRow(),
+        element: typeRowSel,
         popover: {
           title: 'Feedback type',
           description:
@@ -2233,7 +2230,7 @@ export class HelpDriverTourService {
         },
       },
       {
-        element: () => detailsBlock(),
+        element: detailsBlockSel,
         popover: {
           title: 'Title & description',
           description:
@@ -2243,6 +2240,7 @@ export class HelpDriverTourService {
         },
       },
       {
+        element: feedbackCardSel,
         popover: {
           title: 'Tips',
           description:
@@ -2271,6 +2269,7 @@ export class HelpDriverTourService {
       showButtons: ['next', 'previous', 'close'],
       smoothScroll: true,
       allowClose: true,
+      skipMissingElement: true,
       popoverClass: 'help-driver-popover',
       steps,
     });
@@ -2449,16 +2448,21 @@ export class HelpDriverTourService {
         popover: {
           title: 'Feedback',
           description:
-            'Send suggestions, bugs, or feature ideas when your church enables the form—or read the note if feedback isn’t turned on.',
+            'When this church has in-app feedback on, send suggestions, bugs, or feature ideas from this card.',
           side: 'bottom',
           align: 'start',
+        },
+        onHighlighted: (_element, _step, { driver: drv }) => {
+          if (!document.getElementById(TOUR_SETTINGS_FEEDBACK_SECTION_ID)) {
+            drv.moveNext();
+          }
         },
       },
       {
         popover: {
           title: 'Footer & account',
           description:
-            'At the bottom: <strong>Logout</strong> and <strong>Close</strong>. You can also sign out from your email badge in the header (with confirmation). <strong>Delete your account</strong> is below feedback when you need it.',
+            'At the bottom: <strong>Logout</strong> and <strong>Close</strong>. You can also sign out from your email badge in the header (with confirmation). <strong>Delete your account</strong> is at the bottom of this list when you need it.',
           side: 'bottom',
           align: 'center',
         },

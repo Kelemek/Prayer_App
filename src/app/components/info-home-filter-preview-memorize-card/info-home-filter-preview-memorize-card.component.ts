@@ -1,10 +1,10 @@
-import { Component } from "@angular/core";
-import { CommonModule } from "@angular/common";
+import { Component, EventEmitter, Output } from "@angular/core";
 
 @Component({
   selector: "app-info-home-filter-preview-memorize-card",
   standalone: true,
-  imports: [CommonModule],
   templateUrl: "./info-home-filter-preview-memorize-card.component.html",
 })
-export class InfoHomeFilterPreviewMemorizeCardComponent {}
+export class InfoHomeFilterPreviewMemorizeCardComponent {
+  @Output() openPracticePreview = new EventEmitter<void>();
+}

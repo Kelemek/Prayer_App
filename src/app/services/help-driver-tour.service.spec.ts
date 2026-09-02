@@ -1365,12 +1365,31 @@ describe('HelpDriverTourService', () => {
       service.startFeedbackHelpSectionTour(section, h);
       const config = vi.mocked(driver).mock.calls[0][0];
       expect(config?.steps?.length).toBe(6);
+      expect(config?.skipMissingElement).toBe(true);
       resolveStepElements(config, [0, 1, 2, 3]);
       fireStepNext(config, 0);
       vi.advanceTimersByTime(420);
       fireStepNext(config, 5);
       expect(h.closeSettings).toHaveBeenCalled();
       vi.useRealTimers();
+      vi.unstubAllGlobals();
+    });
+
+    it('startFeedbackHelpSectionTour does not fall back form steps to the settings gear', () => {
+      mountSettingsGear(true);
+      const h = settingsTourHooks();
+      service.startFeedbackHelpSectionTour(section, h);
+      const config = vi.mocked(driver).mock.calls[0][0];
+      expect(config?.skipMissingElement).toBe(true);
+      const gear = document.getElementById(TOUR_SETTINGS_BTN_DESKTOP_ID);
+      for (const i of [1, 2, 3, 4]) {
+        const el = config?.steps?.[i]?.element;
+        if (typeof el === 'function') {
+          expect((el as () => HTMLElement | null)()).not.toBe(gear);
+        } else if (typeof el === 'string') {
+          expect(document.querySelector(el)).toBeNull();
+        }
+      }
       vi.unstubAllGlobals();
     });
 

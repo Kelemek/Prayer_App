@@ -1,0 +1,76 @@
+<div [class]="shellClasses">
+  <app-prayer-card-meta-header
+    [prayerCreatedAt]="createdAt"
+    [status]="status"
+    [showStatus]="true"
+    [showCenterDateTime]="true"
+    [showReminder]="true"
+    (reminder)="openHeaderPreview.emit('card-reminder')"
+  />
+
+  <div [class]="'flex items-start justify-between relative ' + layout.headerRowMargin">
+    <div [class]="'flex flex-1 min-w-0 items-start ' + layout.titleRowGap">
+      <div class="flex-1">
+        <div class="relative flex items-baseline gap-2 flex-wrap">
+          <h3 [class]="layout.titleClasses">{{ title }}</h3>
+          <span [class]="layout.requesterClasses">
+            Requested by:
+            <span class="font-medium text-gray-800 dark:text-gray-100">{{
+              requester
+            }}</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p [class]="layout.descriptionClasses">{{ description }}</p>
+
+  @if (note) {
+  <p class="text-xs text-gray-500 dark:text-gray-500 mb-4">{{ note }}</p>
+  }
+
+  <div [class]="'contrast-chip-surface flex flex-nowrap items-center min-w-0 ' + layout.actionRowGap">
+    <button
+      type="button"
+      (click)="openHeaderPreview.emit('card-update')"
+      title="Add an update to this prayer"
+      [class]="layout.actionButtonClasses + ' btn-chip btn-chip-green'"
+    >
+      Add Update
+    </button>
+    @if (showPrayFor) {
+    <button
+      type="button"
+      (click)="openHeaderPreview.emit('card-pray-for')"
+      title="Record that you prayed for this request"
+      [class]="layout.actionButtonClasses + ' btn-chip btn-chip-blue'"
+    >
+      Pray For
+    </button>
+    }
+  </div>
+
+  @if (update) {
+  <div class="mt-4">
+    <app-prayer-update-row
+      [update]="update"
+      [size]="layout.updateRowSize"
+      [shellClass]="layout.updateShellClass"
+      [contentClass]="layout.updateContentClass"
+      [showUpdatedBy]="true"
+    >
+      <button
+        updateCorner
+        type="button"
+        (click)="openBadges.emit()"
+        class="absolute -top-2 -right-2 z-10 inline-flex items-center justify-center w-6 h-6 bg-[#39704D] dark:bg-[#39704D] text-white rounded-full text-xs font-bold hover:bg-[#2d5a3f] dark:hover:bg-[#2d5a3f] focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors cursor-pointer"
+        title="About badges"
+        aria-label="About badges"
+      >
+        1
+      </button>
+    </app-prayer-update-row>
+  </div>
+  }
+</div>

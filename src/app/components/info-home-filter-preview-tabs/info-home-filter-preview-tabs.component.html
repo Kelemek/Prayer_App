@@ -142,13 +142,31 @@
 <div>
   <div [class]="memorizePanelGroupClass() + ' ' + chipRowClass">
     <div [class]="chipHostClass">
-      <button type="button" [class]="groupChipClass(true)">Add Verses</button>
+      <button
+        type="button"
+        [class]="memorizeChipClass(true)"
+        (click)="openMemorizeAction.emit('add-verses')"
+      >
+        Add Verses
+      </button>
     </div>
     <div [class]="chipHostClass">
-      <button type="button" [class]="groupChipClass(false)">Bible Books</button>
+      <button
+        type="button"
+        [class]="memorizeChipClass(false)"
+        (click)="openMemorizeAction.emit('bible-books')"
+      >
+        Bible Books
+      </button>
     </div>
     <div [class]="chipHostClass">
-      <button type="button" [class]="groupChipClass(false)">Recommended</button>
+      <button
+        type="button"
+        [class]="memorizeChipClass(false)"
+        (click)="openMemorizeAction.emit('recommended')"
+      >
+        Recommended
+      </button>
     </div>
   </div>
 </div>

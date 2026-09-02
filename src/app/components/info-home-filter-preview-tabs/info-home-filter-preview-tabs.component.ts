@@ -18,6 +18,7 @@ import {
   isMemorizePreviewFilter,
   isPublicAreaPreviewFilter,
   isPublicPreviewFilter,
+  type InfoMemorizeActionPreview,
   type InfoPreviewFilter,
 } from "../../lib/info-home-filter-preview.types";
 import { InfoHomeFilterPreviewPersonalFiltersComponent } from "../info-home-filter-preview-personal-filters/info-home-filter-preview-personal-filters.component";
@@ -44,6 +45,7 @@ export class InfoHomeFilterPreviewTabsComponent {
   @Output() openBadges = new EventEmitter<void>();
   @Output() openPromptCategories = new EventEmitter<void>();
   @Output() openPersonalCategories = new EventEmitter<void>();
+  @Output() openMemorizeAction = new EventEmitter<InfoMemorizeActionPreview>();
 
   readonly chipHostClass = HOME_WRAP_FILTER_CHIP_FLEX_CLASS;
   readonly publicChipHostClass = HOME_PUBLIC_STATUS_CHIP_HOST_CLASS;
@@ -105,6 +107,10 @@ export class InfoHomeFilterPreviewTabsComponent {
       activeClass: theme.active,
       inactiveClass: theme.inactive,
     });
+  }
+
+  memorizeChipClass(active: boolean): string {
+    return this.groupChipClass(active);
   }
 
   publicPanelGroupClass(): string {

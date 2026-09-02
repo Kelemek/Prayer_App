@@ -5,16 +5,24 @@ export type InfoHeaderPreviewAction =
   | "request"
   | "search"
   | "card-update"
-  | "card-pray-for";
+  | "card-pray-for"
+  | "card-reminder";
 
 export type InfoPersonalActionPreview = "answered" | "edit" | "delete";
+
+export type InfoMemorizeActionPreview =
+  | "add-verses"
+  | "bible-books"
+  | "recommended";
 
 export type InfoPreviewModalState =
   | { kind: "header"; action: InfoHeaderPreviewAction }
   | { kind: "promptCategories" }
   | { kind: "badges" }
   | { kind: "personalAction"; action: InfoPersonalActionPreview }
-  | { kind: "personalCategories" };
+  | { kind: "personalCategories" }
+  | { kind: "memorizeAction"; action: InfoMemorizeActionPreview }
+  | { kind: "memorizePractice" };
 
 export type InfoPreviewFilter =
   | "current"

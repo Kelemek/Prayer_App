@@ -45,12 +45,14 @@
                     (openBadges)="previewModals.openModal({ kind: 'badges' })"
                     (openPromptCategories)="previewModals.openModal({ kind: 'promptCategories' })"
                     (openPersonalCategories)="previewModals.openModal({ kind: 'personalCategories' })"
+                    (openMemorizeAction)="previewModals.openModal({ kind: 'memorizeAction', action: $event })"
                   />
                   <app-info-home-filter-preview-panels
                     [previewFilter]="previewFilter"
                     (openBadges)="previewModals.openModal({ kind: 'badges' })"
                     (openPersonalAction)="previewModals.openModal({ kind: 'personalAction', action: $event })"
                     (openHeaderPreview)="previewModals.openModal({ kind: 'header', action: $event })"
+                    (openMemorizePractice)="previewModals.openModal({ kind: 'memorizePractice' })"
                   />
                 </div>
               </div>

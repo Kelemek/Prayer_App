@@ -107,4 +107,67 @@ describe("InfoFeatureOverviewComponent", () => {
 
     expect(modals.activeModal).toEqual({ kind: "header", action: "search" });
   });
+
+  it("shows the memorize preview card when Memorize is selected", () => {
+    fixture.detectChanges();
+
+    const memorizeTab = fixture.nativeElement.querySelector(
+      "#tour-filter-memorize"
+    ) as HTMLButtonElement;
+    memorizeTab.click();
+    fixture.detectChanges();
+
+    expect(component.previewFilter).toBe("memorize");
+    expect(
+      fixture.nativeElement.querySelector(
+        "app-info-home-filter-preview-memorize-card"
+      )
+    ).toBeTruthy();
+    expect(fixture.nativeElement.textContent).toContain("John 3:16");
+  });
+
+  it("opens memorize practice screenshots when the verse card is clicked", () => {
+    fixture.detectChanges();
+
+    const memorizeTab = fixture.nativeElement.querySelector(
+      "#tour-filter-memorize"
+    ) as HTMLButtonElement;
+    memorizeTab.click();
+    fixture.detectChanges();
+
+    const verseCard = fixture.nativeElement.querySelector(
+      'app-info-home-filter-preview-memorize-card button[aria-label="See how verse practice works"]'
+    ) as HTMLButtonElement;
+    verseCard.click();
+    fixture.detectChanges();
+
+    const modals = fixture.debugElement.query(
+      By.directive(InfoPreviewModalsComponent)
+    ).componentInstance;
+    expect(modals.activeModal).toEqual({ kind: "memorizePractice" });
+  });
+
+  it("opens a memorize explanation when Add Verses is clicked", () => {
+    fixture.detectChanges();
+
+    const memorizeTab = fixture.nativeElement.querySelector(
+      "#tour-filter-memorize"
+    ) as HTMLButtonElement;
+    memorizeTab.click();
+    fixture.detectChanges();
+
+    const addVerses = [...fixture.nativeElement.querySelectorAll("button")].find(
+      (button: HTMLButtonElement) => button.textContent?.trim() === "Add Verses"
+    ) as HTMLButtonElement;
+    addVerses.click();
+    fixture.detectChanges();
+
+    const modals = fixture.debugElement.query(
+      By.directive(InfoPreviewModalsComponent)
+    ).componentInstance;
+    expect(modals.activeModal).toEqual({
+      kind: "memorizeAction",
+      action: "add-verses",
+    });
+  });
 });

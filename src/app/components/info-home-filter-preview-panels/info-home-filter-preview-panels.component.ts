@@ -32,4 +32,5 @@ export class InfoHomeFilterPreviewPanelsComponent {
   @Output() openBadges = new EventEmitter<void>();
   @Output() openPersonalAction = new EventEmitter<InfoPersonalActionPreview>();
   @Output() openHeaderPreview = new EventEmitter<InfoHeaderPreviewAction>();
+  @Output() openMemorizePractice = new EventEmitter<void>();
 }

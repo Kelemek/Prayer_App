@@ -6,13 +6,19 @@
     />
   }
   @case ('answered') {
-    <app-info-home-filter-preview-public-answered-panel />
+    <app-info-home-filter-preview-public-answered-panel
+      (openHeaderPreview)="openHeaderPreview.emit($event)"
+    />
   }
   @case ('archived') {
-    <app-info-home-filter-preview-public-archived-panel />
+    <app-info-home-filter-preview-public-archived-panel
+      (openHeaderPreview)="openHeaderPreview.emit($event)"
+    />
   }
   @case ('total') {
-    <app-info-home-filter-preview-public-total-panel />
+    <app-info-home-filter-preview-public-total-panel
+      (openHeaderPreview)="openHeaderPreview.emit($event)"
+    />
   }
   @case ('prompts') {
     <app-info-home-filter-preview-prompts-card />
@@ -29,6 +35,8 @@
     />
   }
   @case ('memorize') {
-    <app-info-home-filter-preview-memorize-card />
+    <app-info-home-filter-preview-memorize-card
+      (openPracticePreview)="openMemorizePractice.emit()"
+    />
   }
 }

@@ -7,7 +7,14 @@ const componentsDir = dirname(fileURLToPath(import.meta.url));
 const appDir = dirname(componentsDir);
 
 function discoverInfoPreviewResourceDirs(): string[] {
-  const dirs = [join(appDir, "pages", "info"), join(componentsDir, "modal-shell")];
+  const dirs = [
+    join(appDir, "pages", "info"),
+    join(componentsDir, "modal-shell"),
+    join(componentsDir, "card-meta-header-band"),
+    join(componentsDir, "prayer-card-meta-header"),
+    join(componentsDir, "prayer-update-row"),
+    join(componentsDir, "card-actions-overflow-menu"),
+  ];
 
   for (const name of readdirSync(componentsDir)) {
     if (!name.startsWith("info-")) {
