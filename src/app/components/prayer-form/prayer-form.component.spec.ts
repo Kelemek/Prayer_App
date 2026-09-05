@@ -238,6 +238,34 @@ describe('PrayerFormComponent', () => {
       });
       expect(refreshSpy).not.toHaveBeenCalled();
     });
+
+    it('closes the group dropdown when isOpen becomes false', () => {
+      component.showGroupDropdown = true;
+      component.isOpen = false;
+      component.ngOnChanges({
+        isOpen: {
+          currentValue: false,
+          previousValue: true,
+          firstChange: false,
+          isFirstChange: () => false,
+        },
+      });
+      expect(component.showGroupDropdown).toBe(false);
+    });
+
+    it('closes the group dropdown when the form reopens', () => {
+      component.showGroupDropdown = true;
+      component.isOpen = true;
+      component.ngOnChanges({
+        isOpen: {
+          currentValue: true,
+          previousValue: false,
+          firstChange: false,
+          isFirstChange: () => false,
+        },
+      });
+      expect(component.showGroupDropdown).toBe(false);
+    });
   });
 
   describe('form validation', () => {
@@ -877,6 +905,14 @@ describe('PrayerFormComponent', () => {
 
       expect(component.showCategoryDropdown).toBe(false);
     });
+
+    it('should reset showGroupDropdown', () => {
+      component.showGroupDropdown = true;
+
+      component.cancel();
+
+      expect(component.showGroupDropdown).toBe(false);
+    });
   });
 
   describe('Personal prayer category loading', () => {
@@ -980,6 +1016,73 @@ describe('PrayerFormComponent', () => {
 
       expect(component.visibility).toBe('group');
       expect(component.selectedGroupId).toBe('group-1');
+    });
+
+    it('selectGroup updates the selected group and closes the dropdown', () => {
+      mockPrayerGroupService.getGroups.mockReturnValue([
+        { id: 'group-1', name: 'Family' },
+        { id: 'group-2', name: 'Friends' },
+      ]);
+      component.selectedGroupId = 'group-1';
+      component.showGroupDropdown = true;
+      component.selectGroup('group-2');
+      expect(component.selectedGroupId).toBe('group-2');
+      expect(component.showGroupDropdown).toBe(false);
+    });
+
+    it('selectedGroupLabel uses the selected group name', () => {
+      mockPrayerGroupService.getGroups.mockReturnValue([
+        { id: 'group-1', name: 'Family' },
+      ]);
+      component.selectedGroupId = 'group-1';
+      expect(component.selectedGroupLabel).toBe('Family');
+    });
+
+    it('toggleGroupDropdown opens, positions, and closes the menu', () => {
+      const field = document.createElement('div');
+      field.setAttribute('data-group-dropdown-field', '');
+      field.getBoundingClientRect = () =>
+        ({
+          top: 100,
+          bottom: 140,
+          left: 20,
+          width: 300,
+          height: 40,
+          right: 320,
+          x: 20,
+          y: 100,
+          toJSON: () => ({}),
+        }) as DOMRect;
+      const trigger = document.createElement('button');
+      field.appendChild(trigger);
+      document.body.appendChild(field);
+      const event = { currentTarget: trigger } as unknown as Event;
+
+      component.toggleGroupDropdown(event);
+      expect(component.showGroupDropdown).toBe(true);
+      expect(component.groupDropdownPanelStyle.top).toBe('144px');
+
+      component.toggleGroupDropdown(event);
+      expect(component.showGroupDropdown).toBe(false);
+      field.remove();
+    });
+
+    it('setVisibility away from group closes the dropdown', () => {
+      component.showGroupDropdown = true;
+      component.setVisibility('personal');
+      expect(component.showGroupDropdown).toBe(false);
+    });
+
+    it('cancel closes the group dropdown', () => {
+      component.showGroupDropdown = true;
+      component.cancel();
+      expect(component.showGroupDropdown).toBe(false);
+    });
+
+    it('Escape closes the group dropdown', () => {
+      component.showGroupDropdown = true;
+      component.onEscape();
+      expect(component.showGroupDropdown).toBe(false);
     });
   });
 

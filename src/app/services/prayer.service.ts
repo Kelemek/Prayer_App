@@ -561,6 +561,10 @@ export class PrayerService {
     );
   }
 
+  async deletePersonalCategory(category: string): Promise<boolean> {
+    return this.personal.deletePersonalCategory(category);
+  }
+
   async addPersonalPrayer(
     prayer: Omit<
       PrayerRequest,

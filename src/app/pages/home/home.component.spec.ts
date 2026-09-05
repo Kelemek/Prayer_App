@@ -292,6 +292,7 @@ const createHomeComponent = (
     deleteGroupPrayerUpdate: vi.fn().mockResolvedValue(true),
     loadMyGroups: vi.fn().mockResolvedValue([]),
     loadGroupPrayers: vi.fn().mockResolvedValue([]),
+    hydrateGroupPrayers: vi.fn().mockResolvedValue(undefined),
     createGroup: vi.fn().mockResolvedValue(null),
     inviteMembers: vi.fn().mockResolvedValue(0),
     groups$: of([]),
@@ -2260,6 +2261,50 @@ describe('HomeComponent', () => {
       expect(loadSpy).toHaveBeenCalled();
     });
 
+    it('loadPrayerGroups hydrates group prayers after loading the list', async () => {
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+
+      const groups = [
+        {
+          id: 'g1',
+          name: 'Family',
+          created_by_email: 'owner@example.com',
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+        {
+          id: 'g2',
+          name: 'Friends',
+          created_by_email: 'owner@example.com',
+          created_at: '2026-02-01T00:00:00Z',
+          updated_at: '2026-02-01T00:00:00Z',
+        },
+      ];
+      comp.prayerGroupService.loadMyGroups = vi.fn().mockResolvedValue(groups);
+      const hydrate = vi
+        .spyOn(comp.prayerGroupService, 'hydrateGroupPrayers')
+        .mockResolvedValue();
+
+      await comp.loadPrayerGroups();
+
+      expect(hydrate).toHaveBeenCalledWith({
+        force: false,
+        focusGroupId: 'g1',
+      });
+    });
+
     it('openCreateGroup opens the create group modal', () => {
       const comp = createHomeComponent(
         mocks.prayerService,
@@ -3686,6 +3731,9 @@ describe('HomeComponent', () => {
       await comp.onPullToRefresh();
       expect(mocks.prayerService.loadPrayers).toHaveBeenCalledWith(false);
       expect(mocks.prayerService.loadPersonalPrayers).toHaveBeenCalledWith(false);
+      expect(comp.prayerGroupService.hydrateGroupPrayers).toHaveBeenCalledWith({
+        force: true,
+      });
       expect(mocks.memorizationService.loadItems).toHaveBeenCalled();
       expect(comp.isRefreshing).toBe(false);
 

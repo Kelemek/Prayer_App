@@ -251,6 +251,61 @@ export class PersonalCategoryColorService {
     }
   }
 
+  async deleteCategory(category: string): Promise<boolean> {
+    const name = sanitizePersonalCategoryName(category);
+    if (!name) {
+      return true;
+    }
+
+    const userEmail = this.userSessionService.getUserEmail();
+    const tenantId = this.tenantContext.getActiveTenant()?.id ?? null;
+    if (!userEmail || !tenantId) {
+      return false;
+    }
+
+    const deleteForEmail = userEmail.toLowerCase().trim();
+    const deleteForTenantId = tenantId;
+    const cacheKey = this.getCacheKey(tenantId);
+    const currentMap = this.colorsSubject.value;
+
+    try {
+      const { error } = await this.supabase.client
+        .from('personal_prayer_category_colors')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .eq('user_email', userEmail)
+        .eq('category', name);
+
+      if (error) {
+        throw error;
+      }
+
+      const currentEmail = this.userSessionService.getUserEmail();
+      const currentTenantId = this.tenantContext.getActiveTenant()?.id ?? null;
+      if (
+        !currentEmail ||
+        currentEmail.toLowerCase().trim() !== deleteForEmail ||
+        currentTenantId !== deleteForTenantId
+      ) {
+        return true;
+      }
+
+      if (!(name in currentMap)) {
+        void this.loadColors(true);
+        return true;
+      }
+
+      const updated = { ...currentMap };
+      delete updated[name];
+      this.colorsSubject.next(updated);
+      this.cache.set(cacheKey, updated);
+      return true;
+    } catch (err) {
+      console.error('[PersonalCategoryColorService] Failed to delete color:', err);
+      return false;
+    }
+  }
+
   invalidate(): void {
     this.colorsSubject.next({});
     if (this.activeCacheKey) {

@@ -11,11 +11,12 @@ import {
   HostListener,
   ChangeDetectionStrategy,
   ViewChild,
+  ElementRef,
   DestroyRef,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
-import { NgClass } from "@angular/common";
+import { NgClass, NgStyle } from "@angular/common";
 import { Observable, Subject, takeUntil } from "rxjs";
 import type { User } from "@supabase/supabase-js";
 import { PrayerService } from "../../services/prayer.service";
@@ -43,11 +44,15 @@ import {
   nextCategorySelectionIndex,
   prayerFormCategoryKeyAction,
 } from "../../lib/prayer-form-category";
+import {
+  ANCHORED_FIXED_DROPDOWN_MAX_HEIGHT,
+  buildAnchoredFixedDropdownStyleFromTrigger,
+} from "../../lib/fixed-popover-placement";
 
 @Component({
   selector: "app-prayer-form",
   standalone: true,
-  imports: [FormsModule, NgClass, RichTextEditorComponent, ModalShellComponent, PersonalCategoryColorPickerComponent],
+  imports: [FormsModule, NgClass, NgStyle, RichTextEditorComponent, ModalShellComponent, PersonalCategoryColorPickerComponent],
   template: `
     @if (isOpen) {
     <app-modal-shell
@@ -224,18 +229,61 @@ import {
               </button>
             </div>
             @if (visibility === 'group' && groups.length > 0) {
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Group
-              <select
-                class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                [(ngModel)]="selectedGroupId"
-                name="group_id"
+            <div class="space-y-2">
+              <span
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300"
               >
-                @for (group of groups; track group.id) {
-                <option [value]="group.id">{{ group.name }}</option>
-                }
-              </select>
-            </label>
+                Group
+              </span>
+              <div class="relative">
+                <div
+                  data-group-dropdown-field
+                  [ngClass]="{
+                    'border-blue-500 ring-2 ring-blue-500 bg-white dark:bg-gray-800':
+                      showGroupDropdown,
+                    'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-600':
+                      !showGroupDropdown
+                  }"
+                  class="flex w-full rounded-lg border-2 transition-all overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    id="prayer-form-group-trigger"
+                    data-group-dropdown-trigger
+                    (click)="toggleGroupDropdown($event)"
+                    [attr.aria-expanded]="showGroupDropdown"
+                    aria-haspopup="listbox"
+                    aria-label="Group"
+                    class="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm transition-all cursor-pointer text-left focus:outline-none"
+                  >
+                    <span
+                      class="font-medium truncate"
+                      [class.text-gray-500]="!selectedGroupId"
+                      [class.dark:text-gray-400]="!selectedGroupId"
+                      [class.text-gray-800]="!!selectedGroupId"
+                      [class.dark:text-gray-100]="!!selectedGroupId"
+                    >
+                      {{ selectedGroupLabel }}
+                    </span>
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="text-gray-600 dark:text-gray-400 transition-transform shrink-0"
+                      [class.rotate-180]="showGroupDropdown"
+                      aria-hidden="true"
+                    >
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
             }
           </div>
 
@@ -355,6 +403,38 @@ import {
           </div>
         </form>
     </app-modal-shell>
+    @if (showGroupDropdown) {
+    <div
+      #groupDropdownBackdrop
+      class="fixed inset-0 z-modal-dropdown-backdrop"
+      (click)="closeGroupDropdown()"
+    ></div>
+    <div
+      #groupDropdownPanel
+      role="listbox"
+      aria-label="Group"
+      data-group-dropdown-panel
+      class="fixed z-modal-dropdown-panel bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 overflow-y-auto"
+      [ngStyle]="groupDropdownPanelStyle"
+    >
+      @for (group of groups; track group.id) {
+      <button
+        type="button"
+        role="option"
+        [attr.aria-selected]="selectedGroupId === group.id"
+        (click)="selectGroup(group.id)"
+        class="flex w-full cursor-pointer items-center justify-between px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+        [class.bg-blue-50]="selectedGroupId === group.id"
+        [class.dark:bg-blue-900/30]="selectedGroupId === group.id"
+      >
+        <span>{{ group.name }}</span>
+        @if (selectedGroupId === group.id) {
+        <span class="ml-2 shrink-0 text-blue-600 dark:text-blue-400">✓</span>
+        }
+      </button>
+      }
+    </div>
+    }
     }
   `,
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -398,6 +478,9 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
   filteredCategories: string[] = [];
   selectedCategoryIndex = -1;
   showCategoryDropdown = false;
+  showGroupDropdown = false;
+  groupDropdownPanelStyle: Record<string, string> = {};
+  private groupDropdownTrigger: HTMLElement | null = null;
   categoryColor = '#2563EB';
   private categoryColorDirty = false;
   user$!: Observable<User | null>;
@@ -447,8 +530,11 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes["isOpen"]?.currentValue === true) {
-      this.applyDefaultVisibility();
+    if (changes["isOpen"]) {
+      this.closeGroupDropdown();
+      if (changes["isOpen"].currentValue === true) {
+        this.applyDefaultVisibility();
+      }
     }
     if (this.isOpen) {
       this.refreshCurrentUserEmail();
@@ -460,7 +546,28 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
+  @ViewChild("groupDropdownBackdrop")
+  set groupDropdownBackdrop(ref: ElementRef<HTMLElement> | undefined) {
+    if (ref) {
+      document.body.appendChild(ref.nativeElement);
+    }
+  }
+
+  @ViewChild("groupDropdownPanel")
+  set groupDropdownPanel(ref: ElementRef<HTMLElement> | undefined) {
+    if (!ref || !this.groupDropdownTrigger) {
+      return;
+    }
+    document.body.appendChild(ref.nativeElement);
+    this.groupDropdownPanelStyle =
+      buildAnchoredFixedDropdownStyleFromTrigger(
+        this.groupDropdownTrigger,
+        ref.nativeElement.offsetHeight || this.estimateGroupDropdownHeight()
+      );
+  }
+
   ngOnDestroy(): void {
+    this.closeGroupDropdown();
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -490,12 +597,57 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
     return count >= 3 ? "grid grid-cols-3 gap-3" : "grid grid-cols-2 gap-3";
   }
 
+  get selectedGroupLabel(): string {
+    const match = this.groups.find((group) => group.id === this.selectedGroupId);
+    return match?.name ?? "Select a group...";
+  }
+
   setVisibility(visibility: "public" | "group" | "personal"): void {
     this.visibility = visibility;
     this.formData.is_personal = visibility === "personal";
     if (visibility === "group" && !this.selectedGroupId) {
       this.selectedGroupId = this.defaultGroupId || this.groups[0]?.id || null;
     }
+    if (visibility !== "group") {
+      this.closeGroupDropdown();
+    }
+  }
+
+  toggleGroupDropdown(event: Event): void {
+    if (this.showGroupDropdown) {
+      this.closeGroupDropdown();
+      return;
+    }
+    const current = event.currentTarget;
+    if (!(current instanceof HTMLElement)) {
+      return;
+    }
+    const field = current.closest("[data-group-dropdown-field]");
+    const trigger = field instanceof HTMLElement ? field : current;
+    this.groupDropdownTrigger = trigger;
+    this.showGroupDropdown = true;
+    this.groupDropdownPanelStyle = buildAnchoredFixedDropdownStyleFromTrigger(
+      trigger,
+      this.estimateGroupDropdownHeight()
+    );
+  }
+
+  closeGroupDropdown(): void {
+    this.showGroupDropdown = false;
+    this.groupDropdownPanelStyle = {};
+    this.groupDropdownTrigger = null;
+  }
+
+  private estimateGroupDropdownHeight(): number {
+    return Math.min(
+      ANCHORED_FIXED_DROPDOWN_MAX_HEIGHT,
+      this.groups.length * 36 + 8
+    );
+  }
+
+  selectGroup(groupId: string): void {
+    this.selectedGroupId = groupId;
+    this.closeGroupDropdown();
   }
 
   private applyDefaultVisibility(): void {
@@ -685,6 +837,7 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
           prayerData
         );
         if (!success) return;
+        this.closeGroupDropdown();
         this.showSuccessMessage = true;
         this.cdr.markForCheck();
         this.close.emit({ isPersonal: false });
@@ -709,6 +862,7 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
       );
 
       if (result.ok) {
+        this.closeGroupDropdown();
         this.showSuccessMessage = true;
         this.cdr.markForCheck();
 
@@ -738,6 +892,7 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
     this.showSuccessMessage = false;
     this.isSubmitting = false;
     this.showCategoryDropdown = false;
+    this.closeGroupDropdown();
     this.categoryColor = '#2563EB';
     this.categoryColorDirty = false;
     this.close.emit();
@@ -759,10 +914,25 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  @HostListener("document:keydown.escape")
+  onEscape(): void {
+    if (this.showGroupDropdown) {
+      this.closeGroupDropdown();
+    }
+  }
+
   @HostListener("document:click", ["$event"])
   onDocumentClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (this.showGroupDropdown) {
+      if (
+        !target.closest("[data-group-dropdown-trigger]") &&
+        !target.closest("[data-group-dropdown-panel]")
+      ) {
+        this.closeGroupDropdown();
+      }
+    }
     if (this.showCategoryDropdown) {
-      const target = event.target as HTMLElement;
       // Close dropdown if click is outside the category input area
       if (
         !target.closest("#category") &&

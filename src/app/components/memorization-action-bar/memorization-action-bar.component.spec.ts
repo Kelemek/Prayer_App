@@ -98,6 +98,8 @@ describe('MemorizationActionBarComponent', () => {
       const button = screen.getByRole('button', { name: new RegExp(name, 'i') });
       expect(button.className).toContain('rounded-lg');
       expect(button.className).toContain('border');
+      expect(button.className).toContain('h-9');
+      expect(button.className).toContain('text-xs');
     }
   });
 

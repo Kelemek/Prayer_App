@@ -2684,7 +2684,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Categories',
           description:
-            'When you have categories, these chips appear above the list. Drag the <strong>six-dot handle</strong> on a chip to <strong>reorder categories</strong>. Tap <strong>Next</strong> to filter to your sample category so card reordering unlocks.',
+            'When you have categories, these chips appear above the list. Drag the <strong>six-dot handle</strong> on a chip to <strong>reorder categories</strong>. Use the <strong>menu</strong> on a chip to <strong>rename</strong> or <strong>delete</strong> it. Tap <strong>Next</strong> to filter to your sample category so card reordering unlocks.',
           side: 'bottom',
           align: 'start',
           onNextClick: advance(() => hooks.narrowToWalkthroughCategoryFilter(), 280),

@@ -4,11 +4,13 @@ import {
   personalCategorySwapRpcArgs,
   validatePersonalCategoryRename,
   validatePersonalCategorySwapInputs,
+  applyPersonalCategoryDeleteLocally,
   applyPersonalCategoryRenameLocally,
   type CategoryDisplayOrderRange,
   type PersonalPrayerDisplayOrderUpdate,
 } from './prayer-personal-category';
 import {
+  deletePersonalPrayerRowsByIds,
   fetchPersonalPrayerCategoryIdRows,
   renamePersonalPrayerCategoriesByIds,
 } from './prayer-personal-db';
@@ -63,6 +65,15 @@ export function applyPersonalCategoryRenameSnapshot(
 ): void {
   actions.setPrayers(
     applyPersonalCategoryRenameLocally(actions.getPrayers(), oldName, newName)
+  );
+}
+
+export function applyPersonalCategoryDeleteSnapshot(
+  actions: PersonalCategoryLocalActions,
+  categoryName: string
+): void {
+  actions.setPrayers(
+    applyPersonalCategoryDeleteLocally(actions.getPrayers(), categoryName)
   );
 }
 
@@ -390,6 +401,75 @@ export async function orchestratePersonalCategoryRename(
   } catch (error) {
     console.error('[PrayerService] Error renaming personal category:', error);
     deps.toastError('Failed to rename category');
+    return false;
+  }
+}
+
+export type PersonalCategoryDeleteDeps = {
+  requireOnline: () => boolean;
+  toastError: (message: string) => void;
+  sanitize: (category: string | null | undefined) => string | null;
+  getTenantId: () => string | null;
+  getUserEmail: () => Promise<string | null>;
+  client: SupabaseClient;
+  local: PersonalCategoryLocalActions;
+};
+
+export async function orchestratePersonalCategoryDelete(
+  category: string,
+  deps: PersonalCategoryDeleteDeps
+): Promise<boolean> {
+  if (!deps.requireOnline()) {
+    return false;
+  }
+
+  const categoryName = deps.sanitize(category);
+  if (!categoryName) {
+    deps.toastError('Category name is required');
+    return false;
+  }
+
+  const tenantId = deps.getTenantId();
+  if (!tenantId) {
+    deps.toastError('No active organization selected');
+    return false;
+  }
+
+  try {
+    const userEmail = await deps.getUserEmail();
+    if (!userEmail) {
+      deps.toastError('User email not available');
+      return false;
+    }
+
+    const { data: categoryRows, error: selectError } =
+      await fetchPersonalPrayerCategoryIdRows(deps.client, userEmail, tenantId);
+    if (selectError) {
+      throw selectError;
+    }
+
+    const matchingIds = matchingPersonalPrayerIdsForCategoryRename(
+      categoryRows ?? [],
+      categoryName
+    );
+
+    if (hasPersonalCategoryRenameTargets(matchingIds)) {
+      const { error } = await deletePersonalPrayerRowsByIds(
+        deps.client,
+        userEmail,
+        matchingIds,
+        tenantId
+      );
+      if (error) {
+        throw error;
+      }
+    }
+
+    applyPersonalCategoryDeleteSnapshot(deps.local, categoryName);
+    return true;
+  } catch (error) {
+    console.error('[PrayerService] Error deleting personal category:', error);
+    deps.toastError('Failed to delete category');
     return false;
   }
 }

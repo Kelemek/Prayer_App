@@ -272,22 +272,8 @@
         (categoryDrop)="shell.personalCategory.actions.onCategoryDrop($event)"
         (categoryDragStarted)="shell.personalCategory.actions.onCategoryDragStarted()"
         (categoryDragEnded)="shell.personalCategory.actions.onCategoryDragEnded()"
-        (categoryPointerDown)="
-          shell.personalCategory.actions.onPersonalCategoryPointerDown(
-            $event.event,
-            $event.category
-          )
-        "
-        (categoryPointerMove)="
-          shell.personalCategory.actions.onPersonalCategoryPointerMove($event)
-        "
-        (categoryPointerUp)="shell.personalCategory.actions.onPersonalCategoryPointerUp($event)"
-        (categoryContextMenu)="
-          shell.personalCategory.actions.onPersonalCategoryContextMenu(
-            $event.event,
-            $event.category
-          )
-        "
+        (renameCategory)="shell.personalCategory.actions.openRenameCategory($event)"
+        (deleteCategory)="shell.personalCategory.actions.deleteCategory($event)"
       ></app-home-personal-category-filters>
       }
 

@@ -15,11 +15,20 @@ import {
 import { buildHomeSubFilterChipButtonClass } from "../../lib/home-sub-filter-chip-button-class";
 import { HOME_SHELL_SECTION_GAP_CLASSES } from "../../lib/home-shell-spacing";
 import { HomeSubFilterChipComponent } from "../home-sub-filter-chip/home-sub-filter-chip.component";
+import { CardActionsOverflowMenuComponent } from "../card-actions-overflow-menu/card-actions-overflow-menu.component";
+import type { CardActionsOverflowItem } from "../card-actions-overflow-menu/card-actions-overflow-menu.types";
+import { ConfirmationDialogComponent } from "../confirmation-dialog/confirmation-dialog.component";
 
 @Component({
   selector: "app-home-personal-category-filters",
   standalone: true,
-  imports: [CommonModule, DragDropModule, HomeSubFilterChipComponent],
+  imports: [
+    CommonModule,
+    DragDropModule,
+    HomeSubFilterChipComponent,
+    CardActionsOverflowMenuComponent,
+    ConfirmationDialogComponent,
+  ],
   templateUrl: "./home-personal-category-filters.component.html",
   host: { class: "block" },
 })
@@ -44,16 +53,10 @@ export class HomePersonalCategoryFiltersComponent {
   @Output() categoryDrop = new EventEmitter<CdkDragDrop<string[]>>();
   @Output() categoryDragStarted = new EventEmitter<void>();
   @Output() categoryDragEnded = new EventEmitter<void>();
-  @Output() categoryPointerDown = new EventEmitter<{
-    event: PointerEvent;
-    category: string;
-  }>();
-  @Output() categoryPointerMove = new EventEmitter<PointerEvent>();
-  @Output() categoryPointerUp = new EventEmitter<PointerEvent>();
-  @Output() categoryContextMenu = new EventEmitter<{
-    event: MouseEvent;
-    category: string;
-  }>();
+  @Output() renameCategory = new EventEmitter<string>();
+  @Output() deleteCategory = new EventEmitter<string>();
+
+  pendingDeleteCategory: string | null = null;
 
   readonly chipHostClass = HOME_WRAP_FILTER_CHIP_FLEX_CLASS;
   readonly chipButtonClass = HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS;
@@ -70,5 +73,48 @@ export class HomePersonalCategoryFiltersComponent {
       inactiveClass: this.namedChipInactiveClass,
       disabled: this.isCategorySwapping(category),
     });
+  }
+
+  overflowItems(category: string): CardActionsOverflowItem[] {
+    if (this.isCategorySwapping(category)) {
+      return [];
+    }
+    return [
+      {
+        id: "edit",
+        label: "Rename category",
+        icon: "edit",
+        tone: "blue",
+        ariaLabel: `Rename ${category}`,
+        onSelect: () => this.renameCategory.emit(category),
+      },
+      {
+        id: "delete",
+        label: "Delete category",
+        icon: "trash",
+        tone: "red",
+        ariaLabel: `Delete ${category}`,
+        onSelect: () => {
+          this.pendingDeleteCategory = category;
+        },
+      },
+    ];
+  }
+
+  deleteConfirmMessage(): string {
+    const name = this.pendingDeleteCategory ?? "this category";
+    return `Delete "${name}" and all of its prayers? This cannot be undone.`;
+  }
+
+  cancelDelete(): void {
+    this.pendingDeleteCategory = null;
+  }
+
+  confirmDelete(): void {
+    const category = this.pendingDeleteCategory;
+    this.pendingDeleteCategory = null;
+    if (category) {
+      this.deleteCategory.emit(category);
+    }
   }
 }

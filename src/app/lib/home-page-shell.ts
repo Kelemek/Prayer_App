@@ -48,10 +48,8 @@ export interface HomePersonalCategoryFilterActions {
   onCategoryDrop(event: CdkDragDrop<string[]>): void;
   onCategoryDragStarted(): void;
   onCategoryDragEnded(): void;
-  onPersonalCategoryPointerDown(event: PointerEvent, category: string): void;
-  onPersonalCategoryPointerMove(event: PointerEvent): void;
-  onPersonalCategoryPointerUp(event?: PointerEvent): void;
-  onPersonalCategoryContextMenu(event: MouseEvent, category: string): void;
+  openRenameCategory(category: string): void;
+  deleteCategory(category: string): void;
 }
 
 export interface HomePageShell {
@@ -261,14 +259,10 @@ export function createHomePageShell(deps: HomePageShellDeps): HomePageShell {
       onCategoryDragStarted: () =>
         deps.personalCategory.onCategoryDragStarted(),
       onCategoryDragEnded: () => deps.personalCategory.onCategoryDragEnded(),
-      onPersonalCategoryPointerDown: (event: PointerEvent, category: string) =>
-        deps.personalCategory.onPersonalCategoryPointerDown(event, category),
-      onPersonalCategoryPointerMove: (event: PointerEvent) =>
-        deps.personalCategory.onPersonalCategoryPointerMove(event),
-      onPersonalCategoryPointerUp: (event?: PointerEvent) =>
-        deps.personalCategory.onPersonalCategoryPointerUp(event),
-      onPersonalCategoryContextMenu: (event: MouseEvent, category: string) =>
-        deps.personalCategory.onPersonalCategoryContextMenu(event, category),
+      openRenameCategory: (category: string) =>
+        deps.personalCategory.openRenamePersonalCategoryModal(category),
+      deleteCategory: (category: string) =>
+        void deps.personalCategory.deletePersonalCategory(category),
     },
   };
 

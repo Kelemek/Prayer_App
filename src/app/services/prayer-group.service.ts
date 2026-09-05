@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, fromEvent, type Subscription } from 'rxjs';
 import { SupabaseService } from './supabase.service';
 import { AuthIdentityService } from './auth-identity.service';
 import { ConnectivityService } from './connectivity.service';
@@ -8,6 +8,11 @@ import { UserSessionService } from './user-session.service';
 import { EmailNotificationService } from './email-notification.service';
 import { CacheService } from './cache.service';
 import { groupPrayersCacheKey } from '../lib/prayer-tenant';
+import {
+  scheduleDebouncedResumeRefresh,
+  shouldSchedulePrayerResumeRefresh,
+} from '../lib/prayer-service-resume';
+import { PRAYER_SERVICE_RESUME_REFRESH_DEBOUNCE_MS } from '../lib/prayer-service-constants';
 import type { PrayerGroup, PrayerGroupMember, PrayerGroupMembershipProfile } from '../types/prayer-group';
 import type { PrayerRequest, PrayerUpdate } from '../lib/prayer-types';
 import type { PrayerFormSubmitPayload } from '../lib/prayer-form-submit';
@@ -74,6 +79,8 @@ export class PrayerGroupService {
   private readonly loadingPrayersSubject = new BehaviorSubject<boolean>(false);
   private canCreate = false;
   private activeGroupId: string | null = null;
+  private resumeRefreshTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private resumeListenerSubscriptions: Subscription[] = [];
 
   private static readonly GROUP_PRAYERS_CACHE_TTL_MS = 20 * 60 * 1000;
 
@@ -90,7 +97,9 @@ export class PrayerGroupService {
     private readonly userSession: UserSessionService,
     private readonly emailNotification: EmailNotificationService,
     private readonly cache: CacheService
-  ) {}
+  ) {
+    this.setupResumeListeners();
+  }
 
   getGroups(): PrayerGroup[] {
     return this.groupsSubject.value;
@@ -138,7 +147,7 @@ export class PrayerGroupService {
 
       const { data: memberships, error: memberError } = await this.supabase.client
         .from('prayer_group_members')
-        .select('group_id, role, is_active')
+        .select('group_id, role, is_active, display_order')
         .eq('user_email', email.toLowerCase())
         .eq('is_active', true);
       if (memberError) throw memberError;
@@ -146,6 +155,7 @@ export class PrayerGroupService {
       const rows = (memberships ?? []) as {
         group_id: string;
         role: 'owner' | 'member';
+        display_order: number;
       }[];
       if (rows.length === 0) {
         this.groupsSubject.next([]);
@@ -160,6 +170,7 @@ export class PrayerGroupService {
       if (groupsError) throw groupsError;
 
       const roleById = new Map(rows.map((row) => [row.group_id, row.role]));
+      const orderById = new Map(rows.map((row) => [row.group_id, row.display_order]));
       const groupById = new Map(
         ((groups ?? []) as PrayerGroup[]).map((group) => [group.id, group])
       );
@@ -172,10 +183,16 @@ export class PrayerGroupService {
           my_role: roleById.get(group.id),
         });
       }
-      mapped.sort(
-        (left, right) =>
+      mapped.sort((left, right) => {
+        const orderLeft = orderById.get(left.id) ?? 0;
+        const orderRight = orderById.get(right.id) ?? 0;
+        if (orderLeft !== orderRight) {
+          return orderLeft - orderRight;
+        }
+        return (
           new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
-      );
+        );
+      });
       this.groupsSubject.next(mapped);
       return mapped;
     } catch (error) {
@@ -260,6 +277,39 @@ export class PrayerGroupService {
       this.toast.error('Could not send invitations');
     }
     return invited;
+  }
+
+  async reorderGroups(orderedGroupIds: string[]): Promise<boolean> {
+    if (!this.connectivity.requireOnline('reorder groups')) {
+      return false;
+    }
+    if (orderedGroupIds.length === 0) {
+      return true;
+    }
+
+    const current = this.groupsSubject.value;
+    const byId = new Map(current.map((group) => [group.id, group]));
+    const reordered = orderedGroupIds
+      .map((id) => byId.get(id))
+      .filter((group): group is PrayerGroup => group != null);
+    if (reordered.length !== orderedGroupIds.length) {
+      return false;
+    }
+
+    this.groupsSubject.next(reordered);
+
+    try {
+      const { error } = await this.supabase.client.rpc('reorder_prayer_groups', {
+        p_ordered_group_ids: orderedGroupIds,
+      });
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('[PrayerGroup] reorderGroups failed:', error);
+      await this.loadMyGroups();
+      this.toast.error(this.errorMessage(error, 'Failed to reorder groups'));
+      return false;
+    }
   }
 
   async renameGroup(groupId: string, name: string): Promise<boolean> {
@@ -400,6 +450,45 @@ export class PrayerGroupService {
     return true;
   }
 
+  async hydrateGroupPrayers(options: {
+    force: boolean;
+    focusGroupId?: string | null;
+  }): Promise<void> {
+    if (options.focusGroupId) {
+      this.activeGroupId = options.focusGroupId;
+    }
+
+    if (!this.connectivity.isOnline()) {
+      this.publishFocusedGroupFromCache();
+      return;
+    }
+
+    try {
+      const groups = options.force ? await this.loadMyGroups() : this.getGroups();
+      const groupIds = [
+        ...new Set(groups.map((group) => group.id).filter((id) => id.length > 0)),
+      ];
+      if (groupIds.length === 0) {
+        return;
+      }
+
+      const idsToFetch = options.force
+        ? groupIds
+        : groupIds.filter((id) => !this.getCachedGroupPrayers(id));
+      if (idsToFetch.length > 0) {
+        await this.writeFetchedGroupPrayers(idsToFetch);
+      }
+      if (
+        this.activeGroupId &&
+        !idsToFetch.includes(this.activeGroupId)
+      ) {
+        this.publishFocusedGroupFromCache();
+      }
+    } catch (error) {
+      console.error('[PrayerGroup] hydrateGroupPrayers failed:', error);
+    }
+  }
+
   async loadGroupPrayers(
     groupId: string | null,
     silentRefresh = false
@@ -437,17 +526,9 @@ export class PrayerGroupService {
     }
 
     try {
-      const { data, error } = await this.supabase.client
-        .from('group_prayers')
-        .select(GROUP_PRAYERS_SELECT)
-        .eq('group_id', groupId)
-        .order('date_requested', { ascending: false });
-      if (error) throw error;
-      const prayers = ((data ?? []) as GroupPrayerRow[]).map((row) =>
-        this.rowToPrayer(row)
-      );
+      const grouped = await this.writeFetchedGroupPrayers([groupId]);
+      const prayers = grouped.get(groupId) ?? [];
       this.activeGroupId = groupId;
-      this.setCachedGroupPrayers(groupId, prayers);
       this.prayersSubject.next(prayers);
       return prayers;
     } catch (error) {
@@ -459,6 +540,78 @@ export class PrayerGroupService {
     } finally {
       this.loadingPrayersSubject.next(false);
     }
+  }
+
+  private setupResumeListeners(): void {
+    this.resumeListenerSubscriptions.push(
+      fromEvent(window, 'focus').subscribe(() => {
+        if (shouldSchedulePrayerResumeRefresh()) {
+          this.scheduleResumeRefresh();
+        }
+      }),
+      fromEvent(document, 'visibilitychange').subscribe(() => {
+        if (shouldSchedulePrayerResumeRefresh()) {
+          this.scheduleResumeRefresh();
+        }
+      })
+    );
+  }
+
+  private scheduleResumeRefresh(): void {
+    this.resumeRefreshTimeoutId = scheduleDebouncedResumeRefresh(
+      this.resumeRefreshTimeoutId,
+      PRAYER_SERVICE_RESUME_REFRESH_DEBOUNCE_MS,
+      () => {
+        this.resumeRefreshTimeoutId = null;
+        void this.hydrateGroupPrayers({ force: false });
+      }
+    );
+  }
+
+  private publishFocusedGroupFromCache(): void {
+    if (!this.activeGroupId) {
+      return;
+    }
+    const cached = this.getCachedGroupPrayers(this.activeGroupId);
+    if (cached) {
+      this.prayersSubject.next(cached);
+    }
+  }
+
+  private async writeFetchedGroupPrayers(
+    groupIds: string[]
+  ): Promise<Map<string, PrayerRequest[]>> {
+    const grouped = await this.fetchGroupPrayersByGroupIds(groupIds);
+    for (const groupId of groupIds) {
+      const prayers = grouped.get(groupId) ?? [];
+      this.setCachedGroupPrayers(groupId, prayers);
+      if (this.activeGroupId === groupId) {
+        this.prayersSubject.next(prayers);
+      }
+    }
+    return grouped;
+  }
+
+  private async fetchGroupPrayersByGroupIds(
+    groupIds: string[]
+  ): Promise<Map<string, PrayerRequest[]>> {
+    const { data, error } = await this.supabase.client
+      .from('group_prayers')
+      .select(GROUP_PRAYERS_SELECT)
+      .in('group_id', groupIds)
+      .order('date_requested', { ascending: false });
+    if (error) throw error;
+
+    const grouped = new Map<string, PrayerRequest[]>();
+    for (const id of groupIds) {
+      grouped.set(id, []);
+    }
+    for (const row of (data ?? []) as GroupPrayerRow[]) {
+      const prayers = grouped.get(row.group_id);
+      if (!prayers) continue;
+      prayers.push(this.rowToPrayer(row));
+    }
+    return grouped;
   }
 
   private getCachedGroupPrayers(groupId: string): PrayerRequest[] | null {

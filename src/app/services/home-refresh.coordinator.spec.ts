@@ -26,6 +26,7 @@ describe("HomeRefreshCoordinator", () => {
       personalCategoryColorService: { loadColors: vi.fn().mockResolvedValue(undefined) } as any,
       memorizationService: { loadItems: vi.fn().mockResolvedValue(undefined) } as any,
       toastService: { error: vi.fn() } as any,
+      prayerGroupService: { hydrateGroupPrayers: vi.fn().mockResolvedValue(undefined) } as any,
     });
   });
 
@@ -40,18 +41,23 @@ describe("HomeRefreshCoordinator", () => {
       loadPrayers: vi.fn().mockResolvedValue(undefined),
       loadPersonalPrayers: vi.fn().mockResolvedValue(undefined),
     };
+    const prayerGroupService = {
+      hydrateGroupPrayers: vi.fn().mockResolvedValue(undefined),
+    };
     coordinator.bindHost(host, {
       prayerService: prayerService as any,
       userSessionService: { getCurrentSession: vi.fn(() => ({ email: "user@example.com" })) } as any,
       personalCategoryColorService: { loadColors: vi.fn().mockResolvedValue(undefined) } as any,
       memorizationService: { loadItems: vi.fn().mockResolvedValue(undefined) } as any,
       toastService: { error: vi.fn() } as any,
+      prayerGroupService: prayerGroupService as any,
     });
 
     await coordinator.onPullToRefresh();
 
     expect(prayerService.loadPrayers).toHaveBeenCalledWith(false);
     expect(prayerService.loadPersonalPrayers).toHaveBeenCalledWith(false);
+    expect(prayerGroupService.hydrateGroupPrayers).toHaveBeenCalledWith({ force: true });
     expect(host.setRefreshing).toHaveBeenCalledWith(false);
   });
 });

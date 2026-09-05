@@ -108,6 +108,25 @@ export async function renamePersonalPrayerCategoriesByIds(
   return { error: result.error };
 }
 
+export async function deletePersonalPrayerRowsByIds(
+  client: SupabaseClient,
+  userEmail: string,
+  prayerIds: string[],
+  tenantId?: string | null
+): Promise<{ error: unknown }> {
+  if (prayerIds.length === 0) {
+    return { error: null };
+  }
+  let query = client
+    .from("personal_prayers")
+    .delete()
+    .eq("user_email", userEmail)
+    .in("id", prayerIds);
+  query = eqTenantIdOrUnaffiliated(query, tenantId);
+  const result = await query;
+  return { error: result.error };
+}
+
 export async function insertPersonalPrayerUpdateRow(
   client: SupabaseClient,
   updateData: Record<string, unknown>

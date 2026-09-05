@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildAnchoredFixedDropdownStyle,
   getSafeAreaViewportBounds,
   shouldOpenFixedPopoverUp,
 } from './fixed-popover-placement';
@@ -48,6 +49,42 @@ describe('fixedPopoverPlacement', () => {
       expect(bounds).toEqual({ top: 48, bottom: 900, width: 1200 });
 
       viewport.remove();
+    });
+  });
+
+  describe('buildAnchoredFixedDropdownStyle', () => {
+    it('places the menu flush below the trigger when there is room', () => {
+      const style = buildAnchoredFixedDropdownStyle(
+        { top: 100, bottom: 140, left: 20, width: 300 },
+        { top: 0, bottom: 800 },
+        160
+      );
+      expect(style.top).toBe('144px');
+      expect(style.left).toBe('20px');
+      expect(style.width).toBe('300px');
+      expect(style.maxHeight).toBe('160px');
+    });
+
+    it('places the menu above the trigger when near the bottom', () => {
+      const style = buildAnchoredFixedDropdownStyle(
+        { top: 700, bottom: 740, left: 20, width: 300 },
+        { top: 0, bottom: 800 },
+        200
+      );
+      expect(style.top).toBe('496px');
+      expect(style.maxHeight).toBe('200px');
+    });
+
+    it('shrinks to the available side so the menu stays on screen', () => {
+      const style = buildAnchoredFixedDropdownStyle(
+        { top: 90, bottom: 120, left: 20, width: 300 },
+        { top: 0, bottom: 130 },
+        200
+      );
+      const top = Number.parseFloat(style.top);
+      const height = Number.parseFloat(style.maxHeight);
+      expect(top).toBeGreaterThanOrEqual(0);
+      expect(top + height).toBeLessThanOrEqual(90);
     });
   });
 });

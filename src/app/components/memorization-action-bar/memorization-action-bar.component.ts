@@ -5,14 +5,15 @@ import {
   HOME_INACTIVE_SURFACE_BG_CLASS,
   HOME_MEMORIZE_SUB_FILTER_GROUP_CLASS,
   HOME_PUBLIC_PANEL_CHIP_ACTIVE_FILL_CLASS,
-  HOME_SUB_FILTER_CHIP_ROW_CLASS,
+  HOME_PUBLIC_STATUS_CHIP_ROW_CLASS,
+  HOME_SUB_FILTER_CHIP_SIZE_CLASS,
   MEMORIZE_CARD_SHELL_BORDER_CLASS,
 } from '../../lib/home-sub-filter-chip-classes';
 import { HOME_SHELL_SECTION_GAP_CLASSES } from '../../lib/home-shell-spacing';
 
-/** Fixed `14px` (not `text-sm` rem) so labels stay the same under Settings text size. */
+/** Matches Home sub-filter chip height (`h-9` / 36px) on Public, Personal, and Groups tabs. */
 const ACTION_BTN_BASE =
-  'flex flex-1 items-center justify-center whitespace-nowrap rounded-lg border px-2 py-2 text-[14px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer sm:flex-none sm:px-4';
+  `flex h-9 flex-1 items-center justify-center whitespace-nowrap border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer sm:flex-none ${HOME_SUB_FILTER_CHIP_SIZE_CLASS}`;
 
 /** Outlined blue — lighter fill than the Memorize panel (`bg-blue-200`). */
 const MEMORIZE_TAB_CHIP =
@@ -151,7 +152,7 @@ export class MemorizationActionBarComponent {
   protected readonly actionBtnBase = ACTION_BTN_BASE;
   protected readonly softBlueBtn = SOFT_BLUE_BTN;
   protected readonly secondaryBtn = SECONDARY_BTN;
-  protected readonly chipRowClass = HOME_SUB_FILTER_CHIP_ROW_CLASS;
+  protected readonly chipRowClass = HOME_PUBLIC_STATUS_CHIP_ROW_CLASS;
   protected readonly viewBtnBase = VIEW_BTN_BASE;
   protected readonly viewBtnActive = VIEW_BTN_ACTIVE;
   protected readonly viewBtnInactive = VIEW_BTN_INACTIVE;

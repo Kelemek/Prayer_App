@@ -10,6 +10,11 @@ import {
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
+import {
+  CdkDragDrop,
+  DragDropModule,
+  moveItemInArray,
+} from "@angular/cdk/drag-drop";
 import { HomeSubFilterChipComponent } from "../home-sub-filter-chip/home-sub-filter-chip.component";
 import { CardActionsOverflowMenuComponent } from "../card-actions-overflow-menu/card-actions-overflow-menu.component";
 import type { CardActionsOverflowItem } from "../card-actions-overflow-menu/card-actions-overflow-menu.types";
@@ -19,12 +24,18 @@ import type { PrayerGroup } from "../../types/prayer-group";
 import { PrayerGroupService } from "../../services/prayer-group.service";
 import {
   HOME_GROUPS_SUB_FILTER_GROUP_CLASS,
+  HOME_PUBLIC_STATUS_CHIP_ROW_CLASS,
   HOME_PUBLIC_STATUS_CHIP_THEMES,
-  HOME_SUB_FILTER_CHIP_ROW_CLASS,
+  HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS,
   HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS,
   HOME_WRAP_FILTER_CHIP_FLEX_CLASS,
 } from "../../lib/home-sub-filter-chip-classes";
+import { buildHomeSubFilterChipButtonClass } from "../../lib/home-sub-filter-chip-button-class";
 import { HOME_SHELL_SECTION_GAP_CLASSES } from "../../lib/home-shell-spacing";
+import {
+  lockHomePersonalCategoryDragScroll,
+  unlockHomePersonalCategoryDragScroll,
+} from "../../lib/personal-category-drag-scroll";
 
 @Component({
   selector: "app-home-group-filters",
@@ -32,6 +43,7 @@ import { HOME_SHELL_SECTION_GAP_CLASSES } from "../../lib/home-shell-spacing";
   imports: [
     CommonModule,
     FormsModule,
+    DragDropModule,
     HomeSubFilterChipComponent,
     CardActionsOverflowMenuComponent,
     ConfirmationDialogComponent,
@@ -63,10 +75,13 @@ export class HomeGroupFiltersComponent implements OnChanges {
   membersTarget: PrayerGroup | null = null;
   renameDraft = "";
   groupActionSubmitting = false;
+  isGroupReordering = false;
+  private groupDragScrollLockTarget: HTMLElement | null = null;
 
   readonly chipHostClass = HOME_WRAP_FILTER_CHIP_FLEX_CLASS;
   readonly chipButtonClass = HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS;
-  readonly chipRowClass = HOME_SUB_FILTER_CHIP_ROW_CLASS;
+  readonly chipDragShellClass = HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS;
+  readonly chipRowClass = HOME_PUBLIC_STATUS_CHIP_ROW_CLASS;
   readonly sectionGapClass = HOME_SHELL_SECTION_GAP_CLASSES;
   readonly subFilterGroupClass = HOME_GROUPS_SUB_FILTER_GROUP_CLASS;
   readonly chipThemes = HOME_PUBLIC_STATUS_CHIP_THEMES;
@@ -93,14 +108,47 @@ export class HomeGroupFiltersComponent implements OnChanges {
   }
 
   chipShellClass(group: PrayerGroup): string {
-    const stateClass =
-      this.selectedGroupId === group.id
-        ? this.chipThemes.members.active
-        : this.chipThemes.members.inactive;
-    return `${stateClass} relative flex w-full min-h-9 min-w-max items-center gap-0.5 rounded-lg px-3 pr-0.5 text-xs font-medium whitespace-nowrap transition-all`;
+    return buildHomeSubFilterChipButtonClass({
+      base: this.chipDragShellClass,
+      active: this.selectedGroupId === group.id,
+      activeClass: this.chipThemes.members.active,
+      inactiveClass: this.chipThemes.members.inactive,
+      disabled: this.isGroupReordering,
+    });
+  }
+
+  onGroupDragStarted(): void {
+    document.body.style.cursor = "grabbing";
+    this.groupDragScrollLockTarget = lockHomePersonalCategoryDragScroll();
+  }
+
+  onGroupDragEnded(): void {
+    document.body.style.cursor = "";
+    unlockHomePersonalCategoryDragScroll(this.groupDragScrollLockTarget);
+    this.groupDragScrollLockTarget = null;
+  }
+
+  async onGroupDrop(event: CdkDragDrop<PrayerGroup[]>): Promise<void> {
+    if (event.previousIndex === event.currentIndex || this.isGroupReordering) {
+      return;
+    }
+
+    const orderedGroupIds = this.groups.map((group) => group.id);
+    moveItemInArray(orderedGroupIds, event.previousIndex, event.currentIndex);
+
+    this.isGroupReordering = true;
+    this.cdr.markForCheck();
+
+    await this.prayerGroupService.reorderGroups(orderedGroupIds);
+
+    this.isGroupReordering = false;
+    this.cdr.markForCheck();
   }
 
   overflowItems(group: PrayerGroup): CardActionsOverflowItem[] {
+    if (this.isGroupReordering) {
+      return [];
+    }
     const items: CardActionsOverflowItem[] = [
       {
         id: "members",

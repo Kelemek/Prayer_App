@@ -112,7 +112,7 @@ export const HOME_SUB_FILTER_CHIP_WRAP_CLASS = [
 
 /** Full-width chip button inside a shared wrap row (no drag handle). */
 export const HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS = [
-  "relative flex w-full min-w-max items-center justify-center gap-1 text-center transition-all",
+  "relative flex h-9 w-full min-w-max items-center justify-center gap-1 text-center transition-all",
   HOME_SUB_FILTER_CHIP_SIZE_CLASS,
   "whitespace-nowrap",
 ].join(" ");
@@ -154,10 +154,10 @@ export const HOME_PERSONAL_CATEGORY_CHIP_FLEX_CLASS =
 export const HOME_PERSONAL_CATEGORY_CHIP_SOLO_FLEX_CLASS =
   HOME_WRAP_FILTER_CHIP_SOLO_FLEX_CLASS;
 
-/** Button inside category chip when it shares a row with others. */
+/** Chip shell with left padding for a drag handle and room for the overflow menu. */
 export const HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS = [
-  "relative flex w-full min-w-max items-center justify-center gap-1 text-center transition-all pl-7 pr-3",
-  "min-h-9 py-2 rounded-lg text-xs font-medium whitespace-nowrap",
+  "relative flex h-9 w-full min-w-max items-center gap-0.5 text-center transition-all pl-7 pr-0.5",
+  "py-2 rounded-lg text-xs font-medium whitespace-nowrap",
 ].join(" ");
 
 /** Full-width solo-row chip button; label may truncate when constrained. */

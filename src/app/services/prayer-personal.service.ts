@@ -55,6 +55,7 @@ import {
   type PersonalCategoryQueryWireDeps,
 } from "../lib/prayer-personal-category-wire";
 import {
+  orchestratePersonalCategoryDelete,
   orchestratePersonalCategoryRename,
   orchestratePersonalCategoryReorder,
   orchestratePersonalCategorySwap,
@@ -709,6 +710,22 @@ export class PrayerPersonalService {
       },
       options
     );
+  }
+
+  async deletePersonalCategory(category: string): Promise<boolean> {
+    return orchestratePersonalCategoryDelete(category, {
+      requireOnline: () =>
+        this.connectivity.requireOnline("delete a category"),
+      toastError: (message) => this.toast.error(message),
+      sanitize: (categoryName) => sanitizePersonalPrayerCategory(categoryName),
+      getTenantId: () => this.getActiveTenantId(),
+      getUserEmail: () => this.getUserEmail(),
+      client: this.supabase.client,
+      local: {
+        getPrayers: () => this.allPersonalPrayersSubject.value,
+        setPrayers: (prayers) => this.setPersonalPrayersState(prayers),
+      },
+    });
   }
 
   async addPersonalPrayerUpdate(

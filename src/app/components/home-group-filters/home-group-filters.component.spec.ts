@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import { ɵresolveComponentResources as resolveComponentResources } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import {
+  HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS,
   HOME_WRAP_FILTER_CHIP_FLEX_CLASS,
 } from "../../lib/home-sub-filter-chip-classes";
 import { HomeGroupFiltersComponent } from "./home-group-filters.component";
@@ -57,6 +58,7 @@ describe("HomeGroupFiltersComponent", () => {
         useValue: {
           renameGroup: vi.fn().mockResolvedValue(true),
           deleteGroup: vi.fn().mockResolvedValue(true),
+          reorderGroups: vi.fn().mockResolvedValue(true),
         },
       })
       .compileComponents();
@@ -173,13 +175,64 @@ describe("HomeGroupFiltersComponent", () => {
     expect(panel.className).not.toContain("bg-blue-200");
   });
 
-  it("wraps group chips with the same flex host as Personal categories", () => {
+  it("wraps group chips with the equal-width flex host", () => {
     const host = fixture.nativeElement.querySelector(
-      "#tour-filter-group-g1"
-    )?.parentElement?.parentElement as HTMLElement;
+      "[data-group-filter-chip='g1']"
+    ) as HTMLElement;
     expect(host.className).toContain(
       HOME_WRAP_FILTER_CHIP_FLEX_CLASS.split(" ")[0]
     );
     expect(host.className).toContain("flex-[1_1_0]");
+  });
+
+  it("uses a real flex drop list container for drag reorder", () => {
+    const dropList = fixture.nativeElement.querySelector(
+      ".cdk-drop-list"
+    ) as HTMLElement;
+    expect(dropList).toBeTruthy();
+    expect(dropList.className).toContain("flex");
+    expect(dropList.className).toContain("flex-wrap");
+    expect(dropList.className).not.toContain("contents");
+  });
+
+  it("shows a drag handle on group chips", () => {
+    const handle = fixture.nativeElement.querySelector(
+      "[data-group-filter-drag-handle]"
+    );
+    expect(handle).toBeTruthy();
+  });
+
+  it("calls reorderGroups when a group chip is dropped", async () => {
+    const reorderGroups = vi.fn().mockResolvedValue(true);
+    const prayerGroupService = TestBed.inject(PrayerGroupService) as {
+      reorderGroups: ReturnType<typeof vi.fn>;
+    };
+    prayerGroupService.reorderGroups = reorderGroups;
+
+    fixture.componentInstance.groups = [
+      familyGroup,
+      {
+        ...familyGroup,
+        id: "g2",
+        name: "Friends",
+      },
+    ];
+    fixture.detectChanges();
+
+    await fixture.componentInstance.onGroupDrop({
+      previousIndex: 0,
+      currentIndex: 1,
+    } as any);
+
+    expect(reorderGroups).toHaveBeenCalledWith(["g2", "g1"]);
+  });
+
+  it("uses the drag-stretch chip shell for group chips", () => {
+    const shell = fixture.nativeElement.querySelector(
+      "[data-group-filter-chip='g1'] > div"
+    ) as HTMLElement;
+    expect(shell.className).toContain(
+      HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS.split(" ")[0]
+    );
   });
 });

@@ -6,6 +6,7 @@ import type { PersonalCategoryColorService } from "./personal-category-color.ser
 import type { MemorizationService } from "./memorization.service";
 import type { ToastService } from "./toast.service";
 import type { ConnectivityService } from "./connectivity.service";
+import type { PrayerGroupService } from "./prayer-group.service";
 
 export interface HomeRefreshHost {
   getActiveFilter(): HomeActiveFilter;
@@ -22,6 +23,7 @@ export interface HomeRefreshServices {
   memorizationService: MemorizationService;
   toastService: ToastService;
   connectivity?: ConnectivityService;
+  prayerGroupService: PrayerGroupService;
 }
 
 @Injectable()
@@ -59,6 +61,7 @@ export class HomeRefreshCoordinator {
         tasks.push(services.prayerService.loadPersonalPrayers(false));
         tasks.push(services.personalCategoryColorService.loadColors(true));
         tasks.push(services.memorizationService.loadItems());
+        tasks.push(services.prayerGroupService.hydrateGroupPrayers({ force: true }));
       }
 
       if (host.getActiveFilter() === "memorize") {

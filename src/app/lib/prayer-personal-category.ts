@@ -359,3 +359,12 @@ export function applyPersonalCategoryRenameLocally(
       : p
   );
 }
+
+export function applyPersonalCategoryDeleteLocally(
+  allPrayers: PrayerRequest[],
+  categoryName: string
+): PrayerRequest[] {
+  return allPrayers.filter(
+    (p) => sanitizePersonalPrayerCategory(p.category) !== categoryName
+  );
+}

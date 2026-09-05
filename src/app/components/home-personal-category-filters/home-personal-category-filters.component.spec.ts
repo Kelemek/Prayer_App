@@ -76,12 +76,48 @@ describe("HomePersonalCategoryFiltersComponent", () => {
   });
 
   it("uses drag stretch button classes on category chips", () => {
-    const button = fixture.nativeElement.querySelector(
-      "[data-personal-category-chip='Family'] button"
+    const chip = fixture.nativeElement.querySelector(
+      "[data-personal-category-chip='Family']"
+    ) as HTMLElement;
+    const select = chip.querySelector(
+      "[data-personal-category-select]"
     ) as HTMLButtonElement;
-    expect(button.textContent).toContain("Family (3)");
-    expect(button.className).toContain(
+    expect(select.textContent).toContain("Family (3)");
+    expect(chip.querySelector("div")?.className).toContain(
       HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS.split(" ")[0]
     );
+  });
+
+  it("shows an overflow menu with rename and delete on category chips", () => {
+    expect(
+      fixture.nativeElement.querySelectorAll(
+        '[data-testid="card-actions-overflow-trigger"]'
+      ).length
+    ).toBe(2);
+    const items = fixture.componentInstance.overflowItems("Family");
+    expect(items.map((item) => item.id)).toEqual(["edit", "delete"]);
+  });
+
+  it("emits renameCategory from the overflow rename action", () => {
+    const emitted: string[] = [];
+    fixture.componentInstance.renameCategory.subscribe((category) =>
+      emitted.push(category)
+    );
+    fixture.componentInstance.overflowItems("Health")[0]?.onSelect();
+    expect(emitted).toEqual(["Health"]);
+  });
+
+  it("asks for confirmation before emitting deleteCategory", () => {
+    const emitted: string[] = [];
+    fixture.componentInstance.deleteCategory.subscribe((category) =>
+      emitted.push(category)
+    );
+    fixture.componentInstance.overflowItems("Family")[1]?.onSelect();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.pendingDeleteCategory).toBe("Family");
+    expect(emitted).toEqual([]);
+    fixture.componentInstance.confirmDelete();
+    expect(emitted).toEqual(["Family"]);
+    expect(fixture.componentInstance.pendingDeleteCategory).toBeNull();
   });
 });

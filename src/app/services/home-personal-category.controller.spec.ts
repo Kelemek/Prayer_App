@@ -2,8 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { HomePersonalCategoryController } from "./home-personal-category.controller";
 import type { PrayerRequest } from "./prayer.service";
 import { HOME_PERSONAL_CATEGORY_DRAG_SCROLL_LOCK_CLASS } from "../lib/personal-category-drag-scroll";
-import * as personalCategoryLongPress from "../lib/personal-category-long-press";
-import { PERSONAL_CATEGORY_LONG_PRESS_MS } from "../lib/personal-category-long-press";
 
 function prayersWithCategoryOrder(
   entries: Array<{ category: string; display_order: number }>
@@ -28,11 +26,13 @@ describe("HomePersonalCategoryController", () => {
     reorderCategories: ReturnType<typeof vi.fn>;
     getPersonalPrayersSnapshot: ReturnType<typeof vi.fn>;
     renamePersonalCategory: ReturnType<typeof vi.fn>;
+    deletePersonalCategory: ReturnType<typeof vi.fn>;
     updatePersonalPrayerOrder: ReturnType<typeof vi.fn>;
   };
   let personalCategoryColorService: {
     getColorsSnapshot: ReturnType<typeof vi.fn>;
     renameCategory: ReturnType<typeof vi.fn>;
+    deleteCategory: ReturnType<typeof vi.fn>;
   };
   let toastService: { error: ReturnType<typeof vi.fn>; success: ReturnType<typeof vi.fn> };
 
@@ -52,11 +52,13 @@ describe("HomePersonalCategoryController", () => {
       reorderCategories: vi.fn(),
       getPersonalPrayersSnapshot: vi.fn(() => []),
       renamePersonalCategory: vi.fn(),
+      deletePersonalCategory: vi.fn(),
       updatePersonalPrayerOrder: vi.fn(),
     };
     personalCategoryColorService = {
       getColorsSnapshot: vi.fn(() => ({})),
       renameCategory: vi.fn(),
+      deleteCategory: vi.fn().mockResolvedValue(true),
     };
     toastService = { error: vi.fn(), success: vi.fn() };
     controller.bindHost(host, {
@@ -188,50 +190,44 @@ describe("HomePersonalCategoryController", () => {
     expect(host.onFilterStateChanged).toHaveBeenCalled();
   });
 
-  describe("personal category long-press rename", () => {
-    it("opens rename modal after long-press and swallows the release gesture", () => {
-      vi.useFakeTimers();
-      const clearSelectionSpy = vi.spyOn(
-        personalCategoryLongPress,
-        "clearBrowserTextSelection"
-      );
-      const addListenerSpy = vi.spyOn(document, "addEventListener");
-
-      controller.onPersonalCategoryPointerDown(
-        {
-          button: 0,
-          clientX: 10,
-          clientY: 10,
-          target: document.createElement("button"),
-        } as unknown as PointerEvent,
-        "Health"
-      );
-
-      vi.advanceTimersByTime(PERSONAL_CATEGORY_LONG_PRESS_MS);
+  describe("personal category overflow rename and delete", () => {
+    it("opens rename modal for the selected category", () => {
+      controller.openRenamePersonalCategoryModal("Health");
 
       expect(controller.showRenamePersonalCategory).toBe(true);
       expect(controller.renamingPersonalCategory).toBe("Health");
-      expect(controller.personalCategoryRenameDeferInputFocus).toBe(true);
-      expect(clearSelectionSpy).toHaveBeenCalled();
-      expect(addListenerSpy).toHaveBeenCalledWith(
-        "pointerup",
-        expect.any(Function),
-        expect.objectContaining({ capture: true, passive: false })
+      expect(controller.personalCategoryRenameDeferInputFocus).toBe(false);
+    });
+
+    it("deletes the category, color, and clears a matching named filter", async () => {
+      controller.personalCategoryFilterMode = "named";
+      controller.selectedPersonalCategories = ["Health"];
+      prayerService.deletePersonalCategory.mockResolvedValue(true);
+
+      await controller.deletePersonalCategory("Health");
+
+      expect(prayerService.deletePersonalCategory).toHaveBeenCalledWith(
+        "Health"
       );
+      expect(personalCategoryColorService.deleteCategory).toHaveBeenCalledWith(
+        "Health"
+      );
+      expect(controller.personalCategoryFilterMode).toBe("total");
+      expect(controller.selectedPersonalCategories).toEqual([]);
+      expect(toastService.success).toHaveBeenCalledWith("Category deleted.");
+    });
 
-      const releaseEvent = {
-        cancelable: true,
-        preventDefault: vi.fn(),
-        stopPropagation: vi.fn(),
-      } as unknown as PointerEvent;
-      controller.onPersonalCategoryPointerUp(releaseEvent);
+    it("does not clear filters when delete fails", async () => {
+      controller.personalCategoryFilterMode = "named";
+      controller.selectedPersonalCategories = ["Health"];
+      prayerService.deletePersonalCategory.mockResolvedValue(false);
 
-      expect(releaseEvent.preventDefault).toHaveBeenCalled();
-      expect(releaseEvent.stopPropagation).toHaveBeenCalled();
+      await controller.deletePersonalCategory("Health");
 
-      vi.useRealTimers();
-      clearSelectionSpy.mockRestore();
-      addListenerSpy.mockRestore();
+      expect(personalCategoryColorService.deleteCategory).not.toHaveBeenCalled();
+      expect(controller.personalCategoryFilterMode).toBe("named");
+      expect(controller.selectedPersonalCategories).toEqual(["Health"]);
+      expect(toastService.success).not.toHaveBeenCalled();
     });
   });
 

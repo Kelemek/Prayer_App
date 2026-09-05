@@ -327,6 +327,7 @@ export class HomeComponent
       tenantContextService: this.tenantContextService,
       tenantPermissionService: this.tenantPermissionService,
       connectivity: this.connectivity,
+      prayerGroupService: this.prayerGroupService,
       supabaseService: this.supabaseService,
       prayerCardActions: this.prayerCardActions,
       deepLinkCoordinator: this.deepLinkCoordinator,
@@ -390,6 +391,7 @@ export class HomeComponent
         if (
           this.activeFilter === "groups" &&
           this.selectedGroupId &&
+          previousSelected &&
           this.selectedGroupId !== previousSelected
         ) {
           void this.loadSelectedGroupPrayers();
@@ -880,9 +882,10 @@ export class HomeComponent
     if (!this.selectedGroupId && groups.length > 0) {
       this.selectedGroupId = groups[0].id;
     }
-    if (this.activeFilter === "groups") {
-      await this.loadSelectedGroupPrayers();
-    }
+    await this.prayerGroupService.hydrateGroupPrayers({
+      force: false,
+      focusGroupId: this.selectedGroupId,
+    });
     this.cdr.markForCheck();
   }
 
@@ -919,7 +922,6 @@ export class HomeComponent
       this.selectedGroupId = created.id;
       this.filter.setFilter("groups");
       await this.loadPrayerGroups();
-      await this.loadSelectedGroupPrayers();
       this.closeGroupEditor();
       this.membersGroupIdToOpen = created.id;
     }
@@ -934,11 +936,11 @@ export class HomeComponent
     );
     if (!stillExists) {
       this.selectedGroupId = this.prayerGroups[0]?.id ?? null;
+      await this.loadSelectedGroupPrayers();
     }
     if (this.prayerGroups.length === 0) {
       this.closeGroupEditor();
     }
-    await this.loadSelectedGroupPrayers();
     this.cdr.markForCheck();
   }
 

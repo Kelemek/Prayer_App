@@ -113,6 +113,28 @@ describe('PersonalCategoryColorService', () => {
     );
   });
 
+  it('deleteCategory removes tenant-scoped snapshot and cache', async () => {
+    await service.loadColors(true);
+    const deleteEqCategory = vi.fn().mockResolvedValue({ error: null });
+    const deleteEqEmail = vi.fn().mockReturnValue({ eq: deleteEqCategory });
+    const deleteEqTenant = vi.fn().mockReturnValue({ eq: deleteEqEmail });
+    fromMock.mockReturnValue({
+      select: selectMock,
+      upsert: upsertMock,
+      delete: vi.fn().mockReturnValue({ eq: deleteEqTenant }),
+    });
+
+    const result = await service.deleteCategory('Health');
+
+    expect(result).toBe(true);
+    expect(deleteEqTenant).toHaveBeenCalledWith('tenant_id', TEST_TENANT_ID);
+    expect(service.getColorsSnapshot().Health).toBeUndefined();
+    expect(cache.set).toHaveBeenCalledWith(
+      `personalCategoryColors_${TEST_TENANT_ID}`,
+      {}
+    );
+  });
+
   it('setColor upserts with tenant_id and updates snapshot', async () => {
     await service.setColor('Family', '#2563EB');
     expect(upsertMock).toHaveBeenCalledWith(

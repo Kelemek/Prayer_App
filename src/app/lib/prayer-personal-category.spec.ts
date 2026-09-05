@@ -9,6 +9,7 @@ import {
   nextAvailableCategoryRange,
   nextDisplayOrderInCategoryRange,
   personalPrayerIdsWithTrimmedCategory,
+  applyPersonalCategoryDeleteLocally,
   personalPrayerOrderRpcArgs,
   resolvePersonalCategoryRangeFromDbState,
   rpcMutationSucceeded,
@@ -118,6 +119,18 @@ describe('prayer-personal-category', () => {
       'Family'
     );
     expect(ids).toEqual(['p1']);
+  });
+
+  it('removes matching prayers when deleting a category locally', () => {
+    const remaining = applyPersonalCategoryDeleteLocally(
+      [
+        { id: 'p1', category: 'Family' },
+        { id: 'p2', category: 'Work' },
+        { id: 'p3', category: ' Family ' },
+      ] as never,
+      'Family'
+    );
+    expect(remaining.map((prayer) => prayer.id)).toEqual(['p2']);
   });
 
   it('rpcMutationSucceeded reads success flag', () => {

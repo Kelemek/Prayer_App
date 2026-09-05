@@ -17,6 +17,7 @@ import type { BadgeService } from "./badge.service";
 import type { TenantContextService } from "./tenant-context.service";
 import type { TenantPermissionService } from "./tenant-permission.service";
 import type { ConnectivityService } from "./connectivity.service";
+import type { PrayerGroupService } from "./prayer-group.service";
 import type { SupabaseService } from "./supabase.service";
 import { HomeDeepLinkCoordinator } from "./home-deep-link.coordinator";
 import { HomeDeepLinkHostAdapter, type HomeActiveFilter } from "./home-deep-link-host.adapter";
@@ -96,6 +97,7 @@ export interface HomeCoordinatorWiringDeps {
   tenantContextService: TenantContextService;
   tenantPermissionService: TenantPermissionService;
   connectivity: ConnectivityService;
+  prayerGroupService: PrayerGroupService;
   supabaseService: SupabaseService;
   prayerCardActions: HomePrayerCardActionsController;
   deepLinkCoordinator: HomeDeepLinkCoordinator;
@@ -314,6 +316,7 @@ export function wireHomeCoordinators(
       memorizationService: deps.memorizationService,
       toastService: deps.toastService,
       connectivity: deps.connectivity,
+      prayerGroupService: deps.prayerGroupService,
     }
   );
 
