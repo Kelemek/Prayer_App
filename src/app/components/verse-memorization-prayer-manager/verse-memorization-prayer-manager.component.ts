@@ -268,6 +268,8 @@ export class VerseMemorizationPrayerManagerComponent {
         this.toast.error('No text returned for this passage.');
       } else if (result.reason === 'no_admin_email') {
         this.toast.error('Sign in as admin to send verse prayers.');
+      } else if (result.reason === 'not_church_tenant') {
+        this.toast.error('Verse of the week is only available for church organizations.');
       } else {
         this.toast.error('Could not send verse memorization prayer.');
       }

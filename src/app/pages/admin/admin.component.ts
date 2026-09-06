@@ -203,6 +203,10 @@ export class AdminComponent implements OnInit, OnDestroy {
     return this.tenantContextService.getActiveTenant()?.plan_tier === 'churches';
   }
 
+  isChurchTenant(): boolean {
+    return this.tenantContextService.getActiveTenant()?.plan_tier === 'churches';
+  }
+
   private ensureSettingsTabAllowed(): void {
     if (!this.isSuperAdmin && this.activeSettingsTab === 'tenant_manager') {
       this.activeSettingsTab = 'security';

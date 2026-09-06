@@ -56,10 +56,15 @@ serve(async (req) => {
     const rows = tenantSettingsList ?? []
     let emailsSent = 0
     let prayersArchived = 0
+    let verseMemorizationArchived = 0
     const errors: { prayerId: string; error: unknown }[] = []
     let totalPrayersChecked = 0
     const now = new Date()
     const millisecondsInDay = 24 * 60 * 60 * 1000
+    const VERSE_MEMORIZATION_ARCHIVE_DAYS = 30
+    const verseArchiveCutoff = new Date(
+      now.getTime() - VERSE_MEMORIZATION_ARCHIVE_DAYS * millisecondsInDay
+    ).toISOString()
 
     for (const ts of rows) {
       const tenantId = ts.tenant_id
@@ -69,6 +74,36 @@ serve(async (req) => {
       const daysBeforeArchive = ts.days_before_archive || 7
 
       const canRemind = enableReminders && reminderIntervalDays > 0
+
+      // Verse-of-the-week archive is always tenant-scoped and independent of
+      // enable_auto_archive / reminder settings.
+      {
+        const { data: verseArchiveRows, error: verseArchiveError } = await supabaseClient
+          .from('prayers')
+          .update({ status: 'archived' })
+          .eq('tenant_id', tenantId)
+          .eq('content_kind', 'verse_memorization')
+          .eq('status', 'current')
+          .eq('approval_status', 'approved')
+          .lt('approved_at', verseArchiveCutoff)
+          .select('id')
+
+        if (verseArchiveError) {
+          console.error(
+            `Error auto-archiving verse memorization prayers for tenant ${tenantId}:`,
+            verseArchiveError
+          )
+        } else {
+          const archivedCount = verseArchiveRows?.length ?? 0
+          verseMemorizationArchived += archivedCount
+          if (archivedCount > 0) {
+            console.log(
+              `Auto-archived ${archivedCount} verse memorization prayer(s) for tenant ${tenantId} older than ${VERSE_MEMORIZATION_ARCHIVE_DAYS} days`
+            )
+          }
+        }
+      }
+
       if (!canRemind && !enableAutoArchive) {
         continue
       }
@@ -79,10 +114,11 @@ serve(async (req) => {
 
       const { data: potentialPrayers, error: fetchError } = await supabaseClient
         .from('prayers')
-        .select('id, title, description, prayer_for, requester, email, is_anonymous, created_at, last_reminder_sent')
+        .select('id, title, description, prayer_for, requester, email, is_anonymous, created_at, last_reminder_sent, content_kind')
         .eq('status', 'current')
         .eq('approval_status', 'approved')
         .eq('tenant_id', tenantId)
+        .or('content_kind.is.null,content_kind.neq.verse_memorization')
 
       if (fetchError) {
         console.error(`Error fetching prayers for tenant ${tenantId}:`, fetchError)
@@ -248,11 +284,12 @@ serve(async (req) => {
 
         const { data: prayersToArchive, error: archiveQueryError } = await supabaseClient
           .from('prayers')
-          .select('id, title, created_at, last_reminder_sent')
+          .select('id, title, created_at, last_reminder_sent, content_kind')
           .eq('status', 'current')
           .eq('approval_status', 'approved')
           .eq('tenant_id', tenantId)
           .not('last_reminder_sent', 'is', null)
+          .or('content_kind.is.null,content_kind.neq.verse_memorization')
 
         if (archiveQueryError) {
           console.error('Error querying prayers for auto-archive:', archiveQueryError)
@@ -296,8 +333,8 @@ serve(async (req) => {
       }
     }
 
-    const message = emailsSent > 0 || prayersArchived > 0
-      ? `Successfully sent ${emailsSent} reminder emails${prayersArchived > 0 ? ` and archived ${prayersArchived} prayers` : ''}`
+    const message = emailsSent > 0 || prayersArchived > 0 || verseMemorizationArchived > 0
+      ? `Successfully sent ${emailsSent} reminder emails${prayersArchived > 0 ? ` and archived ${prayersArchived} prayers` : ''}${verseMemorizationArchived > 0 ? ` and archived ${verseMemorizationArchived} verse memorization prayer(s)` : ''}`
       : 'No prayers need reminders at this time - all have recent updates'
 
     return new Response(
@@ -305,6 +342,7 @@ serve(async (req) => {
         message,
         sent: emailsSent,
         archived: prayersArchived,
+        verseMemorizationArchived,
         total: totalPrayersChecked,
         errors: errors.length > 0 ? errors : undefined
       }),

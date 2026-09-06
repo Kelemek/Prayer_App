@@ -43,7 +43,7 @@ describe('VerseMemorizationPrayerService', () => {
       getUserEmail: vi.fn().mockReturnValue('admin@example.com'),
     };
     mockTenantContext = {
-      getActiveTenant: vi.fn().mockReturnValue({ id: 'tenant-1' }),
+      getActiveTenant: vi.fn().mockReturnValue({ id: 'tenant-1', plan_tier: 'churches' }),
     };
 
     service = new VerseMemorizationPrayerService(
@@ -145,6 +145,36 @@ describe('VerseMemorizationPrayerService', () => {
     });
 
     expect(result).toEqual({ ok: false, reason: 'insert_failed' });
+    expect(mockSupabase.client.from).not.toHaveBeenCalled();
+  });
+
+  it('returns not_church_tenant for groups plan tenants', async () => {
+    mockTenantContext.getActiveTenant.mockReturnValue({
+      id: 'tenant-groups',
+      plan_tier: 'groups',
+    });
+
+    const result = await service.createVerseMemorizationPrayer({
+      reference: 'John 3:16',
+      translation: 'esv',
+    });
+
+    expect(result).toEqual({ ok: false, reason: 'not_church_tenant' });
+    expect(mockSupabase.client.from).not.toHaveBeenCalled();
+  });
+
+  it('returns not_church_tenant for free plan tenants', async () => {
+    mockTenantContext.getActiveTenant.mockReturnValue({
+      id: 'tenant-free',
+      plan_tier: 'free',
+    });
+
+    const result = await service.createVerseMemorizationPrayer({
+      reference: 'John 3:16',
+      translation: 'esv',
+    });
+
+    expect(result).toEqual({ ok: false, reason: 'not_church_tenant' });
     expect(mockSupabase.client.from).not.toHaveBeenCalled();
   });
 });

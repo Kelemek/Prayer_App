@@ -293,6 +293,19 @@ describe('AdminComponent', () => {
     expect(component.canAccessAnalytics()).toBe(true);
   });
 
+  it('isChurchTenant is true for churches tier', () => {
+    expect(component.isChurchTenant()).toBe(true);
+  });
+
+  it('isChurchTenant is false when tenant is not churches', () => {
+    tenantContextService.getActiveTenant = vi.fn(() => ({
+      id: MOCK_TENANT_ID,
+      plan_tier: 'groups',
+      plan_status: 'active'
+    }));
+    expect(component.isChurchTenant()).toBe(false);
+  });
+
   it('canAccessAnalytics is true for super admin even when tenant is not churches', () => {
     tenantContextService.getIsSuperAdmin = vi.fn(() => true);
     tenantContextService.getActiveTenant = vi.fn(() => ({

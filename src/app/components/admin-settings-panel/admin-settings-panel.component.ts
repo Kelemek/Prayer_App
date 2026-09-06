@@ -68,6 +68,7 @@ export class AdminSettingsPanelComponent {
   @Input({ required: true }) activeSettingsTab!: AdminSettingsTab;
   @Input({ required: true }) analyticsStats!: AnalyticsStats;
   @Input() showAnalyticsTab = true;
+  @Input() isChurchTenant = true;
   @Input() isSuperAdmin = false;
   @Input() githubFeedbackEnabled = false;
 

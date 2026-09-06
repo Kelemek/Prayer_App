@@ -114,6 +114,7 @@
             [activeSettingsTab]="activeSettingsTab"
             [analyticsStats]="analyticsStats"
             [showAnalyticsTab]="canAccessAnalytics()"
+            [isChurchTenant]="isChurchTenant()"
             [isSuperAdmin]="isSuperAdmin"
             [githubFeedbackEnabled]="githubFeedbackEnabled"
             (settingsTabChange)="onSettingsTabChange($event)"

@@ -14,7 +14,15 @@ import { UserSessionService } from './user-session.service';
 
 export type SendVerseMemorizationPrayerOutcome =
   | { ok: true; prayerId: string; verseText: string }
-  | { ok: false; reason: 'empty_reference' | 'no_passage' | 'no_admin_email' | 'insert_failed' };
+  | {
+      ok: false;
+      reason:
+        | 'empty_reference'
+        | 'no_passage'
+        | 'no_admin_email'
+        | 'not_church_tenant'
+        | 'insert_failed';
+    };
 
 export type VerseMemorizationPrayerBroadcastPayload = {
   prayerId: string;
@@ -54,10 +62,14 @@ export class VerseMemorizationPrayerService {
       return { ok: false, reason: 'no_admin_email' };
     }
 
-    const tenantId = this.tenantContext.getActiveTenant()?.id;
+    const tenant = this.tenantContext.getActiveTenant();
+    const tenantId = tenant?.id;
     if (!tenantId) {
       console.error('[VerseMemorizationPrayerService] no active tenant');
       return { ok: false, reason: 'insert_failed' };
+    }
+    if (tenant.plan_tier !== 'churches') {
+      return { ok: false, reason: 'not_church_tenant' };
     }
 
     const translation = options.translation;

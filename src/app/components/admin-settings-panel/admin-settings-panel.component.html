@@ -142,12 +142,14 @@
         <div class="mb-4">
           <app-prayer-types-manager></app-prayer-types-manager>
         </div>
+        @if (isChurchTenant) {
         <div class="mb-4">
           <app-memorization-recommendations-manager></app-memorization-recommendations-manager>
         </div>
         <div class="mb-4">
           <app-verse-memorization-prayer-manager></app-verse-memorization-prayer-manager>
         </div>
+        }
         <div class="mb-4">
           <app-memorization-recite-settings></app-memorization-recite-settings>
         </div>
