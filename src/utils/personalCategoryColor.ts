@@ -20,7 +20,7 @@ const NAMED_CATEGORY_COLORS: Readonly<Record<string, string>> = {
   Answered: '#39704D',
 };
 
-/** Trim and cap category names (matches personal_prayers.category rules). */
+/** Trim and cap category names (matches personal_categories.name rules). */
 export const sanitizePersonalCategoryName = (
   category: string | null | undefined
 ): string | null => {

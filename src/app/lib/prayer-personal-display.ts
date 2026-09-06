@@ -4,13 +4,16 @@ export const PERSONAL_PRAYERS_LIST_SELECT = `
   id,
   title,
   description,
-  category,
+  category_id,
   prayer_for,
   user_email,
   display_order,
   created_at,
   updated_at,
   prayed_for_count,
+  personal_categories (
+    name
+  ),
   personal_prayer_updates (
     id,
     content,
@@ -20,10 +23,6 @@ export const PERSONAL_PRAYERS_LIST_SELECT = `
     created_at
   )
 `;
-
-export const PRAYER_PERSONAL_CATEGORY_RANGE_SIZE = 1000;
-export const PRAYER_PERSONAL_UNCATEGORIZED_MIN = 0;
-export const PRAYER_PERSONAL_UNCATEGORIZED_MAX = 999;
 
 export function sanitizePersonalPrayerCategory(
   category: string | null | undefined
@@ -74,57 +73,40 @@ export function sortPersonalPrayersByDisplayOrder(prayers: PrayerRequest[]): Pra
   });
 }
 
-export function applyPersonalCategorySwapLocally(
-  allPrayers: PrayerRequest[],
-  categoryA: string,
-  categoryB: string
-): PrayerRequest[] | null {
-  const prayersA = allPrayers.filter((p) => p.category === categoryA);
-  const prayersB = allPrayers.filter((p) => p.category === categoryB);
-  if (prayersA.length === 0 || prayersB.length === 0) {
-    return null;
-  }
-
-  const minOrderA = Math.min(...prayersA.map((p) => p.display_order ?? 0));
-  const minOrderB = Math.min(...prayersB.map((p) => p.display_order ?? 0));
-  const prefixA = Math.floor(minOrderA / 1000);
-  const prefixB = Math.floor(minOrderB / 1000);
-
-  const updated = allPrayers.map((p) => {
-    const cat = p.category as string | null | undefined;
-    if (cat === categoryA) {
-      const lastThree = (p.display_order ?? 0) % 1000;
-      return { ...p, display_order: prefixB * 1000 + lastThree };
-    }
-    if (cat === categoryB) {
-      const lastThree = (p.display_order ?? 0) % 1000;
-      return { ...p, display_order: prefixA * 1000 + lastThree };
-    }
-    return p;
-  });
-
-  return sortPersonalPrayersByDisplayOrder(updated);
-}
-
-export function applyPersonalCategoryReorderLocally(
-  allPrayers: PrayerRequest[],
-  orderedCategories: (string | null)[]
+/** Category chip order first (uncategorized last), then within-category display_order DESC. */
+export function sortPersonalPrayersForListing(
+  prayers: PrayerRequest[],
+  categories: ReadonlyArray<{ id: string; display_order: number }>
 ): PrayerRequest[] {
-  const updated = allPrayers.map((p) => {
-    const idx = orderedCategories.indexOf(p.category as string | null);
-    if (idx === -1) return p;
-    const newPrefix = orderedCategories.length - idx;
-    const lastThree = (p.display_order ?? 0) % 1000;
-    return { ...p, display_order: newPrefix * 1000 + lastThree };
+  const orderById = new Map(
+    categories.map((category) => [category.id, category.display_order])
+  );
+  return [...prayers].sort((a, b) => {
+    const aUncategorized = !a.category_id;
+    const bUncategorized = !b.category_id;
+    if (aUncategorized !== bUncategorized) {
+      return aUncategorized ? 1 : -1;
+    }
+    if (!aUncategorized && !bUncategorized) {
+      const categoryOrderA = orderById.get(a.category_id!) ?? Number.MAX_SAFE_INTEGER;
+      const categoryOrderB = orderById.get(b.category_id!) ?? Number.MAX_SAFE_INTEGER;
+      if (categoryOrderA !== categoryOrderB) {
+        return categoryOrderA - categoryOrderB;
+      }
+    }
+    const oa = a.display_order ?? 0;
+    const ob = b.display_order ?? 0;
+    if (ob !== oa) return ob - oa;
+    return (b.created_at || '').localeCompare(a.created_at || '');
   });
-  return sortPersonalPrayersByDisplayOrder(updated);
 }
 
 export type PersonalPrayerDbRow = {
   id: string;
   title: string;
   description: string;
-  category: string | null;
+  category_id: string | null;
+  personal_categories?: { name: string } | { name: string }[] | null;
   prayer_for: string;
   user_email: string;
   display_order: number;
@@ -141,13 +123,25 @@ export type PersonalPrayerDbRow = {
   }>;
 };
 
+function personalCategoryNameFromRow(
+  row: PersonalPrayerDbRow
+): string | null {
+  const joined = row.personal_categories;
+  if (Array.isArray(joined)) {
+    return joined[0]?.name ?? null;
+  }
+  return joined?.name ?? null;
+}
+
 export function personalPrayerRowToPrayerRequest(row: PersonalPrayerDbRow): PrayerRequest {
+  const category = personalCategoryNameFromRow(row);
   return {
     id: row.id,
     title: row.title,
     description: row.description,
-    category: row.category,
-    status: (row.category === 'Answered' ? 'answered' : 'current') as PrayerStatus,
+    category,
+    category_id: row.category_id,
+    status: (category === 'Answered' ? 'answered' : 'current') as PrayerStatus,
     prayer_for: row.prayer_for,
     requester: row.user_email,
     email: row.user_email,

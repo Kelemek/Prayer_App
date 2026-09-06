@@ -3,7 +3,6 @@ import {
   personalPrayerUpdateClearsAnsweredFlags,
   shouldDropPersonalPrayerRemindersAfterUpdate,
   startPersonalPrayerUpdatePlan,
-  validatePersonalCategoryChangeForUpdate,
 } from './prayer-personal-update-plan';
 import type { PrayerRequest } from './prayer-types';
 
@@ -27,14 +26,6 @@ describe('prayer-personal-update-plan', () => {
     expect(
       startPersonalPrayerUpdatePlan([], 'missing', {}, (c) => c ?? null)
     ).toEqual({ ok: false });
-  });
-
-  it('validatePersonalCategoryChangeForUpdate blocks at limit', () => {
-    const result = validatePersonalCategoryChangeForUpdate(true, true, 1000, 'Work');
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.message).toContain('Work');
-    }
   });
 
   it('personalPrayerUpdateClearsAnsweredFlags when leaving Answered', () => {

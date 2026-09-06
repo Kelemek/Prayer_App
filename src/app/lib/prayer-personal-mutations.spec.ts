@@ -30,6 +30,7 @@ describe('prayer-personal-mutations', () => {
       {
         updates: { category: 'Family' },
         newCategory: 'Family',
+        newCategoryId: 'cat-1',
         newDisplayOrder: 1001,
         clearingAnswered: true,
         updatedAt: '2026-01-01',

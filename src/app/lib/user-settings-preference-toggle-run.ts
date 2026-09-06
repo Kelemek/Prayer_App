@@ -1,4 +1,8 @@
 import { clampPrayerCooldownHours } from '../services/user-session.service';
+import {
+  homeDefaultPrayerViewLabel,
+  type HomeDefaultPrayerView,
+} from './home-default-view-preference';
 import type { UserSettingsFacade } from './user-settings-facade';
 import { syncMemorizationStrictModeToUserSession } from './user-settings-preferences-load';
 import {
@@ -397,7 +401,8 @@ export async function runUserSettingsPersonalPrayerCooldownSave(
 
 export async function runUserSettingsDefaultViewChange(
   host: UserSettingsFacade,
-  newView: 'current' | 'personal'
+  newView: HomeDefaultPrayerView,
+  previousView: HomeDefaultPrayerView | null = host.defaultPrayerView
 ): Promise<void> {
   const email = requireUserSettingsEmail(host);
   if (!email) {
@@ -419,9 +424,7 @@ export async function runUserSettingsDefaultViewChange(
       { default_prayer_view: newView }
     );
 
-    host.successDefaultView = `✅ Default view set to ${
-      newView === 'current' ? 'Current Prayers' : 'Personal Prayers'
-    }`;
+    host.successDefaultView = `✅ Default view set to ${homeDefaultPrayerViewLabel(newView)}`;
 
     await host.deps.userSessionService.updateUserSession({
       defaultPrayerView: newView,
@@ -440,8 +443,7 @@ export async function runUserSettingsDefaultViewChange(
       err instanceof Error
         ? err.message
         : 'Failed to update default view preference';
-    host.defaultPrayerView =
-      host.defaultPrayerView === 'current' ? 'personal' : 'current';
+    host.defaultPrayerView = previousView ?? 'current';
     host.savingDefaultView = false;
     host.markForCheck();
   }

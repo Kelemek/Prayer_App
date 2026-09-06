@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { runPersonalPrayerOrderRpcPerCategory } from './prayer-personal-order-rpc';
 import type { PrayerRequest } from './prayer-types';
 
-function prayer(id: string, category: string): PrayerRequest {
+function prayer(id: string, categoryId: string | null): PrayerRequest {
   return {
     id,
-    category,
+    category_id: categoryId,
+    category: categoryId ? 'Named' : null,
     title: id,
     description: '',
     status: 'active',
@@ -19,40 +20,25 @@ function prayer(id: string, category: string): PrayerRequest {
 
 describe('prayer-personal-order-rpc', () => {
   it('returns ok when rpc succeeds for each category', async () => {
-    const rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: null });
     const result = await runPersonalPrayerOrderRpcPerCategory(
-      [prayer('p1', 'A'), prayer('p2', 'B')],
-      'user@example.com',
+      [prayer('p1', 'cat-a'), prayer('p2', 'cat-b')],
       rpc
     );
     expect(result).toEqual({ ok: true });
     expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc).toHaveBeenCalledWith({
+      p_category_id: 'cat-a',
+      p_ordered_prayer_ids: ['p1'],
+    });
   });
 
-  it('requests fallback when rpc errors', async () => {
+  it('returns a message when rpc errors', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: null, error: new Error('rpc fail') });
     const result = await runPersonalPrayerOrderRpcPerCategory(
-      [prayer('p1', 'A')],
-      'user@example.com',
+      [prayer('p1', 'cat-a')],
       rpc
     );
-    expect(result).toEqual({ ok: false, shouldFallback: true });
-  });
-
-  it('returns message when rpc reports failure row', async () => {
-    const rpc = vi.fn().mockResolvedValue({
-      data: [{ success: false, message: 'bad order' }],
-      error: null,
-    });
-    const result = await runPersonalPrayerOrderRpcPerCategory(
-      [prayer('p1', 'A')],
-      'user@example.com',
-      rpc
-    );
-    expect(result).toEqual({
-      ok: false,
-      shouldFallback: false,
-      message: 'bad order',
-    });
+    expect(result).toEqual({ ok: false, message: 'rpc fail' });
   });
 });

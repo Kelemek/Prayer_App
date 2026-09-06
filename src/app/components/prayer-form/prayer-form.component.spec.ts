@@ -24,10 +24,12 @@ describe('PrayerFormComponent', () => {
   let mockPrayerGroupService: any;
   let mockRichTextEditorsSettings: RichTextEditorsSettingsService;
   let mockUser: User | null;
+  let destroyCallbacks: Array<() => void>;
 
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
+    destroyCallbacks = [];
     vi.useFakeTimers();
     localStorage.setItem('userFirstName', 'John');
     localStorage.setItem('userLastName', 'Doe');
@@ -146,12 +148,15 @@ describe('PrayerFormComponent', () => {
       mockTenantContextService as any,
       mockTenantPermission as any,
       mockPrayerGroupService as any,
-      { onDestroy: vi.fn() } as any,
+      {
+        onDestroy: (cb: () => void) => destroyCallbacks.push(cb),
+      } as any,
       mockRichTextEditorsSettings
     );
   });
 
   afterEach(() => {
+    destroyCallbacks.forEach((cb) => cb());
     vi.restoreAllMocks();
     vi.useRealTimers();
     localStorage.clear();
@@ -265,6 +270,27 @@ describe('PrayerFormComponent', () => {
         },
       });
       expect(component.showGroupDropdown).toBe(false);
+    });
+
+    it('focuses the Prayer For field when the modal opens', () => {
+      const input = document.createElement('input');
+      const focus = vi.spyOn(input, 'focus');
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+        cb(0);
+        return 0;
+      });
+      component.isOpen = true;
+      component.ngOnChanges({
+        isOpen: {
+          currentValue: true,
+          previousValue: false,
+          firstChange: false,
+          isFirstChange: () => false,
+        },
+      });
+      (component as any).prayerForInput = { nativeElement: input };
+
+      expect(focus).toHaveBeenCalledWith({ preventScroll: true });
     });
   });
 
@@ -616,7 +642,7 @@ describe('PrayerFormComponent', () => {
       expect(component.showCategoryDropdown).toBe(false);
     });
 
-    it('should clear filtered categories when input is empty', () => {
+    it('should show all categories when the input is empty', () => {
       component.formData.is_personal = true;
       const event = new Event('input');
       const input = document.createElement('input');
@@ -625,8 +651,18 @@ describe('PrayerFormComponent', () => {
 
       component.onCategoryInput(event as any);
 
-      expect(component.filteredCategories).toEqual([]);
-      expect(component.showCategoryDropdown).toBe(false);
+      expect(component.filteredCategories).toEqual(['Health', 'Family', 'Work']);
+      expect(component.showCategoryDropdown).toBe(true);
+    });
+
+    it('should list all categories as soon as the field is focused', () => {
+      component.formData.is_personal = true;
+      component.formData.category = '';
+
+      component.onCategoryFocus();
+
+      expect(component.filteredCategories).toEqual(['Health', 'Family', 'Work']);
+      expect(component.showCategoryDropdown).toBe(true);
     });
 
     it('should reset selectedCategoryIndex when filtering', () => {
@@ -851,8 +887,10 @@ describe('PrayerFormComponent', () => {
 
     it('should not close dropdown when clicking inside dropdown', () => {
       component.showCategoryDropdown = true;
+      const field = document.createElement('div');
+      field.setAttribute('data-personal-category-field', '');
       const dropdownItem = document.createElement('div');
-      dropdownItem.className = 'dropdown-item';
+      field.appendChild(dropdownItem);
       const event = new MouseEvent('click', { bubbles: true });
       Object.defineProperty(event, 'target', { value: dropdownItem });
 
@@ -863,8 +901,11 @@ describe('PrayerFormComponent', () => {
 
     it('should not close dropdown when clicking on category input', () => {
       component.showCategoryDropdown = true;
+      const field = document.createElement('div');
+      field.setAttribute('data-personal-category-field', '');
       const categoryInput = document.createElement('input');
       categoryInput.id = 'category';
+      field.appendChild(categoryInput);
       const event = new MouseEvent('click', { bubbles: true });
       Object.defineProperty(event, 'target', { value: categoryInput });
 
@@ -880,6 +921,15 @@ describe('PrayerFormComponent', () => {
       Object.defineProperty(event, 'target', { value: button });
 
       component.onDocumentClick(event as any);
+
+      expect(component.showCategoryDropdown).toBe(false);
+    });
+
+    it('should close dropdown when the category field blurs to another control', () => {
+      component.showCategoryDropdown = true;
+      const nextField = document.createElement('input');
+
+      component.onCategoryBlur({ relatedTarget: nextField } as FocusEvent);
 
       expect(component.showCategoryDropdown).toBe(false);
     });

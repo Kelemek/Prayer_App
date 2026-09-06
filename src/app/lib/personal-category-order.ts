@@ -1,28 +1,39 @@
+import type { PersonalCategory } from "../types/personal-category";
 import type { PrayerRequest } from "./prayer-types";
 
-type CategoryOrderPrayer = Pick<PrayerRequest, "category" | "display_order">;
+type CategoryOrderPrayer = Pick<PrayerRequest, "category">;
 
-/** Category names sorted by minimum display_order descending (highest range first). */
+export function personalCategoryNamesFromEntities(
+  categories: ReadonlyArray<Pick<PersonalCategory, "name" | "display_order">>
+): string[] {
+  return [...categories]
+    .sort((a, b) => a.display_order - b.display_order || a.name.localeCompare(b.name))
+    .map((category) => category.name);
+}
+
+export function namedPersonalCategoryNamesFromEntities(
+  categories: ReadonlyArray<Pick<PersonalCategory, "name" | "display_order">>
+): string[] {
+  return personalCategoryNamesFromEntities(categories).filter(
+    (category) => category !== "Answered"
+  );
+}
+
+/** Unique category names from prayers (order is first-seen). */
 export function personalCategoryNamesFromPrayers(
   prayers: ReadonlyArray<CategoryOrderPrayer>
 ): string[] {
-  const categories = new Map<string, number>();
-
+  const names: string[] = [];
+  const seen = new Set<string>();
   for (const prayer of prayers) {
-    if (!prayer.category?.trim()) {
+    const category = prayer.category?.trim();
+    if (!category || seen.has(category)) {
       continue;
     }
-    const category = prayer.category.trim();
-    const displayOrder = prayer.display_order ?? 0;
-    const current = categories.get(category);
-    if (current === undefined || displayOrder < current) {
-      categories.set(category, displayOrder);
-    }
+    seen.add(category);
+    names.push(category);
   }
-
-  return Array.from(categories.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([name]) => name);
+  return names;
 }
 
 /** Named personal category chips exclude the reserved Answered label. */
@@ -32,4 +43,16 @@ export function namedPersonalCategoryNamesFromPrayers(
   return personalCategoryNamesFromPrayers(prayers).filter(
     (category) => category !== "Answered"
   );
+}
+
+/** Prefer table chip order; if that list is empty, use names already on prayers. */
+export function namedPersonalCategoryChipNames(
+  categories: ReadonlyArray<Pick<PersonalCategory, "name" | "display_order">>,
+  prayers: ReadonlyArray<CategoryOrderPrayer> = []
+): string[] {
+  const fromEntities = namedPersonalCategoryNamesFromEntities(categories);
+  if (fromEntities.length > 0) {
+    return fromEntities;
+  }
+  return namedPersonalCategoryNamesFromPrayers(prayers);
 }

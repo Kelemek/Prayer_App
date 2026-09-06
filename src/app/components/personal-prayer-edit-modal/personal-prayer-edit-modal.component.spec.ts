@@ -12,6 +12,7 @@ describe('PersonalPrayerEditModalComponent', () => {
   let toastService: any;
   let changeDetectorRef: any;
   let personalCategoryColorService: any;
+  let destroyCallbacks: Array<() => void>;
 
   const mockPrayer: PrayerRequest = {
     id: '123',
@@ -22,6 +23,7 @@ describe('PersonalPrayerEditModalComponent', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    destroyCallbacks = [];
     prayerService = {
       getUniqueCategoriesForUser: vi.fn().mockImplementation(() => Promise.resolve(['Health', 'Family', 'Work'])),
       updatePersonalPrayer: vi.fn()
@@ -48,7 +50,7 @@ describe('PersonalPrayerEditModalComponent', () => {
       toastService,
       personalCategoryColorService,
       changeDetectorRef,
-      { onDestroy: vi.fn() } as any,
+      { onDestroy: (cb: () => void) => destroyCallbacks.push(cb) } as any,
       {
         getRichTextEditorsEnabled$: vi.fn(() => of(true)),
       } as unknown as RichTextEditorsSettingsService
@@ -56,6 +58,7 @@ describe('PersonalPrayerEditModalComponent', () => {
   });
 
   afterEach(() => {
+    destroyCallbacks.forEach((cb) => cb());
     vi.useRealTimers();
   });
 
@@ -613,7 +616,7 @@ describe('PersonalPrayerEditModalComponent', () => {
       expect(component.showCategoryDropdown).toBe(false);
     });
 
-    it('should clear filtered categories when input is empty', () => {
+    it('should show all categories when the input is empty', () => {
       const event = new Event('input');
       const input = document.createElement('input');
       input.value = '';
@@ -621,8 +624,17 @@ describe('PersonalPrayerEditModalComponent', () => {
 
       component.onCategoryInput(event as any);
 
-      expect(component.filteredCategories).toEqual([]);
-      expect(component.showCategoryDropdown).toBe(false);
+      expect(component.filteredCategories).toEqual(['Health', 'Family', 'Work']);
+      expect(component.showCategoryDropdown).toBe(true);
+    });
+
+    it('should list all categories as soon as the field is focused', () => {
+      component.formData.category = '';
+
+      component.onCategoryFocus();
+
+      expect(component.filteredCategories).toEqual(['Health', 'Family', 'Work']);
+      expect(component.showCategoryDropdown).toBe(true);
     });
 
     it('should reset selectedCategoryIndex when filtering', () => {
@@ -876,8 +888,10 @@ describe('PersonalPrayerEditModalComponent', () => {
 
     it('should not close dropdown when clicking inside dropdown', () => {
       component.showCategoryDropdown = true;
+      const field = document.createElement('div');
+      field.setAttribute('data-personal-category-field', '');
       const dropdownItem = document.createElement('div');
-      dropdownItem.className = 'dropdown-item';
+      field.appendChild(dropdownItem);
       const event = new MouseEvent('click', { bubbles: true });
       Object.defineProperty(event, 'target', { value: dropdownItem });
 
@@ -888,8 +902,11 @@ describe('PersonalPrayerEditModalComponent', () => {
 
     it('should not close dropdown when clicking on category input', () => {
       component.showCategoryDropdown = true;
+      const field = document.createElement('div');
+      field.setAttribute('data-personal-category-field', '');
       const categoryInput = document.createElement('input');
       categoryInput.id = 'category';
+      field.appendChild(categoryInput);
       const event = new MouseEvent('click', { bubbles: true });
       Object.defineProperty(event, 'target', { value: categoryInput });
 

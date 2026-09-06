@@ -6,10 +6,10 @@ const TEST_TENANT_ID = 'tenant-abc-123';
 
 describe('PersonalCategoryColorService', () => {
   let service: PersonalCategoryColorService;
-  let upsertMock: ReturnType<typeof vi.fn>;
   let eqMock: ReturnType<typeof vi.fn>;
   let selectMock: ReturnType<typeof vi.fn>;
   let fromMock: ReturnType<typeof vi.fn>;
+  let rpcMock: ReturnType<typeof vi.fn>;
   let cache: {
     get: ReturnType<typeof vi.fn>;
     set: ReturnType<typeof vi.fn>;
@@ -29,16 +29,18 @@ describe('PersonalCategoryColorService', () => {
   let toast: { error: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
-    upsertMock = vi.fn().mockResolvedValue({ error: null });
     eqMock = vi.fn().mockResolvedValue({
-      data: [{ category: 'Health', color: '#DC2626' }],
+      data: [{ name: 'Health', color: '#DC2626' }],
       error: null,
     });
     selectMock = vi.fn().mockReturnValue({ eq: eqMock });
     fromMock = vi.fn().mockReturnValue({
       select: selectMock,
-      upsert: upsertMock,
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
     });
+    rpcMock = vi.fn().mockResolvedValue({ data: 'cat-family', error: null });
 
     cache = {
       get: vi.fn().mockReturnValue(null),
@@ -67,7 +69,7 @@ describe('PersonalCategoryColorService', () => {
     toast = { error: vi.fn() };
 
     const supabase = {
-      client: { from: fromMock },
+      client: { from: fromMock, rpc: rpcMock },
     };
 
     service = new PersonalCategoryColorService(
@@ -92,19 +94,10 @@ describe('PersonalCategoryColorService', () => {
 
   it('renameCategory updates tenant-scoped snapshot and cache', async () => {
     await service.loadColors(true);
-    const updateEqCategory = vi.fn().mockResolvedValue({ error: null });
-    const updateEqEmail = vi.fn().mockReturnValue({ eq: updateEqCategory });
-    const updateEqTenant = vi.fn().mockReturnValue({ eq: updateEqEmail });
-    fromMock.mockReturnValue({
-      select: selectMock,
-      upsert: upsertMock,
-      update: vi.fn().mockReturnValue({ eq: updateEqTenant }),
-    });
 
     const result = await service.renameCategory('Health', 'Family');
 
     expect(result).toBe(true);
-    expect(updateEqTenant).toHaveBeenCalledWith('tenant_id', TEST_TENANT_ID);
     expect(service.getColorsSnapshot().Family).toBe('#DC2626');
     expect(service.getColorsSnapshot().Health).toBeUndefined();
     expect(cache.set).toHaveBeenCalledWith(
@@ -115,19 +108,10 @@ describe('PersonalCategoryColorService', () => {
 
   it('deleteCategory removes tenant-scoped snapshot and cache', async () => {
     await service.loadColors(true);
-    const deleteEqCategory = vi.fn().mockResolvedValue({ error: null });
-    const deleteEqEmail = vi.fn().mockReturnValue({ eq: deleteEqCategory });
-    const deleteEqTenant = vi.fn().mockReturnValue({ eq: deleteEqEmail });
-    fromMock.mockReturnValue({
-      select: selectMock,
-      upsert: upsertMock,
-      delete: vi.fn().mockReturnValue({ eq: deleteEqTenant }),
-    });
 
     const result = await service.deleteCategory('Health');
 
     expect(result).toBe(true);
-    expect(deleteEqTenant).toHaveBeenCalledWith('tenant_id', TEST_TENANT_ID);
     expect(service.getColorsSnapshot().Health).toBeUndefined();
     expect(cache.set).toHaveBeenCalledWith(
       `personalCategoryColors_${TEST_TENANT_ID}`,
@@ -135,17 +119,13 @@ describe('PersonalCategoryColorService', () => {
     );
   });
 
-  it('setColor upserts with tenant_id and updates snapshot', async () => {
+  it('setColor ensures the category then updates color', async () => {
     await service.setColor('Family', '#2563EB');
-    expect(upsertMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tenant_id: TEST_TENANT_ID,
-        user_email: 'user@example.com',
-        category: 'Family',
-        color: '#2563EB',
-      }),
-      { onConflict: 'tenant_id,user_email,category' }
-    );
+    expect(rpcMock).toHaveBeenCalledWith('ensure_personal_category', {
+      p_name: 'Family',
+      p_tenant_id: TEST_TENANT_ID,
+    });
+    expect(fromMock).toHaveBeenCalledWith('personal_categories');
     expect(service.getColorsSnapshot().Family).toBe('#2563EB');
   });
 
@@ -153,18 +133,18 @@ describe('PersonalCategoryColorService', () => {
     service.invalidate();
     cache.set.mockClear();
 
-    let releaseUpsert: (() => void) | undefined;
-    const upsertPromise = new Promise<{ error: null }>((resolve) => {
-      releaseUpsert = () => resolve({ error: null });
+    let releaseRpc: (() => void) | undefined;
+    const rpcPromise = new Promise<{ data: string; error: null }>((resolve) => {
+      releaseRpc = () => resolve({ data: 'cat-family', error: null });
     });
-    upsertMock.mockReturnValue(upsertPromise);
+    rpcMock.mockReturnValue(rpcPromise);
 
     userSessionService.getUserEmail
       .mockReturnValueOnce('user@example.com')
       .mockReturnValueOnce('other@example.com');
 
     const setPromise = service.setColor('Family', '#2563EB');
-    releaseUpsert?.();
+    releaseRpc?.();
     const result = await setPromise;
 
     expect(result).toBe(true);
@@ -185,7 +165,7 @@ describe('PersonalCategoryColorService', () => {
     let releaseQuery: (() => void) | undefined;
     const queryPromise = new Promise<{ data: unknown[]; error: null }>((resolve) => {
       releaseQuery = () =>
-        resolve({ data: [{ category: 'Health', color: '#DC2626' }], error: null });
+        resolve({ data: [{ name: 'Health', color: '#DC2626' }], error: null });
     });
     eqMock.mockReturnValue(queryPromise);
 

@@ -3,7 +3,6 @@ import {
   buildClearPersonalPrayerAnsweredFlagsPayload,
   displayOrderForPersonalCategoryChange,
   findPersonalPrayerById,
-  personalCategoryAtLimitMessage,
   resolvePersonalPrayerCategoryEdit,
 } from './prayer-personal-update';
 
@@ -24,17 +23,11 @@ describe('prayer-personal-update', () => {
     expect(result.newCategory).toBe('New');
   });
 
-  it('builds category limit message', () => {
-    expect(personalCategoryAtLimitMessage('Family')).toContain('Family');
-  });
-
   it('computes display order after category change', () => {
     expect(
-      displayOrderForPersonalCategoryChange(null, { display_order: 2005 }, {
-        min: 2000,
-        max: 2999,
-      })
-    ).toBe(2006);
+      displayOrderForPersonalCategoryChange(null, { display_order: 4 })
+    ).toBe(5);
+    expect(displayOrderForPersonalCategoryChange(null, null)).toBe(0);
   });
 
   it('builds clear answered flags payload', () => {

@@ -1,8 +1,4 @@
-import {
-  nextDisplayOrderInCategoryRange,
-  personalCategoryDisplayName,
-  type CategoryDisplayOrderRange,
-} from './prayer-personal-category';
+import { nextDisplayOrderAfterMax } from './prayer-personal-category';
 import { maxDisplayOrderFromCategoryQuery } from './prayer-personal-mutations';
 
 export type PersonalPrayerInsertDisplayOrderPlan =
@@ -11,17 +7,11 @@ export type PersonalPrayerInsertDisplayOrderPlan =
 
 export function planPersonalPrayerInsertDisplayOrder(
   maxError: unknown,
-  maxData: { display_order?: number | null } | null,
-  range: CategoryDisplayOrderRange,
-  category: string | null
+  maxData: { display_order?: number | null } | null
 ): PersonalPrayerInsertDisplayOrderPlan {
-  const maxInRange = maxDisplayOrderFromCategoryQuery(maxError, maxData, range.min);
-  const displayOrder = nextDisplayOrderInCategoryRange(maxInRange, range);
-  if (displayOrder === null) {
-    return {
-      ok: false,
-      userMessage: `Category '${personalCategoryDisplayName(category)}' is full (display order at maximum). Please reorder prayers or use a different category.`,
-    };
+  if (maxError) {
+    return { ok: false, userMessage: 'Failed to determine prayer order' };
   }
-  return { ok: true, displayOrder };
+  const maxOrder = maxDisplayOrderFromCategoryQuery(maxError, maxData, 0);
+  return { ok: true, displayOrder: nextDisplayOrderAfterMax(maxOrder) };
 }

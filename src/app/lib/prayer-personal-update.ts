@@ -1,12 +1,5 @@
-import type { CategoryDisplayOrderRange } from './prayer-personal-category';
-import {
-  isPersonalCategoryAtPrayerLimit,
-  personalCategoryDisplayName,
-} from './prayer-personal-category';
-import {
-  displayOrderAfterCategoryChange,
-  maxDisplayOrderFromCategoryQuery,
-} from './prayer-personal-mutations';
+import { nextDisplayOrderAfterMax } from './prayer-personal-category';
+import { maxDisplayOrderFromCategoryQuery } from './prayer-personal-mutations';
 import type { PrayerRequest } from './prayer-types';
 
 export function findPersonalPrayerById(
@@ -31,14 +24,6 @@ export function resolvePersonalPrayerCategoryEdit(
   };
 }
 
-export function personalCategoryAtLimitMessage(category: string | null): string {
-  return `Category '${personalCategoryDisplayName(category)}' has reached its limit of 1,000 prayers. Please archive or delete some prayers, or organize into multiple categories.`;
-}
-
-export function isPersonalCategoryCountAtLimit(categoryCount: number): boolean {
-  return isPersonalCategoryAtPrayerLimit(categoryCount);
-}
-
 export function buildClearPersonalPrayerAnsweredFlagsPayload(): Record<string, unknown> {
   return {
     mark_as_answered: false,
@@ -48,9 +33,8 @@ export function buildClearPersonalPrayerAnsweredFlagsPayload(): Record<string, u
 
 export function displayOrderForPersonalCategoryChange(
   maxError: unknown,
-  maxData: { display_order?: number | null } | null,
-  range: CategoryDisplayOrderRange
+  maxData: { display_order?: number | null } | null
 ): number {
-  const maxInRange = maxDisplayOrderFromCategoryQuery(maxError, maxData, range.min);
-  return displayOrderAfterCategoryChange(maxInRange, range);
+  const maxOrder = maxDisplayOrderFromCategoryQuery(maxError, maxData, 0);
+  return nextDisplayOrderAfterMax(maxOrder);
 }

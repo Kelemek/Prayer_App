@@ -2,41 +2,47 @@ import { describe, expect, it, vi } from 'vitest';
 import { planPersonalPrayerAdd } from './prayer-personal-add-plan';
 
 describe('planPersonalPrayerAdd', () => {
-  it('returns limit message when category is full', async () => {
+  it('ensures a named category and uses max display order + 1', async () => {
+    const ensureCategory = vi.fn().mockResolvedValue('cat-1');
     const plan = await planPersonalPrayerAdd(
       'Family',
       'me@test.com',
       (c) => c ?? null,
       {
-        getCategoryCount: vi.fn().mockResolvedValue(1000),
-        getCategoryRange: vi.fn(),
-        queryMaxDisplayOrderInRange: vi.fn(),
+        ensureCategory,
+        queryMaxDisplayOrder: vi.fn().mockResolvedValue({
+          data: { display_order: 4 },
+          error: null,
+        }),
       }
     );
-    expect(plan.ok).toBe(false);
-    if (!plan.ok) {
-      expect(plan.userMessage).toContain('limit');
-    }
+    expect(ensureCategory).toHaveBeenCalledWith('Family');
+    expect(plan).toEqual({
+      ok: true,
+      category: 'Family',
+      categoryId: 'cat-1',
+      displayOrder: 5,
+    });
   });
 
-  it('returns display order when category has room', async () => {
+  it('starts uncategorized prayers at display order 0', async () => {
     const plan = await planPersonalPrayerAdd(
-      'Family',
+      null,
       'me@test.com',
-      (c) => c ?? null,
+      () => null,
       {
-        getCategoryCount: vi.fn().mockResolvedValue(1),
-        getCategoryRange: vi.fn().mockResolvedValue({ min: 2000, max: 2999 }),
-        queryMaxDisplayOrderInRange: vi.fn().mockResolvedValue({
-          data: { display_order: 2005 },
+        ensureCategory: vi.fn(),
+        queryMaxDisplayOrder: vi.fn().mockResolvedValue({
+          data: null,
           error: null,
         }),
       }
     );
     expect(plan).toEqual({
       ok: true,
-      category: 'Family',
-      displayOrder: 2006,
+      category: null,
+      categoryId: null,
+      displayOrder: 0,
     });
   });
 });

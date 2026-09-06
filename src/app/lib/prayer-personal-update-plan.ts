@@ -5,8 +5,6 @@ import {
 import type { PrayerRequest } from './prayer-types';
 import {
   findPersonalPrayerById,
-  isPersonalCategoryCountAtLimit,
-  personalCategoryAtLimitMessage,
   resolvePersonalPrayerCategoryEdit,
 } from './prayer-personal-update';
 
@@ -42,25 +40,6 @@ export function startPersonalPrayerUpdatePlan(
     newCategory,
     categoryChanged,
   };
-}
-
-export type PersonalCategoryChangeValidation =
-  | { ok: true }
-  | { ok: false; message: string };
-
-export function validatePersonalCategoryChangeForUpdate(
-  categoryChanged: boolean,
-  categoryFieldUpdated: boolean,
-  newCategoryCount: number,
-  newCategory: string | null
-): PersonalCategoryChangeValidation {
-  if (!categoryChanged || !categoryFieldUpdated) {
-    return { ok: true };
-  }
-  if (isPersonalCategoryCountAtLimit(newCategoryCount)) {
-    return { ok: false, message: personalCategoryAtLimitMessage(newCategory) };
-  }
-  return { ok: true };
 }
 
 export function personalPrayerUpdateClearsAnsweredFlags(

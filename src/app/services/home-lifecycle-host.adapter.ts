@@ -7,6 +7,7 @@ import type { HomeLifecycleHost, HomeObservableStreams } from "./home-lifecycle.
 import type { MemorizedItem } from "../types/memorization";
 import { groupItemsByMasterLevel } from "../lib/memorization/memorization-mastery";
 import type { Tenant, TenantMembership } from "../types/tenant";
+import type { HomeDefaultPrayerView } from "../lib/home-default-view-preference";
 
 export interface HomeLifecyclePageBindings {
   prayers$?: Observable<PrayerRequest[]>;
@@ -60,7 +61,7 @@ export interface HomeLifecycleHostAdapterDeps {
   syncRecommendationGroups(): void;
   loadAdminSettings(): void;
   applyInitialView(session: {
-    defaultPrayerView?: "current" | "personal" | null;
+    defaultPrayerView?: HomeDefaultPrayerView | null;
   }): void;
 }
 
@@ -196,7 +197,7 @@ export class HomeLifecycleHostAdapter implements HomeLifecycleHost {
   }
 
   applyInitialView(session: {
-    defaultPrayerView?: "current" | "personal" | null;
+    defaultPrayerView?: HomeDefaultPrayerView | null;
   }): void {
     this.deps.applyInitialView(session);
   }

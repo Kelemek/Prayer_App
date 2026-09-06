@@ -1,7 +1,95 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UserSessionService } from "../services/user-session.service";
 
-export type HomeDefaultPrayerView = "current" | "personal";
+export type HomeDefaultPrayerView = "current" | "personal" | "groups";
+
+export const HOME_DEFAULT_PRAYER_VIEW_OPTIONS: ReadonlyArray<{
+  value: HomeDefaultPrayerView;
+  label: string;
+  title: string;
+  description: string;
+}> = [
+  {
+    value: "current",
+    label: "Church Prayers",
+    title: "Open church prayers by default",
+    description: "You will see church prayers when you log in",
+  },
+  {
+    value: "groups",
+    label: "Group Prayers",
+    title: "Open group prayers by default",
+    description: "You will see group prayers when you log in",
+  },
+  {
+    value: "personal",
+    label: "Personal Prayers",
+    title: "Open personal prayers by default",
+    description: "You will see personal prayers when you log in",
+  },
+];
+
+export function parseHomeDefaultPrayerView(
+  value: string | undefined | null
+): HomeDefaultPrayerView {
+  switch (value) {
+    case "personal":
+      return "personal";
+    case "groups":
+      return "groups";
+    case "current":
+      return "current";
+    default:
+      return "current";
+  }
+}
+
+export function homeDefaultPrayerViewLabel(
+  view: HomeDefaultPrayerView
+): string {
+  switch (view) {
+    case "current":
+      return "Church Prayers";
+    case "groups":
+      return "Group Prayers";
+    case "personal":
+      return "Personal Prayers";
+    default: {
+      const _exhaustive: never = view;
+      return _exhaustive;
+    }
+  }
+}
+
+export function homeDefaultPrayerViewDescription(
+  view: HomeDefaultPrayerView
+): string {
+  switch (view) {
+    case "current":
+      return "You will see church prayers when you log in";
+    case "groups":
+      return "You will see group prayers when you log in";
+    case "personal":
+      return "You will see personal prayers when you log in";
+    default: {
+      const _exhaustive: never = view;
+      return _exhaustive;
+    }
+  }
+}
+
+export function resolveHomeFilterForDefaultView(
+  preferred: HomeDefaultPrayerView,
+  access: { canAccessShared: boolean; canAccessGroupsTab: boolean }
+): HomeDefaultPrayerView {
+  if (!access.canAccessShared && access.canAccessGroupsTab) {
+    return "groups";
+  }
+  if (preferred === "groups") {
+    return access.canAccessGroupsTab ? "groups" : "current";
+  }
+  return preferred;
+}
 
 export async function updateHomeDefaultViewPreference(
   client: SupabaseClient,

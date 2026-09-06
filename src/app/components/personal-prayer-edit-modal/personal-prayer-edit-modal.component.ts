@@ -22,6 +22,10 @@ import { PersonalCategoryColorService } from "../../services/personal-category-c
 import { PersonalCategoryColorPickerComponent } from "../personal-category-color-picker/personal-category-color-picker.component";
 import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.component";
 import { ModalShellComponent } from "../modal-shell/modal-shell.component";
+import {
+  filterPersonalPrayerCategories,
+  isNodeInsidePersonalCategoryField,
+} from "../../lib/prayer-form-category";
 
 @Component({
   selector: "app-personal-prayer-edit-modal",
@@ -106,7 +110,7 @@ import { ModalShellComponent } from "../modal-shell/modal-shell.component";
               >
             </label>
             <div class="space-y-2">
-              <div class="relative min-w-0">
+              <div class="relative min-w-0" data-personal-category-field>
             <input
               type="text"
               id="category"
@@ -115,7 +119,8 @@ import { ModalShellComponent } from "../modal-shell/modal-shell.component";
               autocomplete="off"
               maxlength="50"
               aria-label="Prayer category"
-              (focus)="showCategoryDropdown = true"
+              (focus)="onCategoryFocus()"
+              (blur)="onCategoryBlur($event)"
               (input)="onCategoryInput($event)"
               (keydown)="onCategoryKeyDown($event)"
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-inset-surface text-gray-900 dark:text-gray-100"
@@ -124,7 +129,9 @@ import { ModalShellComponent } from "../modal-shell/modal-shell.component";
             <!-- Category Dropdown -->
             @if (showCategoryDropdown && filteredCategories.length > 0) {
             <div
+              data-personal-category-suggestions
               class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg z-10 max-h-48 overflow-y-auto"
+              (mousedown)="$event.preventDefault()"
             >
               @for (category of filteredCategories; track category; let i =
               $index) {
@@ -216,6 +223,8 @@ export class PersonalPrayerEditModalComponent implements OnInit, OnChanges {
         }
         this.cdr.markForCheck();
       });
+
+    this.bindCategoryDropdownOutsideClose();
   }
 
   ngOnInit(): void {
@@ -249,7 +258,24 @@ export class PersonalPrayerEditModalComponent implements OnInit, OnChanges {
     this.prayerService.getUniqueCategoriesForUser().then((cats) => {
       this.availableCategories = cats;
       this.updateFilteredCategories();
+      if (this.showCategoryDropdown) {
+        this.showCategoryDropdown = this.filteredCategories.length > 0;
+      }
+      this.cdr.markForCheck();
     });
+  }
+
+  onCategoryFocus(): void {
+    this.updateFilteredCategories();
+    this.showCategoryDropdown = this.filteredCategories.length > 0;
+  }
+
+  onCategoryBlur(event: FocusEvent): void {
+    if (isNodeInsidePersonalCategoryField(event.relatedTarget)) {
+      return;
+    }
+    this.showCategoryDropdown = false;
+    this.cdr.markForCheck();
   }
 
   onCategoryInput(event: Event): void {
@@ -257,21 +283,14 @@ export class PersonalPrayerEditModalComponent implements OnInit, OnChanges {
     this.formData.category = input;
     this.syncCategoryColorForInput(input);
     this.updateFilteredCategories();
-    // Show dropdown if there are filtered results
-    if (this.filteredCategories.length > 0) {
-      this.showCategoryDropdown = true;
-    }
+    this.showCategoryDropdown = this.filteredCategories.length > 0;
   }
 
   private updateFilteredCategories(): void {
-    const searchTerm = this.formData.category.toLowerCase().trim();
-    if (searchTerm === "") {
-      this.filteredCategories = [];
-    } else {
-      this.filteredCategories = this.availableCategories.filter((cat) =>
-        cat.toLowerCase().includes(searchTerm)
-      );
-    }
+    this.filteredCategories = filterPersonalPrayerCategories(
+      this.availableCategories,
+      this.formData.category
+    );
     this.selectedCategoryIndex = -1;
   }
 
@@ -408,16 +427,27 @@ export class PersonalPrayerEditModalComponent implements OnInit, OnChanges {
 
   @HostListener("document:click", ["$event"])
   onDocumentClick(event: MouseEvent): void {
-    if (this.showCategoryDropdown) {
-      const target = event.target as HTMLElement;
-      // Close dropdown if click is outside the category input area
-      if (
-        !target.closest("#category") &&
-        !target.closest('[class*="dropdown"]')
-      ) {
-        this.showCategoryDropdown = false;
-        this.cdr.markForCheck();
-      }
+    this.closeCategoryDropdownIfOutside(event.target);
+  }
+
+  private bindCategoryDropdownOutsideClose(): void {
+    const onPointerDown = (event: Event) => {
+      this.closeCategoryDropdownIfOutside(event.target);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    this.destroyRef.onDestroy(() => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+    });
+  }
+
+  private closeCategoryDropdownIfOutside(target: EventTarget | null): void {
+    if (!this.showCategoryDropdown) {
+      return;
     }
+    if (isNodeInsidePersonalCategoryField(target)) {
+      return;
+    }
+    this.showCategoryDropdown = false;
+    this.cdr.markForCheck();
   }
 }

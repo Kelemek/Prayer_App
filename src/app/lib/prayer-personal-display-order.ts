@@ -1,4 +1,7 @@
-import type { PersonalPrayerDisplayOrderUpdate } from './prayer-personal-category';
+export type PersonalPrayerDisplayOrderUpdate = {
+  prayerId: string;
+  displayOrder: number;
+};
 
 export function buildPersonalPrayerDisplayOrderDbPayload(
   displayOrder: number

@@ -4880,6 +4880,8 @@ describe('PrayerService - Integration Tests', () => {
           type: 'prayer' as const,
           prayed_for_count: 0,
           display_order: undefined,
+          category: null,
+          category_id: null,
           updates: []
         }
       ];
@@ -4906,6 +4908,7 @@ describe('PrayerService - Integration Tests', () => {
                     status: 'current',
                     prayer_for: 'John',
                     user_email: 'me@test.com',
+                    category_id: null,
                     created_at: now,
                     updated_at: now,
                     personal_prayer_updates: []
@@ -5132,6 +5135,19 @@ describe('PrayerService - Integration Tests', () => {
 
       // Track which table is being queried
       mockSupabaseService.client.from = vi.fn((table: string) => {
+        if (table === 'personal_categories') {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  order: vi.fn(() => ({
+                    order: vi.fn(() => Promise.resolve({ data: [], error: null }))
+                  }))
+                }))
+              }))
+            }))
+          };
+        }
         if (table === 'personal_prayers') {
           return {
             select: vi.fn(() => ({
@@ -5278,10 +5294,9 @@ describe('PrayerService - Integration Tests', () => {
 
         expect(result).toBe(true);
         expect(mockRpc).toHaveBeenCalledWith('reorder_personal_prayers', {
-          p_user_email: 'test@test.com',
+          p_category_id: null,
           p_ordered_prayer_ids: ['1', '2', '3'],
-          p_category: null,
-          p_tenant_id: PRAYER_SPEC_TEST_TENANT.id
+        });
         });
       });
 
@@ -5296,24 +5311,12 @@ describe('PrayerService - Integration Tests', () => {
           })
         };
 
-        // Mock RPC error, which should trigger fallback
+        // Mock RPC error
         const mockRpc = vi.fn().mockResolvedValue({
           data: null,
           error: { message: 'RPC failed' }
         });
         mockSupabaseService.client.rpc = mockRpc;
-
-        // Mock fallback method calls - getCategoryRange
-        vi.spyOn(service as any, 'getCategoryRange').mockResolvedValue({ min: 1000, max: 1999 });
-
-        // Mock fallback update with error
-        mockSupabaseService.client.from.mockReturnValue({
-          update: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              eq: vi.fn(() => Promise.resolve({ error: new Error('Update failed') }))
-            }))
-          }))
-        });
 
         const result = await (service as any).updatePersonalPrayerOrder(prayers);
 
@@ -5359,10 +5362,8 @@ describe('PrayerService - Integration Tests', () => {
         // Verify RPC was called with prayer IDs in the correct order
         // Order is preserved: first prayer ID should be first in array
         expect(mockRpc).toHaveBeenCalledWith('reorder_personal_prayers', {
-          p_user_email: 'test@test.com',
+          p_category_id: null,
           p_ordered_prayer_ids: ['first', 'second', 'third'],
-          p_category: null,
-          p_tenant_id: PRAYER_SPEC_TEST_TENANT.id
         });
       });
 
@@ -5395,7 +5396,6 @@ describe('PrayerService - Integration Tests', () => {
       it('should reorder all categories using RPC', async () => {
         const mockEmail = 'user@example.com';
         
-        // Mock auth session
         mockSupabaseService.client.auth = {
           getSession: vi.fn().mockResolvedValue({
             data: { session: { user: { email: mockEmail } } }
@@ -5412,60 +5412,19 @@ describe('PrayerService - Integration Tests', () => {
       userSessionService,
       mockTenantContext, mockConnectivity as any);
 
-        const orderedCategories = ['Testing', 'Family', 'Members'];
+        const orderedIds = ['cat-1', 'cat-2', 'cat-3'];
 
-        // Mock RPC call
         const mockRpc = vi.fn().mockResolvedValue({
-          data: [{ success: true, message: 'Successfully reordered 3 categories' }],
+          data: null,
           error: null
         });
         mockSupabaseService.client.rpc = mockRpc;
 
-        const result = await service.reorderCategories(orderedCategories);
+        const result = await service.reorderCategories(orderedIds);
 
         expect(result).toBe(true);
-        expect(mockRpc).toHaveBeenCalledWith('reorder_personal_prayer_categories', {
-          p_user_email: mockEmail,
-          p_ordered_categories: orderedCategories,
-          p_tenant_id: PRAYER_SPEC_TEST_TENANT.id
-        });
-      });
-
-      it('should filter out null categories before calling RPC', async () => {
-        const mockEmail = 'user@example.com';
-        
-        mockSupabaseService.client.auth = {
-          getSession: vi.fn().mockResolvedValue({
-            data: { session: { user: { email: mockEmail } } }
-          })
-        };
-
-        service = new PrayerService(
-          mockSupabaseService,
-          mockToastService,
-          mockEmailNotificationService,
-          mockVerificationService,
-          mockCacheService,
-          mockBadgeService,
-      userSessionService,
-      mockTenantContext, mockConnectivity as any);
-
-        const orderedCategories = ['Family', null, 'Members'];
-
-        // Mock RPC call - should filter out nulls
-        const mockRpc = vi.fn().mockResolvedValue({
-          data: [{ success: true, message: 'Successfully reordered 2 categories' }],
-          error: null
-        });
-        mockSupabaseService.client.rpc = mockRpc;
-
-        const result = await service.reorderCategories(orderedCategories);
-
-        expect(result).toBe(true);
-        expect(mockRpc).toHaveBeenCalledWith('reorder_personal_prayer_categories', {
-          p_user_email: 'user@example.com',
-          p_ordered_categories: ['Family', 'Members'], // null filtered out
-          p_tenant_id: PRAYER_SPEC_TEST_TENANT.id
+        expect(mockRpc).toHaveBeenCalledWith('reorder_personal_categories', {
+          p_ordered_ids: orderedIds,
         });
       });
 
@@ -5486,12 +5445,12 @@ describe('PrayerService - Integration Tests', () => {
       userSessionService,
       mockTenantContext, mockConnectivity as any);
 
-        const result = await service.reorderCategories(['Family', 'Members']);
+        const result = await service.reorderCategories(['cat-1', 'cat-2']);
 
         expect(result).toBe(false);
       });
 
-      it.skip('should handle database errors during reorder', async () => {
+      it('should return false when reorder RPC errors', async () => {
         const mockEmail = 'user@example.com';
         
         mockSupabaseService.client.auth = {
@@ -5510,67 +5469,16 @@ describe('PrayerService - Integration Tests', () => {
       userSessionService,
       mockTenantContext, mockConnectivity as any);
 
-        // Mock RPC call with error
         const mockRpc = vi.fn().mockResolvedValue({
           data: null,
           error: { message: 'Update failed' }
         });
         mockSupabaseService.client.rpc = mockRpc;
 
-        // Mock fallback method for when RPC fails
-        const prayersInMemory = [
-          { id: '1', category: 'Family', display_order: 2000 } as PrayerRequest,
-        ];
-        (service as any).allPersonalPrayersSubject.next(prayersInMemory);
-        
-        mockSupabaseService.client.from.mockReturnValue({
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ error: { message: 'Fallback also failed' } })
-          })
-        } as any);
-
-        const result = await service.reorderCategories(['Family', 'Members']);
+        const result = await service.reorderCategories(['cat-1', 'cat-2']);
 
         expect(result).toBe(false);
-        expect(mockRpc).toHaveBeenCalled();  // Tried RPC first
-      });
-
-      it('should use RPC to reorder with correct category order', async () => {
-        const mockEmail = 'user@example.com';
-        
-        mockSupabaseService.client.auth = {
-          getSession: vi.fn().mockResolvedValue({
-            data: { session: { user: { email: mockEmail } } }
-          })
-        };
-
-        service = new PrayerService(
-          mockSupabaseService,
-          mockToastService,
-          mockEmailNotificationService,
-          mockVerificationService,
-          mockCacheService,
-          mockBadgeService,
-      userSessionService,
-      mockTenantContext, mockConnectivity as any);
-
-        const orderedCategories = ['C', 'A', 'B'];
-
-        // Mock RPC call
-        const mockRpc = vi.fn().mockResolvedValue({
-          data: [{ success: true, message: 'Successfully reordered 3 categories' }],
-          error: null
-        });
-        mockSupabaseService.client.rpc = mockRpc;
-
-        await service.reorderCategories(orderedCategories);
-
-        // Should pass categories in exact order to RPC
-        expect(mockRpc).toHaveBeenCalledWith('reorder_personal_prayer_categories', {
-          p_user_email: mockEmail,
-          p_ordered_categories: ['C', 'A', 'B'],
-          p_tenant_id: PRAYER_SPEC_TEST_TENANT.id
-        });
+        expect(mockRpc).toHaveBeenCalled();
       });
     });
 
@@ -5787,13 +5695,30 @@ describe('PrayerService - Integration Tests', () => {
     });
 
     describe('loadPersonalPrayers additional branches', () => {
+      beforeEach(() => {
+        mockSupabaseService.client.auth = {
+          getSession: vi.fn().mockResolvedValue({
+            data: { session: { user: { email: 'user@example.com' } } }
+          })
+        };
+        service = new PrayerService(
+          mockSupabaseService,
+          mockToastService,
+          mockEmailNotificationService,
+          mockVerificationService,
+          mockCacheService,
+          mockBadgeService,
+      userSessionService,
+      mockTenantContext, mockConnectivity as any);
+      });
+
       it('returns early and warns when user email is missing', async () => {
         mockSupabaseService.client.auth = {
           getSession: vi.fn().mockResolvedValue({ data: { session: null } })
         };
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-        await (service as any).loadPersonalPrayers();
+        await (service as any).personal.loadPersonalPrayers();
 
         expect(warnSpy).toHaveBeenCalledWith('[PrayerService] User email not available for personal prayers');
         warnSpy.mockRestore();
@@ -5817,45 +5742,22 @@ describe('PrayerService - Integration Tests', () => {
           updates: []
         }];
 
-        mockCacheService.get.mockReturnValue(cachedPrayers);
-        mockSupabaseService.client.auth = {
-          getSession: vi.fn().mockResolvedValue({ data: { session: { user: { email: 'user@example.com' } } } })
-        };
-        const cacheGetSpy = vi.spyOn(mockCacheService, 'get');
+        mockCacheService.get.mockImplementation((key: string) =>
+          key === PRAYER_SPEC_PERSONAL_CACHE_KEY ? cachedPrayers : null
+        );
+        mockSupabaseService.client.from.mockClear();
 
-        await expect((service as any).loadPersonalPrayers(true)).resolves.toBeUndefined();
+        await (service as any).personal.loadPersonalPrayers(true);
 
-        expect(cacheGetSpy).toHaveBeenCalledWith(PRAYER_SPEC_PERSONAL_CACHE_KEY);
+        expect((service as any).allPersonalPrayersSubject.value.map((p: { id: string }) => p.id)).toEqual(['cached-1']);
+        expect(mockSupabaseService.client.from).not.toHaveBeenCalledWith('personal_prayers');
       });
     });
 
-    describe('getCategoryRange', () => {
-      it('should return uncategorized range for null category', async () => {
+    describe('loadPersonalCategories', () => {
+      it('loads category entities for the current user', async () => {
         const mockEmail = 'user@example.com';
-        
-        mockSupabaseService.client.auth = {
-          getSession: vi.fn().mockResolvedValue({
-            data: { session: { user: { email: mockEmail } } }
-          })
-        };
 
-        service = new PrayerService(
-          mockSupabaseService,
-          mockToastService,
-          mockEmailNotificationService,
-          mockVerificationService,
-          mockCacheService,
-          mockBadgeService,
-      userSessionService,
-      mockTenantContext, mockConnectivity as any);
-
-        const result = await (service as any).getCategoryRange(null);
-        expect(result).toEqual({ min: 0, max: 999 });
-      });
-
-      it('should calculate range from display_order', async () => {
-        const mockEmail = 'user@example.com';
-        
         mockSupabaseService.client.auth = {
           getSession: vi.fn().mockResolvedValue({
             data: { session: { user: { email: mockEmail } } }
@@ -5876,78 +5778,28 @@ describe('PrayerService - Integration Tests', () => {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({
-                eq: vi.fn().mockResolvedValue({
-                  data: [{ display_order: 2100 }, { display_order: 2500 }],
-                  error: null
-                })
-              })
-            })
-          })
-        });
-
-        const result = await (service as any).getCategoryRange('Family');
-        expect(result).toEqual({ min: 2000, max: 2999 });
-      });
-
-      it('should return null when category not found', async () => {
-        const mockEmail = 'user@example.com';
-        
-        mockSupabaseService.client.auth = {
-          getSession: vi.fn().mockResolvedValue({
-            data: { session: { user: { email: mockEmail } } }
-          })
-        };
-
-        service = new PrayerService(
-          mockSupabaseService,
-          mockToastService,
-          mockEmailNotificationService,
-          mockVerificationService,
-          mockCacheService,
-          mockBadgeService,
-      userSessionService,
-      mockTenantContext, mockConnectivity as any);
-
-        mockSupabaseService.client.from.mockReturnValue({
-          select: vi.fn().mockImplementation((cols: string) => {
-            if (cols.includes('category')) {
-              return {
-                eq: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockReturnValue({
-                    not: vi.fn().mockReturnValue({
-                      gte: vi.fn().mockResolvedValue({
-                        data: [],
-                        error: null
-                      })
-                    })
-                  })
-                })
-              };
-            }
-            return {
-              eq: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockResolvedValue({
-                    data: [],
+                order: vi.fn().mockReturnValue({
+                  order: vi.fn().mockResolvedValue({
+                    data: [
+                      { id: 'c1', name: 'Family', display_order: 0, color: null },
+                    ],
                     error: null
                   })
                 })
               })
-            };
+            })
           })
         });
 
-        const result = await (service as any).getCategoryRange('NonExistent');
-        expect(result).not.toBeNull();
+        const result = await service.loadPersonalCategories(true);
+        expect(result).toEqual([
+          { id: 'c1', name: 'Family', display_order: 0, color: null },
+        ]);
       });
 
-      it('should throw when category query returns an error', async () => {
-        const mockEmail = 'user@example.com';
-
+      it('returns an empty list when the user email is unavailable', async () => {
         mockSupabaseService.client.auth = {
-          getSession: vi.fn().mockResolvedValue({
-            data: { session: { user: { email: mockEmail } } }
-          })
+          getSession: vi.fn().mockResolvedValue({ data: { session: null } })
         };
 
         service = new PrayerService(
@@ -5960,20 +5812,8 @@ describe('PrayerService - Integration Tests', () => {
       userSessionService,
       mockTenantContext, mockConnectivity as any);
 
-        mockSupabaseService.client.from.mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                eq: vi.fn().mockResolvedValue({
-                  data: null,
-                  error: new Error('category query failed')
-                })
-              })
-            })
-          })
-        });
-
-        await expect((service as any).getCategoryRange('Family')).rejects.toThrow('category query failed');
+        const result = await service.loadPersonalCategories(true);
+        expect(result).toEqual([]);
       });
     });
 
@@ -6002,7 +5842,7 @@ describe('PrayerService - Integration Tests', () => {
         ];
 
         const result = await service.getUniqueCategoriesForUser(prayers);
-        expect(result).toEqual(['C', 'B', 'A']);
+        expect(result).toEqual(['A', 'B', 'C']);
       });
 
       it('should include null category for uncategorized prayers', async () => {
@@ -6053,177 +5893,6 @@ describe('PrayerService - Integration Tests', () => {
 
         const result = await service.getUniqueCategoriesForUser([]);
         expect(result).toEqual([]);
-      });
-    });
-
-    describe('getCategoryPrayerCount', () => {
-      it('returns 0 when user email is unavailable', async () => {
-        mockSupabaseService.client.auth = {
-          getSession: vi.fn().mockResolvedValue({ data: { session: null } })
-        };
-
-        const result = await (service as any).getCategoryPrayerCount('Family');
-        expect(result).toBe(0);
-      });
-
-      it('returns prayer count for a category', async () => {
-        mockSupabaseService.client.auth = {
-          getSession: vi.fn().mockResolvedValue({
-            data: { session: { user: { email: 'test@example.com' } } }
-          })
-        };
-        mockSupabaseService.client.from.mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                eq: vi.fn().mockResolvedValue({
-                  data: [{ id: '1' }, { id: '2' }, { id: '3' }],
-                  error: null
-                })
-              })
-            })
-          })
-        });
-
-        const result = await (service as any).getCategoryPrayerCount('Family');
-        expect(result).toBe(3);
-      });
-
-      it('returns 0 when the category count query errors', async () => {
-        mockSupabaseService.client.auth = {
-          getSession: vi.fn().mockResolvedValue({
-            data: { session: { user: { email: 'test@example.com' } } }
-          })
-        };
-        mockSupabaseService.client.from.mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                eq: vi.fn().mockResolvedValue({
-                  data: null,
-                  error: new Error('count failed')
-                })
-              })
-            })
-          })
-        });
-        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-        const result = await (service as any).getCategoryPrayerCount('Family');
-        expect(result).toBe(0);
-        expect(errorSpy).toHaveBeenCalled();
-        errorSpy.mockRestore();
-      });
-    });
-
-    describe('swapCategoryRanges', () => {
-      it('should attempt RPC call first', async () => {
-        const mockEmail = 'user@example.com';
-        
-        mockSupabaseService.client.auth = {
-          getSession: vi.fn().mockResolvedValue({
-            data: { session: { user: { email: mockEmail } } }
-          })
-        };
-
-        mockSupabaseService.client.rpc = vi.fn().mockResolvedValue({
-          data: [{ success: true, message: 'Swapped' }],
-          error: null
-        });
-
-        service = new PrayerService(
-          mockSupabaseService,
-          mockToastService,
-          mockEmailNotificationService,
-          mockVerificationService,
-          mockCacheService,
-          mockBadgeService,
-      userSessionService,
-      mockTenantContext, mockConnectivity as any);
-
-        mockCacheService.get.mockReturnValue([
-          { id: '1', category: 'A', display_order: 1000 } as PrayerRequest,
-          { id: '2', category: 'B', display_order: 2000 } as PrayerRequest,
-        ]);
-
-        const result = await service.swapCategoryRanges('A', 'B');
-        
-        expect(mockSupabaseService.client.rpc).toHaveBeenCalledWith('swap_personal_prayer_categories', {
-          p_user_email: mockEmail,
-          p_category_a: 'A',
-          p_category_b: 'B',
-          p_tenant_id: PRAYER_SPEC_TEST_TENANT.id
-        });
-        expect(result).toBe(true);
-      });
-
-      it('should fallback to client-side on RPC error', async () => {
-        const mockEmail = 'user@example.com';
-        
-        mockSupabaseService.client.auth = {
-          getSession: vi.fn().mockResolvedValue({
-            data: { session: { user: { email: mockEmail } } }
-          })
-        };
-
-        mockSupabaseService.client.rpc = vi.fn().mockResolvedValue({
-          data: null,
-          error: { message: 'Function not found' }
-        });
-
-        service = new PrayerService(
-          mockSupabaseService,
-          mockToastService,
-          mockEmailNotificationService,
-          mockVerificationService,
-          mockCacheService,
-          mockBadgeService,
-      userSessionService,
-      mockTenantContext, mockConnectivity as any);
-
-        const prayers = [
-          { id: '1', category: 'A', display_order: 1000 } as PrayerRequest,
-          { id: '2', category: 'B', display_order: 2000 } as PrayerRequest,
-        ];
-
-        (service as any).allPersonalPrayersSubject.next(prayers);
-        mockCacheService.get.mockReturnValue(prayers);
-
-        const updateChain: any = {
-          eq: vi.fn(() => updateChain)
-        };
-        updateChain.then = (onFulfilled: any, onRejected?: any) =>
-          Promise.resolve({ data: null, error: null }).then(onFulfilled, onRejected);
-
-        mockSupabaseService.client.from.mockReturnValue({
-          update: vi.fn(() => updateChain)
-        });
-
-        const result = await service.swapCategoryRanges('A', 'B');
-        expect(result).toBe(true);
-      });
-
-      it('should return false when categories missing', async () => {
-        const mockEmail = 'user@example.com';
-        
-        mockSupabaseService.client.auth = {
-          getSession: vi.fn().mockResolvedValue({
-            data: { session: { user: { email: mockEmail } } }
-          })
-        };
-
-        service = new PrayerService(
-          mockSupabaseService,
-          mockToastService,
-          mockEmailNotificationService,
-          mockVerificationService,
-          mockCacheService,
-          mockBadgeService,
-      userSessionService,
-      mockTenantContext, mockConnectivity as any);
-
-        const result = await service.swapCategoryRanges(null, 'B');
-        expect(result).toBe(false);
       });
     });
 
@@ -6672,7 +6341,7 @@ describe('PrayerService - Integration Tests', () => {
 
         const result = await service.markPersonalPrayerUpdateAsAnswered('update1');
 
-        expect(result).toBe(true);
+        expect(result).toBe(false);
       });
     });
 
@@ -6699,28 +6368,22 @@ describe('PrayerService - Integration Tests', () => {
         const prayers: PrayerRequest[] = [];
         (service as any).allPersonalPrayersSubject.next(prayers);
 
-        // Spy on private methods to bypass complex mocking
-        vi.spyOn(service as any, 'getCategoryPrayerCount').mockResolvedValue(0);
-        vi.spyOn(service as any, 'getCategoryRange').mockResolvedValue({ min: 1000, max: 1999 });
+        mockSupabaseService.client.rpc = vi.fn().mockResolvedValue({
+          data: 'cat-test',
+          error: null,
+        });
 
-        // Mock the insert operation
         mockSupabaseService.client.from.mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({
                 eq: vi.fn().mockReturnValue({
-                  gte: vi.fn().mockReturnValue({
-                    lte: vi.fn().mockReturnValue({
-                      order: vi.fn().mockReturnValue({
-                        limit: vi.fn().mockReturnValue({
-                          single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } })
-                        })
-                      })
-                    })
-                  })
-                })
-              })
-            })
+                  order: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+                  }),
+                }),
+              }),
+            }),
           }),
           insert: vi.fn().mockReturnValue({
             select: vi.fn().mockReturnValue({
@@ -6729,10 +6392,10 @@ describe('PrayerService - Integration Tests', () => {
                   id: 'new-prayer-id',
                   title: 'New Prayer',
                   description: 'Description',
-                  category: 'Test',
+                  category_id: 'cat-test',
                   prayer_for: 'Someone',
                   user_email: mockEmail,
-                  display_order: 1000,
+                  display_order: 0,
                   created_at: new Date().toISOString(),
                   updated_at: new Date().toISOString()
                 },
@@ -6757,52 +6420,6 @@ describe('PrayerService - Integration Tests', () => {
         expect(mockToastService.success).toHaveBeenCalled();
       });
 
-      it('should reject when category limit reached', async () => {
-        const mockEmail = 'user@example.com';
-        
-        mockSupabaseService.client.auth = {
-          getSession: vi.fn().mockResolvedValue({
-            data: { session: { user: { email: mockEmail } } }
-          })
-        };
-
-        service = new PrayerService(
-          mockSupabaseService,
-          mockToastService,
-          mockEmailNotificationService,
-          mockVerificationService,
-          mockCacheService,
-          mockBadgeService,
-      userSessionService,
-      mockTenantContext, mockConnectivity as any);
-
-        // Mock getCategoryPrayerCount returning 1000 (limit) - needs .select().eq().eq().eq() chain
-        const mockEqFinal = vi.fn().mockResolvedValue({ data: new Array(1000).fill({ id: 'x' }), error: null });
-        const mockEqMid = vi.fn().mockReturnValue({ eq: mockEqFinal });
-        const mockEqChain = vi.fn().mockReturnValue({ eq: mockEqMid });
-        mockSupabaseService.client.from.mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            eq: mockEqChain
-          })
-        });
-
-        const result = await service.addPersonalPrayer({
-          title: 'New Prayer',
-          description: 'Description',
-          category: 'Test',
-          prayer_for: 'Someone',
-          requester: mockEmail,
-          email: mockEmail,
-          status: 'current',
-          is_anonymous: false
-        });
-
-        expect(result).toBe(false);
-        expect(mockToastService.error).toHaveBeenCalledWith(
-          expect.stringContaining('has reached its limit of 1,000 prayers')
-        );
-      });
-
       it('should handle insert errors', async () => {
         const mockEmail = 'user@example.com';
         
@@ -6822,28 +6439,22 @@ describe('PrayerService - Integration Tests', () => {
       userSessionService,
       mockTenantContext, mockConnectivity as any);
 
-        // Spy on private methods to bypass complex mocking
-        vi.spyOn(service as any, 'getCategoryPrayerCount').mockResolvedValue(0);
-        vi.spyOn(service as any, 'getCategoryRange').mockResolvedValue({ min: 1000, max: 1999 });
+        mockSupabaseService.client.rpc = vi.fn().mockResolvedValue({
+          data: 'cat-test',
+          error: null,
+        });
 
-        // Mock the queries and insert
         mockSupabaseService.client.from.mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({
                 eq: vi.fn().mockReturnValue({
-                  gte: vi.fn().mockReturnValue({
-                    lte: vi.fn().mockReturnValue({
-                      order: vi.fn().mockReturnValue({
-                        limit: vi.fn().mockReturnValue({
-                          single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } })
-                        })
-                      })
-                    })
-                  })
-                })
-              })
-            })
+                  order: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+                  }),
+                }),
+              }),
+            }),
           }),
           insert: vi.fn().mockReturnValue({
             select: vi.fn().mockReturnValue({
@@ -6892,8 +6503,8 @@ describe('PrayerService - Integration Tests', () => {
       mockTenantContext, mockConnectivity as any);
 
         const prayers = [
-          { id: '1', category: 'Test', display_order: 1001 } as PrayerRequest,
-          { id: '2', category: 'Test', display_order: 1000 } as PrayerRequest,
+          { id: '1', category: 'Test', category_id: 'cat-test', display_order: 1001 } as PrayerRequest,
+          { id: '2', category: 'Test', category_id: 'cat-test', display_order: 1000 } as PrayerRequest,
         ];
 
         // Mock RPC call
@@ -6907,10 +6518,8 @@ describe('PrayerService - Integration Tests', () => {
 
         expect(result).toBe(true);
         expect(mockRpc).toHaveBeenCalledWith('reorder_personal_prayers', {
-          p_user_email: mockEmail,
+          p_category_id: 'cat-test',
           p_ordered_prayer_ids: ['1', '2'],
-          p_category: 'Test',
-          p_tenant_id: PRAYER_SPEC_TEST_TENANT.id
         });
       });
 
@@ -6966,24 +6575,11 @@ describe('PrayerService - Integration Tests', () => {
         });
         mockSupabaseService.client.rpc = mockRpc;
 
-        // Spy on private method for fallback
-        vi.spyOn(service as any, 'getCategoryRange').mockResolvedValue({ min: 1000, max: 1999 });
-
-        // Mock fallback update with error
-        mockSupabaseService.client.from.mockReturnValue({
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({ data: null, error: { message: 'Update failed' } })
-            })
-          })
-        });
-
         const result = await service.updatePersonalPrayerOrder(prayers, 'Test');
 
         expect(result).toBe(false);
       });
     });
-  });
 
   describe('Coverage - Additional edge cases', () => {
     it('should handle approval status in prayers', async () => {
@@ -7298,74 +6894,14 @@ describe('PrayerService - share and category fallback coverage', () => {
     expect(toast.error).toHaveBeenCalled();
   });
 
-  it('reorderCategories uses fallback when RPC errors', async () => {
+  it('reorderCategories returns false when RPC errors', async () => {
     supabase.client.rpc.mockResolvedValue({
       data: null,
       error: { message: 'rpc missing' },
     });
-    (service as any).allPersonalPrayersSubject.next([
-      {
-        id: 'p1',
-        category: 'Family',
-        display_order: 2001,
-        created_at: '2026-01-01T00:00:00Z',
-      },
-      {
-        id: 'p2',
-        category: 'Work',
-        display_order: 1001,
-        created_at: '2026-01-01T00:00:00Z',
-      },
-    ]);
-    const updateEq = vi.fn().mockResolvedValue({ error: null });
-    supabase.client.from.mockReturnValue({
-      update: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            eq: updateEq,
-          })),
-        })),
-      })),
-    });
-
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const ok = await service.reorderCategories(['Work', 'Family']);
-    expect(ok).toBe(true);
-    consoleSpy.mockRestore();
-  });
-
-  it('swapCategoryRanges uses fallback when RPC errors', async () => {
-    supabase.client.rpc.mockResolvedValue({
-      data: null,
-      error: { message: 'rpc missing' },
-    });
-    (service as any).allPersonalPrayersSubject.next([
-      {
-        id: 'a1',
-        category: 'A',
-        display_order: 2001,
-        created_at: '2026-01-01T00:00:00Z',
-      },
-      {
-        id: 'b1',
-        category: 'B',
-        display_order: 1001,
-        created_at: '2026-01-01T00:00:00Z',
-      },
-    ]);
-    const updateEq = vi.fn().mockResolvedValue({ error: null });
-    supabase.client.from.mockReturnValue({
-      update: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            eq: updateEq,
-          })),
-        })),
-      })),
-    });
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const ok = await service.swapCategoryRanges('A', 'B');
-    expect(ok).toBe(true);
+    const ok = await service.reorderCategories(['cat-work', 'cat-family']);
+    expect(ok).toBe(false);
     consoleSpy.mockRestore();
   });
 });

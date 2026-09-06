@@ -86,8 +86,8 @@ export class PersonalCategoryColorService {
 
     try {
       const { data, error } = await this.supabase.client
-        .from('personal_prayer_category_colors')
-        .select('category, color')
+        .from('personal_categories')
+        .select('name, color')
         .eq('tenant_id', tenantId);
 
       if (error) {
@@ -106,7 +106,7 @@ export class PersonalCategoryColorService {
 
       const map: PersonalCategoryColorMap = {};
       for (const row of data ?? []) {
-        const category = sanitizePersonalCategoryName(row.category);
+        const category = sanitizePersonalCategoryName(row.name);
         const color = normalizePersonalCategoryHexColor(row.color);
         if (category && color) {
           map[category] = color;
@@ -149,18 +149,26 @@ export class PersonalCategoryColorService {
     const cacheKey = this.getCacheKey(tenantId);
 
     try {
+      const { data: categoryId, error: ensureError } = await this.supabase.client.rpc(
+        'ensure_personal_category',
+        {
+          p_name: sanitizedCategory,
+          p_tenant_id: tenantId,
+        }
+      );
+      if (ensureError) {
+        throw ensureError;
+      }
+      if (!categoryId) {
+        throw new Error('Failed to save category');
+      }
+
       const { error } = await this.supabase.client
-        .from('personal_prayer_category_colors')
-        .upsert(
-          {
-            tenant_id: tenantId,
-            user_email: userEmail.toLowerCase().trim(),
-            category: sanitizedCategory,
-            color: normalizedColor,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'tenant_id,user_email,category' }
-        );
+        .from('personal_categories')
+        .update({
+          color: normalizedColor,
+        })
+        .eq('id', categoryId);
 
       if (error) {
         throw error;
@@ -203,52 +211,19 @@ export class PersonalCategoryColorService {
       return false;
     }
 
-    const renameForEmail = userEmail.toLowerCase().trim();
-    const renameForTenantId = tenantId;
     const cacheKey = this.getCacheKey(tenantId);
     const currentMap = this.colorsSubject.value;
     const color = currentMap[oldName];
-
-    try {
-      const { error } = await this.supabase.client
-        .from('personal_prayer_category_colors')
-        .update({
-          category: newName,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('tenant_id', tenantId)
-        .eq('user_email', userEmail)
-        .eq('category', oldName);
-
-      if (error) {
-        throw error;
-      }
-
-      const currentEmail = this.userSessionService.getUserEmail();
-      const currentTenantId = this.tenantContext.getActiveTenant()?.id ?? null;
-      if (
-        !currentEmail ||
-        currentEmail.toLowerCase().trim() !== renameForEmail ||
-        currentTenantId !== renameForTenantId
-      ) {
-        return true;
-      }
-
-      if (!color) {
-        void this.loadColors(true);
-        return true;
-      }
-
-      const updated = { ...currentMap };
-      delete updated[oldName];
-      updated[newName] = color;
-      this.colorsSubject.next(updated);
-      this.cache.set(cacheKey, updated);
+    if (!color) {
       return true;
-    } catch (err) {
-      console.error('[PersonalCategoryColorService] Failed to rename color:', err);
-      return false;
     }
+
+    const updated = { ...currentMap };
+    delete updated[oldName];
+    updated[newName] = color;
+    this.colorsSubject.next(updated);
+    this.cache.set(cacheKey, updated);
+    return true;
   }
 
   async deleteCategory(category: string): Promise<boolean> {
@@ -263,47 +238,17 @@ export class PersonalCategoryColorService {
       return false;
     }
 
-    const deleteForEmail = userEmail.toLowerCase().trim();
-    const deleteForTenantId = tenantId;
     const cacheKey = this.getCacheKey(tenantId);
     const currentMap = this.colorsSubject.value;
-
-    try {
-      const { error } = await this.supabase.client
-        .from('personal_prayer_category_colors')
-        .delete()
-        .eq('tenant_id', tenantId)
-        .eq('user_email', userEmail)
-        .eq('category', name);
-
-      if (error) {
-        throw error;
-      }
-
-      const currentEmail = this.userSessionService.getUserEmail();
-      const currentTenantId = this.tenantContext.getActiveTenant()?.id ?? null;
-      if (
-        !currentEmail ||
-        currentEmail.toLowerCase().trim() !== deleteForEmail ||
-        currentTenantId !== deleteForTenantId
-      ) {
-        return true;
-      }
-
-      if (!(name in currentMap)) {
-        void this.loadColors(true);
-        return true;
-      }
-
-      const updated = { ...currentMap };
-      delete updated[name];
-      this.colorsSubject.next(updated);
-      this.cache.set(cacheKey, updated);
+    if (!(name in currentMap)) {
       return true;
-    } catch (err) {
-      console.error('[PersonalCategoryColorService] Failed to delete color:', err);
-      return false;
     }
+
+    const updated = { ...currentMap };
+    delete updated[name];
+    this.colorsSubject.next(updated);
+    this.cache.set(cacheKey, updated);
+    return true;
   }
 
   invalidate(): void {
@@ -326,7 +271,7 @@ export class PersonalCategoryColorService {
         : '';
 
     if (
-      message.includes('personal_prayer_category_colors') &&
+      message.includes('personal_categories') &&
       (message.includes('does not exist') || message.includes('Could not find'))
     ) {
       return 'Category colors need a database update. Apply the latest Supabase migration.';

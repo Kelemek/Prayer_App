@@ -10,7 +10,7 @@ import {
   unlockHomePersonalCategoryDragScroll,
 } from "../lib/personal-category-drag-scroll";
 import { HOME_PERSONAL_SUB_FILTER_CHIP_ACTIVE_CLASS } from "../lib/home-sub-filter-chip-classes";
-import { namedPersonalCategoryNamesFromPrayers } from "../lib/personal-category-order";
+import { namedPersonalCategoryChipNames } from "../lib/personal-category-order";
 import {
   renamePersonalCategoryWithColors,
   type RenamePersonalCategoryWithColorsResult,
@@ -101,8 +101,9 @@ export class HomePersonalCategoryController {
     if (this.pendingCategoryOrder !== null) {
       return this.pendingCategoryOrder;
     }
-    return namedPersonalCategoryNamesFromPrayers(
-      this.requirePrayerService().getPersonalPrayersSnapshot()
+    return namedPersonalCategoryChipNames(
+      this.requirePrayerService().getPersonalCategoriesSnapshot(),
+      this.host?.getPersonalPrayers() ?? []
     );
   }
 
@@ -158,15 +159,6 @@ export class HomePersonalCategoryController {
     }
 
     const originalCategories = [...this.uniquePersonalCategories];
-    const isAdjacentSwap =
-      Math.abs(event.previousIndex - event.currentIndex) === 1;
-    const categoriesInvolved = isAdjacentSwap
-      ? [
-          originalCategories[event.previousIndex],
-          originalCategories[event.currentIndex],
-        ]
-      : [...originalCategories];
-
     const reorderedCategories = [...originalCategories];
     moveItemInArray(
       reorderedCategories,
@@ -174,23 +166,23 @@ export class HomePersonalCategoryController {
       event.currentIndex
     );
     this.pendingCategoryOrder = reorderedCategories;
-    this.setSwappingCategories(categoriesInvolved);
+    this.setSwappingCategories(reorderedCategories);
     this.requireHost().markForCheck();
 
     const prayerService = this.requirePrayerService();
     try {
-      let success = false;
+      const nameToId = new Map(
+        prayerService
+          .getPersonalCategoriesSnapshot()
+          .map((category) => [category.name, category.id])
+      );
+      const orderedIds = reorderedCategories
+        .map((name) => nameToId.get(name))
+        .filter((id): id is string => !!id);
 
-      if (isAdjacentSwap) {
-        const categoryA = originalCategories[event.previousIndex];
-        const categoryB = originalCategories[event.currentIndex];
-        success = await prayerService.swapCategoryRanges(
-          categoryA,
-          categoryB
-        );
-      } else {
-        success = await prayerService.reorderCategories(reorderedCategories);
-      }
+      const success =
+        orderedIds.length === reorderedCategories.length &&
+        (await prayerService.reorderCategories(orderedIds));
 
       if (!success) {
         this.requireToastService().error("Failed to reorder categories");

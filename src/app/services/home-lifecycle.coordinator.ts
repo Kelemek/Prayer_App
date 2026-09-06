@@ -284,6 +284,13 @@ export class HomeLifecycleCoordinator {
         services.deepLinkCoordinator.retryPendingPrayerDeepLinkIfNeeded();
       });
 
+    services.prayerService.personalCategories$
+      ?.pipe(takeUntil(destroy$))
+      .subscribe(() => {
+        host.refreshHomeCatalog();
+        host.markForCheck();
+      });
+
     services.memorizationService.memorizedItems$
       .pipe(takeUntil(destroy$))
       .subscribe((items) => {

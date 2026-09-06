@@ -23,6 +23,9 @@ describe('RichTextEditorComponent', () => {
     expect(toolbar).toBeTruthy();
     const buttons = host.querySelectorAll('.rte-btn');
     expect(buttons.length).toBeGreaterThan(0);
+    buttons.forEach((button) => {
+      expect(button.getAttribute('tabindex')).toBe('-1');
+    });
   });
 
   it('exposes a ControlValueAccessor-compatible writeValue method', () => {

@@ -1,4 +1,4 @@
-import type { CategoryDisplayOrderRange } from './prayer-personal-category';
+import { nextDisplayOrderAfterMax } from './prayer-personal-category';
 import type { PrayerRequest, PrayerStatus, PrayerUpdate } from './prayer-types';
 
 export const PERSONAL_ANSWERED_CATEGORY = 'Answered';
@@ -20,25 +20,21 @@ export function isClearingPersonalAnsweredCategory(
 }
 
 export function displayOrderAfterCategoryChange(
-  maxDisplayOrderInRange: number | null | undefined,
-  range: CategoryDisplayOrderRange
+  maxDisplayOrder: number | null | undefined
 ): number {
-  const max =
-    maxDisplayOrderInRange !== null && maxDisplayOrderInRange !== undefined
-      ? maxDisplayOrderInRange
-      : range.min - 1;
-  return Math.min(max + 1, range.max);
+  return nextDisplayOrderAfterMax(maxDisplayOrder);
 }
 
 export function buildPersonalPrayerDbUpdatePayload(
   updates: Partial<Pick<PrayerRequest, 'title' | 'prayer_for' | 'description' | 'category'>>,
-  newCategory: string | null | undefined,
+  newCategoryId: string | null,
   categoryChanged: boolean,
   newDisplayOrder: number | undefined
 ): Record<string, unknown> {
+  const { category: _category, ...fieldUpdates } = updates;
   return {
-    ...updates,
-    category: newCategory,
+    ...fieldUpdates,
+    category_id: newCategoryId,
     ...(categoryChanged &&
       newDisplayOrder !== undefined && { display_order: newDisplayOrder }),
     updated_at: new Date().toISOString(),
@@ -51,6 +47,7 @@ export function applyPersonalPrayerFieldUpdate(
   args: {
     updates: Partial<Pick<PrayerRequest, 'title' | 'prayer_for' | 'description' | 'category'>>;
     newCategory: string | null | undefined;
+    newCategoryId: string | null;
     newDisplayOrder: number | undefined;
     clearingAnswered: boolean;
     updatedAt: string;
@@ -64,6 +61,7 @@ export function applyPersonalPrayerFieldUpdate(
           prayer_for: args.updates.prayer_for ?? p.prayer_for,
           description: args.updates.description ?? p.description,
           category: args.newCategory,
+          category_id: args.newCategoryId,
           status: personalPrayerStatusFromCategory(args.newCategory),
           display_order: args.newDisplayOrder ?? p.display_order,
           updated_at: args.updatedAt,
@@ -185,7 +183,7 @@ export function markPersonalPrayerUpdateAnsweredPatch(): Record<string, unknown>
 
 export function buildPersonalPrayerInsertRow(
   prayer: Pick<PrayerRequest, 'title' | 'description' | 'prayer_for'>,
-  category: string | null,
+  categoryId: string | null,
   userEmail: string,
   displayOrder: number,
   tenantId?: string | null
@@ -194,7 +192,7 @@ export function buildPersonalPrayerInsertRow(
     title: prayer.title,
     description: prayer.description,
     prayer_for: prayer.prayer_for,
-    category,
+    category_id: categoryId,
     user_email: userEmail,
     display_order: displayOrder,
     ...(tenantId ? { tenant_id: tenantId } : {}),
@@ -222,21 +220,23 @@ export function personalPrayerRequestFromInsertedRow(
     title: string;
     description: string;
     prayer_for: string;
-    category: string | null;
+    category_id?: string | null;
     created_at: string;
     updated_at: string;
     display_order?: number | null;
   },
   userEmail: string,
-  fallbackDisplayOrder: number
+  fallbackDisplayOrder: number,
+  categoryName: string | null
 ): PrayerRequest {
   return {
     id: data.id,
     title: data.title,
     description: data.description,
-    status: 'current',
+    status: personalPrayerStatusFromCategory(categoryName),
     prayer_for: data.prayer_for,
-    category: data.category,
+    category: categoryName,
+    category_id: data.category_id ?? null,
     requester: userEmail,
     email: userEmail,
     is_anonymous: false,

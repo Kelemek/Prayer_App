@@ -41,6 +41,7 @@ import {
 } from "../../lib/prayer-form-submit";
 import {
   filterPersonalPrayerCategories,
+  isNodeInsidePersonalCategoryField,
   nextCategorySelectionIndex,
   prayerFormCategoryKeyAction,
 } from "../../lib/prayer-form-category";
@@ -104,6 +105,7 @@ import {
               Prayer For <span aria-label="required">*</span>
             </label>
             <input
+              #prayerForInput
               type="text"
               id="prayer_for"
               [(ngModel)]="formData.prayer_for"
@@ -329,7 +331,7 @@ import {
               >
             </label>
             <div class="space-y-2">
-              <div class="relative min-w-0">
+              <div class="relative min-w-0" data-personal-category-field>
             <input
               type="text"
               id="category"
@@ -338,7 +340,8 @@ import {
               autocomplete="off"
               maxlength="50"
               aria-label="Prayer category"
-              (focus)="showCategoryDropdown = true"
+              (focus)="onCategoryFocus()"
+              (blur)="onCategoryBlur($event)"
               (input)="onCategoryInput($event)"
               (keydown)="onCategoryKeyDown($event)"
               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-inset-surface text-gray-900 dark:text-gray-100"
@@ -347,7 +350,9 @@ import {
             <!-- Category Dropdown -->
             @if (showCategoryDropdown && filteredCategories.length > 0) {
             <div
+              data-personal-category-suggestions
               class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg z-10 max-h-48 overflow-y-auto"
+              (mousedown)="$event.preventDefault()"
             >
               @for (category of filteredCategories; track category; let i =
               $index) {
@@ -443,6 +448,12 @@ import {
 export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
   @ViewChild("descriptionEditor") descriptionEditor?: RichTextEditorComponent;
 
+  @ViewChild("prayerForInput")
+  set prayerForInput(ref: ElementRef<HTMLInputElement> | undefined) {
+    this.prayerForInputRef = ref;
+    this.focusPrayerForInputIfNeeded();
+  }
+
   @Input() isOpen = false;
   /** When true and the modal opens, default to Personal Prayer. */
   @Input() defaultPersonalPrayer = false;
@@ -485,6 +496,8 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
   private categoryColorDirty = false;
   user$!: Observable<User | null>;
   private destroy$ = new Subject<void>();
+  private prayerForInputRef?: ElementRef<HTMLInputElement>;
+  private shouldFocusPrayerForInput = false;
 
   constructor(
     private prayerService: PrayerService,
@@ -507,6 +520,7 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
         this.richTextEditorsEnabled = v;
         this.cdr.markForCheck();
       });
+    this.bindCategoryDropdownOutsideClose();
   }
 
   ngOnInit(): void {
@@ -517,31 +531,28 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
         this.currentUserEmail = session?.email?.trim() || "";
         this.cdr.markForCheck();
       });
+    this.loadAvailableCategories();
     this.user$ = this.adminAuthService.user$;
     this.adminAuthService.isAdmin$
       .pipe(takeUntil(this.destroy$))
       .subscribe((isAdmin) => {
         this.isAdmin = isAdmin;
       });
-    // Load available categories for personal prayers
-    this.prayerService.getUniqueCategoriesForUser().then((cats) => {
-      this.availableCategories = cats;
-    });
   }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes["isOpen"]) {
       this.closeGroupDropdown();
       if (changes["isOpen"].currentValue === true) {
+        this.shouldFocusPrayerForInput = true;
         this.applyDefaultVisibility();
+        this.focusPrayerForInputIfNeeded();
       }
     }
     if (this.isOpen) {
       this.refreshCurrentUserEmail();
       this.categoryColorDirty = false;
-      this.prayerService.getUniqueCategoriesForUser().then((cats) => {
-        this.availableCategories = cats;
-      });
+      this.loadAvailableCategories();
       void this.personalCategoryColorService.loadColors();
     }
   }
@@ -566,10 +577,35 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
       );
   }
 
+  private loadAvailableCategories(): void {
+    this.prayerService.getUniqueCategoriesForUser().then((cats) => {
+      this.availableCategories = cats;
+      if (this.showCategoryDropdown) {
+        this.updateFilteredCategories();
+        this.showCategoryDropdown = this.filteredCategories.length > 0;
+      }
+      this.cdr.markForCheck();
+    });
+  }
+
   ngOnDestroy(): void {
     this.closeGroupDropdown();
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  private focusPrayerForInputIfNeeded(): void {
+    if (!this.shouldFocusPrayerForInput || !this.isOpen) {
+      return;
+    }
+    const input = this.prayerForInputRef?.nativeElement;
+    if (!input) {
+      return;
+    }
+    this.shouldFocusPrayerForInput = false;
+    requestAnimationFrame(() => {
+      input.focus({ preventScroll: true });
+    });
   }
 
   private refreshCurrentUserEmail(): void {
@@ -714,15 +750,25 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
     return true;
   }
 
+  onCategoryFocus(): void {
+    this.updateFilteredCategories();
+    this.showCategoryDropdown = this.filteredCategories.length > 0;
+  }
+
+  onCategoryBlur(event: FocusEvent): void {
+    if (isNodeInsidePersonalCategoryField(event.relatedTarget)) {
+      return;
+    }
+    this.showCategoryDropdown = false;
+    this.cdr.markForCheck();
+  }
+
   onCategoryInput(event: Event): void {
     const input = (event.target as HTMLInputElement).value;
     this.formData.category = input;
     this.syncCategoryColorForInput(input);
     this.updateFilteredCategories();
-    // Show dropdown if there are filtered results
-    if (this.filteredCategories.length > 0) {
-      this.showCategoryDropdown = true;
-    }
+    this.showCategoryDropdown = this.filteredCategories.length > 0;
   }
 
   private updateFilteredCategories(): void {
@@ -933,14 +979,28 @@ export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
       }
     }
     if (this.showCategoryDropdown) {
-      // Close dropdown if click is outside the category input area
-      if (
-        !target.closest("#category") &&
-        !target.closest('[class*="dropdown"]')
-      ) {
-        this.showCategoryDropdown = false;
-        this.cdr.markForCheck();
-      }
+      this.closeCategoryDropdownIfOutside(event.target);
     }
+  }
+
+  private bindCategoryDropdownOutsideClose(): void {
+    const onPointerDown = (event: Event) => {
+      this.closeCategoryDropdownIfOutside(event.target);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    this.destroyRef.onDestroy(() => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+    });
+  }
+
+  private closeCategoryDropdownIfOutside(target: EventTarget | null): void {
+    if (!this.showCategoryDropdown) {
+      return;
+    }
+    if (isNodeInsidePersonalCategoryField(target)) {
+      return;
+    }
+    this.showCategoryDropdown = false;
+    this.cdr.markForCheck();
   }
 }

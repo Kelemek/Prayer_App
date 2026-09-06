@@ -1,61 +1,37 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  personalCategoryReorderRpcArgs,
-  personalCategorySwapRpcArgs,
-  validatePersonalCategoryRename,
-  validatePersonalCategorySwapInputs,
+  applyPersonalCategoriesDeleteLocally,
+  applyPersonalCategoriesRenameLocally,
+  applyPersonalCategoriesReorderLocally,
   applyPersonalCategoryDeleteLocally,
   applyPersonalCategoryRenameLocally,
-  type CategoryDisplayOrderRange,
-  type PersonalPrayerDisplayOrderUpdate,
+  findPersonalCategoryIdByName,
+  validatePersonalCategoryRename,
 } from './prayer-personal-category';
 import {
-  deletePersonalPrayerRowsByIds,
-  fetchPersonalPrayerCategoryIdRows,
-  renamePersonalPrayerCategoriesByIds,
+  rpcDeletePersonalCategory,
+  rpcRenamePersonalCategory,
+  rpcReorderPersonalCategories,
 } from './prayer-personal-db';
-import {
-  hasPersonalCategoryRenameTargets,
-  matchingPersonalPrayerIdsForCategoryRename,
-} from './prayer-personal-rename';
-import {
-  applyPersonalCategoryReorderLocally,
-  applyPersonalCategorySwapLocally,
-} from './prayer-personal-display';
-import {
-  applyCategorySwapFallbackSteps,
-  buildCategorySwapFallbackPlan,
-  categoryReorderFallbackUpdates,
-  collectPersonalPrayerOrderFallbackUpdates,
-} from './prayer-personal-order-fallback';
 import { runPersonalPrayerOrderRpcPerCategory } from './prayer-personal-order-rpc';
-import {
-  logPersonalCategoryRpcMessage,
-  runPersonalCategoryMutationRpc,
-} from './prayer-personal-category-rpc';
+import type { PersonalCategory } from '../types/personal-category';
 import type { PrayerRequest } from './prayer-types';
 
 export type PersonalCategoryLocalActions = {
   getPrayers: () => PrayerRequest[];
   setPrayers: (prayers: PrayerRequest[]) => void;
+  getCategories: () => PersonalCategory[];
+  setCategories: (categories: PersonalCategory[]) => void;
 };
 
 export type PersonalCategoryOrchestrationDeps = {
   getUserEmail: () => Promise<string | null>;
   getTenantId?: () => string | null;
+  client: SupabaseClient;
   local: PersonalCategoryLocalActions;
-  runCategoryRpc: (
-    rpcName: 'reorder_personal_prayer_categories' | 'swap_personal_prayer_categories',
-    args: Record<string, unknown>
-  ) => Promise<{ data: unknown; error: unknown }>;
   runPrayerOrderRpc: (
     args: Record<string, unknown>
   ) => Promise<{ data: unknown; error: unknown }>;
-  applyDisplayOrderUpdates: (
-    updates: PersonalPrayerDisplayOrderUpdate[],
-    options?: { matchUserEmail?: boolean }
-  ) => Promise<void>;
-  getCategoryRange: (category: string | null | undefined) => Promise<CategoryDisplayOrderRange>;
 };
 
 export function applyPersonalCategoryRenameSnapshot(
@@ -66,6 +42,9 @@ export function applyPersonalCategoryRenameSnapshot(
   actions.setPrayers(
     applyPersonalCategoryRenameLocally(actions.getPrayers(), oldName, newName)
   );
+  actions.setCategories(
+    applyPersonalCategoriesRenameLocally(actions.getCategories(), oldName, newName)
+  );
 }
 
 export function applyPersonalCategoryDeleteSnapshot(
@@ -75,116 +54,13 @@ export function applyPersonalCategoryDeleteSnapshot(
   actions.setPrayers(
     applyPersonalCategoryDeleteLocally(actions.getPrayers(), categoryName)
   );
-}
-
-function applyPersonalCategorySwapSnapshot(
-  actions: PersonalCategoryLocalActions,
-  categoryA: string,
-  categoryB: string
-): void {
-  const sorted = applyPersonalCategorySwapLocally(
-    actions.getPrayers(),
-    categoryA,
-    categoryB
+  actions.setCategories(
+    applyPersonalCategoriesDeleteLocally(actions.getCategories(), categoryName)
   );
-  if (sorted) {
-    actions.setPrayers(sorted);
-  }
-}
-
-function applyPersonalCategoryReorderSnapshot(
-  actions: PersonalCategoryLocalActions,
-  orderedCategories: (string | null)[]
-): void {
-  actions.setPrayers(
-    applyPersonalCategoryReorderLocally(actions.getPrayers(), orderedCategories)
-  );
-}
-
-async function reorderCategoriesFallback(
-  orderedCategories: (string | null)[],
-  deps: PersonalCategoryOrchestrationDeps
-): Promise<boolean> {
-  try {
-    console.log('[PrayerService] Using fallback method for category reorder');
-
-    const userEmail = await deps.getUserEmail();
-    if (!userEmail) {
-      return false;
-    }
-
-    const updates = categoryReorderFallbackUpdates(
-      orderedCategories,
-      deps.local.getPrayers()
-    );
-    await deps.applyDisplayOrderUpdates(updates);
-    applyPersonalCategoryReorderSnapshot(deps.local, orderedCategories);
-    return true;
-  } catch (error) {
-    console.error('[PrayerService] Fallback reorder failed:', error);
-    return false;
-  }
-}
-
-async function swapCategoryRangesFallback(
-  categoryA: string,
-  categoryB: string,
-  deps: PersonalCategoryOrchestrationDeps
-): Promise<boolean> {
-  try {
-    console.log('[PrayerService] Using fallback method for category swap');
-
-    const userEmail = await deps.getUserEmail();
-    if (!userEmail) {
-      return false;
-    }
-
-    const steps = buildCategorySwapFallbackPlan(
-      deps.local.getPrayers(),
-      categoryA,
-      categoryB
-    );
-    if (!steps) {
-      return true;
-    }
-
-    await applyCategorySwapFallbackSteps(steps, (updates) =>
-      deps.applyDisplayOrderUpdates(updates)
-    );
-    applyPersonalCategorySwapSnapshot(deps.local, categoryA, categoryB);
-    return true;
-  } catch (error) {
-    console.error('[PrayerService] Fallback swap failed:', error);
-    return false;
-  }
-}
-
-async function updatePersonalPrayerOrderFallback(
-  prayers: PrayerRequest[],
-  deps: PersonalCategoryOrchestrationDeps
-): Promise<boolean> {
-  try {
-    console.log('[PrayerService] Using fallback method for prayer order update');
-
-    const userEmail = await deps.getUserEmail();
-    if (!userEmail) {
-      return false;
-    }
-
-    const updates = await collectPersonalPrayerOrderFallbackUpdates(
-      prayers,
-      (category) => deps.getCategoryRange(category)
-    );
-    await deps.applyDisplayOrderUpdates(updates, { matchUserEmail: true });
-    return true;
-  } catch (error) {
-    console.error('[PrayerService] Fallback prayer order update failed:', error);
-    return false;
-  }
 }
 
 export async function orchestratePersonalCategoryReorder(
-  orderedCategories: (string | null)[],
+  orderedIds: string[],
   deps: PersonalCategoryOrchestrationDeps
 ): Promise<boolean> {
   try {
@@ -194,95 +70,26 @@ export async function orchestratePersonalCategoryReorder(
       return false;
     }
 
-    const rpcArgs = personalCategoryReorderRpcArgs(
-      userEmail,
-      orderedCategories,
-      deps.getTenantId?.()
-    );
-    if (rpcArgs.p_ordered_categories.length === 0) {
-      console.warn('[PrayerService] No valid categories to reorder');
+    if (orderedIds.length === 0) {
       return true;
     }
 
-    const rpcResult = await runPersonalCategoryMutationRpc(
-      () => deps.runCategoryRpc('reorder_personal_prayer_categories', rpcArgs),
-      'Reorder categories failed'
+    const previous = deps.local.getCategories();
+    deps.local.setCategories(
+      applyPersonalCategoriesReorderLocally(previous, orderedIds)
     );
 
-    if (!rpcResult.ok) {
-      if (rpcResult.shouldFallback) {
-        console.error('[PrayerService] RPC error reordering categories');
-        return await reorderCategoriesFallback(orderedCategories, deps);
-      }
-      console.error('[PrayerService] Reorder failed:', rpcResult.message);
+    const { error } = await rpcReorderPersonalCategories(deps.client, orderedIds);
+    if (error) {
+      deps.local.setCategories(previous);
+      console.error('[PrayerService] Reorder categories failed:', error);
       return false;
     }
 
-    logPersonalCategoryRpcMessage(rpcResult.logMessage);
-    applyPersonalCategoryReorderSnapshot(deps.local, orderedCategories);
     return true;
   } catch (error) {
     console.error('[PrayerService] Error reordering categories:', error);
-    return await reorderCategoriesFallback(orderedCategories, deps);
-  }
-}
-
-export async function orchestratePersonalCategorySwap(
-  categoryA: string | null | undefined,
-  categoryB: string | null | undefined,
-  deps: PersonalCategoryOrchestrationDeps
-): Promise<boolean> {
-  const userEmail = await deps.getUserEmail();
-  const validation = validatePersonalCategorySwapInputs(userEmail, categoryA, categoryB);
-
-  if (!validation.ok) {
-    if (validation.reason === 'no_email') {
-      console.error('[PrayerService] User email not available for category swap');
-    } else {
-      console.error('[PrayerService] Both categories required for swap');
-    }
     return false;
-  }
-
-  try {
-    const rpcArgs = personalCategorySwapRpcArgs(
-      userEmail!,
-      validation.categoryA,
-      validation.categoryB,
-      deps.getTenantId?.()
-    );
-    const rpcResult = await runPersonalCategoryMutationRpc(
-      () => deps.runCategoryRpc('swap_personal_prayer_categories', rpcArgs),
-      'Swap categories failed'
-    );
-
-    if (!rpcResult.ok) {
-      if (rpcResult.shouldFallback) {
-        console.error('[PrayerService] RPC error swapping categories');
-        return await swapCategoryRangesFallback(
-          validation.categoryA,
-          validation.categoryB,
-          deps
-        );
-      }
-      console.error('[PrayerService] Swap failed:', rpcResult.message);
-      return false;
-    }
-
-    logPersonalCategoryRpcMessage(rpcResult.logMessage);
-    applyPersonalCategorySwapSnapshot(
-      deps.local,
-      validation.categoryA,
-      validation.categoryB
-    );
-    return true;
-  } catch (error) {
-    console.error('[PrayerService] Exception swapping categories:', error);
-    return await swapCategoryRangesFallback(
-      validation.categoryA,
-      validation.categoryB,
-      deps
-    );
   }
 }
 
@@ -299,15 +106,10 @@ export async function orchestratePersonalPrayerOrderUpdate(
 
     const rpcResult = await runPersonalPrayerOrderRpcPerCategory(
       prayers,
-      userEmail,
-      (args) => deps.runPrayerOrderRpc(args),
-      deps.getTenantId?.()
+      (args) => deps.runPrayerOrderRpc(args)
     );
 
     if (!rpcResult.ok) {
-      if (rpcResult.shouldFallback) {
-        return await updatePersonalPrayerOrderFallback(prayers, deps);
-      }
       console.error('[PrayerService] Reorder prayers failed:', rpcResult.message);
       return false;
     }
@@ -316,7 +118,7 @@ export async function orchestratePersonalPrayerOrderUpdate(
     return true;
   } catch (error) {
     console.error('[PrayerService] Error updating personal prayer order:', error);
-    return await updatePersonalPrayerOrderFallback(prayers, deps);
+    return false;
   }
 }
 
@@ -372,28 +174,22 @@ export async function orchestratePersonalCategoryRename(
       return false;
     }
 
-    const { data: categoryRows, error: selectError } =
-      await fetchPersonalPrayerCategoryIdRows(deps.client, userEmail, tenantId);
-    if (selectError) {
-      throw selectError;
-    }
-
-    const matchingIds = matchingPersonalPrayerIdsForCategoryRename(
-      categoryRows ?? [],
+    const categoryId = findPersonalCategoryIdByName(
+      deps.local.getCategories(),
       oldName
     );
+    if (!categoryId) {
+      deps.toastError('Category not found');
+      return false;
+    }
 
-    if (hasPersonalCategoryRenameTargets(matchingIds)) {
-      const { error } = await renamePersonalPrayerCategoriesByIds(
-        deps.client,
-        userEmail,
-        matchingIds,
-        newName,
-        tenantId
-      );
-      if (error) {
-        throw error;
-      }
+    const { error } = await rpcRenamePersonalCategory(
+      deps.client,
+      categoryId,
+      newName
+    );
+    if (error) {
+      throw error;
     }
 
     applyPersonalCategoryRenameSnapshot(deps.local, oldName, newName);
@@ -442,27 +238,18 @@ export async function orchestratePersonalCategoryDelete(
       return false;
     }
 
-    const { data: categoryRows, error: selectError } =
-      await fetchPersonalPrayerCategoryIdRows(deps.client, userEmail, tenantId);
-    if (selectError) {
-      throw selectError;
-    }
-
-    const matchingIds = matchingPersonalPrayerIdsForCategoryRename(
-      categoryRows ?? [],
+    const categoryId = findPersonalCategoryIdByName(
+      deps.local.getCategories(),
       categoryName
     );
+    if (!categoryId) {
+      deps.toastError('Category not found');
+      return false;
+    }
 
-    if (hasPersonalCategoryRenameTargets(matchingIds)) {
-      const { error } = await deletePersonalPrayerRowsByIds(
-        deps.client,
-        userEmail,
-        matchingIds,
-        tenantId
-      );
-      if (error) {
-        throw error;
-      }
+    const { error } = await rpcDeletePersonalCategory(deps.client, categoryId);
+    if (error) {
+      throw error;
     }
 
     applyPersonalCategoryDeleteSnapshot(deps.local, categoryName);

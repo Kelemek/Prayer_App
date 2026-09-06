@@ -82,7 +82,12 @@ import {
   type HomeCoordinatorWiringPage,
 } from "../../services/home-coordinator-wiring";
 import type { HomeLifecyclePageBindings } from "../../services/home-lifecycle-host.adapter";
-import { updateHomeDefaultViewPreference } from "../../lib/home-default-view-preference";
+import {
+  parseHomeDefaultPrayerView,
+  resolveHomeFilterForDefaultView,
+  updateHomeDefaultViewPreference,
+  type HomeDefaultPrayerView,
+} from "../../lib/home-default-view-preference";
 import type { HomeActiveFilter } from "../../services/home-deep-link-host.adapter";
 import { isPublicAreaFilter, isPublicTabFilter, isCommunityPrayerFilter } from "../../lib/home-community-filter";
 import { HOME_SHELL_FOOTER_BORDER_TOP_CLASS } from "../../lib/home-sub-filter-chip-classes";
@@ -521,16 +526,13 @@ export class HomeComponent
 
     this.canAccessShared = this.tenantPermissionService.canAccessShared();
     this.canAccessGroupsTab = this.tenantPermissionService.canAccessGroupsTab();
-    const preferred = session.defaultPrayerView ?? "current";
-    if (!this.canAccessShared && this.canAccessGroupsTab) {
-      this.filter.setFilter("groups");
-    } else {
-      const filter =
-        preferred === "current" || preferred === "personal"
-          ? preferred
-          : "current";
-      this.filter.setFilter(filter);
-    }
+    const preferred = parseHomeDefaultPrayerView(session.defaultPrayerView);
+    this.filter.setFilter(
+      resolveHomeFilterForDefaultView(preferred, {
+        canAccessShared: this.canAccessShared,
+        canAccessGroupsTab: this.canAccessGroupsTab,
+      })
+    );
     this.viewReady = true;
     this.cdr.markForCheck();
   }
@@ -547,7 +549,7 @@ export class HomeComponent
   }
 
   async updateDefaultViewPreference(
-    preference: "current" | "personal"
+    preference: HomeDefaultPrayerView
   ): Promise<boolean> {
     return updateHomeDefaultViewPreference(
       this.supabaseService.client,

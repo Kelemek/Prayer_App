@@ -735,7 +735,7 @@ Deno.serve(async (req: Request) => {
     if (personalIds.length > 0) {
       const { data: personalRows, error: personalErr } = await supabase
         .from('personal_prayers')
-        .select('id, category')
+        .select('id, personal_categories ( name )')
         .in('id', personalIds);
       if (personalErr) {
         console.error('personal_prayers status batch failed:', personalErr);
@@ -748,8 +748,12 @@ Deno.serve(async (req: Request) => {
         );
       }
       for (const p of personalRows ?? []) {
-        const category = (p as { id: string; category: string | null }).category;
-        if (category !== 'Answered') {
+        const joined = (p as {
+          id: string;
+          personal_categories?: { name: string } | { name: string }[] | null;
+        }).personal_categories;
+        const categoryName = Array.isArray(joined) ? joined[0]?.name : joined?.name;
+        if (categoryName !== 'Answered') {
           personalActive.add((p as { id: string }).id);
         }
       }

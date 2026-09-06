@@ -42,6 +42,7 @@ import {
   getUserSettingsUserInfo,
 } from './user-settings-user-info';
 import type { UserSettingsFacadeDeps } from './user-settings-facade-host';
+import type { HomeDefaultPrayerView } from './home-default-view-preference';
 
 export class UserSettingsFacade {
   isOpen = false;
@@ -79,7 +80,7 @@ export class UserSettingsFacade {
   prayerEncouragementUiLoaded = false;
   defaultViewPreferencesLoaded = false;
   memorizationStrictModeLoaded = false;
-  defaultPrayerView: 'current' | 'personal' | null = null;
+  defaultPrayerView: HomeDefaultPrayerView | null = null;
   memorizationStrictMode = false;
   savingMemorizationStrictMode = false;
 
@@ -362,7 +363,7 @@ export class UserSettingsFacade {
     void this.onShowPrayingCountToggle();
   }
 
-  selectDefaultPrayerView(view: 'current' | 'personal'): void {
+  selectDefaultPrayerView(view: HomeDefaultPrayerView): void {
     if (
       !this.defaultViewPreferencesLoaded ||
       this.savingDefaultView ||
@@ -373,8 +374,9 @@ export class UserSettingsFacade {
     if (!this.requireOnlineForPreferenceChange('update default view')) {
       return;
     }
+    const previousView = this.defaultPrayerView;
     this.defaultPrayerView = view;
-    void this.onDefaultViewChange(view);
+    void this.onDefaultViewChange(view, previousView);
   }
 
   onNotificationToggle(): Promise<void> {
@@ -411,8 +413,11 @@ export class UserSettingsFacade {
     return runUserSettingsPersonalPrayerCooldownSave(this);
   }
 
-  onDefaultViewChange(newView: 'current' | 'personal'): Promise<void> {
-    return runUserSettingsDefaultViewChange(this, newView);
+  onDefaultViewChange(
+    newView: HomeDefaultPrayerView,
+    previousView: HomeDefaultPrayerView | null = this.defaultPrayerView
+  ): Promise<void> {
+    return runUserSettingsDefaultViewChange(this, newView, previousView);
   }
 
   getCurrentUserEmail(): string {

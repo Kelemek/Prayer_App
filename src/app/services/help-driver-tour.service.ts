@@ -2418,7 +2418,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Default prayer view',
           description:
-            'Pick <strong>Current Prayers</strong> or <strong>Personal Prayers</strong> as your default when you open the app—saved to your account.',
+            'Pick <strong>Church Prayers</strong>, <strong>Group Prayers</strong>, or <strong>Personal Prayers</strong> as your default when you open the app—saved to your account.',
           side: 'bottom',
           align: 'start',
         },

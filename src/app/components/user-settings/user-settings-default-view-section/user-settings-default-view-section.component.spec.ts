@@ -39,6 +39,19 @@ describe('UserSettingsDefaultViewSectionComponent', () => {
     expect(defaultPrayerViewChange).toHaveBeenCalledWith('personal');
   });
 
+  it('emits groups when group prayers is selected', () => {
+    const defaultPrayerViewChange = vi.fn();
+    component.defaultPrayerViewChange.subscribe(defaultPrayerViewChange);
+    component.defaultViewPreferencesLoaded = true;
+    component.defaultPrayerView = 'current';
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Church Prayers');
+    expect(fixture.nativeElement.textContent).toContain('Group Prayers');
+    fixture.nativeElement.querySelector('[title="Open group prayers by default"]').click();
+    expect(defaultPrayerViewChange).toHaveBeenCalledWith('groups');
+  });
+
   it('shows success message when provided', () => {
     component.defaultViewPreferencesLoaded = true;
     component.defaultPrayerView = 'personal';

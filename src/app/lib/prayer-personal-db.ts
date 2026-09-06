@@ -1,9 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PERSONAL_PRAYERS_LIST_SELECT } from "./prayer-personal-display";
 import { markPersonalPrayerUpdateAnsweredPatch } from "./prayer-personal-mutations";
-import { personalCategoryRenameDbPayload } from "./prayer-personal-rename";
 import { buildClearPersonalPrayerAnsweredFlagsPayload } from "./prayer-personal-update";
 import { eqTenantIdOrUnaffiliated } from "./prayer-tenant";
+import type { PersonalCategory } from "../types/personal-category";
 
 export async function fetchPersonalPrayersList(
   client: SupabaseClient,
@@ -19,6 +19,24 @@ export async function fetchPersonalPrayersList(
     .order("display_order", { ascending: false })
     .order("created_at", { ascending: false });
   return { data: result.data, error: result.error };
+}
+
+export async function fetchPersonalCategoriesList(
+  client: SupabaseClient,
+  userEmail: string,
+  tenantId: string
+): Promise<{ data: PersonalCategory[] | null; error: unknown }> {
+  const result = await client
+    .from("personal_categories")
+    .select("id, name, display_order, color")
+    .eq("tenant_id", tenantId)
+    .ilike("user_email", userEmail.trim())
+    .order("display_order", { ascending: true })
+    .order("name", { ascending: true });
+  return {
+    data: (result.data as PersonalCategory[] | null) ?? null,
+    error: result.error,
+  };
 }
 
 export async function insertPersonalPrayerRow(
@@ -53,7 +71,8 @@ export async function updatePersonalPrayerRow(
   client: SupabaseClient,
   id: string,
   userEmail: string,
-  updateData: Record<string, unknown>,
+  updateData: Record<string, unknown>
+  ,
   tenantId?: string | null
 ): Promise<{ error: unknown }> {
   let query = client
@@ -74,56 +93,6 @@ export async function clearPersonalPrayerUpdateAnsweredFlags(
     .from("personal_prayer_updates")
     .update(buildClearPersonalPrayerAnsweredFlagsPayload())
     .eq("personal_prayer_id", personalPrayerId);
-  return { error: result.error };
-}
-
-export async function fetchPersonalPrayerCategoryIdRows(
-  client: SupabaseClient,
-  userEmail: string,
-  tenantId?: string | null
-): Promise<{ data: Array<{ id: string; category: string | null }> | null; error: unknown }> {
-  let query = client
-    .from("personal_prayers")
-    .select("id, category")
-    .eq("user_email", userEmail);
-  query = eqTenantIdOrUnaffiliated(query, tenantId);
-  const result = await query;
-  return { data: result.data, error: result.error };
-}
-
-export async function renamePersonalPrayerCategoriesByIds(
-  client: SupabaseClient,
-  userEmail: string,
-  prayerIds: string[],
-  newCategoryName: string,
-  tenantId?: string | null
-): Promise<{ error: unknown }> {
-  let query = client
-    .from("personal_prayers")
-    .update(personalCategoryRenameDbPayload(newCategoryName))
-    .eq("user_email", userEmail)
-    .in("id", prayerIds);
-  query = eqTenantIdOrUnaffiliated(query, tenantId);
-  const result = await query;
-  return { error: result.error };
-}
-
-export async function deletePersonalPrayerRowsByIds(
-  client: SupabaseClient,
-  userEmail: string,
-  prayerIds: string[],
-  tenantId?: string | null
-): Promise<{ error: unknown }> {
-  if (prayerIds.length === 0) {
-    return { error: null };
-  }
-  let query = client
-    .from("personal_prayers")
-    .delete()
-    .eq("user_email", userEmail)
-    .in("id", prayerIds);
-  query = eqTenantIdOrUnaffiliated(query, tenantId);
-  const result = await query;
   return { error: result.error };
 }
 
@@ -200,6 +169,28 @@ export async function rpcIncrementPersonalPrayedFor(
   return { data: result.data, error: result.error };
 }
 
+export async function rpcEnsurePersonalCategory(
+  client: SupabaseClient,
+  name: string,
+  tenantId: string
+): Promise<{ data: string | null; error: unknown }> {
+  const result = await client.rpc("ensure_personal_category", {
+    p_name: name,
+    p_tenant_id: tenantId,
+  });
+  return { data: (result.data as string | null) ?? null, error: result.error };
+}
+
+export async function rpcReorderPersonalCategories(
+  client: SupabaseClient,
+  orderedIds: string[]
+): Promise<{ error: unknown }> {
+  const result = await client.rpc("reorder_personal_categories", {
+    p_ordered_ids: orderedIds,
+  });
+  return { error: result.error };
+}
+
 export async function rpcReorderPersonalPrayers(
   client: SupabaseClient,
   args: Record<string, unknown>
@@ -208,13 +199,55 @@ export async function rpcReorderPersonalPrayers(
   return { data: result.data, error: result.error };
 }
 
-export async function rpcPersonalCategoryMutation(
+export async function rpcRenamePersonalCategory(
   client: SupabaseClient,
-  rpcName: "reorder_personal_prayer_categories" | "swap_personal_prayer_categories",
-  args: Record<string, unknown>
-): Promise<{ data: unknown; error: unknown }> {
-  const result = await client.rpc(rpcName, args);
-  return { data: result.data, error: result.error };
+  id: string,
+  name: string
+): Promise<{ error: unknown }> {
+  const result = await client.rpc("rename_personal_category", {
+    p_id: id,
+    p_name: name,
+  });
+  return { error: result.error };
+}
+
+export async function rpcDeletePersonalCategory(
+  client: SupabaseClient,
+  id: string
+): Promise<{ error: unknown }> {
+  const result = await client.rpc("delete_personal_category", { p_id: id });
+  return { error: result.error };
+}
+
+export async function queryMaxDisplayOrderForCategoryId(
+  client: SupabaseClient,
+  userEmail: string,
+  categoryId: string | null,
+  tenantId?: string | null
+): Promise<{
+  data: { display_order?: number | null } | null;
+  error: unknown;
+}> {
+  let query = client
+    .from("personal_prayers")
+    .select("display_order")
+    .eq("user_email", userEmail);
+  if (tenantId) {
+    query = query.eq("tenant_id", tenantId);
+  }
+  if (categoryId === null) {
+    query = query.is("category_id", null);
+  } else {
+    query = query.eq("category_id", categoryId);
+  }
+  const result = await query
+    .order("display_order", { ascending: false })
+    .limit(1);
+  if (result.error) {
+    return { data: null, error: result.error };
+  }
+  const row = Array.isArray(result.data) ? result.data[0] : result.data;
+  return { data: row ?? null, error: null };
 }
 
 export async function fetchPersonalPrayerForShare(
@@ -230,7 +263,10 @@ export async function fetchPersonalPrayerForShare(
           description,
           prayer_for,
           user_email,
-          category,
+          category_id,
+          personal_categories (
+            name
+          ),
           created_at,
           personal_prayer_updates (
             id,
@@ -244,7 +280,17 @@ export async function fetchPersonalPrayerForShare(
     .eq("id", personalPrayerId)
     .eq("tenant_id", tenantId)
     .single();
-  return { data: result.data, error: result.error };
+  const row = result.data as
+    | {
+        personal_categories?: { name: string } | { name: string }[] | null;
+      }
+    | null;
+  const joined = row?.personal_categories;
+  const categoryName = Array.isArray(joined) ? joined[0]?.name : joined?.name;
+  return {
+    data: row ? { ...row, category: categoryName ?? null } : row,
+    error: result.error,
+  };
 }
 
 export async function insertSharedCommunityPrayerRow(

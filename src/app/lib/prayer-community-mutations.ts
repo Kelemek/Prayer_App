@@ -1,4 +1,3 @@
-import type { CategoryDisplayOrderRange } from './prayer-personal-category';
 import type { PrayerRequest, PrayerStatus, PrayerUpdate } from './prayer-types';
 
 export const PERSONAL_ANSWERED_CATEGORY = 'Answered';

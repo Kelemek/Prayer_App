@@ -4,11 +4,24 @@ export function filterPersonalPrayerCategories(
 ): string[] {
   const normalized = searchTerm.toLowerCase().trim();
   if (normalized === '') {
-    return [];
+    return [...availableCategories];
   }
   return availableCategories.filter((cat) =>
     cat.toLowerCase().includes(normalized)
   );
+}
+
+export const PERSONAL_CATEGORY_FIELD_SELECTOR =
+  '[data-personal-category-field]';
+
+export function isNodeInsidePersonalCategoryField(
+  target: EventTarget | null
+): boolean {
+  if (!(target instanceof Node)) {
+    return false;
+  }
+  const element = target instanceof Element ? target : target.parentElement;
+  return !!element?.closest(PERSONAL_CATEGORY_FIELD_SELECTOR);
 }
 
 export type PrayerFormCategoryKeyAction =

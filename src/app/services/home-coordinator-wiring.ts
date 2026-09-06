@@ -18,6 +18,7 @@ import type { TenantContextService } from "./tenant-context.service";
 import type { TenantPermissionService } from "./tenant-permission.service";
 import type { ConnectivityService } from "./connectivity.service";
 import type { PrayerGroupService } from "./prayer-group.service";
+import type { HomeDefaultPrayerView } from "../lib/home-default-view-preference";
 import type { SupabaseService } from "./supabase.service";
 import { HomeDeepLinkCoordinator } from "./home-deep-link.coordinator";
 import { HomeDeepLinkHostAdapter, type HomeActiveFilter } from "./home-deep-link-host.adapter";
@@ -69,7 +70,7 @@ export interface HomeCoordinatorWiringPage {
   scrollHomePromptIntoView(promptId: string): boolean;
   scrollHomePrayerIntoView(prayerId: string): boolean;
   loadAdminSettings(): Promise<void>;
-  applyInitialView(session: { defaultPrayerView?: "current" | "personal" | null }): void;
+  applyInitialView(session: { defaultPrayerView?: HomeDefaultPrayerView | null }): void;
   loadSelectedGroupPrayers(): Promise<void>;
   consumeHomeReturnContext(): HomeReturnContext | null;
   applyHomeReturnContext(context: HomeReturnContext): void;

@@ -53,6 +53,7 @@ type ToolbarButton = {
             [class.rte-btn-active]="editor && btn.isActive(editor)"
             [attr.aria-label]="btn.ariaLabel"
             [attr.aria-pressed]="editor ? btn.isActive(editor) : false"
+            [attr.tabindex]="-1"
             [disabled]="disabled || !editor"
             (click)="runToolbarAction(btn)"
           >

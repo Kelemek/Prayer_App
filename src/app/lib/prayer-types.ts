@@ -34,6 +34,7 @@ export interface PrayerRequest {
   updated_at: string;
   last_reminder_sent?: string | null;
   category?: string | null;
+  category_id?: string | null;
   display_order?: number;
   prayer_image?: string | null;
   updates?: PrayerUpdate[];

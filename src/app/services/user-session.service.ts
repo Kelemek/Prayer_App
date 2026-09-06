@@ -9,6 +9,10 @@ import { first } from 'rxjs/operators';
 import type { UserPrayerHourReminderSlot } from '../types/user-prayer-hour-reminder';
 import type { UserHourReminderSlot } from '../types/user-hour-reminder';
 import type { PrayerItemReminder } from '../types/prayer-item-reminder';
+import {
+  parseHomeDefaultPrayerView,
+  type HomeDefaultPrayerView,
+} from '../lib/home-default-view-preference';
 
 export const PRAYER_COOLDOWN_MIN_HOURS = 1;
 export const PRAYER_COOLDOWN_MAX_HOURS = 168;
@@ -42,7 +46,7 @@ export interface UserSessionData {
   badgeFunctionalityEnabled?: boolean;
   showPrayForButton?: boolean;
   showPrayingCount?: boolean;
-  defaultPrayerView?: 'current' | 'personal';
+  defaultPrayerView?: HomeDefaultPrayerView;
   memorizationStrictMode?: boolean;
   /** Hours before Pray For is available again on the same personal prayer (1–168). */
   personalPrayerCooldownHours?: number;
@@ -188,7 +192,7 @@ export class UserSessionService {
           receiveAdminEmails: false,
           receivePush: data.receive_push ?? false,
           badgeFunctionalityEnabled: data.badge_functionality_enabled ?? false,
-          defaultPrayerView: this.parseDefaultPrayerView(data.default_prayer_view),
+          defaultPrayerView: parseHomeDefaultPrayerView(data.default_prayer_view),
           memorizationStrictMode: data.memorization_strict_mode ?? false,
           showPrayForButton: data.show_pray_for_button ?? true,
           showPrayingCount: data.show_praying_count ?? true,
@@ -359,7 +363,7 @@ export class UserSessionService {
   /**
    * Get user's default prayer view preference
    */
-  getDefaultPrayerView(): 'current' | 'personal' {
+  getDefaultPrayerView(): HomeDefaultPrayerView {
     const session = this.userSessionSubject.value;
     return session?.defaultPrayerView || 'current';
   }
@@ -499,17 +503,6 @@ export class UserSessionService {
       localStorage.removeItem('userSession');
     } catch (err) {
       console.warn('[UserSession] Failed to clear session cache:', err);
-    }
-  }
-
-  private parseDefaultPrayerView(value: string | undefined | null): 'current' | 'personal' {
-    switch (value) {
-      case 'personal':
-        return 'personal';
-      case 'current':
-        return 'current';
-      default:
-        return 'current';
     }
   }
 

@@ -47,7 +47,7 @@ const makeMocks = () => {
     updatePersonalPrayer: vi.fn(),
     updatePersonalPrayerOrder: vi.fn(),
     getUniqueCategoriesForUser: vi.fn().mockResolvedValue([]),
-    swapCategoryRanges: vi.fn(),
+    getPersonalCategoriesSnapshot: vi.fn(() => []),
     reorderCategories: vi.fn()
   };
 
@@ -2596,7 +2596,6 @@ describe('HomeComponent', () => {
 
       await comp.onCategoryDrop(event);
 
-      expect(mocks.prayerService.swapCategoryRanges).not.toHaveBeenCalled();
       expect(mocks.prayerService.reorderCategories).not.toHaveBeenCalled();
     });
 
@@ -2625,14 +2624,14 @@ describe('HomeComponent', () => {
 
       await comp.onCategoryDrop(event);
 
-      expect(mocks.prayerService.swapCategoryRanges).not.toHaveBeenCalled();
+      expect(mocks.prayerService.reorderCategories).not.toHaveBeenCalled();
     });
 
-    it('onCategoryDrop should use swapCategoryRanges for adjacent swap', async () => {
-      mocks.prayerService.swapCategoryRanges.mockResolvedValue(true);
-      mocks.prayerService.getPersonalPrayers.mockResolvedValue([
-        { id: '1', title: 'Prayer 1', category: 'Leaders', display_order: 1 } as PrayerRequest,
-        { id: '2', title: 'Prayer 2', category: 'Members', display_order: 2 } as PrayerRequest
+    it('onCategoryDrop should reorder category ids', async () => {
+      mocks.prayerService.reorderCategories.mockResolvedValue(true);
+      mocks.prayerService.getPersonalCategoriesSnapshot.mockReturnValue([
+        { id: 'c-members', name: 'Members', display_order: 0, color: null },
+        { id: 'c-leaders', name: 'Leaders', display_order: 1, color: null },
       ]);
 
       const comp = createHomeComponent(
@@ -2662,15 +2661,22 @@ describe('HomeComponent', () => {
 
       await comp.onCategoryDrop(event);
 
-      expect(mocks.prayerService.swapCategoryRanges).toHaveBeenCalledWith('Members', 'Leaders');
+      expect(mocks.prayerService.reorderCategories).toHaveBeenCalledWith([
+        'c-leaders',
+        'c-members',
+      ]);
       // Service handles cache invalidation automatically
       expect(comp.isSwappingCategories).toBe(false);
     });
 
     it('onCategoryDrop should use reorderCategories for non-adjacent swap', async () => {
       mocks.prayerService.reorderCategories.mockResolvedValue(true);
-      mocks.prayerService.getPersonalPrayers.mockResolvedValue([
-        { id: '1', title: 'Prayer 1', category: 'C', display_order: 1 } as PrayerRequest
+      mocks.prayerService.getPersonalCategoriesSnapshot.mockReturnValue([
+        { id: 'c-a', name: 'A', display_order: 0, color: null },
+        { id: 'c-b', name: 'B', display_order: 1, color: null },
+        { id: 'c-c', name: 'C', display_order: 2, color: null },
+        { id: 'c-d', name: 'D', display_order: 3, color: null },
+        { id: 'c-e', name: 'E', display_order: 4, color: null },
       ]);
 
       const comp = createHomeComponent(
@@ -2696,11 +2702,21 @@ describe('HomeComponent', () => {
 
       await comp.onCategoryDrop(event);
 
-      expect(mocks.prayerService.reorderCategories).toHaveBeenCalledWith(['B', 'C', 'D', 'E', 'A']);
+      expect(mocks.prayerService.reorderCategories).toHaveBeenCalledWith([
+        'c-b',
+        'c-c',
+        'c-d',
+        'c-e',
+        'c-a',
+      ]);
     });
 
     it('onCategoryDrop should show error and rollback on swap failure', async () => {
-      mocks.prayerService.swapCategoryRanges.mockResolvedValue(false);
+      mocks.prayerService.reorderCategories.mockResolvedValue(false);
+      mocks.prayerService.getPersonalCategoriesSnapshot.mockReturnValue([
+        { id: 'c-members', name: 'Members', display_order: 0, color: null },
+        { id: 'c-leaders', name: 'Leaders', display_order: 1, color: null },
+      ]);
 
       const comp = createHomeComponent(
         mocks.prayerService,
@@ -2729,7 +2745,11 @@ describe('HomeComponent', () => {
     });
 
     it('onCategoryDrop should show error and rollback on swap exception', async () => {
-      mocks.prayerService.swapCategoryRanges.mockRejectedValue(new Error('Swap error'));
+      mocks.prayerService.reorderCategories.mockRejectedValue(new Error('Swap error'));
+      mocks.prayerService.getPersonalCategoriesSnapshot.mockReturnValue([
+        { id: 'c-members', name: 'Members', display_order: 0, color: null },
+        { id: 'c-leaders', name: 'Leaders', display_order: 1, color: null },
+      ]);
 
       const comp = createHomeComponent(
         mocks.prayerService,
@@ -2765,8 +2785,11 @@ describe('HomeComponent', () => {
         { id: '1', title: 'Prayer 1', category: 'Leaders', display_order: 1 } as PrayerRequest,
         { id: '2', title: 'Prayer 2', category: 'Members', display_order: 2 } as PrayerRequest
       ];
-      mocks.prayerService.swapCategoryRanges.mockResolvedValue(true);
-      mocks.prayerService.getPersonalPrayers.mockResolvedValue(reloadedPrayers);
+      mocks.prayerService.reorderCategories.mockResolvedValue(true);
+      mocks.prayerService.getPersonalCategoriesSnapshot.mockReturnValue([
+        { id: 'c-members', name: 'Members', display_order: 0, color: null },
+        { id: 'c-leaders', name: 'Leaders', display_order: 1, color: null },
+      ]);
       mocks.cacheService.get.mockReturnValue(null);
 
       const comp = createHomeComponent(
@@ -3464,6 +3487,34 @@ describe('HomeComponent', () => {
 
       // Filter should be set to the user's default view
       expect(comp.activeFilter).toBe('personal');
+    });
+
+    it('should apply groups default view after tenant context loads', async () => {
+      const mocks = makeMocks();
+      mocks.tenantPermissionService.canAccessShared.mockReturnValue(true);
+      mocks.tenantPermissionService.canAccessGroupsTab.mockReturnValue(true);
+
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService,
+        mocks.tenantPermissionService,
+        mocks.tenantContextService
+      );
+
+      comp.ngOnInit();
+      mocks.userSessionSubject.next({ defaultPrayerView: 'groups' });
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      expect(comp.activeFilter).toBe('groups');
     });
 
     it('should apply default filter without blocking on personal prayer load', async () => {

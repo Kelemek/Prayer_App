@@ -133,7 +133,7 @@ export type HomePresentationFilter =
   | 'personal'
   | 'memorize';
 
-export type DefaultPrayerView = 'current' | 'personal';
+export type DefaultPrayerView = 'current' | 'personal' | 'groups';
 
 /** Home Personal tab fixed chips + named category selection. */
 export type PersonalCategoryFilterMode =

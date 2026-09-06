@@ -2173,7 +2173,18 @@ describe('UserSettingsComponent', () => {
 
       await component.onDefaultViewChange('current');
 
-      expect(component.successDefaultView).toContain('Current Prayers');
+      expect(component.successDefaultView).toContain('Church Prayers');
+    });
+
+    it('should set proper text for groups view', async () => {
+      mockSupabaseService.client.from = vi.fn(() => ({
+        select: vi.fn(() => supabaseSelectResult({ id: 'subscriber-id' })),
+        update: vi.fn(() => supabaseUpdateResult())
+      }));
+
+      await component.onDefaultViewChange('groups');
+
+      expect(component.successDefaultView).toContain('Group Prayers');
     });
 
     it('should set proper text for personal view', async () => {
@@ -2406,7 +2417,7 @@ describe('UserSettingsComponent', () => {
       component.defaultPrayerView = 'current';
       const viewSpy = vi.spyOn(component, 'onDefaultViewChange').mockResolvedValue();
       component.selectDefaultPrayerView('personal');
-      expect(viewSpy).toHaveBeenCalledWith('personal');
+      expect(viewSpy).toHaveBeenCalledWith('personal', 'current');
 
       component.memorizationStrictModeLoaded = true;
       component.savingMemorizationStrictMode = false;

@@ -111,9 +111,6 @@ export class PrayerService {
       {
         getUserEmail: () => this.getUserEmail(),
         loadPersonalPrayers: () => this.loadPersonalPrayers(),
-        getCategoryRange: (category) => this.getCategoryRange(category),
-        getCategoryPrayerCount: (category) =>
-          this.getCategoryPrayerCount(category),
       }
     );
     this.initializePrayers();
@@ -134,6 +131,9 @@ export class PrayerService {
   }
   get allPersonalPrayers$() {
     return this.personal.allPersonalPrayers$;
+  }
+  get personalCategories$() {
+    return this.personal.personalCategories$;
   }
   get loadingPersonalPrayers$() {
     return this.personal.loadingPersonalPrayers$;
@@ -531,22 +531,18 @@ export class PrayerService {
     return null;
   }
 
-  private async getCategoryRange(
-    category: string | null | undefined
-  ) {
-    return this.personal.getCategoryRange(category);
-  }
-
-  private async getCategoryPrayerCount(
-    category: string | null | undefined
-  ) {
-    return this.personal.getCategoryPrayerCount(category);
-  }
-
   async getPersonalPrayers(
     forceRefresh: boolean = false
   ): Promise<PrayerRequest[]> {
     return this.personal.getPersonalPrayers(forceRefresh);
+  }
+
+  getPersonalCategoriesSnapshot() {
+    return this.personal.getPersonalCategoriesSnapshot();
+  }
+
+  async loadPersonalCategories(forceRefresh = false) {
+    return this.personal.loadPersonalCategories(forceRefresh);
   }
 
   async renamePersonalCategory(
@@ -641,17 +637,8 @@ export class PrayerService {
     return this.personal.markPersonalPrayerUpdateAsAnswered(updateId);
   }
 
-  async reorderCategories(
-    orderedCategories: (string | null)[]
-  ): Promise<boolean> {
-    return this.personal.reorderCategories(orderedCategories);
-  }
-
-  async swapCategoryRanges(
-    categoryA: string | null | undefined,
-    categoryB: string | null | undefined
-  ): Promise<boolean> {
-    return this.personal.swapCategoryRanges(categoryA, categoryB);
+  async reorderCategories(orderedIds: string[]): Promise<boolean> {
+    return this.personal.reorderCategories(orderedIds);
   }
 
   async sharePrayerForApproval(personalPrayerId: string): Promise<string> {

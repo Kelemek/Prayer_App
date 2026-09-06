@@ -11,11 +11,10 @@ import { personalCategoryNamesFromPrayers } from "../lib/personal-category-order
 import { planPersonalPrayerAdd } from "../lib/prayer-personal-add-plan";
 import { resolvePersonalPrayerCategoryChangeDisplayOrder } from "../lib/prayer-personal-update-category-plan";
 import {
-  PRAYER_PERSONAL_UNCATEGORIZED_MAX,
-  PRAYER_PERSONAL_UNCATEGORIZED_MIN,
   isPersonalPrayerDisplayOrderOnlyChange as isPersonalPrayerDisplayOrderOnlyDbChange,
   personalPrayerRowToPrayerRequest,
   sanitizePersonalPrayerCategory,
+  sortPersonalPrayersForListing,
   type PersonalPrayerDbRow,
 } from "../lib/prayer-personal-display";
 import {
@@ -37,6 +36,7 @@ import { personalPrayersFromDbRows } from "../lib/prayer-personal-load";
 import {
   deletePersonalPrayerRow,
   deletePersonalPrayerUpdateRow,
+  fetchPersonalCategoriesList,
   fetchPersonalPrayerForShare,
   fetchPersonalPrayersList,
   insertPersonalPrayerRow,
@@ -50,15 +50,13 @@ import {
 import {
   buildPersonalCategoryOrchestrationDeps,
   createPersonalCategoryDeps,
-  fetchPersonalCategoryPrayerCountForUser,
-  fetchPersonalCategoryRangeForUser,
+  ensurePersonalCategoryForTenant,
   type PersonalCategoryQueryWireDeps,
 } from "../lib/prayer-personal-category-wire";
 import {
   orchestratePersonalCategoryDelete,
   orchestratePersonalCategoryRename,
   orchestratePersonalCategoryReorder,
-  orchestratePersonalCategorySwap,
   orchestratePersonalPrayerOrderUpdate,
 } from "../lib/prayer-personal-category-orchestrate";
 import { extractSupabaseErrorMessage } from "../lib/prayer-error-message";
@@ -81,24 +79,23 @@ import {
   resolveSharedPrayerRequesterName,
 } from "../lib/prayer-personal-share";
 import type { PrayerRequest, PrayerUpdate } from "../lib/prayer-types";
+import type { PersonalCategory } from "../types/personal-category";
 
 export type PrayerPersonalFacadeHooks = {
   getUserEmail: () => Promise<string | null>;
   loadPersonalPrayers: () => Promise<void>;
-  getCategoryRange: (
-    category: string | null | undefined
-  ) => Promise<{ min: number; max: number }>;
-  getCategoryPrayerCount: (
-    category: string | null | undefined
-  ) => Promise<number>;
 };
 
 export class PrayerPersonalService {
   readonly allPersonalPrayersSubject = new BehaviorSubject<PrayerRequest[]>([]);
+  readonly personalCategoriesSubject = new BehaviorSubject<PersonalCategory[]>(
+    []
+  );
   readonly loadingPersonalPrayersSubject = new BehaviorSubject<boolean>(true);
   readonly personalServerPrayedFor = new Map<string, number>();
 
   readonly allPersonalPrayers$ = this.allPersonalPrayersSubject.asObservable();
+  readonly personalCategories$ = this.personalCategoriesSubject.asObservable();
   readonly loadingPersonalPrayers$ =
     this.loadingPersonalPrayersSubject.asObservable();
 
@@ -116,6 +113,10 @@ export class PrayerPersonalService {
 
   getPersonalPrayersSnapshot(): PrayerRequest[] {
     return this.allPersonalPrayersSubject.value;
+  }
+
+  getPersonalCategoriesSnapshot(): PersonalCategory[] {
+    return this.personalCategoriesSubject.value;
   }
 
   getActiveTenantId(): string | null {
@@ -153,6 +154,7 @@ export class PrayerPersonalService {
 
   clearCatalogOnLogout(): void {
     this.allPersonalPrayersSubject.next([]);
+    this.personalCategoriesSubject.next([]);
     this.invalidatePersonalPrayersCacheAll();
   }
 
@@ -211,6 +213,28 @@ export class PrayerPersonalService {
     this.setPersonalPrayersCache(this.toPersonalServerOnly(prayers));
   }
 
+  private setPersonalCategoriesState(categories: PersonalCategory[]): void {
+    this.personalCategoriesSubject.next(categories);
+  }
+
+  private upsertLocalPersonalCategory(
+    categoryId: string,
+    name: string
+  ): void {
+    const existing = this.personalCategoriesSubject.value;
+    if (existing.some((category) => category.id === categoryId)) {
+      return;
+    }
+    const nextOrder =
+      existing.length === 0
+        ? 0
+        : Math.max(...existing.map((category) => category.display_order)) + 1;
+    this.setPersonalCategoriesState([
+      ...existing,
+      { id: categoryId, name, display_order: nextOrder, color: null },
+    ]);
+  }
+
   private categoryQueryDeps(): PersonalCategoryQueryWireDeps {
     return {
       client: this.supabase.client,
@@ -225,15 +249,14 @@ export class PrayerPersonalService {
       getUserEmail: () => this.getUserEmail(),
       getPrayers: () => this.allPersonalPrayersSubject.value,
       setPrayers: (prayers) => this.setPersonalPrayersState(prayers),
-      getCategoryRange: (category) => this.getCategoryRange(category),
+      getCategories: () => this.personalCategoriesSubject.value,
+      setCategories: (categories) => this.setPersonalCategoriesState(categories),
     });
   }
 
   private personalCategoryDeps() {
-    return createPersonalCategoryDeps(
-      this.categoryQueryDeps(),
-      (category) => this.facadeHooks.getCategoryPrayerCount(category),
-      (category) => this.facadeHooks.getCategoryRange(category)
+    return createPersonalCategoryDeps(this.categoryQueryDeps(), (name) =>
+      ensurePersonalCategoryForTenant(this.categoryQueryDeps(), name)
     );
   }
 
@@ -279,6 +302,9 @@ export class PrayerPersonalService {
             "[PrayerService] Cache hit — skipping personal prayers database query"
           );
           this.loadingPersonalPrayersSubject.next(false);
+          if (this.connectivity.isOnline()) {
+            void this.loadPersonalCategories(false);
+          }
           return;
         }
       }
@@ -297,10 +323,15 @@ export class PrayerPersonalService {
       );
       if (error) throw error;
 
-      const personalPrayers = personalPrayersFromDbRows(
-        data || [],
-        (row) => personalPrayerRowToPrayerRequest(row as PersonalPrayerDbRow),
-        (prayers) => prayers
+      await this.loadPersonalCategories(true);
+
+      const personalPrayers = sortPersonalPrayersForListing(
+        personalPrayersFromDbRows(
+          data || [],
+          (row) => personalPrayerRowToPrayerRequest(row as PersonalPrayerDbRow),
+          (prayers) => prayers
+        ),
+        this.personalCategoriesSubject.value
       );
 
       console.log(
@@ -351,29 +382,39 @@ export class PrayerPersonalService {
     return this.displayPersonalPrayedForCount(prayerId);
   }
 
-  async getCategoryRange(category: string | null | undefined) {
+  async loadPersonalCategories(forceRefresh = false): Promise<PersonalCategory[]> {
     const tenantId = this.getActiveTenantId();
-    if (!tenantId) {
-      return {
-        min: PRAYER_PERSONAL_UNCATEGORIZED_MIN,
-        max: PRAYER_PERSONAL_UNCATEGORIZED_MAX,
-      };
+    const userEmail = await this.getUserEmail();
+    if (!tenantId || !userEmail) {
+      return this.personalCategoriesSubject.value;
     }
-    return fetchPersonalCategoryRangeForUser(
-      this.categoryQueryDeps(),
-      category
-    );
-  }
 
-  async getCategoryPrayerCount(category: string | null | undefined) {
-    const tenantId = this.getActiveTenantId();
-    if (!tenantId) {
-      return 0;
+    if (!forceRefresh && this.personalCategoriesSubject.value.length > 0) {
+      return this.personalCategoriesSubject.value;
     }
-    return fetchPersonalCategoryPrayerCountForUser(
-      this.categoryQueryDeps(),
-      category
-    );
+
+    if (!this.connectivity.isOnline()) {
+      return this.personalCategoriesSubject.value;
+    }
+
+    try {
+      const { data, error } = await fetchPersonalCategoriesList(
+        this.supabase.client,
+        userEmail,
+        tenantId
+      );
+      if (error) {
+        console.error("[PrayerService] Failed to load personal categories:", error);
+        return this.personalCategoriesSubject.value;
+      }
+
+      const categories = data ?? [];
+      this.setPersonalCategoriesState(categories);
+      return categories;
+    } catch (error) {
+      console.error("[PrayerService] Failed to load personal categories:", error);
+      return this.personalCategoriesSubject.value;
+    }
   }
 
   async getPersonalPrayers(
@@ -460,11 +501,15 @@ export class PrayerPersonalService {
         this.toast.error(addPlan.userMessage);
         return false;
       }
-      const { category, displayOrder: newDisplayOrder } = addPlan;
+      const {
+        category,
+        categoryId,
+        displayOrder: newDisplayOrder,
+      } = addPlan;
 
       const prayerData = buildPersonalPrayerInsertRow(
         prayer,
-        category,
+        categoryId,
         userEmail,
         newDisplayOrder,
         tenantId
@@ -485,11 +530,15 @@ export class PrayerPersonalService {
           personalPrayerRequestFromInsertedRow(
             row as Parameters<typeof personalPrayerRequestFromInsertedRow>[0],
             email,
-            order
+            order,
+            category
           ),
         (p) => p
       );
       this.setPersonalPrayersState(updatedPrayers);
+      if (category && categoryId) {
+        this.upsertLocalPersonalCategory(categoryId, category);
+      }
 
       this.toast.success("Personal prayer added successfully");
       return true;
@@ -569,8 +618,8 @@ export class PrayerPersonalService {
           categoryChanged,
           updates.category !== undefined,
           newCategory,
+          currentPrayer.category_id,
           currentPrayer.display_order,
-          userEmail,
           this.personalCategoryDeps()
         );
       if (!categoryChangePlan.ok) {
@@ -578,10 +627,11 @@ export class PrayerPersonalService {
         return false;
       }
       const newDisplayOrder = categoryChangePlan.displayOrder;
+      const newCategoryId = categoryChangePlan.categoryId;
 
       const updateData = buildPersonalPrayerDbUpdatePayload(
         updates,
-        newCategory,
+        newCategoryId,
         categoryChanged,
         newDisplayOrder
       );
@@ -603,12 +653,16 @@ export class PrayerPersonalService {
           {
             updates,
             newCategory,
+            newCategoryId,
             newDisplayOrder,
             clearingAnswered: false,
             updatedAt,
           }
         )
       );
+      if (newCategory && newCategoryId) {
+        this.upsertLocalPersonalCategory(newCategoryId, newCategory);
+      }
 
       console.log("[PrayerService] Personal prayer updated successfully");
       this.toast.success("Personal prayer updated");
@@ -682,8 +736,16 @@ export class PrayerPersonalService {
   async getUniqueCategoriesForUser(
     prayers?: PrayerRequest[]
   ): Promise<string[]> {
-    const personalPrayers = prayers || this.allPersonalPrayersSubject.value;
-    return personalCategoryNamesFromPrayers(personalPrayers);
+    if (prayers) {
+      return personalCategoryNamesFromPrayers(prayers);
+    }
+    const loaded = this.personalCategoriesSubject.value;
+    if (loaded.length > 0) {
+      return [...loaded]
+        .sort((a, b) => a.display_order - b.display_order || a.name.localeCompare(b.name))
+        .map((category) => category.name);
+    }
+    return personalCategoryNamesFromPrayers(this.allPersonalPrayersSubject.value);
   }
 
   async renamePersonalCategory(
@@ -706,6 +768,8 @@ export class PrayerPersonalService {
         local: {
           getPrayers: () => this.allPersonalPrayersSubject.value,
           setPrayers: (prayers) => this.setPersonalPrayersState(prayers),
+          getCategories: () => this.personalCategoriesSubject.value,
+          setCategories: (categories) => this.setPersonalCategoriesState(categories),
         },
       },
       options
@@ -724,6 +788,9 @@ export class PrayerPersonalService {
       local: {
         getPrayers: () => this.allPersonalPrayersSubject.value,
         setPrayers: (prayers) => this.setPersonalPrayersState(prayers),
+        getCategories: () => this.personalCategoriesSubject.value,
+        setCategories: (categories) =>
+          this.setPersonalCategoriesState(categories),
       },
     });
   }
@@ -840,9 +907,7 @@ export class PrayerPersonalService {
     }
   }
 
-  async reorderCategories(
-    orderedCategories: (string | null)[]
-  ): Promise<boolean> {
+  async reorderCategories(orderedIds: string[]): Promise<boolean> {
     if (!this.connectivity.requireOnline("reorder categories")) {
       return false;
     }
@@ -851,29 +916,19 @@ export class PrayerPersonalService {
       console.error("[PrayerService] No active tenant for category reorder");
       return false;
     }
-    return orchestratePersonalCategoryReorder(
-      orderedCategories,
+    const success = await orchestratePersonalCategoryReorder(
+      orderedIds,
       this.personalCategoryOrchestrationDeps()
     );
-  }
-
-  async swapCategoryRanges(
-    categoryA: string | null | undefined,
-    categoryB: string | null | undefined
-  ): Promise<boolean> {
-    if (!this.connectivity.requireOnline("reorder categories")) {
-      return false;
+    if (success) {
+      this.setPersonalPrayersState(
+        sortPersonalPrayersForListing(
+          this.allPersonalPrayersSubject.value,
+          this.personalCategoriesSubject.value
+        )
+      );
     }
-    const tenantId = this.getActiveTenantId();
-    if (!tenantId) {
-      console.error("[PrayerService] No active tenant for category swap");
-      return false;
-    }
-    return orchestratePersonalCategorySwap(
-      categoryA,
-      categoryB,
-      this.personalCategoryOrchestrationDeps()
-    );
+    return success;
   }
 
   async sharePrayerForApproval(personalPrayerId: string): Promise<string> {
