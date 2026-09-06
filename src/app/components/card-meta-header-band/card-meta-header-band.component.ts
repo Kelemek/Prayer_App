@@ -32,12 +32,34 @@ import { META_HEADER_BORDER_BOTTOM_CLASSES } from '../../lib/prayer-status-heade
       @if (centerDragHandle) {
       <span
         cdkDragHandle
+        data-prayer-card-drag-handle
         [attr.id]="centerDragHandleId"
         [class]="centerDragHandleClass + ' col-start-2 shrink-0 justify-self-center'"
         title="Drag to reorder"
         aria-label="Drag to reorder"
       >
-        <ng-container *ngTemplateOutlet="centerDateTime" />
+        <span class="inline-flex items-center gap-1">
+          <ng-container *ngTemplateOutlet="centerDateTime" />
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="pointer-events-none flex-shrink-0"
+            aria-hidden="true"
+          >
+            <circle cx="9" cy="5" r="1"></circle>
+            <circle cx="9" cy="12" r="1"></circle>
+            <circle cx="9" cy="19" r="1"></circle>
+            <circle cx="15" cy="5" r="1"></circle>
+            <circle cx="15" cy="12" r="1"></circle>
+            <circle cx="15" cy="19" r="1"></circle>
+          </svg>
+        </span>
       </span>
       } @else {
       <span [class]="centerClass + ' col-start-2 shrink-0 justify-self-center'">
@@ -88,7 +110,7 @@ export class CardMetaHeaderBandComponent {
   @Input() center: string | null = null;
   @Input() centerDate: string | null = null;
   @Input() centerTime: string | null = null;
-  /** When true, the center date/time is the CDK drag handle (personal prayer reorder). */
+  /** When true, the center date/time plus grip is the CDK drag handle (personal prayer reorder). */
   @Input() centerDragHandle = false;
   @Input() centerDragHandleId: string | null = null;
   /**

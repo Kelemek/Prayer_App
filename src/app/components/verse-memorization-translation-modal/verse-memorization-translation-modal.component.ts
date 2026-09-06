@@ -63,6 +63,7 @@ import type { BibleTranslation } from '../../types/memorization';
             </p>
             <app-bible-translation-picker
               [translation]="selectedTranslation"
+              [escapeOverflowContainer]="true"
               triggerId="verse-memorization-translation-picker-trigger"
               triggerAriaLabel="Bible translation for verse memorization"
               (translationChange)="onTranslationChanged($event)"

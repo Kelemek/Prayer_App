@@ -25,7 +25,7 @@
         [personalEditTourId]="showTourAnchors && tourPersonalWalkthroughAnchors ? 'tour-walkthrough-personal-edit' : null"
         [personalAnsweredTourId]="showTourAnchors && tourPersonalWalkthroughAnchors ? 'tour-walkthrough-personal-answered' : null"
         [personalDeleteTourId]="showTourAnchors && tourPersonalWalkthroughAnchors ? 'tour-walkthrough-personal-delete' : null"
-        [centerDragHandle]="showTourAnchors && personalDragHandle && isPersonal"
+        [centerDragHandle]="personalDragHandle && isPersonal"
         [centerDragHandleId]="personalDragTourId"
         (toggleAnswered)="onPersonalAnsweredClick()"
         (edit)="editPersonalPrayer.emit(prayer)"
