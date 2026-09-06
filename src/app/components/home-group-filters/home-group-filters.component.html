@@ -1,26 +1,17 @@
 <div [class]="sectionGapClass">
   <div [class]="subFilterGroupClass">
-    <div
-      cdkDropList
-      cdkDropListOrientation="mixed"
-      [cdkDropListData]="groups"
-      (cdkDropListDropped)="onGroupDrop($event)"
-      [cdkDropListDisabled]="isGroupReordering || groups.length === 0"
-      [class]="chipRowClass"
-    >
+    <div [class]="chipRowClass">
       @if (canCreateGroups) {
-      <div [class]="chipHostClass">
-        <app-home-sub-filter-chip
-          chipId="tour-filter-add-group"
-          [active]="false"
-          [layoutClass]="chipButtonClass"
-          [activeClass]="chipThemes.members.active"
-          [inactiveClass]="chipThemes.members.inactive"
-          (chipClick)="addGroup.emit()"
-        >
-          Add Group
-        </app-home-sub-filter-chip>
-      </div>
+      <app-home-sub-filter-chip
+        chipId="tour-filter-add-group"
+        [active]="false"
+        [stretch]="false"
+        [activeClass]="chipThemes.members.active"
+        [inactiveClass]="chipThemes.members.inactive"
+        (chipClick)="addGroup.emit()"
+      >
+        Add
+      </app-home-sub-filter-chip>
       } @else if (showProUpgrade) {
       <div [class]="chipHostClass">
         <app-home-sub-filter-chip
@@ -36,6 +27,53 @@
       </div>
       }
 
+      <div [class]="chipHostClass">
+        <app-home-sub-filter-chip
+          chipId="tour-filter-groups-current"
+          [active]="filterMode === 'current'"
+          [layoutClass]="chipButtonClass"
+          [activeClass]="chipThemes.members.active"
+          [inactiveClass]="chipThemes.members.inactive"
+          (chipClick)="selectFilterMode.emit('current')"
+        >
+          Current ({{ currentCount }})
+        </app-home-sub-filter-chip>
+      </div>
+      <div [class]="chipHostClass">
+        <app-home-sub-filter-chip
+          chipId="tour-filter-groups-answered"
+          [active]="filterMode === 'answered'"
+          [layoutClass]="chipButtonClass"
+          [activeClass]="chipThemes.members.active"
+          [inactiveClass]="chipThemes.members.inactive"
+          (chipClick)="selectFilterMode.emit('answered')"
+        >
+          Answered ({{ answeredCount }})
+        </app-home-sub-filter-chip>
+      </div>
+      <div [class]="chipHostClass">
+        <app-home-sub-filter-chip
+          chipId="tour-filter-groups-total"
+          [active]="filterMode === 'total'"
+          [layoutClass]="chipButtonClass"
+          [activeClass]="chipThemes.members.active"
+          [inactiveClass]="chipThemes.members.inactive"
+          (chipClick)="selectFilterMode.emit('total')"
+        >
+          Total ({{ totalCount }})
+        </app-home-sub-filter-chip>
+      </div>
+    </div>
+
+    @if (groups.length > 0) {
+    <div
+      cdkDropList
+      cdkDropListOrientation="mixed"
+      [cdkDropListData]="groups"
+      (cdkDropListDropped)="onGroupDrop($event)"
+      [cdkDropListDisabled]="isGroupReordering"
+      [class]="chipRowClass + ' mt-2'"
+    >
       @for (group of groups; track group.id) {
       <div
         cdkDrag
@@ -50,7 +88,10 @@
           <span
             cdkDragHandle
             data-group-filter-drag-handle
-            class="absolute inset-y-0 left-0 flex w-7 items-center justify-center"
+            [class]="
+              'absolute inset-y-0 left-0 flex w-7 items-center justify-center ' +
+              (isGroupReordering ? 'cursor-not-allowed' : 'cursor-grab')
+            "
             aria-hidden="true"
             (pointerdown)="$event.stopPropagation()"
           >
@@ -63,10 +104,7 @@
               stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
-              [class]="
-                'pointer-events-none flex-shrink-0 ' +
-                (isGroupReordering ? 'cursor-not-allowed' : 'cursor-grab')
-              "
+              class="pointer-events-none flex-shrink-0"
             >
               <circle cx="9" cy="5" r="1"></circle>
               <circle cx="9" cy="12" r="1"></circle>
@@ -80,10 +118,10 @@
             type="button"
             [id]="'tour-filter-group-' + group.id"
             class="min-w-0 flex-1 truncate border-0 bg-transparent px-2 text-center text-xs font-medium text-inherit cursor-pointer"
-            (click)="selectGroup.emit(group.id)"
+            (click)="onGroupChipClick(group.id)"
             [disabled]="isGroupReordering"
           >
-            {{ group.name }}
+            {{ group.name }} ({{ groupPrayerCount(group.id) }})
             @if (isGroupReordering) {
             <svg
               class="ml-1 inline h-4 w-4 shrink-0 animate-spin"
@@ -120,6 +158,7 @@
       </div>
       }
     </div>
+    }
   </div>
 </div>
 

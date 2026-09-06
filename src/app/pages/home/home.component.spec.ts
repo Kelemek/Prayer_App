@@ -297,10 +297,13 @@ const createHomeComponent = (
     inviteMembers: vi.fn().mockResolvedValue(0),
     groups$: of([]),
     prayers$: of([]),
+    groupPrayerCounts$: of(new Map()),
     loadingPrayers$: of(false),
     canCreatePrayerGroups: vi.fn(() => true),
     canAccessGroupsTab: vi.fn(() => true),
     getGroups: vi.fn(() => []),
+    getAllCachedGroupPrayers: vi.fn(() => []),
+    getGroupPrayerCount: vi.fn(() => 0),
   };
   const prayerCardActions = new HomePrayerCardActionsController(
     prayerService,
@@ -2301,8 +2304,10 @@ describe('HomeComponent', () => {
 
       expect(hydrate).toHaveBeenCalledWith({
         force: false,
-        focusGroupId: 'g1',
+        focusGroupId: null,
       });
+      expect(comp.selectedGroupId).toBe('g1');
+      expect(comp.groupFilterMode).toBe('current');
     });
 
     it('openCreateGroup opens the create group modal', () => {

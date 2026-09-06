@@ -545,6 +545,10 @@ export class PrayerService {
     return this.personal.loadPersonalCategories(forceRefresh);
   }
 
+  async createPersonalCategory(name: string, color: string) {
+    return this.personal.createPersonalCategory(name, color);
+  }
+
   async renamePersonalCategory(
     oldCategory: string,
     newCategory: string,

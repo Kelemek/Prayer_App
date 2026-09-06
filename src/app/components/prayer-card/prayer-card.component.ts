@@ -126,6 +126,8 @@ export class PrayerCardComponent
   @Input() prayer!: PrayerRequest;
   @Input() isAdmin = false;
   @Input() isPersonal = false;
+  /** Group prayer cards: label in the meta header left (like personal category). */
+  @Input() groupName: string | null = null;
   @Input() isDragging = false;
   @Input() dragHandle: TemplateRef<unknown> | null = null;
   @Input() personalDragHandle = false;

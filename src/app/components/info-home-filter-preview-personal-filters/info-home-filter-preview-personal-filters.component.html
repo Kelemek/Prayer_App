@@ -4,6 +4,13 @@
     <button
       type="button"
       (click)="openPersonalCategories.emit()"
+      [class]="subFilterChipBaseClass + ' cursor-pointer ' + namedChipInactiveClass"
+    >
+      Add
+    </button>
+    <button
+      type="button"
+      (click)="openPersonalCategories.emit()"
       [class]="subFilterChipBaseClass + ' flex-1 cursor-pointer ' + personalSubFilterChipActiveClass"
     >
       Current (10)

@@ -37,6 +37,11 @@ import { UserSubscriptionService } from "../../services/user-subscription.servic
 import { ProCheckoutService } from "../../services/pro-checkout.service";
 import { PrayerGroupService } from "../../services/prayer-group.service";
 import type { PrayerGroup } from "../../types/prayer-group";
+import {
+  countGroupPrayersByStatus,
+  filterGroupPrayersForHome,
+  type GroupFilterMode,
+} from "../../lib/home-group-catalog";
 import { ConnectivityService } from "../../services/connectivity.service";
 import { MemorizationService } from "../../services/memorization.service";
 import { MemorizationRecommendationsService } from "../../services/memorization-recommendations.service";
@@ -99,6 +104,7 @@ import { HomePromptTypeFiltersComponent } from "../../components/home-prompt-typ
 import { HomePersonalCategoryFiltersComponent } from "../../components/home-personal-category-filters/home-personal-category-filters.component";
 import { HomeGroupFiltersComponent } from "../../components/home-group-filters/home-group-filters.component";
 import { HomeGroupEditorModalComponent } from "../../components/home-group-editor-modal/home-group-editor-modal.component";
+import { HomePersonalCategoryEditorModalComponent } from "../../components/home-personal-category-editor-modal/home-personal-category-editor-modal.component";
 import { HomePrayerContentComponent } from "../../components/home-prayer-content/home-prayer-content.component";
 import { ScrollToTopButtonComponent } from "../../components/scroll-to-top-button/scroll-to-top-button.component";
 import type { PrayerPrompt } from "../../components/prompt-card/prompt-card.component";
@@ -122,6 +128,7 @@ import {
     HomePersonalCategoryFiltersComponent,
     HomeGroupFiltersComponent,
     HomeGroupEditorModalComponent,
+    HomePersonalCategoryEditorModalComponent,
     HomePrayerContentComponent,
     ScrollToTopButtonComponent,
     PrayerFiltersComponent,
@@ -185,6 +192,10 @@ export class HomeComponent
   canAccessGroupsTab = false;
   prayerGroups: PrayerGroup[] = [];
   selectedGroupId: string | null = null;
+  groupFilterMode: GroupFilterMode = "current";
+  groupCurrentCount = 0;
+  groupAnsweredCount = 0;
+  groupTotalCount = 0;
   showGroupEditor = false;
   groupEditorSubmitting = false;
   membersGroupIdToOpen: string | null = null;
@@ -384,29 +395,31 @@ export class HomeComponent
         this.prayerGroups = groups;
         this.canAccessGroupsTab =
           this.tenantPermissionService.canAccessGroupsTab();
-        const previousSelected = this.selectedGroupId;
         if (
           this.selectedGroupId &&
           !groups.some((group) => group.id === this.selectedGroupId)
         ) {
           this.selectedGroupId = groups[0]?.id ?? null;
+          if (this.groupFilterMode === "named") {
+            this.groupFilterMode = groups.length > 0 ? "total" : "current";
+          }
         } else if (!this.selectedGroupId && groups.length > 0) {
+          // Soft default for the prayer form only; list stays on status mode.
           this.selectedGroupId = groups[0].id;
         }
-        if (
-          this.activeFilter === "groups" &&
-          this.selectedGroupId &&
-          previousSelected &&
-          this.selectedGroupId !== previousSelected
-        ) {
-          void this.loadSelectedGroupPrayers();
-        }
+        this.refreshDisplayedGroupPrayers();
         this.cdr.markForCheck();
       });
     this.prayerGroupService.prayers$
       .pipe(takeUntil(this.destroy$))
-      .subscribe((prayers) => {
-        this.groupPrayers = prayers;
+      .subscribe(() => {
+        this.refreshDisplayedGroupPrayers();
+        this.cdr.markForCheck();
+      });
+    this.prayerGroupService.groupPrayerCounts$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.refreshDisplayedGroupPrayers();
         this.cdr.markForCheck();
       });
   }
@@ -886,16 +899,43 @@ export class HomeComponent
     }
     await this.prayerGroupService.hydrateGroupPrayers({
       force: false,
-      focusGroupId: this.selectedGroupId,
+      focusGroupId:
+        this.groupFilterMode === "named" ? this.selectedGroupId : null,
     });
+    this.refreshDisplayedGroupPrayers();
     this.cdr.markForCheck();
   }
 
   async loadSelectedGroupPrayers(): Promise<void> {
-    if (!this.selectedGroupId && this.prayerGroups.length > 0) {
-      this.selectedGroupId = this.prayerGroups[0]!.id;
+    if (this.groupFilterMode === "named") {
+      if (!this.selectedGroupId && this.prayerGroups.length > 0) {
+        this.selectedGroupId = this.prayerGroups[0]!.id;
+      }
+      await this.prayerGroupService.loadGroupPrayers(this.selectedGroupId);
+    } else {
+      await this.prayerGroupService.hydrateGroupPrayers({ force: false });
     }
-    await this.prayerGroupService.loadGroupPrayers(this.selectedGroupId);
+    this.refreshDisplayedGroupPrayers();
+  }
+
+  selectGroupFilterMode(mode: Exclude<GroupFilterMode, "named">): void {
+    this.groupFilterMode = mode;
+    this.filter.setFilter("groups");
+    this.refreshDisplayedGroupPrayers();
+    this.cdr.markForCheck();
+  }
+
+  private refreshDisplayedGroupPrayers(): void {
+    const all = this.prayerGroupService.getAllCachedGroupPrayers();
+    const counts = countGroupPrayersByStatus(all);
+    this.groupCurrentCount = counts.current;
+    this.groupAnsweredCount = counts.answered;
+    this.groupTotalCount = counts.total;
+    this.groupPrayers = filterGroupPrayersForHome(all, {
+      mode: this.groupFilterMode,
+      selectedGroupId: this.selectedGroupId,
+      searchTerm: this.filters.searchTerm,
+    });
   }
 
   openCreateGroup(): void {
@@ -922,6 +962,7 @@ export class HomeComponent
     this.groupEditorSubmitting = false;
     if (created) {
       this.selectedGroupId = created.id;
+      this.groupFilterMode = "named";
       this.filter.setFilter("groups");
       await this.loadPrayerGroups();
       this.closeGroupEditor();
@@ -932,13 +973,17 @@ export class HomeComponent
 
   async onGroupEditorChanged(): Promise<void> {
     const previousSelected = this.selectedGroupId;
+    const wasNamed = this.groupFilterMode === "named";
     await this.loadPrayerGroups();
     const stillExists = this.prayerGroups.some(
       (group) => group.id === previousSelected
     );
     if (!stillExists) {
       this.selectedGroupId = this.prayerGroups[0]?.id ?? null;
-      await this.loadSelectedGroupPrayers();
+      if (wasNamed) {
+        this.groupFilterMode = this.prayerGroups.length > 0 ? "total" : "current";
+      }
+      this.refreshDisplayedGroupPrayers();
     }
     if (this.prayerGroups.length === 0) {
       this.closeGroupEditor();
@@ -957,6 +1002,7 @@ export class HomeComponent
 
   async onSelectGroup(groupId: string): Promise<void> {
     this.selectedGroupId = groupId;
+    this.groupFilterMode = "named";
     this.filter.setFilter("groups");
     await this.loadSelectedGroupPrayers();
     this.cdr.markForCheck();
@@ -964,6 +1010,7 @@ export class HomeComponent
 
   onFiltersChange(filters: PrayerFilters): void {
     this.filter.onFiltersChange(filters);
+    this.refreshDisplayedGroupPrayers();
   }
 
   async onPullToRefresh(): Promise<void> {

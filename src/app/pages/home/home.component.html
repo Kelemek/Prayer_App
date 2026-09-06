@@ -69,7 +69,7 @@
                 ? 'Search verses...'
                 : 'Search prayers...'
             "
-            (filtersChange)="filter.onFiltersChange($event)"
+            (filtersChange)="onFiltersChange($event)"
           ></app-prayer-filters>
         </div>
       </div>
@@ -151,6 +151,13 @@
         (close)="closeGroupEditor()"
         (createGroup)="onCreateGroup($event)"
       ></app-home-group-editor-modal>
+
+      <app-home-personal-category-editor-modal
+        [isOpen]="shell.modals.showCreatePersonalCategory"
+        [submitting]="shell.modals.isCreatingPersonalCategory"
+        (close)="personalCategory.closeCreatePersonalCategoryModal()"
+        (createCategory)="void personalCategory.createPersonalCategory($event)"
+      ></app-home-personal-category-editor-modal>
 
       <app-home-filter-tabs
         [activeFilter]="activeFilter"
@@ -242,6 +249,10 @@
       <app-home-group-filters
         [groups]="prayerGroups"
         [selectedGroupId]="selectedGroupId"
+        [filterMode]="groupFilterMode"
+        [currentCount]="groupCurrentCount"
+        [answeredCount]="groupAnsweredCount"
+        [totalCount]="groupTotalCount"
         [canCreateGroups]="canCreatePrayerGroups"
         [showProUpgrade]="showGroupProUpgrade"
         [maxMembersPerGroup]="maxMembersPerGroup"
@@ -250,6 +261,7 @@
         (addGroup)="openCreateGroup()"
         (upgradePro)="onUpgradeToPro()"
         (selectGroup)="onSelectGroup($event)"
+        (selectFilterMode)="selectGroupFilterMode($event)"
         (groupsChanged)="onGroupEditorChanged()"
         (membersGroupOpened)="onMembersGroupOpened()"
       ></app-home-group-filters>
@@ -274,6 +286,7 @@
         (categoryDragEnded)="shell.personalCategory.actions.onCategoryDragEnded()"
         (renameCategory)="shell.personalCategory.actions.openRenameCategory($event)"
         (deleteCategory)="shell.personalCategory.actions.deleteCategory($event)"
+        (addCategory)="shell.personalCategory.actions.openCreateCategory()"
       ></app-home-personal-category-filters>
       }
 
@@ -295,6 +308,7 @@
         [filteredPersonalPrayers]="catalog.filteredPersonalPrayers"
         [displayedPublicPrayers]="displayedPublicPrayers"
         [groupPrayers]="groupPrayers"
+        [prayerGroups]="prayerGroups"
         [displayedPrompts]="catalog.displayedPrompts"
         [loadingPersonalPrayers$]="prayerService.loadingPersonalPrayers$"
         [canReorderPersonalPrayers]="shell.personalCategory.canReorderPersonalPrayers"

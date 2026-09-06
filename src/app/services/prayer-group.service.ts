@@ -75,6 +75,9 @@ const GROUP_PRAYERS_SELECT = `
 export class PrayerGroupService {
   private readonly groupsSubject = new BehaviorSubject<PrayerGroup[]>([]);
   private readonly prayersSubject = new BehaviorSubject<PrayerRequest[]>([]);
+  private readonly prayerCountsSubject = new BehaviorSubject<
+    ReadonlyMap<string, number>
+  >(new Map());
   private readonly loadingGroupsSubject = new BehaviorSubject<boolean>(false);
   private readonly loadingPrayersSubject = new BehaviorSubject<boolean>(false);
   private canCreate = false;
@@ -86,6 +89,7 @@ export class PrayerGroupService {
 
   readonly groups$ = this.groupsSubject.asObservable();
   readonly prayers$ = this.prayersSubject.asObservable();
+  readonly groupPrayerCounts$ = this.prayerCountsSubject.asObservable();
   readonly loadingGroups$ = this.loadingGroupsSubject.asObservable();
   readonly loadingPrayers$ = this.loadingPrayersSubject.asObservable();
 
@@ -107,6 +111,30 @@ export class PrayerGroupService {
 
   getGroupPrayers(): PrayerRequest[] {
     return this.prayersSubject.value;
+  }
+
+  getGroupPrayerCount(groupId: string): number {
+    return this.prayerCountsSubject.value.get(groupId) ?? 0;
+  }
+
+  /** Flatten cached prayers in group-chip order; newest first within each group. */
+  getAllCachedGroupPrayers(): PrayerRequest[] {
+    const all: PrayerRequest[] = [];
+    for (const group of this.groupsSubject.value) {
+      const cached =
+        this.getCachedGroupPrayers(group.id) ??
+        this.getStaleGroupPrayers(group.id);
+      if (!cached?.length) {
+        continue;
+      }
+      const ordered = [...cached].sort((a, b) => {
+        const aTime = Date.parse(a.date_requested) || 0;
+        const bTime = Date.parse(b.date_requested) || 0;
+        return bTime - aTime;
+      });
+      all.push(...ordered);
+    }
+    return all;
   }
 
   canCreatePrayerGroups(): boolean {
@@ -478,6 +506,9 @@ export class PrayerGroupService {
       if (idsToFetch.length > 0) {
         await this.writeFetchedGroupPrayers(idsToFetch);
       }
+      for (const groupId of groupIds) {
+        this.syncGroupPrayerCountFromCache(groupId);
+      }
       if (
         this.activeGroupId &&
         !idsToFetch.includes(this.activeGroupId)
@@ -508,6 +539,7 @@ export class PrayerGroupService {
     if (cached) {
       this.activeGroupId = groupId;
       this.prayersSubject.next(cached);
+      this.publishGroupPrayerCount(groupId, cached.length);
       if (silentRefresh || !this.connectivity.isOnline()) {
         return cached;
       }
@@ -631,10 +663,33 @@ export class PrayerGroupService {
       prayers,
       PrayerGroupService.GROUP_PRAYERS_CACHE_TTL_MS
     );
+    this.publishGroupPrayerCount(groupId, prayers.length);
   }
 
   private invalidateGroupPrayersCache(groupId: string): void {
     this.cache.invalidate(groupPrayersCacheKey(groupId));
+    this.publishGroupPrayerCount(groupId, null);
+  }
+
+  private syncGroupPrayerCountFromCache(groupId: string): void {
+    const cached =
+      this.getCachedGroupPrayers(groupId) ?? this.getStaleGroupPrayers(groupId);
+    if (cached) {
+      this.publishGroupPrayerCount(groupId, cached.length);
+    }
+  }
+
+  private publishGroupPrayerCount(
+    groupId: string,
+    count: number | null
+  ): void {
+    const next = new Map(this.prayerCountsSubject.value);
+    if (count === null) {
+      next.delete(groupId);
+    } else {
+      next.set(groupId, count);
+    }
+    this.prayerCountsSubject.next(next);
   }
 
   async addGroupPrayer(

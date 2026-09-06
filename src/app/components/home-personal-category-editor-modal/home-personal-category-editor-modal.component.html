@@ -1,0 +1,74 @@
+@if (isOpen) {
+<div
+  class="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4"
+  (click)="close.emit()"
+>
+  <div
+    class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-lg w-full max-h-[min(90vh,720px)] flex flex-col modal-panel-edge"
+    (click)="$event.stopPropagation()"
+  >
+    <div class="px-6 py-4 modal-chrome-header shrink-0 flex items-center justify-between gap-3">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        Create a category
+      </h2>
+      <button
+        type="button"
+        class="shrink-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer disabled:opacity-50"
+        aria-label="Close"
+        (click)="close.emit()"
+        [disabled]="submitting"
+      >
+        <svg
+          class="w-6 h-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M6 18L18 6M6 6l12 12"
+          ></path>
+        </svg>
+      </button>
+    </div>
+
+    <div class="px-6 py-4 space-y-4 overflow-y-auto flex-1 min-h-0">
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        Category name
+        <input
+          type="text"
+          class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          [(ngModel)]="nameDraft"
+          placeholder="Family, work, …"
+          [disabled]="submitting"
+          (keydown.enter)="submitCreate()"
+        />
+      </label>
+
+      <div>
+        <p class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Color
+        </p>
+        <app-personal-category-color-picker
+          layout="inline"
+          [color]="colorDraft"
+          [categoryLabel]="nameDraft"
+          (colorChange)="onColorChange($event)"
+        />
+      </div>
+
+      <button
+        type="button"
+        class="w-full px-4 py-2 rounded-md btn-chip btn-chip-blue cursor-pointer disabled:opacity-50"
+        (click)="submitCreate()"
+        [disabled]="submitting || !nameDraft.trim()"
+      >
+        {{ submitting ? "Creating…" : "Create category" }}
+      </button>
+    </div>
+  </div>
+</div>
+}

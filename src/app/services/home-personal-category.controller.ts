@@ -43,6 +43,8 @@ export class HomePersonalCategoryController {
   renamingPersonalCategory: string | null = null;
   personalCategoryRenameDeferInputFocus = false;
   isRenamingPersonalCategory = false;
+  showCreatePersonalCategory = false;
+  isCreatingPersonalCategory = false;
   isReorderingPersonalPrayers = false;
   isDeletingPersonalCategory = false;
 
@@ -277,6 +279,60 @@ export class HomePersonalCategoryController {
     this.renamingPersonalCategory = category;
     this.showRenamePersonalCategory = true;
     this.requireHost().markForCheck();
+  }
+
+  openCreatePersonalCategoryModal(): void {
+    this.showCreatePersonalCategory = true;
+    this.requireHost().markForCheck();
+  }
+
+  closeCreatePersonalCategoryModal(): void {
+    if (this.isCreatingPersonalCategory) {
+      return;
+    }
+    this.showCreatePersonalCategory = false;
+    this.requireHost().markForCheck();
+  }
+
+  async createPersonalCategory(payload: {
+    name: string;
+    color: string;
+  }): Promise<void> {
+    if (this.isCreatingPersonalCategory) {
+      return;
+    }
+    const prayerService = this.requirePrayerService();
+    const toastService = this.requireToastService();
+    const colorService = this.requirePersonalCategoryColorService();
+
+    this.isCreatingPersonalCategory = true;
+    this.requireHost().markForCheck();
+    try {
+      const result = await prayerService.createPersonalCategory(
+        payload.name,
+        payload.color
+      );
+      if (!result.ok) {
+        if (result.reason === "empty") {
+          toastService.error("Enter a category name.");
+        } else if (result.reason === "duplicate") {
+          toastService.error("That category already exists.");
+        } else {
+          toastService.error("Could not create category.");
+        }
+        return;
+      }
+
+      await colorService.loadColors(true);
+      this.showCreatePersonalCategory = false;
+      this.personalCategoryFilterMode = "named";
+      this.selectedPersonalCategories = [result.name];
+      toastService.success("Category created.");
+      this.requireHost().onFilterStateChanged();
+    } finally {
+      this.isCreatingPersonalCategory = false;
+      this.requireHost().markForCheck();
+    }
   }
 
   closeRenamePersonalCategoryModal(cancelInFlightSave = true): void {

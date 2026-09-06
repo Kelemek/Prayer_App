@@ -153,6 +153,7 @@
       [isAdmin]="(isAdmin$ | async) || false"
       [activeFilter]="'groups'"
       [isPersonal]="true"
+      [groupName]="groupNameFor(prayer)"
       [deletionsAllowed]="'everyone'"
       [updatesAllowed]="'everyone'"
       (delete)="handlers.deleteCard(prayer)"

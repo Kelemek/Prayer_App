@@ -48,6 +48,7 @@ export interface HomePersonalCategoryFilterActions {
   onCategoryDrop(event: CdkDragDrop<string[]>): void;
   onCategoryDragStarted(): void;
   onCategoryDragEnded(): void;
+  openCreateCategory(): void;
   openRenameCategory(category: string): void;
   deleteCategory(category: string): void;
 }
@@ -72,6 +73,8 @@ export interface HomePageShell {
     readonly renamingPersonalCategory: string | null;
     readonly personalCategoryRenameDeferInputFocus: boolean;
     readonly isRenamingPersonalCategory: boolean;
+    readonly showCreatePersonalCategory: boolean;
+    readonly isCreatingPersonalCategory: boolean;
     readonly showEditPersonalUpdate: boolean;
     readonly editingUpdate: PrayerUpdate | null;
     readonly editingUpdatePrayerId: string;
@@ -159,6 +162,12 @@ export function createHomePageShell(deps: HomePageShellDeps): HomePageShell {
     },
     get isRenamingPersonalCategory() {
       return deps.personalCategory.isRenamingPersonalCategory;
+    },
+    get showCreatePersonalCategory() {
+      return deps.personalCategory.showCreatePersonalCategory;
+    },
+    get isCreatingPersonalCategory() {
+      return deps.personalCategory.isCreatingPersonalCategory;
     },
     get showEditPersonalUpdate() {
       return deps.modals.showEditPersonalUpdate;
@@ -259,6 +268,8 @@ export function createHomePageShell(deps: HomePageShellDeps): HomePageShell {
       onCategoryDragStarted: () =>
         deps.personalCategory.onCategoryDragStarted(),
       onCategoryDragEnded: () => deps.personalCategory.onCategoryDragEnded(),
+      openCreateCategory: () =>
+        deps.personalCategory.openCreatePersonalCategoryModal(),
       openRenameCategory: (category: string) =>
         deps.personalCategory.openRenamePersonalCategoryModal(category),
       deleteCategory: (category: string) =>

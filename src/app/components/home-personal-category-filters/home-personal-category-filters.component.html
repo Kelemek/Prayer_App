@@ -2,6 +2,17 @@
   <div [class]="subFilterGroupClass">
   <div [class]="chipRowClass">
     <app-home-sub-filter-chip
+      chipId="tour-filter-add-personal-category"
+      [active]="false"
+      [stretch]="false"
+      [activeClass]="personalCategoryActiveClass"
+      [inactiveClass]="namedChipInactiveClass"
+      (chipClick)="addCategory.emit()"
+    >
+      Add
+    </app-home-sub-filter-chip>
+
+    <app-home-sub-filter-chip
       [active]="filterMode === 'current'"
       [activeClass]="personalCategoryActiveClass"
       [inactiveClass]="namedChipInactiveClass"
@@ -52,7 +63,10 @@
         <span
           cdkDragHandle
           data-personal-category-drag-handle
-          class="absolute inset-y-0 left-0 flex w-7 items-center justify-center"
+          [class]="
+            'absolute inset-y-0 left-0 flex w-7 items-center justify-center ' +
+            (isCategorySwapping(category) ? 'cursor-not-allowed' : 'cursor-grab')
+          "
           aria-hidden="true"
           (pointerdown)="$event.stopPropagation()"
         >
@@ -65,12 +79,7 @@
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            [class]="
-              'pointer-events-none flex-shrink-0 ' +
-              (isCategorySwapping(category)
-                ? 'cursor-not-allowed'
-                : 'cursor-grab')
-            "
+            class="pointer-events-none flex-shrink-0"
           >
             <circle cx="9" cy="5" r="1"></circle>
             <circle cx="9" cy="12" r="1"></circle>

@@ -36,6 +36,13 @@ describe('PrayerCardMetaHeaderComponent overflow items', () => {
     );
   });
 
+  it('exposes stable styles for a group name header label', () => {
+    const component = new PrayerCardMetaHeaderComponent();
+    component.groupName = 'Family';
+    expect(component.groupNameStyles['--category-pill-bg']).toBeTruthy();
+    expect(component.groupNameStyles['--category-pill-text']).toBeTruthy();
+  });
+
   it('runs the matching action from overflow item onSelect', () => {
     const component = new PrayerCardMetaHeaderComponent();
     const emitted: string[] = [];

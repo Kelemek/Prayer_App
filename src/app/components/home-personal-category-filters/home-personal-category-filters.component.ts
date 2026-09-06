@@ -53,6 +53,7 @@ export class HomePersonalCategoryFiltersComponent {
   @Output() categoryDrop = new EventEmitter<CdkDragDrop<string[]>>();
   @Output() categoryDragStarted = new EventEmitter<void>();
   @Output() categoryDragEnded = new EventEmitter<void>();
+  @Output() addCategory = new EventEmitter<void>();
   @Output() renameCategory = new EventEmitter<string>();
   @Output() deleteCategory = new EventEmitter<string>();
 

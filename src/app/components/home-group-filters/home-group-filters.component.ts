@@ -1,13 +1,16 @@
 import {
   ChangeDetectorRef,
   Component,
+  DestroyRef,
   EventEmitter,
   Input,
   OnChanges,
+  OnInit,
   Output,
   SimpleChanges,
   inject,
 } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import {
@@ -22,6 +25,7 @@ import { ConfirmationDialogComponent } from "../confirmation-dialog/confirmation
 import { HomeGroupMembersModalComponent } from "../home-group-members-modal/home-group-members-modal.component";
 import type { PrayerGroup } from "../../types/prayer-group";
 import { PrayerGroupService } from "../../services/prayer-group.service";
+import type { GroupFilterMode } from "../../lib/home-group-catalog";
 import {
   HOME_GROUPS_SUB_FILTER_GROUP_CLASS,
   HOME_PUBLIC_STATUS_CHIP_ROW_CLASS,
@@ -52,9 +56,13 @@ import {
   templateUrl: "./home-group-filters.component.html",
   host: { class: "block" },
 })
-export class HomeGroupFiltersComponent implements OnChanges {
+export class HomeGroupFiltersComponent implements OnInit, OnChanges {
   @Input() groups: PrayerGroup[] = [];
   @Input() selectedGroupId: string | null = null;
+  @Input() filterMode: GroupFilterMode = "current";
+  @Input() currentCount = 0;
+  @Input() answeredCount = 0;
+  @Input() totalCount = 0;
   @Input() canCreateGroups = false;
   @Input() showProUpgrade = false;
   @Input() maxMembersPerGroup = 25;
@@ -64,11 +72,15 @@ export class HomeGroupFiltersComponent implements OnChanges {
   @Output() addGroup = new EventEmitter<void>();
   @Output() upgradePro = new EventEmitter<void>();
   @Output() selectGroup = new EventEmitter<string>();
+  @Output() selectFilterMode = new EventEmitter<
+    Exclude<GroupFilterMode, "named">
+  >();
   @Output() groupsChanged = new EventEmitter<void>();
   @Output() membersGroupOpened = new EventEmitter<void>();
 
   private readonly prayerGroupService = inject(PrayerGroupService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
 
   pendingDeleteGroup: PrayerGroup | null = null;
   renameTarget: PrayerGroup | null = null;
@@ -77,6 +89,7 @@ export class HomeGroupFiltersComponent implements OnChanges {
   groupActionSubmitting = false;
   isGroupReordering = false;
   private groupDragScrollLockTarget: HTMLElement | null = null;
+  private groupPrayerCounts = new Map<string, number>();
 
   readonly chipHostClass = HOME_WRAP_FILTER_CHIP_FLEX_CLASS;
   readonly chipButtonClass = HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS;
@@ -85,6 +98,15 @@ export class HomeGroupFiltersComponent implements OnChanges {
   readonly sectionGapClass = HOME_SHELL_SECTION_GAP_CLASSES;
   readonly subFilterGroupClass = HOME_GROUPS_SUB_FILTER_GROUP_CLASS;
   readonly chipThemes = HOME_PUBLIC_STATUS_CHIP_THEMES;
+
+  ngOnInit(): void {
+    this.prayerGroupService.groupPrayerCounts$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((counts) => {
+        this.groupPrayerCounts = new Map(counts);
+        this.cdr.markForCheck();
+      });
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     const groupId = changes["membersGroupIdToOpen"]?.currentValue as string | null;
@@ -99,6 +121,22 @@ export class HomeGroupFiltersComponent implements OnChanges {
     }
   }
 
+  groupPrayerCount(groupId: string): number {
+    return this.groupPrayerCounts.get(groupId) ?? 0;
+  }
+
+  isGroupChipActive(groupId: string): boolean {
+    return this.filterMode === "named" && this.selectedGroupId === groupId;
+  }
+
+  onGroupChipClick(groupId: string): void {
+    if (this.isGroupChipActive(groupId)) {
+      this.selectFilterMode.emit("total");
+      return;
+    }
+    this.selectGroup.emit(groupId);
+  }
+
   selectedGroup(): PrayerGroup | undefined {
     return this.groups.find((group) => group.id === this.selectedGroupId);
   }
@@ -110,7 +148,7 @@ export class HomeGroupFiltersComponent implements OnChanges {
   chipShellClass(group: PrayerGroup): string {
     return buildHomeSubFilterChipButtonClass({
       base: this.chipDragShellClass,
-      active: this.selectedGroupId === group.id,
+      active: this.isGroupChipActive(group.id),
       activeClass: this.chipThemes.members.active,
       inactiveClass: this.chipThemes.members.inactive,
       disabled: this.isGroupReordering,

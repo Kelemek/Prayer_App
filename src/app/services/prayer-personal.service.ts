@@ -80,6 +80,14 @@ import {
 } from "../lib/prayer-personal-share";
 import type { PrayerRequest, PrayerUpdate } from "../lib/prayer-types";
 import type { PersonalCategory } from "../types/personal-category";
+import {
+  normalizePersonalCategoryHexColor,
+  sanitizePersonalCategoryName,
+} from "../../utils/personalCategoryColor";
+
+export type CreatePersonalCategoryResult =
+  | { ok: true; name: string }
+  | { ok: false; reason: "empty" | "duplicate" | "failed" };
 
 export type PrayerPersonalFacadeHooks = {
   getUserEmail: () => Promise<string | null>;
@@ -774,6 +782,53 @@ export class PrayerPersonalService {
       },
       options
     );
+  }
+
+  async createPersonalCategory(
+    name: string,
+    color: string
+  ): Promise<CreatePersonalCategoryResult> {
+    const sanitizedName = sanitizePersonalCategoryName(name);
+    const normalizedColor = normalizePersonalCategoryHexColor(color);
+    if (!sanitizedName) {
+      return { ok: false, reason: "empty" };
+    }
+    if (!normalizedColor) {
+      return { ok: false, reason: "failed" };
+    }
+    if (sanitizedName.toLowerCase() === "answered") {
+      return { ok: false, reason: "duplicate" };
+    }
+
+    const exists = this.personalCategoriesSubject.value.some(
+      (category) => category.name.toLowerCase() === sanitizedName.toLowerCase()
+    );
+    if (exists) {
+      return { ok: false, reason: "duplicate" };
+    }
+
+    if (!this.connectivity.requireOnline("create a category")) {
+      return { ok: false, reason: "failed" };
+    }
+
+    try {
+      const categoryId = await ensurePersonalCategoryForTenant(
+        this.categoryQueryDeps(),
+        sanitizedName
+      );
+      const { error } = await this.supabase.client
+        .from("personal_categories")
+        .update({ color: normalizedColor })
+        .eq("id", categoryId);
+      if (error) {
+        throw error;
+      }
+      await this.loadPersonalCategories(true);
+      return { ok: true, name: sanitizedName };
+    } catch (error) {
+      console.error("[PrayerService] createPersonalCategory failed:", error);
+      return { ok: false, reason: "failed" };
+    }
   }
 
   async deletePersonalCategory(category: string): Promise<boolean> {

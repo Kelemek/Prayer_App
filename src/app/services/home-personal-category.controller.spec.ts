@@ -27,11 +27,13 @@ describe("HomePersonalCategoryController", () => {
     renamePersonalCategory: ReturnType<typeof vi.fn>;
     deletePersonalCategory: ReturnType<typeof vi.fn>;
     updatePersonalPrayerOrder: ReturnType<typeof vi.fn>;
+    createPersonalCategory: ReturnType<typeof vi.fn>;
   };
   let personalCategoryColorService: {
     getColorsSnapshot: ReturnType<typeof vi.fn>;
     renameCategory: ReturnType<typeof vi.fn>;
     deleteCategory: ReturnType<typeof vi.fn>;
+    loadColors: ReturnType<typeof vi.fn>;
   };
   let toastService: { error: ReturnType<typeof vi.fn>; success: ReturnType<typeof vi.fn> };
 
@@ -53,11 +55,13 @@ describe("HomePersonalCategoryController", () => {
       renamePersonalCategory: vi.fn(),
       deletePersonalCategory: vi.fn(),
       updatePersonalPrayerOrder: vi.fn(),
+      createPersonalCategory: vi.fn(),
     };
     personalCategoryColorService = {
       getColorsSnapshot: vi.fn(() => ({})),
       renameCategory: vi.fn(),
       deleteCategory: vi.fn().mockResolvedValue(true),
+      loadColors: vi.fn().mockResolvedValue({}),
     };
     toastService = { error: vi.fn(), success: vi.fn() };
     controller.bindHost(host, {
@@ -236,6 +240,58 @@ describe("HomePersonalCategoryController", () => {
       expect(controller.personalCategoryFilterMode).toBe("named");
       expect(controller.selectedPersonalCategories).toEqual(["Health"]);
       expect(toastService.success).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("create personal category", () => {
+    it("opens the create modal", () => {
+      controller.openCreatePersonalCategoryModal();
+
+      expect(controller.showCreatePersonalCategory).toBe(true);
+      expect(host.markForCheck).toHaveBeenCalled();
+    });
+
+    it("creates via ensure path, selects named mode, and closes", async () => {
+      prayerService.createPersonalCategory.mockResolvedValue({
+        ok: true,
+        name: "Family",
+      });
+
+      await controller.createPersonalCategory({
+        name: "Family",
+        color: "#2563EB",
+      });
+
+      expect(prayerService.createPersonalCategory).toHaveBeenCalledWith(
+        "Family",
+        "#2563EB"
+      );
+      expect(personalCategoryColorService.loadColors).toHaveBeenCalledWith(true);
+      expect(controller.showCreatePersonalCategory).toBe(false);
+      expect(controller.personalCategoryFilterMode).toBe("named");
+      expect(controller.selectedPersonalCategories).toEqual(["Family"]);
+      expect(toastService.success).toHaveBeenCalledWith("Category created.");
+      expect(host.onFilterStateChanged).toHaveBeenCalled();
+    });
+
+    it("toasts on duplicate and leaves filter mode unchanged", async () => {
+      controller.personalCategoryFilterMode = "current";
+      prayerService.createPersonalCategory.mockResolvedValue({
+        ok: false,
+        reason: "duplicate",
+      });
+
+      await controller.createPersonalCategory({
+        name: "Family",
+        color: "#2563EB",
+      });
+
+      expect(toastService.error).toHaveBeenCalledWith(
+        "That category already exists."
+      );
+      expect(controller.personalCategoryFilterMode).toBe("current");
+      expect(controller.selectedPersonalCategories).toEqual([]);
+      expect(personalCategoryColorService.loadColors).not.toHaveBeenCalled();
     });
   });
 

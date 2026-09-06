@@ -7,6 +7,7 @@ import {
   HOME_PUBLIC_STATUS_CHIP_ROW_CLASS,
   HOME_PUBLIC_STATUS_CHIP_THEMES,
   HOME_PUBLIC_SUB_FILTER_GROUP_CLASS,
+  HOME_SUB_FILTER_CHIP_BASE_CLASS,
   HOME_SUB_FILTER_CHIP_ROW_CLASS,
   HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS,
   HOME_WRAP_FILTER_CHIP_FLEX_CLASS,
@@ -104,6 +105,16 @@ export class InfoHomeFilterPreviewTabsComponent {
     return buildHomeSubFilterChipButtonClass({
       base: this.chipButtonClass,
       active,
+      activeClass: theme.active,
+      inactiveClass: theme.inactive,
+    });
+  }
+
+  groupAddChipClass(): string {
+    const theme = this.chipThemes.members;
+    return buildHomeSubFilterChipButtonClass({
+      base: HOME_SUB_FILTER_CHIP_BASE_CLASS,
+      active: false,
       activeClass: theme.active,
       inactiveClass: theme.inactive,
     });

@@ -5827,6 +5827,97 @@ describe('PrayerService - Integration Tests', () => {
       });
     });
 
+    describe('createPersonalCategory', () => {
+      beforeEach(async () => {
+        mockSupabaseService.client.auth = {
+          getSession: vi.fn().mockResolvedValue({
+            data: { session: { user: { email: 'user@example.com' } } },
+          }),
+        };
+        service = new PrayerService(
+          mockSupabaseService,
+          mockToastService,
+          mockEmailNotificationService,
+          mockVerificationService,
+          mockCacheService,
+          mockBadgeService,
+          userSessionService,
+          mockTenantContext,
+          mockConnectivity as any
+        );
+        await activateTenantContext(mockTenantContext);
+        (service as any).personal.setPersonalCategoriesState([
+          { id: 'c1', name: 'Family', display_order: 0, color: null },
+        ]);
+        mockConnectivity.requireOnline.mockReturnValue(true);
+        mockSupabaseService.client.rpc = vi.fn().mockResolvedValue({
+          data: 'new-id',
+          error: null,
+        });
+      });
+
+      it('rejects duplicate names case-insensitively', async () => {
+        const result = await service.createPersonalCategory('family', '#2563EB');
+        expect(result).toEqual({ ok: false, reason: 'duplicate' });
+        expect(mockSupabaseService.client.rpc).not.toHaveBeenCalled();
+      });
+
+      it('rejects empty names', async () => {
+        const result = await service.createPersonalCategory('   ', '#2563EB');
+        expect(result).toEqual({ ok: false, reason: 'empty' });
+      });
+
+      it('ensures the category, sets color, and reloads', async () => {
+        const updateEq = vi.fn().mockResolvedValue({ error: null });
+        const update = vi.fn().mockReturnValue({ eq: updateEq });
+        mockSupabaseService.client.from.mockImplementation((table: string) => {
+          if (table === 'personal_categories') {
+            return {
+              update,
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  ilike: vi.fn().mockReturnValue({
+                    order: vi.fn().mockReturnValue({
+                      order: vi.fn().mockResolvedValue({
+                        data: [
+                          {
+                            id: 'new-id',
+                            name: 'Work',
+                            display_order: 1,
+                            color: '#2563EB',
+                          },
+                        ],
+                        error: null,
+                      }),
+                    }),
+                  }),
+                }),
+              }),
+            };
+          }
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnThis(),
+              order: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          };
+        });
+
+        const result = await service.createPersonalCategory('Work', '#2563EB');
+
+        expect(result).toEqual({ ok: true, name: 'Work' });
+        expect(mockSupabaseService.client.rpc).toHaveBeenCalledWith(
+          'ensure_personal_category',
+          {
+            p_name: 'Work',
+            p_tenant_id: PRAYER_SPEC_TEST_TENANT.id,
+          }
+        );
+        expect(update).toHaveBeenCalledWith({ color: '#2563EB' });
+        expect(updateEq).toHaveBeenCalledWith('id', 'new-id');
+      });
+    });
+
     describe('getUniqueCategoriesForUser', () => {
       it('should sort categories by display_order descending', async () => {
         mockSupabaseService.client.auth = {

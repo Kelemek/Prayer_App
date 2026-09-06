@@ -107,6 +107,18 @@ describe("HomePersonalCategoryFiltersComponent", () => {
     expect(emitted).toEqual(["Health"]);
   });
 
+  it("shows an Add chip first on the status row and emits addCategory", () => {
+    const addChip = fixture.nativeElement.querySelector(
+      "#tour-filter-add-personal-category"
+    ) as HTMLButtonElement;
+    expect(addChip.textContent?.replace(/\s+/g, " ").trim()).toBe("Add");
+
+    const emitted: number[] = [];
+    fixture.componentInstance.addCategory.subscribe(() => emitted.push(1));
+    addChip.click();
+    expect(emitted).toEqual([1]);
+  });
+
   it("asks for confirmation before emitting deleteCategory", () => {
     const emitted: string[] = [];
     fixture.componentInstance.deleteCategory.subscribe((category) =>

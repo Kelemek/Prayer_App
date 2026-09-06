@@ -23,6 +23,7 @@ import type { PrayerPrompt } from "../prompt-card/prompt-card.component";
 import type { HomeActiveFilter } from "../../services/home-deep-link-host.adapter";
 import type { AllowanceLevel } from "../../types/prayer";
 import { PrayerRequest } from "../../services/prayer.service";
+import type { PrayerGroup } from "../../types/prayer-group";
 import type { MemorizedItem } from "../../types/memorization";
 import type { HomePrayerContentHandlers } from "../../lib/home-prayer-content-handlers";
 import { isCommunityPrayerFilter } from "../../lib/home-community-filter";
@@ -81,6 +82,7 @@ export class HomePrayerContentComponent implements OnChanges {
   @Input({ required: true }) filteredPersonalPrayers!: PrayerRequest[];
   @Input({ required: true }) displayedPublicPrayers!: PrayerRequest[];
   @Input() groupPrayers: PrayerRequest[] = [];
+  @Input() prayerGroups: PrayerGroup[] = [];
   @Input({ required: true }) displayedPrompts!: PrayerPrompt[];
   @Input({ required: true }) loadingPersonalPrayers$!: Observable<boolean>;
   @Input({ required: true }) canReorderPersonalPrayers!: boolean;
@@ -133,6 +135,14 @@ export class HomePrayerContentComponent implements OnChanges {
 
   isPromptTypeSelected(type: string): boolean {
     return this.selectedPromptTypes.includes(type);
+  }
+
+  groupNameFor(prayer: PrayerRequest): string | null {
+    const groupId = prayer.group_id;
+    if (!groupId) {
+      return null;
+    }
+    return this.prayerGroups.find((group) => group.id === groupId)?.name ?? null;
   }
 
   onCategoryPickerOpenChange(prayerId: string, open: boolean): void {

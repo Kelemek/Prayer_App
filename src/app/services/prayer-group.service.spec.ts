@@ -496,6 +496,75 @@ describe("PrayerGroupService group prayers cache", () => {
     );
     expect(service.getGroupPrayers()).toEqual([cachedPrayer]);
     expect(loadingStates).not.toContain(true);
+    expect(service.getGroupPrayerCount("g2")).toBe(1);
+    expect(service.getGroupPrayerCount("g3")).toBe(0);
+  });
+
+  it("getAllCachedGroupPrayers flattens in group-chip order, newest first within a group", () => {
+    const { service, cache } = createService();
+    (service as any).groupsSubject.next([
+      { ...familyGroup, id: "g1" },
+      { ...familyGroup, id: "g2" },
+    ]);
+    const olderInG1 = {
+      ...cachedPrayer,
+      id: "older-g1",
+      group_id: "g1",
+      date_requested: "2026-01-01T00:00:00Z",
+    };
+    const newerInG1 = {
+      ...cachedPrayer,
+      id: "newer-g1",
+      group_id: "g1",
+      date_requested: "2026-03-01T00:00:00Z",
+    };
+    const midInG2 = {
+      ...cachedPrayer,
+      id: "mid-g2",
+      group_id: "g2",
+      date_requested: "2026-02-01T00:00:00Z",
+    };
+    cache.get.mockImplementation((key: string) => {
+      if (key === groupPrayersCacheKey("g1")) return [olderInG1, newerInG1];
+      if (key === groupPrayersCacheKey("g2")) return [midInG2];
+      return null;
+    });
+
+    expect(service.getAllCachedGroupPrayers().map((p) => p.id)).toEqual([
+      "newer-g1",
+      "older-g1",
+      "mid-g2",
+    ]);
+  });
+
+  it("getAllCachedGroupPrayers follows reordered group chips over date", () => {
+    const { service, cache } = createService();
+    (service as any).groupsSubject.next([
+      { ...familyGroup, id: "g2" },
+      { ...familyGroup, id: "g1" },
+    ]);
+    const olderInFirstChip = {
+      ...cachedPrayer,
+      id: "older-first-chip",
+      group_id: "g2",
+      date_requested: "2026-01-01T00:00:00Z",
+    };
+    const newerInSecondChip = {
+      ...cachedPrayer,
+      id: "newer-second-chip",
+      group_id: "g1",
+      date_requested: "2026-02-01T00:00:00Z",
+    };
+    cache.get.mockImplementation((key: string) => {
+      if (key === groupPrayersCacheKey("g1")) return [newerInSecondChip];
+      if (key === groupPrayersCacheKey("g2")) return [olderInFirstChip];
+      return null;
+    });
+
+    expect(service.getAllCachedGroupPrayers().map((p) => p.id)).toEqual([
+      "older-first-chip",
+      "newer-second-chip",
+    ]);
   });
 
   it("hydrateGroupPrayers publishes the focused group from cache without refetching it", async () => {
@@ -531,6 +600,7 @@ describe("PrayerGroupService group prayers cache", () => {
     expect(loadMyGroups).not.toHaveBeenCalled();
     expect(from).not.toHaveBeenCalled();
     expect(cache.set).not.toHaveBeenCalled();
+    expect(service.getGroupPrayerCount("g1")).toBe(1);
   });
 
   it("hydrateGroupPrayers force refetches cached groups and updates the active group", async () => {

@@ -13,9 +13,12 @@ import {
   PRAYER_CARD_HEADER_BLEED_CLASSES,
   PRAYER_CARD_HEADER_BAND_ROUNDED_CLASSES,
   PRAYER_CARD_HEADER_INSET_CLASSES,
+  PRAYER_CARD_PERSONAL_CATEGORY_HEADER_INSET_CLASSES,
+  PRAYER_CARD_PERSONAL_CATEGORY_HEADER_TEXT_CLASSES,
   getMetaHeaderBandLayoutClasses,
   type MetaHeaderBandSize,
 } from '../../lib/prayer-card-layout';
+import { personalCategoryHeaderBandStyles } from '../../../utils/personalCategoryColor';
 
 @Component({
   selector: 'app-prayer-card-meta-header',
@@ -33,10 +36,25 @@ import {
       [centerTime]="showCenterDateTime ? metaHeaderTime : null"
       [centerDragHandle]="centerDragHandle"
       [centerDragHandleId]="centerDragHandleId"
-      [compactActionsInset]="isPersonal"
+      [compactActionsInset]="isPersonal || !!groupName"
     >
       <div cardMetaLeft class="w-full min-w-0">
-        @if (isPersonal) {
+        @if (groupName) {
+        <div
+          [class]="
+            'personal-category-header-band flex h-full w-full min-w-0 max-w-full items-center ' +
+            layoutClasses.minHeightClasses +
+            ' ' +
+            categoryHeaderInsetClasses +
+            ' text-left font-bold overflow-hidden ' +
+            categoryHeaderTextClasses
+          "
+          [ngStyle]="groupNameStyles"
+          [title]="groupName"
+        >
+          <span class="min-w-0 truncate">{{ groupName }}</span>
+        </div>
+        } @else if (isPersonal) {
           @if (category) {
           <app-personal-category-pill
             variant="header"
@@ -73,6 +91,8 @@ export class PrayerCardMetaHeaderComponent {
   @Input({ required: true }) prayerCreatedAt!: string;
   @Input() isPersonal = false;
   @Input() category: string | null = null;
+  /** When set (group prayers), shown in the left header like a personal category name. */
+  @Input() groupName: string | null = null;
   @Input() status = 'current';
   @Input() showStatus = false;
   @Input() showCenterDateTime = true;
@@ -93,8 +113,17 @@ export class PrayerCardMetaHeaderComponent {
   @Output() reminder = new EventEmitter<void>();
   @Output() pickerOpenChange = new EventEmitter<boolean>();
 
+  readonly categoryHeaderInsetClasses =
+    PRAYER_CARD_PERSONAL_CATEGORY_HEADER_INSET_CLASSES;
+  readonly categoryHeaderTextClasses =
+    PRAYER_CARD_PERSONAL_CATEGORY_HEADER_TEXT_CLASSES;
+
   get isAnswered(): boolean {
     return this.category === 'Answered';
+  }
+
+  get groupNameStyles(): Record<string, string> {
+    return personalCategoryHeaderBandStyles(this.groupName ?? '');
   }
 
   get metaHeaderDate(): string {
