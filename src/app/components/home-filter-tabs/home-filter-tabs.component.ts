@@ -25,7 +25,7 @@ export class HomeFilterTabsComponent {
   @Input({ required: true }) activeFilter!: HomeActiveFilter;
   @Input({ required: true }) currentPrayerBadge$!: Observable<number>;
   @Input({ required: true }) answeredPrayerBadge$!: Observable<number>;
-  /** When false, Public stays hidden (personal-only plan). */
+  /** When false, Church is still shown; unread badges stay hidden. */
   @Input() canAccessShared = true;
   /** When false, Groups stays hidden. */
   @Input() canAccessGroupsTab = false;

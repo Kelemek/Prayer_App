@@ -26,7 +26,8 @@ import { PrayerRequest } from "../../services/prayer.service";
 import type { PrayerGroup } from "../../types/prayer-group";
 import type { MemorizedItem } from "../../types/memorization";
 import type { HomePrayerContentHandlers } from "../../lib/home-prayer-content-handlers";
-import { isCommunityPrayerFilter } from "../../lib/home-community-filter";
+import { isChurchDemoFilter, isCommunityPrayerFilter } from "../../lib/home-community-filter";
+import { HomeChurchDemoPanelComponent } from "../home-church-demo-panel/home-church-demo-panel.component";
 import {
   HOME_PRAYER_VIRTUAL_SCROLL_ITEM_CLASSES,
   HOME_PROMPT_VIRTUAL_SCROLL_ITEM_CLASSES,
@@ -61,6 +62,7 @@ export type HomePersonalCategoryPickerOpenChange = {
     PrayerCardComponent,
     PromptCardComponent,
     MemorizePassagesPanelComponent,
+    HomeChurchDemoPanelComponent,
   ],
   templateUrl: "./home-prayer-content.component.html",
   styleUrl: "./home-prayer-content.component.css",
@@ -93,15 +95,21 @@ export class HomePrayerContentComponent implements OnChanges {
   @Input({ required: true }) showAddMemorizedBibleBooks!: boolean;
   @Input({ required: true }) showMemorizationRecommendations!: boolean;
   @Input({ required: true }) handlers!: HomePrayerContentHandlers;
+  @Input() canAccessShared = true;
 
   @Output() personalCategoryPickerOpenChange =
     new EventEmitter<HomePersonalCategoryPickerOpenChange>();
+  @Output() openChurchOnboarding = new EventEmitter<void>();
 
   @ViewChild("promptVirtualScrollViewport")
   private promptVirtualScrollViewport?: CdkVirtualScrollViewport;
 
   @ViewChild("publicVirtualScrollViewport")
   private publicVirtualScrollViewport?: CdkVirtualScrollViewport;
+
+  get showChurchDemo(): boolean {
+    return !this.canAccessShared && isChurchDemoFilter(this.activeFilter);
+  }
 
   readonly stackGapClass = HOME_SHELL_STACK_GAP_CLASSES;
   readonly promptVirtualScrollItemClass =
@@ -189,6 +197,9 @@ export class HomePrayerContentComponent implements OnChanges {
   }
 
   scrollPrayerIntoView(prayerId: string): boolean {
+    if (this.showChurchDemo) {
+      return false;
+    }
     if (!isCommunityPrayerFilter(this.activeFilter)) {
       return false;
     }

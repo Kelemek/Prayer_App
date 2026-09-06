@@ -64,6 +64,7 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
   @Input() totalCount = 0;
   @Input() canCreateGroups = false;
   @Input() showProUpgrade = false;
+  @Input() maxGroupsOwned = 1;
   @Input() maxMembersPerGroup = 25;
   @Input() currentUserEmail = "";
   @Input() membersGroupIdToOpen: string | null = null;
@@ -82,6 +83,7 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
   private readonly destroyRef = inject(DestroyRef);
 
   pendingDeleteGroup: PrayerGroup | null = null;
+  showProUpgradeModal = false;
   renameTarget: PrayerGroup | null = null;
   membersTarget: PrayerGroup | null = null;
   renameDraft = "";
@@ -273,6 +275,34 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
 
   cancelDelete(): void {
     this.pendingDeleteGroup = null;
+    this.cdr.markForCheck();
+  }
+
+  onAddChipClick(): void {
+    if (this.canCreateGroups) {
+      this.addGroup.emit();
+      return;
+    }
+    if (this.showProUpgrade) {
+      this.showProUpgradeModal = true;
+      this.cdr.markForCheck();
+    }
+  }
+
+  proUpgradeMessage(): string {
+    const limit = Math.max(1, this.maxGroupsOwned);
+    const groupWord = limit === 1 ? "group" : "groups";
+    return `You've reached your free plan limit of ${limit} ${groupWord}. Upgrade to Pro to create more groups.`;
+  }
+
+  confirmProUpgrade(): void {
+    this.showProUpgradeModal = false;
+    this.cdr.markForCheck();
+    this.upgradePro.emit();
+  }
+
+  cancelProUpgrade(): void {
+    this.showProUpgradeModal = false;
     this.cdr.markForCheck();
   }
 

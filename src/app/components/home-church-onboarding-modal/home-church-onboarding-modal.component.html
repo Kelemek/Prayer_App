@@ -1,0 +1,138 @@
+@if (isOpen) {
+<div
+  class="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4"
+  (click)="close.emit()"
+>
+  <div
+    class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-lg w-full max-h-[min(90vh,720px)] flex flex-col modal-panel-edge"
+    (click)="$event.stopPropagation()"
+  >
+    <div class="px-6 py-4 modal-chrome-header shrink-0 flex items-center justify-between gap-3">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        {{ title }}
+      </h2>
+      <button
+        type="button"
+        class="shrink-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer disabled:opacity-50"
+        aria-label="Close"
+        (click)="close.emit()"
+        [disabled]="submitting"
+      >
+        <svg
+          class="w-6 h-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M6 18L18 6M6 6l12 12"
+          ></path>
+        </svg>
+      </button>
+    </div>
+
+    <div class="px-6 py-4 space-y-4 overflow-y-auto flex-1 min-h-0">
+      @if (view === "chooser") {
+      <p class="text-sm text-gray-600 dark:text-gray-300">
+        Create a church to start a shared prayer list, or join one with an invite
+        token.
+      </p>
+      <button
+        type="button"
+        class="w-full px-4 py-2 rounded-md btn-chip btn-chip-blue cursor-pointer"
+        (click)="showCreate()"
+      >
+        Create a church
+      </button>
+      <button
+        type="button"
+        class="w-full px-4 py-2 rounded-md btn-chip btn-chip-gray cursor-pointer"
+        (click)="showJoin()"
+      >
+        Join a church
+      </button>
+      }
+
+      @if (view === "create") {
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        Church name
+        <input
+          type="text"
+          class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          [ngModel]="nameDraft"
+          (ngModelChange)="onNameInput($event)"
+          placeholder="Cross Pointe Church"
+          [disabled]="submitting"
+        />
+      </label>
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        Slug
+        <input
+          type="text"
+          class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          [ngModel]="slugDraft"
+          (ngModelChange)="onSlugInput($event)"
+          placeholder="cross-pointe-church"
+          [disabled]="submitting"
+          (keydown.enter)="submitCreate()"
+        />
+      </label>
+      <div class="flex gap-2">
+        <button
+          type="button"
+          class="flex-1 px-4 py-2 rounded-md btn-chip btn-chip-gray cursor-pointer disabled:opacity-50"
+          (click)="showChooser()"
+          [disabled]="submitting"
+        >
+          Back
+        </button>
+        <button
+          type="button"
+          class="flex-1 px-4 py-2 rounded-md btn-chip btn-chip-blue cursor-pointer disabled:opacity-50"
+          (click)="submitCreate()"
+          [disabled]="!canSubmitCreate"
+        >
+          {{ submitting ? "Creating…" : "Create church" }}
+        </button>
+      </div>
+      }
+
+      @if (view === "join") {
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        Invite token
+        <input
+          type="text"
+          class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          [(ngModel)]="inviteToken"
+          placeholder="Paste your invite token"
+          [disabled]="submitting"
+          (keydown.enter)="submitJoin()"
+        />
+      </label>
+      <div class="flex gap-2">
+        <button
+          type="button"
+          class="flex-1 px-4 py-2 rounded-md btn-chip btn-chip-gray cursor-pointer disabled:opacity-50"
+          (click)="showChooser()"
+          [disabled]="submitting"
+        >
+          Back
+        </button>
+        <button
+          type="button"
+          class="flex-1 px-4 py-2 rounded-md btn-chip btn-chip-blue cursor-pointer disabled:opacity-50"
+          (click)="submitJoin()"
+          [disabled]="!canSubmitJoin"
+        >
+          {{ submitting ? "Joining…" : "Join church" }}
+        </button>
+      </div>
+      }
+    </div>
+  </div>
+</div>
+}

@@ -80,13 +80,13 @@ describe("HomeFilterTabsComponent", () => {
     expect(publicTab.className).toContain("bg-blue-200");
   });
 
-  it("hides Church when shared access is off", () => {
+  it("still shows Church when shared access is off", () => {
     fixture.componentRef.setInput("canAccessShared", false);
     fixture.detectChanges();
 
     expect(
       fixture.nativeElement.querySelector("#tour-filter-public")
-    ).toBeNull();
+    ).toBeTruthy();
     expect(
       fixture.nativeElement.querySelector("#tour-filter-personal")
     ).toBeTruthy();
@@ -108,14 +108,14 @@ describe("HomeFilterTabsComponent", () => {
     expect(groupsTab.textContent?.replace(/\s+/g, " ").trim()).toBe("Groups");
   });
 
-  it("hides Church for group-only users while keeping Groups", () => {
+  it("shows Church and Groups for users without church access", () => {
     fixture.componentRef.setInput("canAccessShared", false);
     fixture.componentRef.setInput("canAccessGroupsTab", true);
     fixture.detectChanges();
 
     expect(
       fixture.nativeElement.querySelector("#tour-filter-public")
-    ).toBeNull();
+    ).toBeTruthy();
     expect(
       fixture.nativeElement.querySelector("#tour-filter-groups")
     ).toBeTruthy();

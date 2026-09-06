@@ -79,7 +79,7 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
     expect(promptsChip.textContent?.trim()).toBe("Prompts (12)");
   });
 
-  it("puts Current, Answered, and Archived on the first public preview row", () => {
+  it("puts Add, Current, Answered, and Archived on the first public preview row", () => {
     fixture.detectChanges();
     const panel = fixture.nativeElement.querySelector(
       ".rounded-b-lg, .rounded-b-none"
@@ -95,34 +95,30 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
       (button) => button.textContent?.trim() ?? ""
     );
     expect(firstRowLabels).toEqual([
+      "Add",
       "Current (22)",
       "Answered (4)",
       "Archived (21)",
     ]);
     expect(secondRowLabels).toEqual(["Total (47)", "Prompts (12)"]);
-
-    for (const button of [...rows[0]!.querySelectorAll("button"), ...rows[1]!.querySelectorAll("button")]) {
-      const host = button.parentElement as HTMLElement;
-      expect(host.className).toContain("flex-[1_1_0]");
-      expect(host.className).toContain("min-w-max");
-      expect(button.className).toContain("min-w-max");
-      expect(button.className).not.toContain("flex-1");
-    }
   });
 
-  it("hides Church area when canAccessShared is false", () => {
+  it("still shows Church with Archived and Prompts when canAccessShared is false", () => {
     component.canAccessShared = false;
     fixture.detectChanges();
     const row = fixture.nativeElement.querySelector(
       ".flex.w-full.gap-1.mb-0"
     ) as HTMLElement;
+    expect(row.textContent).toContain("Church");
     expect(row.textContent).toContain("Personal");
     expect(row.textContent).toContain("Groups");
-    expect(row.textContent).not.toContain("Church");
     expect(row.textContent).toContain("Memorize");
     expect(
       fixture.nativeElement.querySelector("#tour-filter-prompts")
-    ).toBeNull();
+    ).toBeTruthy();
+    expect(fixture.nativeElement.textContent).toContain("Add");
+    expect(fixture.nativeElement.textContent).toContain("Current (22)");
+    expect(fixture.nativeElement.textContent).toContain("Archived (21)");
   });
 
   it("shows memorize action chips when Memorize is selected", () => {

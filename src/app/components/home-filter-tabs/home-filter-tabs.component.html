@@ -3,14 +3,13 @@
         @let answeredBadge = (answeredPrayerBadge$ | async) ?? 0;
         @let aggregateBadge = currentBadge + answeredBadge;
         @let badgesEnabled = (badgeService.getBadgeFunctionalityEnabled$() | async);
-        @if (canAccessShared) {
         <button
           id="tour-filter-public"
           (click)="publicTabSelected.emit()"
           title="Show church prayers"
           [class]="tabClass('public', isPublicAreaFilter(activeFilter))"
         >
-          @if (badgesEnabled && aggregateBadge > 0) {
+          @if (canAccessShared && badgesEnabled && aggregateBadge > 0) {
           <app-home-filter-badge-button
             [count]="aggregateBadge"
             [compact]="true"
@@ -21,7 +20,6 @@
           }
           Church
         </button>
-        }
 
         @if (canAccessGroupsTab) {
         <button

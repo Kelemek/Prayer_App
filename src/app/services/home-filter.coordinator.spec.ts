@@ -219,4 +219,23 @@ describe("HomeFilterCoordinator", () => {
     expect(host.setActiveFilter).toHaveBeenCalledWith("personal");
     expect(host.loadGroupPrayers).not.toHaveBeenCalled();
   });
+
+  it("lets users without church access open Current", () => {
+    host.canAccessShared = vi.fn(() => false);
+
+    coordinator.setFilter("current");
+
+    expect(host.setActiveFilter).toHaveBeenCalledWith("current");
+    expect(host.setActiveFilter).not.toHaveBeenCalledWith("personal");
+  });
+
+  it("lets users without church access open Archived and Prompts in demo mode", () => {
+    host.canAccessShared = vi.fn(() => false);
+
+    coordinator.setFilter("archived");
+    expect(host.setActiveFilter).toHaveBeenCalledWith("archived");
+
+    coordinator.setFilter("prompts");
+    expect(host.setActiveFilter).toHaveBeenCalledWith("prompts");
+  });
 });

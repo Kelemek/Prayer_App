@@ -32,6 +32,9 @@ import type { HomeReturnContext } from "../types/presentation";
 import type { HomeActiveFilter } from "./home-deep-link-host.adapter";
 import type { MemorizedItem } from "../types/memorization";
 import type { UserSessionData } from "./user-session.service";
+import {
+  isAllowedHomeFilterWithoutSharedAccess,
+} from "../lib/home-community-filter";
 
 export interface HomeObservableStreams {
   prayers$: Observable<PrayerRequest[]>;
@@ -358,9 +361,7 @@ export class HomeLifecycleCoordinator {
         const activeFilter = host.getActiveFilter();
         if (
           !canAccessShared &&
-          activeFilter !== "personal" &&
-          activeFilter !== "memorize" &&
-          activeFilter !== "groups"
+          !isAllowedHomeFilterWithoutSharedAccess(activeFilter)
         ) {
           host.setFilter("personal");
         } else {

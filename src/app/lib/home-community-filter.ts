@@ -36,6 +36,23 @@ export function isGroupsAreaFilter(filter: HomeActiveFilter): boolean {
   return filter === "groups";
 }
 
+/** Church chip views shown in demo mode as well as for church members. */
+export function isChurchDemoFilter(filter: HomeActiveFilter): boolean {
+  return isPublicAreaFilter(filter);
+}
+
+/** Filters a user may keep when they are not on a churches tenant. */
+export function isAllowedHomeFilterWithoutSharedAccess(
+  filter: HomeActiveFilter
+): boolean {
+  return (
+    filter === "personal" ||
+    filter === "memorize" ||
+    filter === "groups" ||
+    isChurchDemoFilter(filter)
+  );
+}
+
 /** True when Home renders a folder-tab panel (sub-filters) directly under the main tab row. */
 export function homeHasSubFilterRowBelowTabs(
   filter: HomeActiveFilter

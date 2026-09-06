@@ -6,7 +6,6 @@ import { ɵresolveComponentResources as resolveComponentResources } from "@angul
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { of } from "rxjs";
 import { BadgeService } from "../../services/badge.service";
-import { HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS } from "../../lib/home-sub-filter-chip-classes";
 import { HomePublicStatusFiltersComponent } from "./home-public-status-filters.component";
 
 const componentDir = dirname(fileURLToPath(import.meta.url));
@@ -51,6 +50,7 @@ describe("HomePublicStatusFiltersComponent", () => {
     fixture.componentInstance.currentPrayerBadge$ = of(0);
     fixture.componentInstance.answeredPrayerBadge$ = of(0);
     fixture.componentInstance.promptBadge$ = of(0);
+    fixture.componentRef.setInput("canAccessShared", true);
     fixture.detectChanges();
   });
 
@@ -58,15 +58,12 @@ describe("HomePublicStatusFiltersComponent", () => {
     fixture?.destroy();
   });
 
-  it("puts Current, Answered, and Archived on the first wrapping row", () => {
+  it("puts Add, Current, Answered, and Archived on the first status row", () => {
     const panel = fixture.nativeElement.querySelector(
       ".rounded-b-lg, .rounded-b-none"
     ) as HTMLElement;
     const rows = panel.querySelectorAll(":scope > div");
     expect(rows).toHaveLength(2);
-    expect(rows[0]!.className).toContain("flex-wrap");
-    expect(rows[0]!.className).not.toContain("mt-2");
-    expect(rows[1]!.className).toContain("flex-wrap");
     expect(rows[1]!.className).toContain("mt-2");
 
     const firstRowIds = [...rows[0]!.querySelectorAll("button")].map(
@@ -76,6 +73,7 @@ describe("HomePublicStatusFiltersComponent", () => {
       (button) => button.id
     );
     expect(firstRowIds).toEqual([
+      "tour-filter-add-church",
       "tour-filter-current",
       "tour-filter-answered",
       "tour-filter-archived",
@@ -84,21 +82,32 @@ describe("HomePublicStatusFiltersComponent", () => {
       "tour-filter-total",
       "tour-filter-prompts",
     ]);
+  });
 
-    for (const id of [...firstRowIds, ...secondRowIds]) {
-      const button = fixture.nativeElement.querySelector(
-        `#${id}`
-      ) as HTMLButtonElement;
-      const host = button.closest("div") as HTMLElement;
-      expect(host.className).toContain("flex-[1_1_0]");
-      expect(host.className).toContain("min-w-max");
-      expect(button.className).toContain(
-        HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS.split(" ")[0]
-      );
-    }
+  it("still shows Archived and Prompts when shared access is off", () => {
+    fixture.componentRef.setInput("canAccessShared", false);
+    fixture.detectChanges();
+
     expect(
-      fixture.nativeElement.querySelector("#tour-filter-members")
-    ).toBeNull();
+      fixture.nativeElement.querySelector("#tour-filter-add-church")
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector("#tour-filter-archived")
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector("#tour-filter-prompts")
+    ).toBeTruthy();
+  });
+
+  it("emits addChurch when the Add chip is clicked", () => {
+    const emitSpy = vi.spyOn(fixture.componentInstance.addChurch, "emit");
+
+    const addChip = fixture.nativeElement.querySelector(
+      "#tour-filter-add-church"
+    ) as HTMLButtonElement;
+    addChip.click();
+
+    expect(emitSpy).toHaveBeenCalled();
   });
 
   it("emits prompts when the Prompts chip is clicked", () => {

@@ -1,0 +1,23 @@
+<div
+  class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center border border-gray-200 dark:border-gray-700"
+  data-church-demo-panel
+>
+  <p
+    class="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300 mb-2"
+  >
+    Church preview
+  </p>
+  <h3 class="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2">
+    {{ heading }}
+  </h3>
+  <p class="text-gray-500 dark:text-gray-400 mb-6">
+    {{ body }}
+  </p>
+  <button
+    type="button"
+    class="px-4 py-2 rounded-md btn-chip btn-chip-blue cursor-pointer"
+    (click)="addChurch.emit()"
+  >
+    Create or join a church
+  </button>
+</div>

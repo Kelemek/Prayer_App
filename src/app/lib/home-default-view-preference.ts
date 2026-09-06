@@ -82,9 +82,6 @@ export function resolveHomeFilterForDefaultView(
   preferred: HomeDefaultPrayerView,
   access: { canAccessShared: boolean; canAccessGroupsTab: boolean }
 ): HomeDefaultPrayerView {
-  if (!access.canAccessShared && access.canAccessGroupsTab) {
-    return "groups";
-  }
   if (preferred === "groups") {
     return access.canAccessGroupsTab ? "groups" : "current";
   }

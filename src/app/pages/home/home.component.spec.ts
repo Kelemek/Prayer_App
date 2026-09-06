@@ -3873,5 +3873,52 @@ describe('HomeComponent', () => {
       expect(comp.filters.searchTerm).toBe('healing');
       expect(mocks.prayerService.applyFilters).toHaveBeenCalled();
     });
+
+    it('opens and closes the church onboarding modal', () => {
+      mocks = makeMocks();
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      expect(comp.showChurchOnboardingModal).toBe(false);
+      comp.openChurchOnboardingModal();
+      expect(comp.showChurchOnboardingModal).toBe(true);
+      comp.closeChurchOnboardingModal();
+      expect(comp.showChurchOnboardingModal).toBe(false);
+    });
+
+    it('refreshes church access and stays on Church after onboarding completes', () => {
+      mocks = makeMocks();
+      mocks.tenantPermissionService.canAccessShared.mockReturnValue(true);
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService,
+        mocks.tenantPermissionService
+      );
+      comp.showChurchOnboardingModal = true;
+      comp.canAccessShared = false;
+      comp.onChurchOnboardingCompleted();
+      expect(comp.showChurchOnboardingModal).toBe(false);
+      expect(comp.canAccessShared).toBe(true);
+      expect(comp.activeFilter).toBe('current');
+    });
   });
 });

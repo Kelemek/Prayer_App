@@ -159,6 +159,12 @@
         (createCategory)="void personalCategory.createPersonalCategory($event)"
       ></app-home-personal-category-editor-modal>
 
+      <app-home-church-onboarding-modal
+        [isOpen]="showChurchOnboardingModal"
+        (close)="closeChurchOnboardingModal()"
+        (completed)="onChurchOnboardingCompleted()"
+      ></app-home-church-onboarding-modal>
+
       <app-home-filter-tabs
         [activeFilter]="activeFilter"
         [currentPrayerBadge$]="currentPrayerBadge$"
@@ -169,7 +175,7 @@
         (publicTabSelected)="filter.selectPublicTab()"
       ></app-home-filter-tabs>
 
-      @if (canAccessShared && isPublicAreaFilter(activeFilter)) {
+      @if (isPublicAreaFilter(activeFilter)) {
       <div class="mb-2 sm:mb-3">
         <app-home-public-status-filters
           [activeFilter]="activeFilter"
@@ -181,11 +187,16 @@
           [currentPrayerBadge$]="currentPrayerBadge$"
           [answeredPrayerBadge$]="answeredPrayerBadge$"
           [promptBadge$]="promptBadge$"
-          [promptsPanelExpanded]="activeFilter === 'prompts' && promptsCount > 0"
+          [promptsPanelExpanded]="
+            canAccessShared && activeFilter === 'prompts' && promptsCount > 0
+          "
+          [canAccessShared]="canAccessShared"
           [sectionGapClass]="''"
           (selectFilter)="filter.setFilter($event)"
+          (addChurch)="openChurchOnboardingModal()"
         ></app-home-public-status-filters>
 
+        @if (canAccessShared) {
         <div
           id="home-prompt-type-slide-panel"
           class="overflow-hidden transition-[max-height,opacity] duration-300 ease-out"
@@ -210,6 +221,7 @@
             (toggleType)="filter.togglePromptType($event)"
           ></app-home-prompt-type-filters>
         </div>
+        }
       </div>
       }
 
@@ -217,20 +229,26 @@
       @let promptsCatalogCount = (prompts$ | async)?.length ?? 0;
       @let contentLoading =
         !viewReady ||
-        !!(loading$ | async) ||
+        (canAccessShared &&
+          isPublicTabFilter(activeFilter) &&
+          !!(loading$ | async)) ||
         (activeFilter === 'personal' &&
           !!(prayerService.loadingPersonalPrayers$ | async)) ||
         (activeFilter === 'memorize' &&
           !!(memorizationService.loading$ | async)) ||
         (activeFilter === 'groups' &&
+          groupFilterMode === 'named' &&
           !!(prayerGroupService.loadingPrayers$ | async));
       @let hasCachedContentForTab =
         activeFilter === 'memorize' ||
+        (!canAccessShared && isPublicAreaFilter(activeFilter)) ||
         (activeFilter === 'prompts' &&
           (catalog.displayedPrompts.length > 0 || promptsCatalogCount > 0)) ||
         (activeFilter === 'personal' &&
-          catalog.filteredPersonalPrayers.length > 0) ||
-        (activeFilter === 'groups' && groupPrayers.length > 0) ||
+          (catalog.filteredPersonalPrayers.length > 0 ||
+            personalPrayersCount > 0)) ||
+        (activeFilter === 'groups' &&
+          (groupPrayers.length > 0 || prayerGroups.length > 0)) ||
         (isPublicTabFilter(activeFilter) && displayedPublicPrayers.length > 0);
       @let hidePrayerContentForLoading = contentLoading && !hasCachedContentForTab;
       @if (hidePrayerContentForLoading) {
@@ -255,6 +273,7 @@
         [totalCount]="groupTotalCount"
         [canCreateGroups]="canCreatePrayerGroups"
         [showProUpgrade]="showGroupProUpgrade"
+        [maxGroupsOwned]="maxGroupsOwned"
         [maxMembersPerGroup]="maxMembersPerGroup"
         [currentUserEmail]="currentUserEmail"
         [membersGroupIdToOpen]="membersGroupIdToOpen"
@@ -319,6 +338,8 @@
         [showAddMemorizedBibleBooks]="shell.modals.showAddMemorizedBibleBooks"
         [showMemorizationRecommendations]="shell.modals.showMemorizationRecommendations"
         [handlers]="shell.handlers.prayerContent"
+        [canAccessShared]="canAccessShared"
+        (openChurchOnboarding)="openChurchOnboardingModal()"
         (personalCategoryPickerOpenChange)="
           onPersonalCategoryPickerOpenChange($event.prayerId, $event.open)
         "

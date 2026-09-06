@@ -59,18 +59,6 @@ export class HomeFilterCoordinator {
     const host = this.requireHost();
     const page = host.getPageState();
 
-    if (
-      !host.canAccessShared() &&
-      filter !== "personal" &&
-      filter !== "memorize" &&
-      filter !== "groups"
-    ) {
-      host.setActiveFilter("personal");
-      host.applyPrayerFilters({ search: page.filters.searchTerm });
-      host.onFilterChanged();
-      return;
-    }
-
     if (filter === "groups" && !host.canAccessGroupsArea()) {
       host.setActiveFilter("personal");
       host.applyPrayerFilters({ search: page.filters.searchTerm });

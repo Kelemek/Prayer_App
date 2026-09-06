@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   homeHasSubFilterRowBelowTabs,
+  isAllowedHomeFilterWithoutSharedAccess,
+  isChurchDemoFilter,
   isCommunityPrayerFilter,
   isGroupsAreaFilter,
   isPublicAreaFilter,
@@ -60,6 +62,35 @@ describe("isGroupsAreaFilter", () => {
     expect(isGroupsAreaFilter("groups")).toBe(true);
     expect(isGroupsAreaFilter("personal")).toBe(false);
     expect(isGroupsAreaFilter("current")).toBe(false);
+  });
+});
+
+describe("isChurchDemoFilter", () => {
+  it("returns true for every Church chip view, including Archived and Prompts", () => {
+    expect(isChurchDemoFilter("current")).toBe(true);
+    expect(isChurchDemoFilter("answered")).toBe(true);
+    expect(isChurchDemoFilter("total")).toBe(true);
+    expect(isChurchDemoFilter("archived")).toBe(true);
+    expect(isChurchDemoFilter("prompts")).toBe(true);
+  });
+
+  it("returns false for other tabs", () => {
+    expect(isChurchDemoFilter("personal")).toBe(false);
+    expect(isChurchDemoFilter("groups")).toBe(false);
+    expect(isChurchDemoFilter("memorize")).toBe(false);
+  });
+});
+
+describe("isAllowedHomeFilterWithoutSharedAccess", () => {
+  it("allows Church demo chips plus Personal, Groups, and Memorize", () => {
+    expect(isAllowedHomeFilterWithoutSharedAccess("current")).toBe(true);
+    expect(isAllowedHomeFilterWithoutSharedAccess("answered")).toBe(true);
+    expect(isAllowedHomeFilterWithoutSharedAccess("total")).toBe(true);
+    expect(isAllowedHomeFilterWithoutSharedAccess("archived")).toBe(true);
+    expect(isAllowedHomeFilterWithoutSharedAccess("prompts")).toBe(true);
+    expect(isAllowedHomeFilterWithoutSharedAccess("personal")).toBe(true);
+    expect(isAllowedHomeFilterWithoutSharedAccess("groups")).toBe(true);
+    expect(isAllowedHomeFilterWithoutSharedAccess("memorize")).toBe(true);
   });
 });
 

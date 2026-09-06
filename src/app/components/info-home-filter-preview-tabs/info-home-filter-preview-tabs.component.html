@@ -1,6 +1,5 @@
 <!-- Filter-style preview tabs (mock of home filters): Church, Groups, Personal, Memorize -->
 <div class="flex w-full gap-1 mb-0">
-  @if (canAccessShared) {
   <div
     class="relative z-20 flex-1 min-w-0"
     role="button"
@@ -20,7 +19,6 @@
       1
     </button>
   </div>
-  }
   @if (canAccessGroupsTab) {
   <button
     type="button"
@@ -47,37 +45,32 @@
   </button>
 </div>
 
-@if (canAccessShared && isPublicAreaActive()) {
+@if (isPublicAreaActive()) {
 <div>
   <div [class]="publicPanelGroupClass()">
-    <div [class]="publicChipRowClass">
-      <div [class]="publicChipHostClass">
-        <button
-          type="button"
-          (click)="setPreviewFilter('current')"
-          [class]="subFilterChipClass('current')"
-        >
-          Current (22)
-        </button>
-      </div>
-      <div [class]="publicChipHostClass">
-        <button
-          type="button"
-          (click)="setPreviewFilter('answered')"
-          [class]="subFilterChipClass('answered')"
-        >
-          Answered (4)
-        </button>
-      </div>
-      <div [class]="publicChipHostClass">
-        <button
-          type="button"
-          (click)="setPreviewFilter('archived')"
-          [class]="subFilterChipClass('archived')"
-        >
-          Archived (21)
-        </button>
-      </div>
+    <div [class]="chipRowClass">
+      <button type="button" [class]="churchAddChipClass()">Add</button>
+      <button
+        type="button"
+        (click)="setPreviewFilter('current')"
+        [class]="churchStatusChipClass('current')"
+      >
+        Current (22)
+      </button>
+      <button
+        type="button"
+        (click)="setPreviewFilter('answered')"
+        [class]="churchStatusChipClass('answered')"
+      >
+        Answered (4)
+      </button>
+      <button
+        type="button"
+        (click)="setPreviewFilter('archived')"
+        [class]="churchStatusChipClass('archived')"
+      >
+        Archived (21)
+      </button>
     </div>
     <div [class]="publicChipRowClass + ' mt-2'">
       <div [class]="publicChipHostClass">
@@ -102,6 +95,7 @@
     </div>
   </div>
 
+  @if (canAccessShared) {
   <div
     class="overflow-hidden transition-[max-height,opacity] duration-300 ease-out"
     [class.max-h-0]="previewFilter !== 'prompts'"
@@ -116,6 +110,7 @@
       (openPromptCategories)="openPromptCategories.emit()"
     />
   </div>
+  }
 </div>
 }
 

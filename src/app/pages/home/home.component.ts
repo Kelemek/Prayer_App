@@ -105,6 +105,7 @@ import { HomePersonalCategoryFiltersComponent } from "../../components/home-pers
 import { HomeGroupFiltersComponent } from "../../components/home-group-filters/home-group-filters.component";
 import { HomeGroupEditorModalComponent } from "../../components/home-group-editor-modal/home-group-editor-modal.component";
 import { HomePersonalCategoryEditorModalComponent } from "../../components/home-personal-category-editor-modal/home-personal-category-editor-modal.component";
+import { HomeChurchOnboardingModalComponent } from "../../components/home-church-onboarding-modal/home-church-onboarding-modal.component";
 import { HomePrayerContentComponent } from "../../components/home-prayer-content/home-prayer-content.component";
 import { ScrollToTopButtonComponent } from "../../components/scroll-to-top-button/scroll-to-top-button.component";
 import type { PrayerPrompt } from "../../components/prompt-card/prompt-card.component";
@@ -129,6 +130,7 @@ import {
     HomeGroupFiltersComponent,
     HomeGroupEditorModalComponent,
     HomePersonalCategoryEditorModalComponent,
+    HomeChurchOnboardingModalComponent,
     HomePrayerContentComponent,
     ScrollToTopButtonComponent,
     PrayerFiltersComponent,
@@ -198,6 +200,7 @@ export class HomeComponent
   groupTotalCount = 0;
   showGroupEditor = false;
   groupEditorSubmitting = false;
+  showChurchOnboardingModal = false;
   membersGroupIdToOpen: string | null = null;
   groupPrayers: PrayerRequest[] = [];
   tenantMemberships: TenantMembership[] = [];
@@ -866,6 +869,10 @@ export class HomeComponent
     return !limits.can_create_group && limits.individual_plan_tier === "free";
   }
 
+  get maxGroupsOwned(): number {
+    return this.userSubscriptionService.getGroupLimits().max_groups_owned;
+  }
+
   get maxMembersPerGroup(): number {
     return this.userSubscriptionService.getGroupLimits().max_members_per_group;
   }
@@ -938,11 +945,25 @@ export class HomeComponent
     });
   }
 
+  openChurchOnboardingModal(): void {
+    this.showChurchOnboardingModal = true;
+    this.cdr.markForCheck();
+  }
+
+  closeChurchOnboardingModal(): void {
+    this.showChurchOnboardingModal = false;
+    this.cdr.markForCheck();
+  }
+
+  onChurchOnboardingCompleted(): void {
+    this.showChurchOnboardingModal = false;
+    this.canAccessShared = this.tenantPermissionService.canAccessShared();
+    this.filter.setFilter("current");
+    this.cdr.markForCheck();
+  }
+
   openCreateGroup(): void {
     if (!this.canCreatePrayerGroups) {
-      if (this.showGroupProUpgrade) {
-        void this.onUpgradeToPro();
-      }
       return;
     }
     this.showGroupEditor = true;

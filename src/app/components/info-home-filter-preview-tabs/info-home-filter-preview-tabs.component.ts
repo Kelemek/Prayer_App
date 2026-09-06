@@ -37,7 +37,7 @@ import { InfoHomeFilterPreviewPromptsFiltersComponent } from "../info-home-filte
   host: { class: "block" },
 })
 export class InfoHomeFilterPreviewTabsComponent {
-  /** When false, hide Public area tabs (matches home filter gating for personal-only tenants). */
+  /** When false, hide Archived / Prompts on the Church preview (matches Home). */
   @Input() canAccessShared = true;
   /** When false, hide Groups (matches home for users with no groups). */
   @Input() canAccessGroupsTab = true;
@@ -136,9 +136,36 @@ export class InfoHomeFilterPreviewTabsComponent {
     return this.groupChipClass(active);
   }
 
+  churchAddChipClass(): string {
+    const theme = this.chipThemes.current;
+    return buildHomeSubFilterChipButtonClass({
+      base: HOME_SUB_FILTER_CHIP_BASE_CLASS,
+      active: false,
+      activeClass: theme.active,
+      inactiveClass: theme.inactive,
+    });
+  }
+
+  churchStatusChipClass(
+    filter: "current" | "answered" | "archived" | "total"
+  ): string {
+    const theme = this.chipThemes[filter];
+    const active = this.previewFilter === filter;
+    return (
+      buildHomeSubFilterChipButtonClass({
+        base: HOME_SUB_FILTER_CHIP_BASE_CLASS,
+        active,
+        activeClass: theme.active,
+        inactiveClass: theme.inactive,
+      }) + " flex-1"
+    );
+  }
+
   publicPanelGroupClass(): string {
     const shape =
-      this.previewFilter === "prompts" ? "rounded-b-none" : "rounded-b-lg";
+      this.canAccessShared && this.previewFilter === "prompts"
+        ? "rounded-b-none"
+        : "rounded-b-lg";
     return `${this.publicSubFilterGroupClass} ${shape}`;
   }
 

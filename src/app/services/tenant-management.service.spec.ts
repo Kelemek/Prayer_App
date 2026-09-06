@@ -94,7 +94,8 @@ describe('TenantManagementService', () => {
       data: { session: { user: { email: 'member@example.com' } } },
     });
 
-    await service.claimInvite('token-123');
+    const tenantId = await service.claimInvite('token-123');
+    expect(tenantId).toBe('tenant-1');
     expect(insert).toHaveBeenCalled();
     expect(updateEq).toHaveBeenCalledWith('id', 'invite-1');
     expect(refresh).toHaveBeenCalled();

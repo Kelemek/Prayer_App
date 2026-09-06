@@ -63,7 +63,7 @@ export class TenantManagementService {
     return data as string;
   }
 
-  async claimInvite(token: string): Promise<void> {
+  async claimInvite(token: string): Promise<string> {
     const userEmail = await this.getCurrentUserEmail();
     if (!userEmail) {
       throw new Error('You must be logged in to claim an invite');
@@ -113,6 +113,7 @@ export class TenantManagementService {
     }
 
     await this.tenantContext.refresh();
+    return invite.tenant_id as string;
   }
 
   async setTenantPlan(tenantId: string, planTier: Tenant['plan_tier'], status: Tenant['plan_status'] = 'active'): Promise<void> {

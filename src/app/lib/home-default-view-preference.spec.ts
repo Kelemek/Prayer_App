@@ -30,13 +30,22 @@ describe("home default prayer view helpers", () => {
     );
   });
 
-  it("keeps groups as the landing tab when church access is unavailable", () => {
+  it("keeps a saved personal preference when church access is unavailable", () => {
     expect(
       resolveHomeFilterForDefaultView("personal", {
         canAccessShared: false,
         canAccessGroupsTab: true,
       })
-    ).toBe("groups");
+    ).toBe("personal");
+  });
+
+  it("opens church when that is the saved preference even without church access", () => {
+    expect(
+      resolveHomeFilterForDefaultView("current", {
+        canAccessShared: false,
+        canAccessGroupsTab: true,
+      })
+    ).toBe("current");
   });
 
   it("opens groups when that is the saved preference", () => {

@@ -207,30 +207,42 @@ describe("HomeGroupFiltersComponent", () => {
     ).toBeTruthy();
   });
 
-  it("shows Upgrade to Pro when at group cap on free tier", () => {
+  it("shows Add when at group cap on free tier", () => {
     fixture.componentRef.setInput("canCreateGroups", false);
     fixture.componentRef.setInput("showProUpgrade", true);
     fixture.detectChanges();
-    const upgradeChip = fixture.nativeElement.querySelector(
-      "#tour-filter-upgrade-pro"
+    const addChip = fixture.nativeElement.querySelector(
+      "#tour-filter-add-group"
     ) as HTMLButtonElement;
-    expect(upgradeChip).toBeTruthy();
-    expect(upgradeChip.textContent?.replace(/\s+/g, " ").trim()).toBe(
-      "Upgrade to Pro"
-    );
+    expect(addChip).toBeTruthy();
+    expect(addChip.textContent?.replace(/\s+/g, " ").trim()).toBe("Add");
+    expect(
+      fixture.nativeElement.querySelector("#tour-filter-upgrade-pro")
+    ).toBeNull();
   });
 
-  it("emits upgradePro when upgrade chip is clicked", () => {
+  it("opens an upgrade modal when Add is clicked at the free group cap", () => {
     fixture.componentRef.setInput("canCreateGroups", false);
     fixture.componentRef.setInput("showProUpgrade", true);
+    fixture.componentRef.setInput("maxGroupsOwned", 1);
     fixture.detectChanges();
     const emitted: number[] = [];
     fixture.componentInstance.upgradePro.subscribe(() => emitted.push(1));
-    const upgradeChip = fixture.nativeElement.querySelector(
-      "#tour-filter-upgrade-pro"
-    ) as HTMLButtonElement;
-    upgradeChip.click();
+    (
+      fixture.nativeElement.querySelector(
+        "#tour-filter-add-group"
+      ) as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.showProUpgradeModal).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain("Group limit reached");
+    expect(fixture.nativeElement.textContent).toContain(
+      "You've reached your free plan limit of 1 group."
+    );
+    expect(emitted).toEqual([]);
+    fixture.componentInstance.confirmProUpgrade();
     expect(emitted).toEqual([1]);
+    expect(fixture.componentInstance.showProUpgradeModal).toBe(false);
   });
 
   it("shows Add for creators with no groups yet", () => {

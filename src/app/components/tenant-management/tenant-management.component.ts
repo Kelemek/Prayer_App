@@ -12,6 +12,7 @@ import { TenantManagementService } from "../../services/tenant-management.servic
 import { TenantPermissionService } from "../../services/tenant-permission.service";
 import { ToastService } from "../../services/toast.service";
 import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/admin-collapsible-section.component";
+import { normalizeTenantSlug } from "../../lib/tenant-slug";
 import type {
   PlanTier,
   PlanStatus,
@@ -676,11 +677,7 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
   }
 
   private normalizeSlug(raw: string): string {
-    return raw
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-]/g, "");
+    return normalizeTenantSlug(raw);
   }
 
   private async hydrateFromContext(): Promise<void> {

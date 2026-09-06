@@ -1,6 +1,12 @@
 <!-- Prayers or Prompts List -->
 @if (!contentHidden && !(error$ | async)) {
 <div [class]="stackGapClass">
+  @if (showChurchDemo) {
+  <app-home-church-demo-panel
+    [activeFilter]="activeFilter"
+    (addChurch)="openChurchOnboarding.emit()"
+  />
+  } @else {
   <!-- Empty State for Prayers -->
   @if (activeFilter !== 'prompts' && activeFilter !== 'personal' &&
   activeFilter !== 'memorize' && activeFilter !== 'groups' && (prayers$ | async)?.length === 0) {
@@ -315,6 +321,7 @@
     ></app-prompt-card>
     }
   </div>
+  }
   }
   }
 </div>

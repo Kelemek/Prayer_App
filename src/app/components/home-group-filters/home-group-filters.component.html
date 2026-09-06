@@ -1,27 +1,16 @@
 <div [class]="sectionGapClass">
   <div [class]="subFilterGroupClass">
     <div [class]="statusChipRowClass">
-      @if (canCreateGroups) {
+      @if (canCreateGroups || showProUpgrade) {
       <app-home-sub-filter-chip
         chipId="tour-filter-add-group"
         [active]="false"
         [stretch]="false"
         [activeClass]="chipThemes.members.active"
         [inactiveClass]="chipThemes.members.inactive"
-        (chipClick)="addGroup.emit()"
+        (chipClick)="onAddChipClick()"
       >
         Add
-      </app-home-sub-filter-chip>
-      } @else if (showProUpgrade) {
-      <app-home-sub-filter-chip
-        chipId="tour-filter-upgrade-pro"
-        [active]="false"
-        [stretch]="false"
-        [activeClass]="chipThemes.members.active"
-        [inactiveClass]="chipThemes.members.inactive"
-        (chipClick)="upgradePro.emit()"
-      >
-        Upgrade to Pro
       </app-home-sub-filter-chip>
       }
 
@@ -217,5 +206,16 @@
   [isDangerous]="true"
   (confirm)="confirmDelete()"
   (cancel)="cancelDelete()"
+/>
+}
+
+@if (showProUpgradeModal) {
+<app-confirmation-dialog
+  title="Group limit reached"
+  [message]="proUpgradeMessage()"
+  confirmText="Upgrade to Pro"
+  cancelText="Not now"
+  (confirm)="confirmProUpgrade()"
+  (cancel)="cancelProUpgrade()"
 />
 }
