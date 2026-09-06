@@ -5139,7 +5139,7 @@ describe('PrayerService - Integration Tests', () => {
           return {
             select: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                ilike: vi.fn(() => ({
                   order: vi.fn(() => ({
                     order: vi.fn(() => Promise.resolve({ data: [], error: null }))
                   }))
@@ -5774,21 +5774,31 @@ describe('PrayerService - Integration Tests', () => {
       userSessionService,
       mockTenantContext, mockConnectivity as any);
 
-        mockSupabaseService.client.from.mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
+        mockSupabaseService.client.from.mockImplementation((table: string) => {
+          if (table !== 'personal_categories') {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnThis(),
+                order: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
+            };
+          }
+          return {
+            select: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({
-                order: vi.fn().mockReturnValue({
-                  order: vi.fn().mockResolvedValue({
-                    data: [
-                      { id: 'c1', name: 'Family', display_order: 0, color: null },
-                    ],
-                    error: null
-                  })
-                })
-              })
-            })
-          })
+                ilike: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    order: vi.fn().mockResolvedValue({
+                      data: [
+                        { id: 'c1', name: 'Family', display_order: 0, color: null },
+                      ],
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          };
         });
 
         const result = await service.loadPersonalCategories(true);
