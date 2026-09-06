@@ -1,6 +1,6 @@
 <div [class]="sectionGapClass">
   <div [class]="subFilterGroupClass">
-    <div [class]="chipRowClass">
+    <div [class]="statusChipRowClass">
       @if (canCreateGroups) {
       <app-home-sub-filter-chip
         chipId="tour-filter-add-group"
@@ -13,56 +13,45 @@
         Add
       </app-home-sub-filter-chip>
       } @else if (showProUpgrade) {
-      <div [class]="chipHostClass">
-        <app-home-sub-filter-chip
-          chipId="tour-filter-upgrade-pro"
-          [active]="false"
-          [layoutClass]="chipButtonClass"
-          [activeClass]="chipThemes.members.active"
-          [inactiveClass]="chipThemes.members.inactive"
-          (chipClick)="upgradePro.emit()"
-        >
-          Upgrade to Pro
-        </app-home-sub-filter-chip>
-      </div>
+      <app-home-sub-filter-chip
+        chipId="tour-filter-upgrade-pro"
+        [active]="false"
+        [stretch]="false"
+        [activeClass]="chipThemes.members.active"
+        [inactiveClass]="chipThemes.members.inactive"
+        (chipClick)="upgradePro.emit()"
+      >
+        Upgrade to Pro
+      </app-home-sub-filter-chip>
       }
 
-      <div [class]="chipHostClass">
-        <app-home-sub-filter-chip
-          chipId="tour-filter-groups-current"
-          [active]="filterMode === 'current'"
-          [layoutClass]="chipButtonClass"
-          [activeClass]="chipThemes.members.active"
-          [inactiveClass]="chipThemes.members.inactive"
-          (chipClick)="selectFilterMode.emit('current')"
-        >
-          Current ({{ currentCount }})
-        </app-home-sub-filter-chip>
-      </div>
-      <div [class]="chipHostClass">
-        <app-home-sub-filter-chip
-          chipId="tour-filter-groups-answered"
-          [active]="filterMode === 'answered'"
-          [layoutClass]="chipButtonClass"
-          [activeClass]="chipThemes.members.active"
-          [inactiveClass]="chipThemes.members.inactive"
-          (chipClick)="selectFilterMode.emit('answered')"
-        >
-          Answered ({{ answeredCount }})
-        </app-home-sub-filter-chip>
-      </div>
-      <div [class]="chipHostClass">
-        <app-home-sub-filter-chip
-          chipId="tour-filter-groups-total"
-          [active]="filterMode === 'total'"
-          [layoutClass]="chipButtonClass"
-          [activeClass]="chipThemes.members.active"
-          [inactiveClass]="chipThemes.members.inactive"
-          (chipClick)="selectFilterMode.emit('total')"
-        >
-          Total ({{ totalCount }})
-        </app-home-sub-filter-chip>
-      </div>
+      <app-home-sub-filter-chip
+        chipId="tour-filter-groups-current"
+        [active]="filterMode === 'current'"
+        [activeClass]="chipThemes.members.active"
+        [inactiveClass]="chipThemes.members.inactive"
+        (chipClick)="selectFilterMode.emit('current')"
+      >
+        Current ({{ currentCount }})
+      </app-home-sub-filter-chip>
+      <app-home-sub-filter-chip
+        chipId="tour-filter-groups-answered"
+        [active]="filterMode === 'answered'"
+        [activeClass]="chipThemes.members.active"
+        [inactiveClass]="chipThemes.members.inactive"
+        (chipClick)="selectFilterMode.emit('answered')"
+      >
+        Answered ({{ answeredCount }})
+      </app-home-sub-filter-chip>
+      <app-home-sub-filter-chip
+        chipId="tour-filter-groups-total"
+        [active]="filterMode === 'total'"
+        [activeClass]="chipThemes.members.active"
+        [inactiveClass]="chipThemes.members.inactive"
+        (chipClick)="selectFilterMode.emit('total')"
+      >
+        Total ({{ totalCount }})
+      </app-home-sub-filter-chip>
     </div>
 
     @if (groups.length > 0) {

@@ -120,6 +120,18 @@ export class InfoHomeFilterPreviewTabsComponent {
     });
   }
 
+  groupStatusChipClass(active: boolean): string {
+    const theme = this.chipThemes.members;
+    return (
+      buildHomeSubFilterChipButtonClass({
+        base: HOME_SUB_FILTER_CHIP_BASE_CLASS,
+        active,
+        activeClass: theme.active,
+        inactiveClass: theme.inactive,
+      }) + " flex-1"
+    );
+  }
+
   memorizeChipClass(active: boolean): string {
     return this.groupChipClass(active);
   }

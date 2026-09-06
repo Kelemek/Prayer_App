@@ -124,6 +124,32 @@ describe("HomeGroupFiltersComponent", () => {
     ).toBeTruthy();
   });
 
+  it("keeps status chips on one equal-share row without wrap hosts", () => {
+    fixture.componentRef.setInput("canCreateGroups", true);
+    fixture.detectChanges();
+    const currentHost = fixture.nativeElement.querySelector(
+      "#tour-filter-groups-current"
+    )?.parentElement as HTMLElement;
+    const answeredHost = fixture.nativeElement.querySelector(
+      "#tour-filter-groups-answered"
+    )?.parentElement as HTMLElement;
+    const totalHost = fixture.nativeElement.querySelector(
+      "#tour-filter-groups-total"
+    )?.parentElement as HTMLElement;
+    const addHost = fixture.nativeElement.querySelector(
+      "#tour-filter-add-group"
+    )?.parentElement as HTMLElement;
+
+    expect(currentHost.parentElement).toBe(answeredHost.parentElement);
+    expect(currentHost.parentElement).toBe(totalHost.parentElement);
+    expect(currentHost.parentElement).toBe(addHost.parentElement);
+    expect(currentHost.classList.contains("flex-1")).toBe(true);
+    expect(answeredHost.classList.contains("flex-1")).toBe(true);
+    expect(totalHost.classList.contains("flex-1")).toBe(true);
+    expect(addHost.classList.contains("flex-1")).toBe(false);
+    expect(currentHost.className).not.toContain("flex-[1_1_0]");
+  });
+
   it("emits selectFilterMode when Current is clicked", () => {
     const emitted: string[] = [];
     fixture.componentInstance.selectFilterMode.subscribe((mode) =>

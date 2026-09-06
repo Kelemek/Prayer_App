@@ -123,15 +123,9 @@
 <div>
   <div [class]="groupsPanelGroupClass() + ' ' + chipRowClass">
     <button type="button" [class]="groupAddChipClass()">Add</button>
-    <div [class]="chipHostClass">
-      <button type="button" [class]="groupChipClass(true)">Current (3)</button>
-    </div>
-    <div [class]="chipHostClass">
-      <button type="button" [class]="groupChipClass(false)">Answered (1)</button>
-    </div>
-    <div [class]="chipHostClass">
-      <button type="button" [class]="groupChipClass(false)">Total (4)</button>
-    </div>
+    <button type="button" [class]="groupStatusChipClass(true)">Current (3)</button>
+    <button type="button" [class]="groupStatusChipClass(false)">Answered (1)</button>
+    <button type="button" [class]="groupStatusChipClass(false)">Total (4)</button>
   </div>
   <div [class]="groupsPanelGroupClass() + ' ' + chipRowClass + ' mt-2'">
     <div [class]="chipHostClass">

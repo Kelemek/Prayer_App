@@ -28,10 +28,9 @@ import { PrayerGroupService } from "../../services/prayer-group.service";
 import type { GroupFilterMode } from "../../lib/home-group-catalog";
 import {
   HOME_GROUPS_SUB_FILTER_GROUP_CLASS,
-  HOME_PUBLIC_STATUS_CHIP_ROW_CLASS,
   HOME_PUBLIC_STATUS_CHIP_THEMES,
   HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS,
-  HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS,
+  HOME_SUB_FILTER_CHIP_ROW_CLASS,
   HOME_WRAP_FILTER_CHIP_FLEX_CLASS,
 } from "../../lib/home-sub-filter-chip-classes";
 import { buildHomeSubFilterChipButtonClass } from "../../lib/home-sub-filter-chip-button-class";
@@ -92,9 +91,10 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
   private groupPrayerCounts = new Map<string, number>();
 
   readonly chipHostClass = HOME_WRAP_FILTER_CHIP_FLEX_CLASS;
-  readonly chipButtonClass = HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS;
   readonly chipDragShellClass = HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS;
-  readonly chipRowClass = HOME_PUBLIC_STATUS_CHIP_ROW_CLASS;
+  /** Same equal-share status row as Personal (no 2-per-row wrap hosts). */
+  readonly statusChipRowClass = HOME_SUB_FILTER_CHIP_ROW_CLASS;
+  readonly chipRowClass = HOME_SUB_FILTER_CHIP_ROW_CLASS;
   readonly sectionGapClass = HOME_SHELL_SECTION_GAP_CLASSES;
   readonly subFilterGroupClass = HOME_GROUPS_SUB_FILTER_GROUP_CLASS;
   readonly chipThemes = HOME_PUBLIC_STATUS_CHIP_THEMES;
