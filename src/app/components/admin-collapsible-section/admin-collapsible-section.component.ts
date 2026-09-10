@@ -9,6 +9,7 @@ import {
 @Component({
   selector: 'app-admin-collapsible-section',
   standalone: true,
+  host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div

@@ -21,6 +21,7 @@ describe('AdminCollapsibleSectionComponent', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     expect(trigger.getAttribute('aria-controls')).toBe('test-panel');
     expect(screen.queryByRole('region')).toBeNull();
+    expect(document.querySelector('app-admin-collapsible-section')?.classList.contains('block')).toBe(true);
   });
 
   it('should show panel when expanded', async () => {
