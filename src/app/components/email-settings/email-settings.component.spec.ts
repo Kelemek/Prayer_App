@@ -614,6 +614,7 @@ describe('EmailSettingsComponent', () => {
 
       expect(rpcMock).not.toHaveBeenCalled();
       expect(component.identityError).toContain('lowercase');
+      expect(mockToastService.error).toHaveBeenCalled();
     });
   });
 });

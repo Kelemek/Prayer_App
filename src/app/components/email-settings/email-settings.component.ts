@@ -511,10 +511,11 @@ export class EmailSettingsComponent implements OnInit, OnDestroy {
     const nameErr = mailFromNameError(this.mailFromName);
     const localErr = mailFromLocalPartError(this.mailFromLocalPart);
     const replyErr = mailReplyToError(this.mailReplyTo);
-    if (nameErr || localErr || replyErr) {
-      this.identityError = nameErr || localErr || replyErr;
+    const validationError = nameErr ?? localErr ?? replyErr;
+    if (validationError) {
+      this.identityError = validationError;
       this.cdr.markForCheck();
-      this.toast.error(this.identityError);
+      this.toast.error(validationError);
       return;
     }
 
