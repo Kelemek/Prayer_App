@@ -192,9 +192,10 @@ supabase secrets set RESEND_API_KEY=your_key_here
 
 **Checklist**:
 1. ✅ Check spam folder
-2. ✅ Verify admin email in `admin_settings`:
+2. ✅ Verify tenant admins receive admin emails (`tenant_memberships.receive_admin_emails`):
 ```sql
-SELECT notification_emails FROM admin_settings;
+SELECT user_email FROM tenant_memberships
+WHERE role = 'tenant_admin' AND receive_admin_emails = true;
 ```
 3. ✅ Check Edge Function logs:
 ```bash
@@ -232,30 +233,12 @@ WHERE email = 'user@example.com'
 
 ### Can't Access Admin Portal
 
-**Error**: "Invalid password"
+**Error**: Redirected or OTP not accepted
 
 **Solutions**:
-1. Check default password: `prayer2024`
-2. Verify no typos (case-sensitive)
-3. Reset password:
-```sql
-UPDATE admin_settings SET admin_password = 'new_password';
-```
-4. Check you're on `/admin` page
-
-### Admin Password Not Saving
-
-**Cause**: RLS policy or missing admin_settings record
-
-**Solution**:
-```sql
--- Verify record exists
-SELECT * FROM admin_settings;
-
--- If empty, insert default
-INSERT INTO admin_settings (admin_password, notification_emails)
-VALUES ('prayer2024', 'admin@example.com');
-```
+1. Confirm the account is a `tenant_admin` (or `super_admin`) for the selected church
+2. Sign in with the email OTP sent by Supabase Auth (there is no shared admin password)
+3. Super-admins manage the platform test account under Admin → Tenant Manager
 
 ## UI/Display Issues
 

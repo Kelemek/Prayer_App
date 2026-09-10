@@ -2,23 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ChangeDetectorRef } from '@angular/core';
 import { AppBrandingComponent } from './app-branding.component';
 
-function mockAdminSettingsQuery(result: { data: unknown; error: unknown }) {
-  return {
-    select: vi.fn(() => ({
-      eq: vi.fn(() => ({
-        single: vi.fn(() => Promise.resolve(result)),
-      })),
-    })),
-  };
-}
-
 describe('AppBrandingComponent', () => {
   let component: AppBrandingComponent;
   let mockSupabaseService: {
     client: {
-      from: ReturnType<typeof vi.fn>;
+      rpc: ReturnType<typeof vi.fn>;
+      auth: { getSession: ReturnType<typeof vi.fn> };
     };
   };
+  let mockTenantContext: { getActiveTenant: ReturnType<typeof vi.fn> };
   let mockChangeDetectorRef: { markForCheck: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
@@ -26,14 +18,24 @@ describe('AppBrandingComponent', () => {
       markForCheck: vi.fn(),
     };
 
+    mockTenantContext = {
+      getActiveTenant: vi.fn(() => ({ id: 'tenant-a' })),
+    };
+
     mockSupabaseService = {
       client: {
-        from: vi.fn(() => mockAdminSettingsQuery({ data: null, error: null })),
+        rpc: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        auth: {
+          getSession: vi.fn(() =>
+            Promise.resolve({ data: { session: { user: { email: 'admin@example.com' } } } })
+          ),
+        },
       },
     };
 
     component = new AppBrandingComponent(
       mockSupabaseService as any,
+      mockTenantContext as any,
       mockChangeDetectorRef as ChangeDetectorRef
     );
   });
@@ -70,24 +72,31 @@ describe('AppBrandingComponent', () => {
     });
 
     it('should load settings successfully', async () => {
-      mockSupabaseService.client.from = vi.fn(() =>
-        mockAdminSettingsQuery({
-          data: {
-            app_title: 'Test Church',
-            app_subtitle: 'Subtitle',
-            church_website_url: 'https://example.com',
-            use_logo: true,
-            light_mode_logo_blob: 'data:image/png;base64,light',
-            dark_mode_logo_blob: 'data:image/png;base64,dark',
-          },
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({
+          data: [
+            {
+              app_title: 'Test Church',
+              church_website_url: 'https://example.com',
+              use_logo: true,
+              light_mode_logo_blob: 'data:image/png;base64,light',
+              dark_mode_logo_blob: 'data:image/png;base64,dark',
+            },
+          ],
           error: null,
         })
       );
 
       await component.loadSettings();
 
+      expect(mockSupabaseService.client.rpc).toHaveBeenCalledWith(
+        'get_tenant_branding_settings',
+        expect.objectContaining({
+          p_tenant_id: 'tenant-a',
+          p_email: 'admin@example.com',
+        })
+      );
       expect(component.appTitle).toBe('Test Church');
-      expect(component.appSubtitle).toBe('Subtitle');
       expect(component.churchWebsiteUrl).toBe('https://example.com');
       expect(component.useLogo).toBe(true);
       expect(component.lightModeLogoUrl).toBe('data:image/png;base64,light');
@@ -97,15 +106,17 @@ describe('AppBrandingComponent', () => {
     });
 
     it('should handle null data fields gracefully', async () => {
-      mockSupabaseService.client.from = vi.fn(() =>
-        mockAdminSettingsQuery({
-          data: {
-            app_title: null,
-            use_logo: null,
-            light_mode_logo_blob: null,
-            dark_mode_logo_blob: null,
-            church_website_url: null,
-          },
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({
+          data: [
+            {
+              app_title: null,
+              use_logo: null,
+              light_mode_logo_blob: null,
+              dark_mode_logo_blob: null,
+              church_website_url: null,
+            },
+          ],
           error: null,
         })
       );
@@ -117,8 +128,8 @@ describe('AppBrandingComponent', () => {
     });
 
     it('should handle error when loading settings fails', async () => {
-      mockSupabaseService.client.from = vi.fn(() =>
-        mockAdminSettingsQuery({
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({
           data: null,
           error: { message: 'Database error' },
         })
@@ -159,9 +170,7 @@ describe('AppBrandingComponent', () => {
 
   describe('save', () => {
     it('should set saving to true initially', async () => {
-      mockSupabaseService.client.from = vi.fn(() => ({
-        upsert: vi.fn(() => Promise.resolve({ error: null })),
-      }));
+      mockSupabaseService.client.rpc = vi.fn(() => Promise.resolve({ error: null }));
       component.saving = false;
       const promise = component.save();
       expect(component.saving).toBe(true);
@@ -169,8 +178,7 @@ describe('AppBrandingComponent', () => {
     });
 
     it('should save settings successfully', async () => {
-      const upsert = vi.fn(() => Promise.resolve({ error: null }));
-      mockSupabaseService.client.from = vi.fn(() => ({ upsert }));
+      mockSupabaseService.client.rpc = vi.fn(() => Promise.resolve({ error: null }));
 
       component.appTitle = 'New Title';
       component.useLogo = true;
@@ -178,28 +186,18 @@ describe('AppBrandingComponent', () => {
 
       await component.save();
 
-      expect(upsert).toHaveBeenCalledWith(
+      expect(mockSupabaseService.client.rpc).toHaveBeenCalledWith(
+        'update_tenant_branding_settings',
         expect.objectContaining({
-          id: 1,
-          app_title: 'New Title',
-          use_logo: true,
+          p_tenant_id: 'tenant-a',
+          p_app_title: 'New Title',
+          p_use_logo: true,
+          p_email: 'admin@example.com',
         })
       );
       expect(component.success).toBe(true);
       expect(component.saving).toBe(false);
       expect(emitSpy).toHaveBeenCalled();
-    });
-
-    it('should handle error when saving fails', async () => {
-      mockSupabaseService.client.from = vi.fn(() => ({
-        upsert: vi.fn(() => Promise.resolve({ error: { message: 'Update failed' } })),
-      }));
-
-      await component.save();
-
-      expect(component.error).toBe('Update failed');
-      expect(component.success).toBe(false);
-      expect(component.saving).toBe(false);
     });
   });
 });

@@ -505,11 +505,19 @@ export class HomeComponent
   }
 
   async loadAdminSettings(): Promise<void> {
+    const tenantId = this.tenantContextService.getActiveTenant()?.id;
+    if (!tenantId) {
+      this.deletionsAllowed = "everyone";
+      this.updatesAllowed = "everyone";
+      this.cdr.detectChanges();
+      return;
+    }
+
     try {
       const { data, error } = await this.supabaseService.client
-        .from("admin_settings")
+        .from("tenant_settings")
         .select("deletions_allowed, updates_allowed")
-        .eq("id", 1)
+        .eq("tenant_id", tenantId)
         .maybeSingle();
 
       if (error) {

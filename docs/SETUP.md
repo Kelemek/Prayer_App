@@ -188,7 +188,7 @@ Confirm the Edge Function logs in **Supabase → Edge Functions → send-user-ho
 
 ### Community prayer reminders (`send-prayer-reminders`)
 
-The consolidated migration (section *Former file: 20260317120000_schedule_send_prayer_reminders_cron.sql*) registers a **daily** job (`invoke-send-prayer-reminders`, **`0 10 * * *` UTC**) that POSTs to the Edge Function **`send-prayer-reminders`** (reminder emails + auto-archive per `admin_settings`). Uses the **same Vault secrets** as above (`project_url`, `service_role_key`).
+The consolidated migration (section *Former file: 20260317120000_schedule_send_prayer_reminders_cron.sql*) registers a **daily** job (`invoke-send-prayer-reminders`, **`0 10 * * *` UTC**) that POSTs to the Edge Function **`send-prayer-reminders`** (reminder emails + auto-archive per `tenant_settings`). Uses the **same Vault secrets** as above (`project_url`, `service_role_key`).
 
 **Verify manually** (after secrets exist):
 
@@ -248,7 +248,8 @@ Key tables created by migrations:
 - `email_subscribers` - Email opt-in/out
 - `email_queue` - Email processing queue
 - `admin_users` - Admin access list
-- `admin_settings` - App configuration
+- `tenant_settings` - Per-church configuration (branding, prayer policies, reminders)
+- `admin_settings` - Platform-only singleton (GitHub feedback repo, app test account); super-admin writes only
 - `email_templates` - Email HTML templates
 
 ---

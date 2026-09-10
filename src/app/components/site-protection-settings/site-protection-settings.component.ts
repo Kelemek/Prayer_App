@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
 import { AdminAuthService } from '../../services/admin-auth.service';
+import { TenantContextService } from '../../services/tenant-context.service';
 
 @Component({
   selector: 'app-site-protection-settings',
@@ -96,6 +97,7 @@ export class SiteProtectionSettingsComponent implements OnInit {
     private supabase: SupabaseService,
     private toastService: ToastService,
     private adminAuthService: AdminAuthService,
+    private tenantContext: TenantContextService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -108,11 +110,17 @@ export class SiteProtectionSettingsComponent implements OnInit {
     this.cdr.markForCheck();
 
     try {
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+      if (!tenantId) {
+        this.requireSiteLogin = true;
+        return;
+      }
+
       const { data, error } = await this.supabase.client
-        .from('admin_settings')
+        .from('tenant_settings')
         .select('require_site_login')
-        .eq('id', 1)
-        .single();
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
 
       if (error) throw error;
 
@@ -133,12 +141,18 @@ export class SiteProtectionSettingsComponent implements OnInit {
     this.cdr.markForCheck();
 
     try {
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+      if (!tenantId) {
+        this.toastService.error('Select an organization first.');
+        return;
+      }
+
       const { error } = await this.supabase.client
-        .from('admin_settings')
+        .from('tenant_settings')
         .update({ 
           require_site_login: this.requireSiteLogin 
         })
-        .eq('id', 1);
+        .eq('tenant_id', tenantId);
 
       if (error) throw error;
 

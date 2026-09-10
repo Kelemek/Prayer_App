@@ -2,6 +2,7 @@ import { Component, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetecto
 import { FormsModule } from '@angular/forms';
 import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
 import { SupabaseService } from '../../services/supabase.service';
+import { TenantContextService } from '../../services/tenant-context.service';
 
 @Component({
   selector: 'app-branding',
@@ -50,7 +51,7 @@ import { SupabaseService } from '../../services/supabase.service';
         class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"
       >
       <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        Customize the title and tagline displayed at the top of your app.
+        Customize the title displayed at the top of your app.
       </p>
 
       @if (loading) {
@@ -81,25 +82,6 @@ import { SupabaseService } from '../../services/supabase.service';
           />
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
             Main heading displayed in the app header
-          </p>
-        </div>
-
-        <!-- App Subtitle -->
-        <div>
-          <label for="appSubtitle" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            App Subtitle/Tagline
-          </label>
-          <input
-            type="text"
-            id="appSubtitle"
-            [(ngModel)]="appSubtitle"
-            name="appSubtitle"
-            aria-label="Application subtitle or tagline"
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-inset-surface text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
-            placeholder="Keeping our community connected in prayer"
-          />
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Subheading or tagline displayed in the app header
           </p>
         </div>
 
@@ -292,7 +274,6 @@ export class AppBrandingComponent {
   private sectionInitialLoadDone = false;
 
   appTitle = 'Church Prayer Manager';
-  appSubtitle = 'Keeping our community connected in prayer';
   churchWebsiteUrl = '';
   useLogo = false;
   lightModeLogoUrl = '';
@@ -304,9 +285,15 @@ export class AppBrandingComponent {
   success = false;
 
   constructor(
-    private supabase: SupabaseService, 
+    private supabase: SupabaseService,
+    private tenantContext: TenantContextService,
     private cdr: ChangeDetectorRef
   ) {}
+
+  private async getCallerEmail(): Promise<string | null> {
+    const { data: { session } } = await this.supabase.client.auth.getSession();
+    return session?.user?.email?.toLowerCase().trim() || null;
+  }
 
   onSectionToggle(): void {
     this.sectionExpanded = !this.sectionExpanded;
@@ -323,18 +310,39 @@ export class AppBrandingComponent {
     this.error = null;
 
     try {
-      const { data, error } = await this.supabase.client
-        .from('admin_settings')
-        .select('app_title, app_subtitle, church_website_url, use_logo, light_mode_logo_blob, dark_mode_logo_blob')
-        .eq('id', 1)
-        .single();
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+      if (!tenantId) {
+        this.error = 'Select an organization to edit branding.';
+        return;
+      }
+
+      const callerEmail = await this.getCallerEmail();
+      if (!callerEmail) {
+        throw new Error('Not authenticated');
+      }
+
+      const { data: rows, error } = await this.supabase.client.rpc(
+        'get_tenant_branding_settings',
+        {
+          p_tenant_id: tenantId,
+          p_email: callerEmail,
+        }
+      );
 
       if (error) throw error;
 
+      type BrandingRow = {
+        app_title?: string | null;
+        church_website_url?: string | null;
+        use_logo?: boolean | null;
+        light_mode_logo_blob?: string | null;
+        dark_mode_logo_blob?: string | null;
+      };
+      const data = (Array.isArray(rows) ? rows[0] : rows) as BrandingRow | null;
+
       if (data) {
         if (data.app_title) this.appTitle = data.app_title;
-        if (data.app_subtitle) this.appSubtitle = data.app_subtitle;
-        if (data.use_logo !== null) this.useLogo = data.use_logo;
+        if (data.use_logo !== null && data.use_logo !== undefined) this.useLogo = data.use_logo;
         if (data.light_mode_logo_blob) this.lightModeLogoUrl = data.light_mode_logo_blob;
         if (data.dark_mode_logo_blob) this.darkModeLogoUrl = data.dark_mode_logo_blob;
         this.churchWebsiteUrl = data.church_website_url?.trim() ? data.church_website_url.trim() : '';
@@ -384,18 +392,28 @@ export class AppBrandingComponent {
     this.success = false;
 
     try {
-      const { error } = await this.supabase.client
-        .from('admin_settings')
-        .upsert({
-          id: 1,
-          app_title: this.appTitle,
-          app_subtitle: this.appSubtitle,
-          church_website_url: this.churchWebsiteUrl.trim() || null,
-          use_logo: this.useLogo,
-          light_mode_logo_blob: this.lightModeLogoUrl || null,
-          dark_mode_logo_blob: this.darkModeLogoUrl || null,
-          updated_at: new Date().toISOString()
-        });
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+      if (!tenantId) {
+        throw new Error('Select an organization first.');
+      }
+
+      const callerEmail = await this.getCallerEmail();
+      if (!callerEmail) {
+        throw new Error('Not authenticated');
+      }
+
+      const { error } = await this.supabase.client.rpc(
+        'update_tenant_branding_settings',
+        {
+          p_tenant_id: tenantId,
+          p_app_title: this.appTitle,
+          p_use_logo: this.useLogo,
+          p_light_mode_logo_blob: this.lightModeLogoUrl || null,
+          p_dark_mode_logo_blob: this.darkModeLogoUrl || null,
+          p_church_website_url: this.churchWebsiteUrl.trim() || null,
+          p_email: callerEmail,
+        }
+      );
 
       if (error) throw error;
 

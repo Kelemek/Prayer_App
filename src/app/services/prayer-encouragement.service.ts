@@ -369,39 +369,7 @@ export class PrayerEncouragementService implements OnDestroy {
         return;
       }
 
-      const { data, error } = await this.supabase.client
-        .from('admin_settings')
-        .select(
-          'prayer_encouragement_enabled, prayer_encouragement_cooldown_hours, prayer_encouragement_count_visible_to_all'
-        )
-        .eq('id', 1)
-        .maybeSingle();
-
-      if (error) {
-        console.warn('[PrayerEncouragement] Failed to load flag', error);
-        return;
-      }
-
-      const value = !!data?.prayer_encouragement_enabled;
-      const rawHours = data?.prayer_encouragement_cooldown_hours;
-      const cooldownHours = typeof rawHours === 'number' && rawHours >= 1 && rawHours <= 168
-        ? rawHours
-        : DEFAULT_COOLDOWN_HOURS;
-      const countVisibleToAll = !!data?.prayer_encouragement_count_visible_to_all;
-
-      this.enabledSubject.next(value);
-      this.cooldownHoursSubject.next(cooldownHours);
-      this.countVisibleToAllSubject.next(countVisibleToAll);
       this.loaded = true;
-
-      try {
-        localStorage.setItem(this.flagCacheKey(), JSON.stringify({
-          value,
-          cooldownHours,
-          countVisibleToAll,
-          timestamp: Date.now()
-        } as CachedFlag));
-      } catch {}
     } catch (e) {
       console.warn('[PrayerEncouragement] Error loading flag', e);
     } finally {

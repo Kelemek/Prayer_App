@@ -306,13 +306,16 @@ export class AdminAuthService {
       const normalizedEmail = email.toLowerCase().trim();
       console.log('[AdminAuth] Requesting login OTP for:', normalizedEmail);
 
-      const { data: settings } = await this.supabase.client
-        .from('admin_settings')
-        .select('require_site_login')
-        .eq('id', 1)
-        .maybeSingle();
-
-      const siteProtectionEnabled = settings?.require_site_login ?? true;
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+      let siteProtectionEnabled = true;
+      if (tenantId) {
+        const { data: settings } = await this.supabase.client
+          .from('tenant_settings')
+          .select('require_site_login')
+          .eq('tenant_id', tenantId)
+          .maybeSingle();
+        siteProtectionEnabled = settings?.require_site_login ?? true;
+      }
       if (!siteProtectionEnabled) {
         const isAdmin = await this.isEmailAdmin(normalizedEmail);
         if (!isAdmin) {
@@ -591,11 +594,17 @@ export class AdminAuthService {
    */
   async reloadSiteProtectionSetting(): Promise<void> {
     try {
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+      if (!tenantId) {
+        this.requireSiteLoginSubject.next(true);
+        return;
+      }
+
       const { data, error } = await this.supabase.directQuery<Array<{
         require_site_login: boolean;
-      }>>('admin_settings', {
+      }>>('tenant_settings', {
         select: 'require_site_login',
-        eq: { id: 1 },
+        eq: { tenant_id: tenantId },
         limit: 1,
         timeout: 10000
       });

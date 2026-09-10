@@ -119,7 +119,7 @@ serve(async (req) => {
     const tenantId = await resolveTenantId();
     const { data: settings } = await supabase
       .from('admin_settings')
-      .select('verification_code_length, test_account_email, test_account_code_4, test_account_code_6, test_account_code_8')
+      .select('test_account_email, test_account_code_4, test_account_code_6, test_account_code_8')
       .eq('id', 1)
       .maybeSingle();
 

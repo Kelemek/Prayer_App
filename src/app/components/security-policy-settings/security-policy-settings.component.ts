@@ -1,6 +1,7 @@
 import { Component, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
+import { TenantContextService } from '../../services/tenant-context.service';
 import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
 import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
 import {
@@ -165,6 +166,7 @@ export class SecurityPolicySettingsComponent {
   constructor(
     private supabase: SupabaseService,
     private toast: ToastService,
+    private tenantContext: TenantContextService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -209,10 +211,16 @@ export class SecurityPolicySettingsComponent {
       this.error = null;
       this.cdr.markForCheck();
 
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+      if (!tenantId) {
+        this.error = 'Select an organization to edit these policies.';
+        return;
+      }
+
       const { data, error } = await this.supabase.client
-        .from('admin_settings')
+        .from('tenant_settings')
         .select('deletions_allowed, updates_allowed')
-        .eq('id', 1)
+        .eq('tenant_id', tenantId)
         .maybeSingle();
 
       if (error) throw error;
@@ -239,14 +247,19 @@ export class SecurityPolicySettingsComponent {
       this.error = null;
       this.cdr.markForCheck();
 
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+      if (!tenantId) {
+        throw new Error('Select an organization first.');
+      }
+
       const { error } = await this.supabase.client
-        .from('admin_settings')
+        .from('tenant_settings')
         .update({
           deletions_allowed: this.deletionsAllowed,
           updates_allowed: this.updatesAllowed,
           updated_at: new Date().toISOString()
         })
-        .eq('id', 1);
+        .eq('tenant_id', tenantId);
 
       if (error) throw error;
 

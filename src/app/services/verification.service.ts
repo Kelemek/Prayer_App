@@ -1,5 +1,6 @@
-import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { Injectable, OnDestroy } from '@angular/core';
+import { BehaviorSubject, Subject } from 'rxjs';
+import { distinctUntilChanged, map, takeUntil } from 'rxjs/operators';
 import { SupabaseService } from './supabase.service';
 import { TenantContextService } from './tenant-context.service';
 import { ConnectivityService } from './connectivity.service';
@@ -15,9 +16,10 @@ const VERIFIED_SESSIONS_KEY = 'prayer_app_verified_sessions';
 @Injectable({
   providedIn: 'root'
 })
-export class VerificationService {
+export class VerificationService implements OnDestroy {
   private isEnabledSubject = new BehaviorSubject<boolean>(false);
   private expiryMinutesSubject = new BehaviorSubject<number>(15);
+  private readonly destroy$ = new Subject<void>();
   
   isEnabled$ = this.isEnabledSubject.asObservable();
   expiryMinutes$ = this.expiryMinutesSubject.asObservable();
@@ -27,18 +29,35 @@ export class VerificationService {
     private tenantContext: TenantContextService,
     private connectivity: ConnectivityService
   ) {
-    // Delay the check slightly to ensure Supabase client is ready
-    setTimeout(() => this.checkIfEnabled(), 100);
+    this.tenantContext.activeTenant$
+      .pipe(
+        map((t) => t?.id ?? null),
+        distinctUntilChanged(),
+        takeUntil(this.destroy$)
+      )
+      .subscribe(() => {
+        void this.checkIfEnabled();
+      });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   private async checkIfEnabled(): Promise<void> {
     try {
-      
-      // Fetch admin settings using the admin_settings table
+      const tenantId = this.tenantContext.getActiveTenant()?.id;
+      if (!tenantId) {
+        this.isEnabledSubject.next(false);
+        this.expiryMinutesSubject.next(15);
+        return;
+      }
+
       const { data, error } = await this.supabase.client
-        .from('admin_settings')
+        .from('tenant_settings')
         .select('require_email_verification, verification_code_expiry_minutes')
-        .eq('id', 1)
+        .eq('tenant_id', tenantId)
         .maybeSingle();
       
       if (error) {
@@ -243,17 +262,6 @@ export class VerificationService {
   }
 
   async getCodeLength(): Promise<number> {
-    try {
-      const { data } = await this.supabase.client
-        .from('admin_settings')
-        .select('verification_code_length')
-        .eq('id', 1)
-        .maybeSingle();
-
-      return data?.verification_code_length || 6;
-    } catch (err) {
-      console.error('Error fetching code length:', err);
-      return 6;
-    }
+    return 6;
   }
 }

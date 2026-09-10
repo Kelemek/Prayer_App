@@ -361,6 +361,7 @@ describe('AdminAuthService', () => {
 
     it('should check admin status when site protection is disabled', async () => {
       await vi.advanceTimersByTimeAsync(100);
+      mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-a' });
       
       mockSupabaseClient.from = vi.fn().mockReturnValue({
         select: vi.fn().mockReturnThis(),
@@ -385,6 +386,7 @@ describe('AdminAuthService', () => {
 
     it('should handle unexpected errors', async () => {
       await vi.advanceTimersByTimeAsync(100);
+      mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-a' });
       
       mockSupabaseClient.from = vi.fn().mockImplementation(() => {
         throw new Error('Unexpected error');
@@ -504,6 +506,7 @@ describe('AdminAuthService', () => {
     });
 
     it('should reload site protection setting from database', async () => {
+      mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-a' });
       mockSupabaseService.directQuery = vi.fn().mockResolvedValue({
         data: [{ require_site_login: false }],
         error: null
@@ -1357,6 +1360,7 @@ describe('AdminAuthService', () => {
       
       await vi.advanceTimersByTimeAsync(100);
 
+      mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-a' });
       mockSupabaseClient.from = vi.fn().mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
@@ -1384,6 +1388,7 @@ describe('AdminAuthService', () => {
       
       await vi.advanceTimersByTimeAsync(100);
 
+      mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-a' });
       mockSupabaseClient.from = vi.fn().mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),

@@ -15,7 +15,7 @@ describe('SiteProtectionSettingsComponent', () => {
         from: vi.fn(() => ({
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
-              single: vi.fn(() => Promise.resolve({ data: null, error: null }))
+              maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null }))
             }))
           })),
           update: vi.fn(() => ({
@@ -43,6 +43,7 @@ describe('SiteProtectionSettingsComponent', () => {
       mockSupabaseService,
       mockToastService,
       mockAdminAuthService,
+      { getActiveTenant: vi.fn(() => ({ id: 'tenant-a' })) } as any,
       mockChangeDetectorRef as ChangeDetectorRef
     );
   });
@@ -79,7 +80,7 @@ describe('SiteProtectionSettingsComponent', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            single: vi.fn(() => Promise.resolve({ data: mockData, error: null }))
+              maybeSingle: vi.fn(() => Promise.resolve({ data: mockData, error: null }))
           }))
         }))
       }));
@@ -101,7 +102,7 @@ describe('SiteProtectionSettingsComponent', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            single: vi.fn(() => Promise.resolve({ data: mockData, error: null }))
+              maybeSingle: vi.fn(() => Promise.resolve({ data: mockData, error: null }))
           }))
         }))
       }));
@@ -115,7 +116,7 @@ describe('SiteProtectionSettingsComponent', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            single: vi.fn(() => Promise.resolve({ data: null, error: mockError }))
+              maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: mockError }))
           }))
         }))
       }));
@@ -134,7 +135,7 @@ describe('SiteProtectionSettingsComponent', () => {
       mockSupabaseService.client.from = vi.fn(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            single: vi.fn(() => promise)
+            maybeSingle: vi.fn(() => promise)
           }))
         }))
       }));

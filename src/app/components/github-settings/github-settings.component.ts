@@ -22,7 +22,7 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
   ],
   template: `
     <app-admin-collapsible-section
-      title="GitHub Feedback Settings"
+      title="GitHub Feedback Settings (platform)"
       triggerId="github-settings-trigger"
       panelId="github-settings-panel"
       [expanded]="sectionExpanded"

@@ -41,6 +41,7 @@ describe('SecurityPolicySettingsComponent', () => {
     component = new SecurityPolicySettingsComponent(
       mockSupabaseService,
       mockToastService,
+      { getActiveTenant: vi.fn(() => ({ id: 'tenant-a' })) } as any,
       mockChangeDetectorRef as ChangeDetectorRef
     );
   });
@@ -70,7 +71,7 @@ describe('SecurityPolicySettingsComponent', () => {
       await component.loadSettings();
 
       expect(component.sectionExpanded).toBe(true);
-      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('admin_settings');
+      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('tenant_settings');
     });
 
     it('should not load settings before section is expanded', async () => {
@@ -91,7 +92,7 @@ describe('SecurityPolicySettingsComponent', () => {
   });
 
   describe('loadSettings', () => {
-    it('should query admin_settings table with id 1', async () => {
+    it('should query tenant_settings for the active tenant', async () => {
       const selectMock = vi.fn(() => ({
         eq: vi.fn(() => ({
           maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null }))
@@ -104,7 +105,7 @@ describe('SecurityPolicySettingsComponent', () => {
 
       await component.loadSettings();
 
-      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('admin_settings');
+      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('tenant_settings');
       expect(selectMock).toHaveBeenCalledWith('deletions_allowed, updates_allowed');
     });
 
@@ -181,7 +182,7 @@ describe('SecurityPolicySettingsComponent', () => {
   });
 
   describe('save functionality', () => {
-    it('should call update on admin_settings table', async () => {
+    it('should call update on tenant_settings table', async () => {
       const updateMock = vi.fn(() => ({
         eq: vi.fn(() => Promise.resolve({ error: null }))
       }));
@@ -291,7 +292,7 @@ describe('SecurityPolicySettingsComponent', () => {
       expect(component.error).toBe(null);
     });
 
-    it('should update with eq filter for id 1', async () => {
+    it('should update with eq filter for tenant_id', async () => {
       const eqMock = vi.fn(() => Promise.resolve({ error: null }));
       mockSupabaseService.client.from = vi.fn(() => ({
         update: vi.fn(() => ({
@@ -301,7 +302,7 @@ describe('SecurityPolicySettingsComponent', () => {
 
       await component.save();
 
-      expect(eqMock).toHaveBeenCalledWith('id', 1);
+      expect(eqMock).toHaveBeenCalledWith('tenant_id', 'tenant-a');
     });
   });
 

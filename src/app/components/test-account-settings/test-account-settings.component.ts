@@ -12,7 +12,7 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-admin-collapsible-section
-      title="Test Account (App Testing)"
+      title="Test Account (App Testing, platform)"
       triggerId="test-account-settings-trigger"
       panelId="test-account-panel"
       [expanded]="sectionExpanded"
@@ -40,7 +40,7 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
         <!-- Info Box -->
         <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-4">
           <p class="text-sm text-blue-800 dark:text-blue-200">
-            This identifies the account used to test the <strong>Apple and Android apps</strong>. For this account, no verification email is sent; the user signs in with the fixed 6-digit code below. <strong>The account must also be set up</strong> (e.g. as a tenant member or admin) as needed for your testing.
+            This identifies the platform account used to test the <strong>Apple and Android apps</strong>. Super-admins only — church admins cannot change this for other organizations. For this account, no verification email is sent; the user signs in with the fixed 6-digit code below.
           </p>
         </div>
 

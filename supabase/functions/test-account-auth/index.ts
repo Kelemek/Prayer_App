@@ -50,7 +50,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (settingsError) {
-      console.error('Failed to load admin_settings:', settingsError);
+      console.error('Failed to load platform test-account settings:', settingsError);
       return new Response(JSON.stringify({ error: 'Invalid verification code' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }

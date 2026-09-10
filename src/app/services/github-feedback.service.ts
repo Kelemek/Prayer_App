@@ -46,7 +46,8 @@ export class GitHubFeedbackService {
   }
 
   /**
-   * Platform-wide GitHub feedback configuration (admin_settings row id=1).
+   * Platform-wide GitHub feedback configuration (shared SaaS repo).
+   * Super-admin writes only; tenant admins cannot change this for other churches.
    */
   async getGitHubConfig(): Promise<GitHubIssueConfig | null> {
     try {
@@ -77,7 +78,7 @@ export class GitHubFeedbackService {
   }
 
   /**
-   * Save platform-wide GitHub configuration to admin_settings.
+   * Save platform-wide GitHub configuration. RLS allows super_admin only.
    */
   async saveGitHubConfig(config: Partial<GitHubIssueConfig>): Promise<boolean> {
     try {

@@ -17,6 +17,14 @@ For developers working on the Prayer App codebase.
 
 ## Architecture
 
+### Tenant vs platform settings
+
+Church-scoped configuration lives on **`tenant_settings`** (keyed by `tenant_id`, RLS: members read, `tenant_admin` / `super_admin` write). Examples: branding, prayer encouragement, deletion/update policies, `require_site_login`, rich-text flag, reminder/archive knobs.
+
+**`admin_settings`** (single row `id = 1`) is **platform-global**: the shared SaaS GitHub feedback repo and the Apple/Android test account. Only super-admins can write it (Admin → Tenant Manager). Tenant admins cannot change another church’s behavior through this table.
+
+Personal-only users (no church membership) use safe defaults and do not read another church’s `tenant_settings`.
+
 ### Project Structure
 
 ```
@@ -127,11 +135,11 @@ this.supabase.client.from('table').select()
 #### PrayerEncouragementService
 ```typescript
 // Prayer Encouragement (Pray For) feature
-- isEnabled$                 // Observable: feature on/off from admin_settings
-- getCooldownHours()         // Cooldown hours (1–168) from admin_settings, cached
+- isEnabled$                 // Observable: feature on/off from tenant_settings
+- getCooldownHours()         // Cooldown hours (1–168) from tenant_settings, cached
 - recordPrayedFor(prayerId)  // Record that current user prayed for a prayer (respects cooldown)
 - getPrayedForCount(prayerId) // Fetches prayed_for_count for a prayer
-// Settings: admin_settings.prayer_encouragement_enabled, prayer_encouragement_cooldown_hours
+// Settings: tenant_settings.prayer_encouragement_enabled, prayer_encouragement_cooldown_hours
 // UI: Admin → Prayer Encouragement (toggle + cooldown); prayer-card shows Pray For button and count
 ```
 
@@ -493,7 +501,7 @@ The Prayer Archive Timeline component provides administrators with a visual time
    - Matches the backend `send-prayer-reminders` function behavior
 
 3. **Database-Driven Settings**
-   - Loads `reminder_interval_days` and `days_before_archive` from `admin_settings` table
+   - Loads `reminder_interval_days` and `days_before_archive` from `tenant_settings` table
    - Defaults: 30 days for both intervals
    - Falls back to defaults if database unavailable
 
@@ -524,14 +532,14 @@ Each prayer generates timeline events based on status:
 
 **How It Works**:
 
-1. **Initialization**: Detects timezone, loads settings from admin_settings table, fetches prayers
+1. **Initialization**: Detects timezone, loads settings from tenant_settings table, fetches prayers
 2. **Event Processing**: For each prayer, fetches updates to determine last activity, calculates reminder/archive dates
 3. **Month Navigation**: Filters events by current month, enables/disables navigation buttons
 4. **Scroll Preservation**: Stores scroll position before async navigation, restores after
 
 **Database Tables Used**:
 
-- `admin_settings`: `reminder_interval_days`, `days_before_archive`
+- `tenant_settings`: `reminder_interval_days`, `days_before_archive`
 - `prayers`: id, title, created_at, last_reminder_sent, updated_at, status
 - `prayer_updates`: created_at (for determining last activity)
 
@@ -574,11 +582,12 @@ import { PrayerArchiveTimelineComponent } from '../../components/prayer-archive-
 export class AdminComponent {}
 ```
 
-**Configuration**: Update values in Supabase admin_settings table:
+**Configuration**: Update values on the church's `tenant_settings` row:
 ```sql
-UPDATE admin_settings 
+UPDATE tenant_settings
 SET reminder_interval_days = 45,
-    days_before_archive = 30;
+    days_before_archive = 30
+WHERE tenant_id = '<tenant-uuid>';
 ```
 
 **Testing**: Full test coverage with 21 unit tests covering:
@@ -863,7 +872,7 @@ The BrandingService implements a multi-tier caching strategy to eliminate logo f
 **How It Works**:
 - App bootstrap calls `BrandingService.initialize()` during `APP_INITIALIZER`
 - Synchronously loads logos from localStorage (no async wait)
-- Queries `admin_settings.branding_last_modified` timestamp (~3s timeout)
+- Queries `tenant_settings.branding_last_modified` timestamp (~3s timeout)
 - Compares timestamp: if newer than cached version, fetches full data (~10s timeout)
 - Falls back to cache if network fails
 - Components render with logos available immediately (no flash)
@@ -959,10 +968,10 @@ To verify timezone is working:
 
 The **Pray For** feature lets community members indicate they have prayed for a request. When enabled by an admin, approved community prayer cards show a “Pray For” button; the requester and admins see an anonymous count (e.g. “3 Praying”). The same user cannot click again on the same prayer until the **cooldown** (1–168 hours, set in Admin → Prayer Encouragement) has passed.
 
-- **Service:** `PrayerEncouragementService` (`src/app/services/prayer-encouragement.service.ts`) — reads `prayer_encouragement_enabled` and `prayer_encouragement_cooldown_hours` from `admin_settings`, caches them, and provides `recordPrayedFor()` and count lookups.
+- **Service:** `PrayerEncouragementService` (`src/app/services/prayer-encouragement.service.ts`) — reads `prayer_encouragement_enabled` and `prayer_encouragement_cooldown_hours` from `tenant_settings` for the active church (via `get_public_tenant_prayer_encouragement`), caches them, and provides `recordPrayedFor()` and count lookups.
 - **Admin UI:** `prayer-encouragement-settings` — toggle “Enable Prayer Encouragement” and cooldown (hours); cooldown control is shown only when the feature is enabled.
 - **Prayer card:** `prayer-card` — shows Pray For button and count when enabled; optional explanation modal with “Do not show again” (localStorage, cleared on logout).
-- **Database:** `admin_settings`: `prayer_encouragement_enabled` (boolean), `prayer_encouragement_cooldown_hours` (integer, default 4). `prayers`: `prayed_for_count`. Defined in consolidated [`supabase/migrations/20260123140820_remote_schema.sql`](../supabase/migrations/20260123140820_remote_schema.sql) (sections *Former file: 20260224…* and *20260225…*).
+- **Database:** `tenant_settings`: `prayer_encouragement_enabled` (boolean), `prayer_encouragement_cooldown_hours` (integer, default 4). `prayers`: `prayed_for_count`.
 - **Help:** In-app Help & Guidance includes a “Prayer Encouragement (Pray For)” section (`help-content.service.ts`).
 
 ---
@@ -976,14 +985,14 @@ The prayer archiving system automatically archives prayers when specific criteri
 A prayer is archived when **all** of the following conditions are met:
 
 1. A reminder email was sent (`last_reminder_sent` is not null)
-2. The reminder was sent more than **30 days ago** (configurable in `admin_settings.days_before_archive`)
+2. The reminder was sent more than **30 days ago** (configurable in `tenant_settings.days_before_archive`)
 3. **No updates** have been made to the prayer since the reminder was sent (`updated_at` ≤ `last_reminder_sent`)
 
 **Important**: If a prayer is updated after a reminder is sent, the archive counter resets. The prayer will only be eligible for archiving again after another reminder is sent and 30+ days pass without updates.
 
 ### Archive Configuration
 
-**Location**: `admin_settings` table in Supabase
+**Location**: `tenant_settings` table in Supabase (per church)
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
@@ -1007,7 +1016,7 @@ Executed by **Supabase `pg_cron`** (consolidated migration `20260123140820_remot
 
 **Get Archive Settings**:
 ```bash
-curl -s "https://[project].supabase.co/rest/v1/admin_settings?select=days_before_archive,enable_auto_archive" \
+curl -s "https://[project].supabase.co/rest/v1/tenant_settings?select=days_before_archive,enable_auto_archive" \
   -H "apikey: YOUR_PUBLISHABLE_KEY" | jq '.[0]'
 ```
 
@@ -1068,7 +1077,7 @@ Update the prayer's `archived_at` timestamp in the Supabase dashboard (or use se
 **Related Files**:
 - Edge function: `supabase/functions/send-prayer-reminders/`
 - Reminder service: `src/app/services/email-notification.service.ts`
-- Settings: `admin_settings` table in Supabase
+- Settings: `tenant_settings` table in Supabase
 
 ### User hourly prayer reminders (self nudges)
 

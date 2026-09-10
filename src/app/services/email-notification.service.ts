@@ -542,7 +542,8 @@ export class EmailNotificationService {
   /**
    * Queue one email per non-blocked subscriber for the tenant (ignores mass-email opt-out / is_active).
    * Uses the same email_queue + processor pipeline as prayer/update notifications.
-   * Excludes `admin_settings.test_account_email` when set (Admin → Security → Test Account).
+   * Excludes platform `admin_settings.test_account_email` when set
+   * (super-admin → Tenant Manager → Test Account).
    */
   async queueAdminManualBroadcastToSubscribers(options: {
     subject: string;

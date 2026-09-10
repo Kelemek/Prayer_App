@@ -1,15 +1,27 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { firstValueFrom } from 'rxjs';
+import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { skip, take } from 'rxjs/operators';
 import { RichTextEditorsSettingsService } from './rich-text-editors-settings.service';
+
+const TENANT = { id: 'tenant-1' };
+const CACHE_KEY = 'rich_text_editors_enabled:tenant-1';
 
 describe('RichTextEditorsSettingsService', () => {
   let service: RichTextEditorsSettingsService;
   let mockSupabase: any;
+  let mockTenantContext: {
+    getActiveTenant: ReturnType<typeof vi.fn>;
+    activeTenant$: BehaviorSubject<{ id: string } | null>;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+
+    mockTenantContext = {
+      getActiveTenant: vi.fn().mockReturnValue(TENANT),
+      activeTenant$: new BehaviorSubject<{ id: string } | null>(TENANT),
+    };
 
     mockSupabase = {
       client: {
@@ -26,10 +38,11 @@ describe('RichTextEditorsSettingsService', () => {
       },
     };
 
-    service = new RichTextEditorsSettingsService(mockSupabase);
+    service = new RichTextEditorsSettingsService(mockSupabase, mockTenantContext as any);
   });
 
   afterEach(() => {
+    service.ngOnDestroy();
     localStorage.clear();
   });
 
@@ -40,13 +53,13 @@ describe('RichTextEditorsSettingsService', () => {
       expect(value).toBe(true);
     });
 
-    it('fetches from admin_settings when subscribed', async () => {
+    it('fetches from tenant_settings when subscribed', async () => {
       await firstValueFrom(service.getRichTextEditorsEnabled$());
-      expect(mockSupabase.client.from).toHaveBeenCalledWith('admin_settings');
+      expect(mockSupabase.client.from).toHaveBeenCalledWith('tenant_settings');
     });
 
     it('emits false when column is false', async () => {
-      localStorage.removeItem('rich_text_editors_enabled');
+      localStorage.removeItem(CACHE_KEY);
       mockSupabase.client.from.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -57,7 +70,7 @@ describe('RichTextEditorsSettingsService', () => {
           }),
         }),
       });
-      const newService = new RichTextEditorsSettingsService(mockSupabase);
+      const newService = new RichTextEditorsSettingsService(mockSupabase, mockTenantContext as any);
       const value = await firstValueFrom(
         newService.getRichTextEditorsEnabled$().pipe(skip(1), take(1))
       );
@@ -65,7 +78,7 @@ describe('RichTextEditorsSettingsService', () => {
     });
 
     it('treats missing row as enabled', async () => {
-      localStorage.removeItem('rich_text_editors_enabled');
+      localStorage.removeItem(CACHE_KEY);
       mockSupabase.client.from.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -76,7 +89,7 @@ describe('RichTextEditorsSettingsService', () => {
           }),
         }),
       });
-      const newService = new RichTextEditorsSettingsService(mockSupabase);
+      const newService = new RichTextEditorsSettingsService(mockSupabase, mockTenantContext as any);
       const value = await firstValueFrom(
         newService.getRichTextEditorsEnabled$().pipe(skip(1), take(1))
       );
@@ -103,18 +116,18 @@ describe('RichTextEditorsSettingsService', () => {
   describe('invalidateFlagCache', () => {
     it('removes flag from localStorage', () => {
       localStorage.setItem(
-        'rich_text_editors_enabled',
+        CACHE_KEY,
         JSON.stringify({ value: true, timestamp: Date.now() })
       );
       service.invalidateFlagCache();
-      expect(localStorage.getItem('rich_text_editors_enabled')).toBeNull();
+      expect(localStorage.getItem(CACHE_KEY)).toBeNull();
     });
   });
 
   describe('fetch errors', () => {
     it('warns when fetch returns error', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      localStorage.removeItem('rich_text_editors_enabled');
+      localStorage.removeItem(CACHE_KEY);
       mockSupabase.client.from.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -125,7 +138,7 @@ describe('RichTextEditorsSettingsService', () => {
           }),
         }),
       });
-      const newService = new RichTextEditorsSettingsService(mockSupabase);
+      const newService = new RichTextEditorsSettingsService(mockSupabase, mockTenantContext as any);
       newService.getRichTextEditorsEnabled$().subscribe(() => {});
       await Promise.resolve();
       await Promise.resolve();
@@ -138,7 +151,7 @@ describe('RichTextEditorsSettingsService', () => {
 
     it('warns when fetch throws', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      localStorage.removeItem('rich_text_editors_enabled');
+      localStorage.removeItem(CACHE_KEY);
       mockSupabase.client.from.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -146,7 +159,7 @@ describe('RichTextEditorsSettingsService', () => {
           }),
         }),
       });
-      const newService = new RichTextEditorsSettingsService(mockSupabase);
+      const newService = new RichTextEditorsSettingsService(mockSupabase, mockTenantContext as any);
       await firstValueFrom(newService.getRichTextEditorsEnabled$().pipe(take(1)));
       expect(warn).toHaveBeenCalledWith(
         '[RichTextEditorsSettings] Error loading flag',
@@ -159,44 +172,44 @@ describe('RichTextEditorsSettingsService', () => {
   describe('seedFromLocalStorage', () => {
     it('uses cached value when within TTL', () => {
       localStorage.setItem(
-        'rich_text_editors_enabled',
+        CACHE_KEY,
         JSON.stringify({ value: false, timestamp: Date.now() })
       );
-      const newService = new RichTextEditorsSettingsService(mockSupabase);
+      const newService = new RichTextEditorsSettingsService(mockSupabase, mockTenantContext as any);
       expect(newService.getSnapshot()).toBe(false);
     });
 
     it('does not apply cache when timestamp is expired', () => {
       const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
       localStorage.setItem(
-        'rich_text_editors_enabled',
+        CACHE_KEY,
         JSON.stringify({ value: false, timestamp: twoHoursAgo })
       );
-      const newService = new RichTextEditorsSettingsService(mockSupabase);
+      const newService = new RichTextEditorsSettingsService(mockSupabase, mockTenantContext as any);
       expect(newService.getSnapshot()).toBe(true);
     });
 
     it('ignores cache when JSON shape is invalid (non-boolean value)', () => {
       localStorage.setItem(
-        'rich_text_editors_enabled',
+        CACHE_KEY,
         JSON.stringify({ value: 'true', timestamp: Date.now() })
       );
-      const newService = new RichTextEditorsSettingsService(mockSupabase);
+      const newService = new RichTextEditorsSettingsService(mockSupabase, mockTenantContext as any);
       expect(newService.getSnapshot()).toBe(true);
     });
 
     it('ignores cache when JSON shape is invalid (non-number timestamp)', () => {
       localStorage.setItem(
-        'rich_text_editors_enabled',
+        CACHE_KEY,
         JSON.stringify({ value: true, timestamp: '2024-01-01' })
       );
-      const newService = new RichTextEditorsSettingsService(mockSupabase);
+      const newService = new RichTextEditorsSettingsService(mockSupabase, mockTenantContext as any);
       expect(newService.getSnapshot()).toBe(true);
     });
 
     it('swallows invalid JSON in localStorage', () => {
-      localStorage.setItem('rich_text_editors_enabled', 'not-json');
-      const newService = new RichTextEditorsSettingsService(mockSupabase);
+      localStorage.setItem(CACHE_KEY, 'not-json');
+      const newService = new RichTextEditorsSettingsService(mockSupabase, mockTenantContext as any);
       expect(newService.getSnapshot()).toBe(true);
     });
   });
@@ -207,7 +220,7 @@ describe('RichTextEditorsSettingsService', () => {
       const pending = new Promise<{ data: unknown; error: null }>(resolve => {
         resolveFetch = resolve;
       });
-      localStorage.removeItem('rich_text_editors_enabled');
+      localStorage.removeItem(CACHE_KEY);
       mockSupabase.client.from.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -215,7 +228,8 @@ describe('RichTextEditorsSettingsService', () => {
           }),
         }),
       });
-      const newService = new RichTextEditorsSettingsService(mockSupabase);
+      mockSupabase.client.from.mockClear();
+      const newService = new RichTextEditorsSettingsService(mockSupabase, mockTenantContext as any);
       newService.getRichTextEditorsEnabled$().subscribe();
       newService.getRichTextEditorsEnabled$().subscribe();
       expect(mockSupabase.client.from).toHaveBeenCalledTimes(1);
@@ -235,11 +249,11 @@ describe('RichTextEditorsSettingsService', () => {
 
   describe('fetchAndCacheFlag persistence', () => {
     it('continues when localStorage.setItem throws after successful fetch', async () => {
-      localStorage.removeItem('rich_text_editors_enabled');
+      localStorage.removeItem(CACHE_KEY);
       const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
         throw new Error('Quota exceeded');
       });
-      const newService = new RichTextEditorsSettingsService(mockSupabase);
+      const newService = new RichTextEditorsSettingsService(mockSupabase, mockTenantContext as any);
       const value = await firstValueFrom(
         newService.getRichTextEditorsEnabled$().pipe(skip(1), take(1))
       );

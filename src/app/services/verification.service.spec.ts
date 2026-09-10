@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, BehaviorSubject } from 'rxjs';
 import { VerificationService } from './verification.service';
 import { SupabaseService } from './supabase.service';
 import { describeFunctionInvokeFailure } from '../utils/supabase-function-invoke-error';
@@ -7,7 +7,10 @@ import { describeFunctionInvokeFailure } from '../utils/supabase-function-invoke
 describe('VerificationService', () => {
   let service: VerificationService;
   let supabaseService: SupabaseService;
-  let mockTenantContext: { getActiveTenant: ReturnType<typeof vi.fn> };
+  let mockTenantContext: {
+    getActiveTenant: ReturnType<typeof vi.fn>;
+    activeTenant$: BehaviorSubject<{ id: string } | null>;
+  };
   let mockConnectivity: any;
   let checkIfEnabledSpy: ReturnType<typeof vi.spyOn>;
 
@@ -29,6 +32,7 @@ describe('VerificationService', () => {
 
     mockTenantContext = {
       getActiveTenant: vi.fn(() => ({ id: 'tenant-1' })),
+      activeTenant$: new BehaviorSubject<{ id: string } | null>({ id: 'tenant-1' }),
     };
     mockConnectivity = {
       isOnline: vi.fn(() => true),
@@ -53,18 +57,17 @@ describe('VerificationService', () => {
     vi.clearAllTimers();
     vi.useRealTimers();
     checkIfEnabledSpy.mockRestore();
+    service.ngOnDestroy();
     vi.restoreAllMocks();
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
 
   describe('constructor', () => {
-    it('should call checkIfEnabled after timeout', async () => {
+    it('should call checkIfEnabled when constructed', async () => {
       checkIfEnabledSpy.mockRestore();
       const localCheckSpy = vi
         .spyOn(VerificationService.prototype as any, 'checkIfEnabled')
         .mockResolvedValue(undefined);
-
-      vi.useFakeTimers();
 
       const mockSupabase = {
         client: {
@@ -74,12 +77,9 @@ describe('VerificationService', () => {
 
       new VerificationService(mockSupabase, mockTenantContext as any, mockConnectivity);
 
-      await vi.advanceTimersByTimeAsync(100);
-
       expect(localCheckSpy).toHaveBeenCalledTimes(1);
 
       localCheckSpy.mockRestore();
-      vi.useRealTimers();
     });
   });
 
@@ -259,7 +259,7 @@ describe('VerificationService', () => {
 
       await service.refreshStatus();
 
-      expect(fromMock).toHaveBeenCalledWith('admin_settings');
+      expect(fromMock).toHaveBeenCalledWith('tenant_settings');
     });
 
     it('should update isEnabled$ when settings change', async () => {
@@ -587,53 +587,9 @@ describe('VerificationService', () => {
   });
 
   describe('getCodeLength', () => {
-    it('should return code length from settings', async () => {
-      const fromMock = vi.fn(() =>
-        createAdminSettingsQuery({ verification_code_length: 8 })
-      );
-
-      Object.defineProperty(supabaseService.client, 'from', {
-        value: fromMock,
-        writable: true
-      });
-
-      const length = await service.getCodeLength();
-      expect(length).toBe(8);
-    });
-
-    it('should return default length of 6 when no data', async () => {
-      const fromMock = vi.fn(() => createAdminSettingsQuery(null));
-
-      Object.defineProperty(supabaseService.client, 'from', {
-        value: fromMock,
-        writable: true
-      });
-
+    it('should return the platform 6-digit code length', async () => {
       const length = await service.getCodeLength();
       expect(length).toBe(6);
-    });
-
-    it('should return default length of 6 on error', async () => {
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      
-      const fromMock = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.reject(new Error('Database error')))
-          }))
-        }))
-      }));
-
-      Object.defineProperty(supabaseService.client, 'from', {
-        value: fromMock,
-        writable: true
-      });
-
-      const length = await service.getCodeLength();
-      expect(length).toBe(6);
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      
-      consoleErrorSpy.mockRestore();
     });
   });
 
