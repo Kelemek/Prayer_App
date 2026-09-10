@@ -1,5 +1,11 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
+import { environment } from '../../environments/environment';
+import {
+  isPlatformLikeHost,
+  isTenantSlugHost,
+  parseHost,
+} from '../lib/tenant-host';
 import { SupabaseService } from './supabase.service';
 import { AuthIdentityService } from './auth-identity.service';
 import { ConnectivityService } from './connectivity.service';
@@ -196,12 +202,50 @@ export class TenantContextService {
     }
   }
 
+  private getHostResolutionConfig() {
+    return {
+      platformHosts: environment.platformHosts ?? [],
+      tenantHostSuffix: environment.tenantHostSuffix ?? '',
+    };
+  }
+
+  private getParsedHostFromBrowser() {
+    if (typeof window === 'undefined') {
+      return { kind: 'unknown' as const };
+    }
+    return parseHost(window.location.hostname, this.getHostResolutionConfig());
+  }
+
+  private findTenantBySlug(slug: string): Tenant | null {
+    const normalized = slug.trim().toLowerCase();
+    const allowed = this.getTenantSwitcherOptions();
+    return allowed.find((tenant) => tenant.slug === normalized) ?? null;
+  }
+
   private restoreOrAutoSelectActiveTenant(): void {
     const availableTenants = this.availableTenantsSubject.value;
+    const parsedHost = this.getParsedHostFromBrowser();
+
+    if (isTenantSlugHost(parsedHost)) {
+      const hostTenant = this.findTenantBySlug(parsedHost.slug);
+      if (hostTenant) {
+        this.activeTenantSubject.next(hostTenant);
+        localStorage.setItem(ACTIVE_TENANT_STORAGE_KEY, hostTenant.id);
+        return;
+      }
+      // On a tenant host without membership: do not fall back to another church.
+      this.activeTenantSubject.next(null);
+      return;
+    }
+
     if (availableTenants.length === 0) {
       this.activeTenantSubject.next(null);
       // Do not remove ACTIVE_TENANT_STORAGE_KEY here when offline restore may still need it
       return;
+    }
+
+    if (!isPlatformLikeHost(parsedHost)) {
+      // Unknown external host (e.g. legacy Cross Pointe): same as platform — no forced tenant.
     }
 
     const storedTenantId = localStorage.getItem(ACTIVE_TENANT_STORAGE_KEY);

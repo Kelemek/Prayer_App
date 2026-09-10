@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { getTenantOrigin } from '../lib/app-origin';
 import { SupabaseService } from './supabase.service';
 
 @Injectable({
@@ -7,7 +8,10 @@ import { SupabaseService } from './supabase.service';
 export class ChurchCheckoutService {
   constructor(private supabase: SupabaseService) {}
 
-  async startChurchCheckout(tenantId: string): Promise<string | null> {
+  async startChurchCheckout(
+    tenantId: string,
+    tenantSlug?: string
+  ): Promise<string | null> {
     const session = await this.supabase.client.auth.getSession();
     const token = session.data.session?.access_token;
     if (!token) {
@@ -23,7 +27,10 @@ export class ChurchCheckoutService {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ tenant_id: tenantId }),
+        body: JSON.stringify({
+          tenant_id: tenantId,
+          return_origin: tenantSlug ? getTenantOrigin(tenantSlug) : undefined,
+        }),
       }
     );
 

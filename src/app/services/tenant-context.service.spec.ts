@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { environment } from '../../environments/environment';
 import { TenantContextService } from './tenant-context.service';
 
 const tenantA = {
@@ -347,5 +348,67 @@ describe('TenantContextService', () => {
     });
     await service.refresh();
     expect(service.getMemberTenants()).toEqual([]);
+  });
+
+  describe('host-based tenant selection', () => {
+    const envBackup = {
+      platformHosts: [...environment.platformHosts],
+      tenantHostSuffix: environment.tenantHostSuffix,
+    };
+
+    beforeEach(() => {
+      environment.platformHosts = ['prayer.romans8.net', 'www.prayer.romans8.net'];
+      environment.tenantHostSuffix = 'prayer.romans8.net';
+      vi.stubGlobal('window', {
+        location: { hostname: 'alpha.prayer.romans8.net' },
+      });
+    });
+
+    afterEach(() => {
+      environment.platformHosts = envBackup.platformHosts;
+      environment.tenantHostSuffix = envBackup.tenantHostSuffix;
+      vi.unstubAllGlobals();
+    });
+
+    it('selects tenant from host slug over localStorage', async () => {
+      localStorage.setItem('active_tenant_id', 'tenant-b');
+      membershipMocks(supabase, {
+        memberships: [
+          {
+            tenant_id: tenantA.id,
+            user_email: 'user@example.com',
+            role: 'member',
+            tenants: tenantA,
+          },
+          {
+            tenant_id: tenantB.id,
+            user_email: 'user@example.com',
+            role: 'member',
+            tenants: tenantB,
+          },
+        ],
+      });
+      await service.refresh();
+      expect(service.getActiveTenant()?.id).toBe('tenant-a');
+    });
+
+    it('does not fall back to another tenant when host slug is not a membership', async () => {
+      vi.stubGlobal('window', {
+        location: { hostname: 'beta.prayer.romans8.net' },
+      });
+      localStorage.setItem('active_tenant_id', 'tenant-a');
+      membershipMocks(supabase, {
+        memberships: [
+          {
+            tenant_id: tenantA.id,
+            user_email: 'user@example.com',
+            role: 'member',
+            tenants: tenantA,
+          },
+        ],
+      });
+      await service.refresh();
+      expect(service.getActiveTenant()).toBeNull();
+    });
   });
 });

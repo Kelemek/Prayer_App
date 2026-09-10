@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Subject, takeUntil } from 'rxjs';
+import { switchTenantWithNavigation } from '../../lib/tenant-navigation';
 import { TenantContextService } from '../../services/tenant-context.service';
 import { ToastService } from '../../services/toast.service';
 import type { Tenant } from '../../types/tenant';
@@ -239,9 +240,22 @@ export class TenantSwitcherBarComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const changed = await this.tenantContextService.switchTenant(tenantId);
-    if (!changed) {
+    const tenant = this.tenantSwitchOptions.find((item) => item.id === tenantId);
+    if (!tenant?.slug) {
       this.toastService.error('Unable to switch organization');
+      return;
+    }
+
+    const result = await switchTenantWithNavigation(
+      tenantId,
+      tenant.slug,
+      (id) => this.tenantContextService.switchTenant(id)
+    );
+    if (result === 'failed') {
+      this.toastService.error('Unable to switch organization');
+      return;
+    }
+    if (result === 'navigated') {
       return;
     }
 

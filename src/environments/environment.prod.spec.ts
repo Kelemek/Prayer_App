@@ -28,6 +28,9 @@ describe('environment.prod', () => {
     expect(environment).toHaveProperty('production');
     expect(environment).toHaveProperty('supabaseUrl');
     expect(environment).toHaveProperty('supabasePublishableKey');
+    expect(environment).toHaveProperty('platformHosts');
+    expect(environment).toHaveProperty('cookieParentDomain');
+    expect(environment).toHaveProperty('tenantHostSuffix');
   });
 
   it('should use different Supabase configuration from development when env vars are set', () => {

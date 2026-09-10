@@ -8,6 +8,7 @@ import { PushNotificationService } from './push-notification.service';
 import { PrayerEncouragementService } from './prayer-encouragement.service';
 import { TenantContextService } from './tenant-context.service';
 import { AuthIdentityService } from './auth-identity.service';
+import { getAuthRedirectOrigin } from '../lib/app-origin';
 import type { User } from '@supabase/supabase-js';
 
 @Injectable({
@@ -348,9 +349,13 @@ export class AdminAuthService {
         }
       }
 
+      const redirectOrigin = getAuthRedirectOrigin();
       const { error } = await this.supabase.client.auth.signInWithOtp({
         email: normalizedEmail,
-        options: { shouldCreateUser: true }
+        options: {
+          shouldCreateUser: true,
+          ...(redirectOrigin ? { emailRedirectTo: redirectOrigin } : {}),
+        },
       });
 
       if (error) {

@@ -291,7 +291,10 @@ describe('AdminAuthService', () => {
       expect(result.success).toBe(true);
       expect(mockSupabaseClient.auth.signInWithOtp).toHaveBeenCalledWith({
         email: 'test@example.com',
-        options: { shouldCreateUser: true }
+        options: expect.objectContaining({
+          shouldCreateUser: true,
+          emailRedirectTo: expect.any(String),
+        }),
       });
       expect(mockAuthIdentity.setPendingLogin).toHaveBeenCalledWith('test@example.com', false);
     });

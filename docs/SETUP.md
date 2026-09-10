@@ -90,9 +90,16 @@ The PWA manifest (`public/manifest.json`) and `src/index.html` reference these f
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 
-# Public app URL (production links in emails and builds)
-# VITE_APP_URL=https://prayerapp.romans8.net
+# Public app URL (platform apex — links in emails and production builds)
+# VITE_APP_URL=https://prayer.romans8.net
+
+# Host-based tenancy (production / staging)
+# VITE_PLATFORM_HOSTS=prayer.romans8.net,www.prayer.romans8.net,prayerapp-nu.vercel.app,prayerapp.romans8.net
+# VITE_COOKIE_PARENT_DOMAIN=.prayer.romans8.net
+# VITE_TENANT_HOST_SUFFIX=prayer.romans8.net
 ```
+
+**Hostname strategy:** Platform hosts (`prayer.romans8.net`, `www`, preview aliases) do **not** force a tenant. Church tenants load at `{slug}.{VITE_TENANT_HOST_SUFFIX}` (e.g. `cross-pointe.prayer.romans8.net`). `VITE_COOKIE_PARENT_DOMAIN` shares Supabase auth across those subdomains. Local dev leaves suffix/cookie empty (in-place tenant switcher on `localhost`).
 
 ### Supabase secret key (server-side)
 
@@ -330,6 +337,10 @@ Example:
 ```
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+VITE_APP_URL=https://prayer.romans8.net
+VITE_PLATFORM_HOSTS=prayer.romans8.net,www.prayer.romans8.net,prayerapp-nu.vercel.app
+VITE_COOKIE_PARENT_DOMAIN=.prayer.romans8.net
+VITE_TENANT_HOST_SUFFIX=prayer.romans8.net
 # Email (Resend) uses Supabase Edge secrets and GitHub Actions, not Vercel env for send-email.
 ```
 
@@ -372,7 +383,23 @@ Push to `main` branch automatically deploys to Vercel via GitHub Actions.
 
 1. Go to Vercel project settings
 2. Domains > Add domain
-3. Point your domain to Vercel nameservers
+3. Add the platform apex (`prayer.romans8.net`) and a **wildcard** (`*.prayer.romans8.net`) for church subdomains
+4. Point DNS to Vercel (apex `A`/`CNAME` + wildcard `CNAME` to Vercel)
+5. Existing `vercel.json` SPA rewrite handles all subdomains — no per-host rewrites needed
+
+### Supabase Auth (hostname / redirects)
+
+In **Authentication → URL configuration**:
+
+- **Site URL:** `https://prayer.romans8.net` (platform apex)
+- **Redirect URLs (allowlist):** include at least:
+  - `http://localhost:4200/**`
+  - `https://prayer.romans8.net/**`
+  - `https://www.prayer.romans8.net/**`
+  - `https://*.prayer.romans8.net/**`
+  - `https://prayerapp-nu.vercel.app/**` (preview)
+
+Auth sessions on `*.{suffix}` use cookie domain `VITE_COOKIE_PARENT_DOMAIN` (e.g. `.prayer.romans8.net`). Preview hosts on `*.vercel.app` stay on per-origin `localStorage` — list them in `VITE_PLATFORM_HOSTS` so they do not force a tenant slug.
 
 ### SSL Certificate
 

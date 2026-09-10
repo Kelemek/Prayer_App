@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { getAuthRedirectOrigin } from '../lib/app-origin';
 import { SupabaseService } from './supabase.service';
 
 @Injectable({
@@ -21,7 +22,11 @@ export class ProCheckoutService {
         headers: {
           apikey: this.supabase.getPublishableKey(),
           Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          return_origin: getAuthRedirectOrigin(),
+        }),
       }
     );
 

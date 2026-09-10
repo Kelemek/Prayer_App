@@ -26,5 +26,8 @@ describe('environment', () => {
     expect(environment).toHaveProperty('production');
     expect(environment).toHaveProperty('supabaseUrl');
     expect(environment).toHaveProperty('supabasePublishableKey');
+    expect(environment).toHaveProperty('platformHosts');
+    expect(environment).toHaveProperty('cookieParentDomain');
+    expect(environment).toHaveProperty('tenantHostSuffix');
   });
 });

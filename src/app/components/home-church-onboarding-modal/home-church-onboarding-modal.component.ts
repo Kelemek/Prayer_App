@@ -13,9 +13,11 @@ import { TenantManagementService } from "../../services/tenant-management.servic
 import { TenantContextService } from "../../services/tenant-context.service";
 import { ChurchCheckoutService } from "../../services/church-checkout.service";
 import { ToastService } from "../../services/toast.service";
+import { switchTenantWithNavigation } from "../../lib/tenant-navigation";
 import {
   normalizeTenantSlug,
   suggestTenantSlugFromName,
+  validateTenantSlug,
 } from "../../lib/tenant-slug";
 
 export type ChurchOnboardingView = "chooser" | "create" | "join";
@@ -120,6 +122,11 @@ export class HomeChurchOnboardingModalComponent implements OnChanges {
     if (!name || !slug || this.submitting) {
       return;
     }
+    const slugError = validateTenantSlug(slug);
+    if (slugError) {
+      this.toast.error(slugError);
+      return;
+    }
     this.submitting = true;
     try {
       const tenant = await this.tenantManagement.createTenant(
@@ -127,15 +134,31 @@ export class HomeChurchOnboardingModalComponent implements OnChanges {
         slug,
         "churches"
       );
-      await this.tenantContext.switchTenant(tenant.id);
-      this.toast.success(`Church "${tenant.name}" created`);
-      this.completed.emit();
+      const switched = await this.tenantContext.switchTenant(tenant.id);
+      if (!switched) {
+        this.toast.error("Church created but could not switch organization");
+        return;
+      }
       const checkoutUrl = await this.churchCheckout.startChurchCheckout(
-        tenant.id
+        tenant.id,
+        tenant.slug
       );
       if (checkoutUrl) {
+        this.completed.emit();
         window.location.assign(checkoutUrl);
+        return;
       }
+      const navResult = await switchTenantWithNavigation(
+        tenant.id,
+        tenant.slug,
+        (id) => this.tenantContext.switchTenant(id)
+      );
+      if (navResult === "navigated") {
+        this.completed.emit();
+        return;
+      }
+      this.toast.success(`Church "${tenant.name}" created`);
+      this.completed.emit();
     } catch (error) {
       this.toast.error(
         error instanceof Error ? error.message : "Failed to create church"
@@ -153,7 +176,23 @@ export class HomeChurchOnboardingModalComponent implements OnChanges {
     this.submitting = true;
     try {
       const tenantId = await this.tenantManagement.claimInvite(token);
-      await this.tenantContext.switchTenant(tenantId);
+      const claimedTenant = this.tenantContext
+        .getAvailableTenants()
+        .find((t) => t.id === tenantId);
+      const slug = claimedTenant?.slug ?? "";
+      if (slug) {
+        const navResult = await switchTenantWithNavigation(
+          tenantId,
+          slug,
+          (id) => this.tenantContext.switchTenant(id)
+        );
+        if (navResult === "navigated") {
+          this.completed.emit();
+          return;
+        }
+      } else {
+        await this.tenantContext.switchTenant(tenantId);
+      }
       this.toast.success("Invite claimed successfully");
       this.completed.emit();
     } catch (error) {

@@ -28,8 +28,8 @@ describe('TenantSwitcherBarComponent', () => {
       isSuperAdmin$: new BehaviorSubject(false),
       getActiveTenant: vi.fn(() => ({ id: 'tenant-a', name: 'Alpha Church' })),
       getTenantSwitcherOptions: vi.fn(() => [
-        { id: 'tenant-a', name: 'Alpha Church' },
-        { id: 'tenant-b', name: 'Beta Church' },
+        { id: 'tenant-a', name: 'Alpha Church', slug: 'alpha' },
+        { id: 'tenant-b', name: 'Beta Church', slug: 'beta' },
       ]),
       switchTenant: vi.fn(async () => true),
     };

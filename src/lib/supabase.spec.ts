@@ -16,6 +16,10 @@ vi.mock('../environments/environment', () => ({
     production: false,
     supabaseUrl: 'https://test.supabase.co',
     supabasePublishableKey: 'test-publishable-key',
+    appUrl: '',
+    platformHosts: ['localhost'],
+    cookieParentDomain: '',
+    tenantHostSuffix: '',
   },
 }));
 

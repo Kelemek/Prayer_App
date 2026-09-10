@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { environment } from '../../environments/environment';
+import { buildSupabaseClientOptions } from '../lib/supabase-client-options';
 import { describeFunctionInvokeFailure as formatFunctionInvokeFailure } from '../utils/supabase-function-invoke-error';
 
 @Injectable({
@@ -21,35 +22,15 @@ export class SupabaseService {
       throw new Error('Missing Supabase environment variables');
     }
 
-    this.supabase = createClient(supabaseUrl, supabasePublishableKey, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true,
-        // Bypass Navigator LockManager to prevent lock acquisition failures
-        // across multiple tabs/windows. Safe because this app uses MFA-based
-        // auth with localStorage, not Supabase OAuth token refresh.
-        lock: async <R>(_name: string, _acquireTimeout: number, fn: () => Promise<R>): Promise<R> => await fn()
-      },
-      global: {
-        headers: {
-          // Identify as native app for better compatibility with native HTTP stacks (iOS, Android)
-          'x-client-info': `supabase-js/${this.getClientVersion()}`
-        },
-        fetch: (input: URL | RequestInfo, options?: RequestInit) => {
-          // Enhanced fetch wrapper for native app compatibility
-          return this.fetchWithNativeCompat(input, options);
-        }
-      },
-      db: {
-        schema: 'public'
-      },
-      realtime: {
-        params: {
-          eventsPerSecond: 10
-        }
-      }
-    });
+    this.supabase = createClient(
+      supabaseUrl,
+      supabasePublishableKey,
+      buildSupabaseClientOptions(
+        supabaseUrl,
+        () => this.getClientVersion(),
+        (input, options) => this.fetchWithNativeCompat(input, options)
+      )
+    );
 
     // Set up visibility recovery for Edge on iOS
     this.setupVisibilityRecovery();
@@ -142,30 +123,15 @@ export class SupabaseService {
       }
 
       // Create a new client instance to reset all connections
-      this.supabase = createClient(supabaseUrl, supabasePublishableKey, {
-        auth: {
-          autoRefreshToken: true,
-          persistSession: true,
-          detectSessionInUrl: true,
-          lock: async <R>(_name: string, _acquireTimeout: number, fn: () => Promise<R>): Promise<R> => await fn()
-        },
-        global: {
-          headers: {
-            'x-client-info': `supabase-js/${this.getClientVersion()}`
-          },
-          fetch: (input: URL | RequestInfo, options?: RequestInit) => {
-            return this.fetchWithNativeCompat(input, options);
-          }
-        },
-        db: {
-          schema: 'public'
-        },
-        realtime: {
-          params: {
-            eventsPerSecond: 10
-          }
-        }
-      });
+      this.supabase = createClient(
+        supabaseUrl,
+        supabasePublishableKey,
+        buildSupabaseClientOptions(
+          supabaseUrl,
+          () => this.getClientVersion(),
+          (input, options) => this.fetchWithNativeCompat(input, options)
+        )
+      );
       
       console.log('[SupabaseService] Reconnected successfully');
     } catch (err) {

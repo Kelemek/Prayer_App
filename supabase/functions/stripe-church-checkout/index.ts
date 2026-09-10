@@ -7,6 +7,39 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type, x-supabase-client-platform',
 };
 
+/** Allowed: APP_URL host, www.{host}, or single-label subdomain of that host. */
+function resolveStripeReturnOrigin(
+  appUrl: string,
+  returnOrigin: string | undefined | null
+): string {
+  const base = (appUrl || 'http://localhost:4200').replace(/\/+$/, '');
+  const candidate = returnOrigin?.trim();
+  if (!candidate) {
+    return base;
+  }
+  let baseHost: string;
+  let candidateHost: string;
+  try {
+    baseHost = new URL(base.startsWith('http') ? base : `https://${base}`).hostname.toLowerCase();
+    candidateHost = new URL(
+      candidate.startsWith('http') ? candidate : `https://${candidate}`
+    ).hostname.toLowerCase();
+  } catch {
+    return base;
+  }
+  if (candidateHost === baseHost || candidateHost === `www.${baseHost}`) {
+    return candidate.replace(/\/+$/, '');
+  }
+  const suffix = `.${baseHost}`;
+  if (candidateHost.endsWith(suffix)) {
+    const prefix = candidateHost.slice(0, -suffix.length);
+    if (prefix && !prefix.includes('.')) {
+      return candidate.replace(/\/+$/, '');
+    }
+  }
+  return base;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -41,6 +74,10 @@ Deno.serve(async (req: Request) => {
   }
 
   const body = await req.json().catch(() => ({}));
+  const returnOrigin = resolveStripeReturnOrigin(
+    appUrl,
+    typeof body.return_origin === 'string' ? body.return_origin : null
+  );
   const tenantId = String(body.tenant_id ?? '').trim();
   if (!tenantId) {
     return new Response(JSON.stringify({ error: 'tenant_id is required' }), {
@@ -91,8 +128,8 @@ Deno.serve(async (req: Request) => {
       customer: customer.id,
       'line_items[0][price]': priceId,
       'line_items[0][quantity]': '1',
-      success_url: `${appUrl}/admin?church_checkout=success`,
-      cancel_url: `${appUrl}/admin?church_checkout=cancel`,
+      success_url: `${returnOrigin}/admin?church_checkout=success`,
+      cancel_url: `${returnOrigin}/admin?church_checkout=cancel`,
       'metadata[kind]': 'church',
       'metadata[tenant_id]': tenantId,
       'metadata[user_email]': email,

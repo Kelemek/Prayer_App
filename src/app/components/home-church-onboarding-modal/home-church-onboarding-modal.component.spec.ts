@@ -53,7 +53,21 @@ describe("HomeChurchOnboardingModalComponent", () => {
       imports: [HomeChurchOnboardingModalComponent],
       providers: [
         { provide: TenantManagementService, useValue: { createTenant, claimInvite } },
-        { provide: TenantContextService, useValue: { switchTenant } },
+        {
+          provide: TenantContextService,
+          useValue: {
+            switchTenant,
+            getAvailableTenants: vi.fn(() => [
+              {
+                id: "tenant-join",
+                name: "Joined Church",
+                slug: "joined-church",
+                plan_tier: "churches",
+                plan_status: "active",
+              },
+            ]),
+          },
+        },
         { provide: ChurchCheckoutService, useValue: { startChurchCheckout } },
         { provide: ToastService, useValue: { success: toastSuccess, error: toastError } },
       ],
@@ -88,7 +102,7 @@ describe("HomeChurchOnboardingModalComponent", () => {
     await fixture.componentInstance.submitCreate();
     expect(createTenant).toHaveBeenCalledWith("New Church", "new-church", "churches");
     expect(switchTenant).toHaveBeenCalledWith("tenant-new");
-    expect(startChurchCheckout).toHaveBeenCalledWith("tenant-new");
+    expect(startChurchCheckout).toHaveBeenCalledWith("tenant-new", "new-church");
     expect(toastSuccess).toHaveBeenCalled();
     expect(completedSpy).toHaveBeenCalled();
   });

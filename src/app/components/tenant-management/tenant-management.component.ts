@@ -12,7 +12,9 @@ import { TenantManagementService } from "../../services/tenant-management.servic
 import { TenantPermissionService } from "../../services/tenant-permission.service";
 import { ToastService } from "../../services/toast.service";
 import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/admin-collapsible-section.component";
-import { normalizeTenantSlug } from "../../lib/tenant-slug";
+import { buildTenantInviteUrl } from "../../lib/app-origin";
+import { switchTenantWithNavigation } from "../../lib/tenant-navigation";
+import { normalizeTenantSlug, validateTenantSlug } from "../../lib/tenant-slug";
 import type {
   PlanTier,
   PlanStatus,
@@ -248,6 +250,11 @@ import type {
         <p class="mt-2 text-xs text-gray-600 dark:text-gray-300 break-all">
           Invite Token: {{ lastInviteToken }}
         </p>
+        @if (lastInviteUrl) {
+        <p class="mt-1 text-xs text-gray-600 dark:text-gray-300 break-all">
+          Invite Link: {{ lastInviteUrl }}
+        </p>
+        }
         }
       </div>
 
@@ -416,6 +423,7 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
   planStatus: PlanStatus = "active";
   inviteEmail = "";
   lastInviteToken = "";
+  lastInviteUrl = "";
   memberships: TenantMembership[] = [];
   isSuperAdmin = false;
   superAdminEmail = "";
@@ -488,6 +496,11 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
       this.toast.error("Name and slug are required");
       return;
     }
+    const slugError = validateTenantSlug(slug);
+    if (slugError) {
+      this.toast.error(slugError);
+      return;
+    }
     this.isCreatingTenant = true;
     try {
       const tenant = await this.tenantManagement.createTenant(
@@ -495,8 +508,18 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
         slug,
         this.newTenantPlanTier
       );
-      const switched = await this.tenantContext.switchTenant(tenant.id);
-      if (!switched) {
+      const navResult = await switchTenantWithNavigation(
+        tenant.id,
+        tenant.slug,
+        (id) => this.tenantContext.switchTenant(id)
+      );
+      if (navResult === "navigated") {
+        this.toast.success(
+          `Organization "${tenant.name}" created — opening your church site`
+        );
+        return;
+      }
+      if (navResult === "failed") {
         this.toast.success("Organization created");
       } else {
         this.toast.success(
@@ -523,10 +546,21 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
     }
     const tenant = this.availableTenants.find((t) => t.id === tenantId);
     const label = tenant?.name || "organization";
+    if (!tenant?.slug) {
+      this.toast.error("Unable to switch organization");
+      return;
+    }
     this.isSwitchingTenant = true;
     try {
-      const changed = await this.tenantContext.switchTenant(tenantId);
-      if (!changed) {
+      const navResult = await switchTenantWithNavigation(
+        tenantId,
+        tenant.slug,
+        (id) => this.tenantContext.switchTenant(id)
+      );
+      if (navResult === "navigated") {
+        return;
+      }
+      if (navResult === "failed") {
         this.toast.error(
           "Unable to switch organization. Try refreshing the page."
         );
@@ -546,6 +580,8 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
         this.activeTenantId,
         this.inviteEmail
       );
+      const activeSlug = this.tenantContext.getActiveTenant()?.slug ?? "";
+      this.lastInviteUrl = buildTenantInviteUrl(activeSlug, this.lastInviteToken);
       this.toast.success("Invite created");
       this.inviteEmail = "";
     } catch (error) {
