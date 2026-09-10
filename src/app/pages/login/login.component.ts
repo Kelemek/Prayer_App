@@ -28,7 +28,7 @@ import { Subject, takeUntil } from "rxjs";
   imports: [FormsModule, RouterModule],
   template: `
     <div
-      class="w-full min-h-screen bg-gradient-to-br from-emerald-50 to-green-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center transition-colors"
+      class="w-full min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center transition-colors"
     >
       <div class="max-w-md w-full mx-auto space-y-8 p-4 sm:p-8">
         <div class="text-center">
