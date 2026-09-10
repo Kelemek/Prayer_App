@@ -1010,6 +1010,7 @@ Deno.serve(async (req: Request) => {
             subject,
             textBody,
             htmlBody,
+            tenantId: row.tenant_id,
           },
         });
         if (mailErr) {

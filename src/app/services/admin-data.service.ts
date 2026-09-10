@@ -1270,6 +1270,7 @@ export class AdminDataService {
           subject,
           htmlBody: html,
           textBody: text,
+          tenantId,
         });
       }
     } catch (emailError) {
@@ -1309,6 +1310,7 @@ export class AdminDataService {
           subject,
           htmlBody: html,
           textBody: text,
+          tenantId,
         });
       }
     } catch (emailError) {

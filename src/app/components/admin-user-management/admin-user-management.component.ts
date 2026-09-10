@@ -999,6 +999,7 @@ Prayer App Admin Portal
         subject,
         htmlBody,
         textBody,
+        tenantId,
       });
     } catch (error) {
       console.error("Error sending invitation email:", error);

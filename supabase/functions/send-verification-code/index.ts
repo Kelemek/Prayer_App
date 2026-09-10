@@ -220,7 +220,8 @@ serve(async (req) => {
           to: email,
           subject,
           htmlBody,
-          textBody
+          textBody,
+          ...(tenantId ? { tenantId } : {})
         }
       });
 

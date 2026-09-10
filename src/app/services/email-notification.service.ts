@@ -19,6 +19,8 @@ export interface SendEmailOptions {
   textBody?: string;
   replyTo?: string;
   fromName?: string;
+  /** When set, send-email resolves this church's From / Reply-To (else default tenant / platform). */
+  tenantId?: string | null;
   /** HTTPS one-click unsubscribe (Supabase Edge); enables List-Unsubscribe-Post. */
   listUnsubscribeHttpsUrl?: string;
 }
@@ -278,14 +280,22 @@ export class EmailNotificationService {
    * Send a single email using Supabase edge function
    */
   async sendEmail(options: SendEmailOptions): Promise<void> {
+    const tenantId = await this.resolveEmailTenantId(options.tenantId);
     const body: Record<string, unknown> = {
       to: options.to,
       subject: options.subject,
       htmlBody: options.htmlBody,
       textBody: options.textBody,
-      replyTo: options.replyTo,
-      fromName: options.fromName,
     };
+    if (tenantId) {
+      body['tenantId'] = tenantId;
+    }
+    if (options.replyTo) {
+      body['replyTo'] = options.replyTo;
+    }
+    if (options.fromName) {
+      body['fromName'] = options.fromName;
+    }
     if (options.listUnsubscribeHttpsUrl) {
       body['listUnsubscribeHttpsUrl'] = options.listUnsubscribeHttpsUrl;
     }
@@ -428,10 +438,16 @@ export class EmailNotificationService {
     textBody?: string;
     replyTo?: string;
     fromName?: string;
+    tenantId?: string | null;
   }): Promise<void> {
+    const tenantId = await this.resolveEmailTenantId(options.tenantId);
+    if (!tenantId) {
+      throw new Error('No organization selected');
+    }
     const { data, error } = await this.supabase.client.functions.invoke('send-email', {
       body: {
         action: 'send_to_all_subscribers',
+        tenantId,
         subject: options.subject,
         htmlBody: options.htmlBody,
         textBody: options.textBody,
@@ -1088,6 +1104,7 @@ export class EmailNotificationService {
         subject,
         textBody: body,
         htmlBody: html,
+        tenantId: payload.tenantId,
         listUnsubscribeHttpsUrl: unsub?.listUnsubscribeHttpsUrl,
       });
     } catch (error) {
@@ -1146,6 +1163,7 @@ export class EmailNotificationService {
         subject,
         textBody: body,
         htmlBody: html,
+        tenantId: payload.tenantId,
         listUnsubscribeHttpsUrl: unsub?.listUnsubscribeHttpsUrl,
       });
     } catch (error) {
@@ -1204,6 +1222,7 @@ export class EmailNotificationService {
         subject,
         textBody: body,
         htmlBody: html,
+        tenantId: payload.tenantId,
         listUnsubscribeHttpsUrl: unsub?.listUnsubscribeHttpsUrl,
       });
     } catch (error) {
@@ -1266,6 +1285,7 @@ export class EmailNotificationService {
         subject,
         textBody: body,
         htmlBody: html,
+        tenantId: payload.tenantId,
         listUnsubscribeHttpsUrl: unsub?.listUnsubscribeHttpsUrl,
       });
     } catch (error) {
@@ -1437,6 +1457,7 @@ export class EmailNotificationService {
         subject,
         textBody: body,
         htmlBody: html,
+        tenantId,
         listUnsubscribeHttpsUrl: unsub?.listUnsubscribeHttpsUrl,
       });
     } catch (error) {
@@ -1567,6 +1588,7 @@ export class EmailNotificationService {
         subject,
         textBody: body,
         htmlBody: html,
+        tenantId,
         listUnsubscribeHttpsUrl: unsub?.listUnsubscribeHttpsUrl,
       });
     } catch (error) {
@@ -1988,6 +2010,7 @@ export class EmailNotificationService {
         subject,
         htmlBody: htmlContent,
         textBody: textContent,
+        tenantId,
         listUnsubscribeHttpsUrl: unsub?.listUnsubscribeHttpsUrl,
       });
     } catch (error) {
@@ -2023,6 +2046,7 @@ export class EmailNotificationService {
         subject,
         htmlBody,
         textBody,
+        tenantId: params.tenantId,
       });
     } catch (error) {
       console.error('Error in sendGroupInvitation:', error);

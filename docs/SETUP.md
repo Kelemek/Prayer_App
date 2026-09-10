@@ -248,7 +248,7 @@ Key tables created by migrations:
 - `email_subscribers` - Email opt-in/out
 - `email_queue` - Email processing queue
 - `admin_users` - Admin access list
-- `tenant_settings` - Per-church configuration (branding, prayer policies, reminders)
+- `tenant_settings` - Per-church configuration (branding, prayer policies, reminders, outbound mail identity)
 - `admin_settings` - Platform-only singleton (GitHub feedback repo, app test account); super-admin writes only
 - `email_templates` - Email HTML templates
 
@@ -269,8 +269,10 @@ Key tables created by migrations:
      - **GitHub** repository secrets (required for the `process-email-queue` workflow)
 
 3. **From address**
-   - Set **`MAIL_SENDER_ADDRESS`** to a sender address on your verified domain (e.g. `noreply@yourdomain.com`).
+   - Set **`MAIL_SENDER_ADDRESS`** to a sender address on your verified domain (e.g. `noreply@yourdomain.com`). This is the **platform fallback** From address.
    - Optionally set **`MAIL_FROM_NAME`** (display name; defaults to `Prayer Ministry` if omitted).
+   - Each church can override display name and the local-part (`crosspointe@yourdomain.com`) plus an optional Reply-To in **Admin → Email → Sending identity**. Overrides must stay on the same verified domain as `MAIL_SENDER_ADDRESS`. Custom sending domains / per-tenant Resend keys are not in this pass.
+   - Leave a tenant’s fields blank to keep sending as `MAIL_FROM_NAME` / `MAIL_SENDER_ADDRESS`.
 
 4. **Deploy**
    - After changing secrets, redeploy the `send-email` Edge Function so it picks up `RESEND_API_KEY`.

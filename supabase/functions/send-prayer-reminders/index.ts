@@ -246,6 +246,7 @@ serve(async (req) => {
                 subject,
                 textBody,
                 htmlBody,
+                tenantId,
                 ...(listUnsubscribeHttpsUrl ? { listUnsubscribeHttpsUrl } : {}),
               }
             })

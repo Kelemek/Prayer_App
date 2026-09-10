@@ -368,6 +368,7 @@ export class AppComponent implements OnInit {
               subject,
               htmlBody: html,
               textBody: text,
+              tenantId: request.tenant_id,
             });
           }
         } catch (emailError) {
@@ -421,6 +422,7 @@ export class AppComponent implements OnInit {
               subject,
               htmlBody: html,
               textBody: text,
+              tenantId: request.tenant_id,
             });
           }
         } catch (emailError) {

@@ -6,6 +6,12 @@ import { ToastService } from '../../services/toast.service';
 import { TenantContextService } from '../../services/tenant-context.service';
 import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
 import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
+import {
+  coerceMailFromLocalPart,
+  mailFromLocalPartError,
+  mailFromNameError,
+  mailReplyToError,
+} from '../../../lib/mail-identity';
 
 @Component({
   selector: 'app-email-settings',
@@ -17,6 +23,7 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
+    <div class="space-y-6">
       <app-admin-collapsible-section
         title="Prayer Update Reminders"
         triggerId="prayer-update-reminders-trigger"
@@ -180,6 +187,143 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
           }
         }
       </app-admin-collapsible-section>
+
+      <app-admin-collapsible-section
+        title="Sending identity"
+        triggerId="email-sending-identity-trigger"
+        panelId="email-sending-identity-panel"
+        [expanded]="identitySectionExpanded"
+        (expandedChange)="onIdentityExpandedChange($event)"
+      >
+        <svg
+          sectionIcon
+          class="text-blue-600 dark:text-blue-400 shrink-0"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+          <polyline points="22,6 12,13 2,6"></polyline>
+        </svg>
+
+        @if (isLoadingIdentity) {
+          <app-admin-section-loading message="Loading sending identity…" />
+        } @else {
+          @if (!activeTenantId) {
+            <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
+              Select an organization above to set this church's From name and address.
+            </p>
+          } @else {
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Outbound mail for this church uses these fields when set. Leave them blank to send as the platform
+              default. Addresses stay on the verified Resend domain; custom sending domains are a later roadmap item.
+            </p>
+
+            <form (ngSubmit)="saveMailIdentity()" class="mb-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div class="mb-4">
+                <label for="mail-from-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  From display name
+                </label>
+                <input
+                  id="mail-from-name"
+                  type="text"
+                  name="mailFromName"
+                  maxlength="78"
+                  [(ngModel)]="mailFromName"
+                  (ngModelChange)="onIdentityFieldChange()"
+                  [disabled]="savingIdentity"
+                  placeholder="e.g. Cross Pointe Prayer"
+                  aria-describedby="mailFromNameHelp"
+                  class="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p id="mailFromNameHelp" class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  Shown as the sender name in the inbox. Blank uses the platform default.
+                </p>
+              </div>
+
+              <div class="mb-4">
+                <label for="mail-from-local-part" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  From address local-part
+                </label>
+                <div class="flex flex-wrap items-center gap-2">
+                  <input
+                    id="mail-from-local-part"
+                    type="text"
+                    name="mailFromLocalPart"
+                    maxlength="64"
+                    [(ngModel)]="mailFromLocalPart"
+                    (ngModelChange)="onIdentityFieldChange()"
+                    [disabled]="savingIdentity"
+                    placeholder="e.g. crosspointe"
+                    aria-describedby="mailFromLocalPartHelp"
+                    class="w-48 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span class="text-sm text-gray-700 dark:text-gray-300">@your-verified-resend-domain</span>
+                </div>
+                <p id="mailFromLocalPartHelp" class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  Preview: <span class="font-mono">{{ mailFromPreview }}</span>
+                </p>
+              </div>
+
+              <div class="mb-2">
+                <label for="mail-reply-to" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Reply-To (optional)
+                </label>
+                <input
+                  id="mail-reply-to"
+                  type="email"
+                  name="mailReplyTo"
+                  maxlength="254"
+                  [(ngModel)]="mailReplyTo"
+                  (ngModelChange)="onIdentityFieldChange()"
+                  [disabled]="savingIdentity"
+                  placeholder="e.g. prayer@yourchurch.org"
+                  aria-describedby="mailReplyToHelp"
+                  class="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p id="mailReplyToHelp" class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  A real church inbox. Not required to be on the Resend domain. List-Unsubscribe still uses the platform address.
+                </p>
+              </div>
+            </form>
+
+            @if (successIdentity) {
+              <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-md p-4 mb-4" role="status" aria-live="polite" aria-atomic="true">
+                <p class="text-sm text-green-800 dark:text-green-200">
+                  Sending identity saved.
+                </p>
+              </div>
+            }
+
+            @if (identityError) {
+              <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md p-4 mb-4" role="alert" aria-live="assertive" aria-atomic="true">
+                <p class="text-sm text-red-800 dark:text-red-200">{{ identityError }}</p>
+              </div>
+            }
+
+            <div class="flex justify-end">
+              <button
+                type="button"
+                (click)="saveMailIdentity()"
+                [disabled]="savingIdentity"
+                class="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                aria-label="Save sending identity"
+              >
+                @if (savingIdentity) {
+                  <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                }
+                {{ savingIdentity ? 'Saving...' : 'Save sending identity' }}
+              </button>
+            </div>
+          }
+        }
+      </app-admin-collapsible-section>
+    </div>
   `,
   styles: []
 })
@@ -210,6 +354,17 @@ export class EmailSettingsComponent implements OnInit, OnDestroy {
   successVerification = false;
   successReminders = false;
 
+  identitySectionExpanded = false;
+  private identityInitialLoadDone = false;
+  private identityLoadedForTenantId: string | null = null;
+  isLoadingIdentity = false;
+  savingIdentity = false;
+  successIdentity = false;
+  identityError: string | null = null;
+  mailFromName = '';
+  mailFromLocalPart = '';
+  mailReplyTo = '';
+
   constructor(
     private supabase: SupabaseService,
     private toast: ToastService,
@@ -226,9 +381,16 @@ export class EmailSettingsComponent implements OnInit, OnDestroy {
       .subscribe(() => {
         if (!this.activeTenantId) {
           this.resetReminderState();
+          this.resetIdentityState();
           this.settingsLoadedForTenantId = null;
-        } else if (this.sectionExpanded) {
-          void this.loadSettings();
+          this.identityLoadedForTenantId = null;
+        } else {
+          if (this.sectionExpanded) {
+            void this.loadSettings();
+          }
+          if (this.identitySectionExpanded) {
+            void this.loadMailIdentity();
+          }
         }
         this.cdr.markForCheck();
       });
@@ -252,6 +414,153 @@ export class EmailSettingsComponent implements OnInit, OnDestroy {
       }
     }
     this.cdr.markForCheck();
+  }
+
+  get mailFromPreview(): string {
+    const local = coerceMailFromLocalPart(this.mailFromLocalPart);
+    if (local) {
+      return `${local}@your-verified-resend-domain`;
+    }
+    return 'Platform default (MAIL_SENDER_ADDRESS)';
+  }
+
+  onIdentityExpandedChange(expanded: boolean): void {
+    this.identitySectionExpanded = expanded;
+    const tenantId = this.activeTenantId;
+    if (this.identitySectionExpanded && tenantId) {
+      const shouldLoad =
+        !this.identityInitialLoadDone ||
+        this.identityLoadedForTenantId !== tenantId;
+      if (shouldLoad) {
+        this.identityInitialLoadDone = true;
+        void this.loadMailIdentity();
+      }
+    }
+    this.cdr.markForCheck();
+  }
+
+  onIdentityFieldChange(): void {
+    this.successIdentity = false;
+    this.identityError = null;
+    this.cdr.markForCheck();
+  }
+
+  private resetIdentityState(): void {
+    this.mailFromName = '';
+    this.mailFromLocalPart = '';
+    this.mailReplyTo = '';
+    this.identityError = null;
+    this.successIdentity = false;
+  }
+
+  async loadMailIdentity(options?: { silent?: boolean }): Promise<void> {
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      return;
+    }
+    try {
+      if (!options?.silent) {
+        this.isLoadingIdentity = true;
+        this.cdr.markForCheck();
+      }
+      this.identityError = null;
+
+      const callerEmail = await this.getCallerEmail();
+      if (!callerEmail) {
+        throw new Error('Not authenticated');
+      }
+
+      type MailIdentityRow = {
+        mail_from_name?: string | null;
+        mail_from_local_part?: string | null;
+        mail_reply_to?: string | null;
+      };
+
+      const { data: rows, error } = await this.supabase.client.rpc('get_tenant_mail_identity', {
+        p_tenant_id: tenantId,
+        p_email: callerEmail
+      });
+      if (error) throw error;
+      const data = (rows as MailIdentityRow[] | null)?.[0] ?? null;
+      this.mailFromName = data?.mail_from_name?.trim() ?? '';
+      this.mailFromLocalPart = data?.mail_from_local_part?.trim() ?? '';
+      this.mailReplyTo = data?.mail_reply_to?.trim() ?? '';
+      this.identityLoadedForTenantId = tenantId;
+    } catch (err: unknown) {
+      console.error('Error loading sending identity:', err);
+      const message = err && typeof err === 'object' && 'message' in err
+        ? String(err.message)
+        : 'Unknown error';
+      this.identityError = `Failed to load sending identity: ${message}`;
+      this.cdr.markForCheck();
+    } finally {
+      if (!options?.silent) {
+        this.isLoadingIdentity = false;
+      }
+      this.cdr.markForCheck();
+    }
+  }
+
+  async saveMailIdentity(): Promise<void> {
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      this.toast.error('Select an organization first');
+      return;
+    }
+
+    const nameErr = mailFromNameError(this.mailFromName);
+    const localErr = mailFromLocalPartError(this.mailFromLocalPart);
+    const replyErr = mailReplyToError(this.mailReplyTo);
+    if (nameErr || localErr || replyErr) {
+      this.identityError = nameErr || localErr || replyErr;
+      this.cdr.markForCheck();
+      this.toast.error(this.identityError);
+      return;
+    }
+
+    try {
+      this.savingIdentity = true;
+      this.cdr.markForCheck();
+      this.identityError = null;
+      this.successIdentity = false;
+
+      const callerEmail = await this.getCallerEmail();
+      if (!callerEmail) {
+        this.toast.error('Not authenticated');
+        return;
+      }
+
+      const { error } = await this.supabase.client.rpc('update_tenant_mail_identity', {
+        p_tenant_id: tenantId,
+        p_mail_from_name: this.mailFromName.trim() || null,
+        p_mail_from_local_part: this.mailFromLocalPart.trim().toLowerCase() || null,
+        p_mail_reply_to: this.mailReplyTo.trim() || null,
+        p_email: callerEmail
+      });
+      if (error) throw error;
+
+      this.successIdentity = true;
+      this.cdr.markForCheck();
+      this.toast.success('Sending identity saved.');
+      this.onSave.emit();
+      await this.loadMailIdentity({ silent: true });
+
+      setTimeout(() => {
+        this.successIdentity = false;
+        this.cdr.markForCheck();
+      }, 3000);
+    } catch (err: unknown) {
+      console.error('Error saving sending identity:', err);
+      const message = err && typeof err === 'object' && 'message' in err
+        ? String(err.message)
+        : 'Unknown error';
+      this.identityError = `Failed to save sending identity: ${message}`;
+      this.cdr.markForCheck();
+      this.toast.error('Failed to save sending identity');
+    } finally {
+      this.savingIdentity = false;
+      this.cdr.markForCheck();
+    }
   }
 
   onFormFieldChange(): void {

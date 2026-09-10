@@ -1,5 +1,6 @@
 /**
- * Unified email service using the Resend API
+ * Unified email service using the Resend API.
+ * Per-tenant From / Reply-To: keep helpers aligned with src/lib/mail-identity.ts
  *
  * SUPABASE_SERVICE_ROLE_KEY is Supabase’s fixed Edge env name; its value should be the Dashboard **Secret** key
  * (sb_secret_...). Legacy service_role JWT still works; prefer Secret when creating or rotating keys.
@@ -20,9 +21,99 @@ const RESEND_MAX_TO = 50
 /** Resend batch endpoint: max emails per request */
 const RESEND_BATCH_SIZE = 100
 
-function buildFrom(fromName?: string): string {
-  const name = fromName || MAIL_FROM_NAME
-  return `${name} <${MAIL_SENDER_ADDRESS}>`
+const MAIL_FROM_LOCAL_PART_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
+const MAIL_REPLY_TO_PATTERN = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/
+
+interface MailIdentity {
+  fromName: string
+  fromAddress: string
+  fromHeader: string
+  replyTo?: string
+}
+
+function platformDomainFromSenderAddress(senderAddress: string): string | null {
+  const trimmed = senderAddress.trim()
+  const at = trimmed.lastIndexOf('@')
+  if (at <= 0 || at === trimmed.length - 1) return null
+  const domain = trimmed.slice(at + 1).trim().toLowerCase()
+  return domain || null
+}
+
+function coerceMailFromLocalPart(raw: string | null | undefined): string | null {
+  const v = (raw ?? '').trim().toLowerCase()
+  if (!v || !MAIL_FROM_LOCAL_PART_PATTERN.test(v)) return null
+  return v
+}
+
+function coerceMailFromName(raw: string | null | undefined): string | null {
+  const v = (raw ?? '').trim()
+  if (!v || v.length > 78 || /[<>\r\n]/.test(v)) return null
+  return v
+}
+
+function coerceMailReplyTo(raw: string | null | undefined): string | null {
+  const v = (raw ?? '').trim()
+  if (!v || v.length > 254 || /[\r\n<>]/.test(v) || !MAIL_REPLY_TO_PATTERN.test(v)) {
+    return null
+  }
+  return v.toLowerCase()
+}
+
+function platformMailIdentity(fromNameOverride?: string, replyToOverride?: string): MailIdentity {
+  const fromName = coerceMailFromName(fromNameOverride) || MAIL_FROM_NAME
+  const replyTo = coerceMailReplyTo(replyToOverride)
+  return {
+    fromName,
+    fromAddress: MAIL_SENDER_ADDRESS,
+    fromHeader: `${fromName} <${MAIL_SENDER_ADDRESS}>`,
+    replyTo: replyTo || undefined,
+  }
+}
+
+function tenantMailIdentity(
+  row: {
+    mail_from_name?: string | null
+    mail_from_local_part?: string | null
+    mail_reply_to?: string | null
+  } | null
+): MailIdentity {
+  const domain = platformDomainFromSenderAddress(MAIL_SENDER_ADDRESS)
+  const fromName = coerceMailFromName(row?.mail_from_name) || MAIL_FROM_NAME
+  const localPart = coerceMailFromLocalPart(row?.mail_from_local_part)
+  const fromAddress =
+    domain && localPart ? `${localPart}@${domain}` : MAIL_SENDER_ADDRESS
+  const replyTo = coerceMailReplyTo(row?.mail_reply_to)
+  return {
+    fromName,
+    fromAddress,
+    fromHeader: `${fromName} <${fromAddress}>`,
+    replyTo: replyTo || undefined,
+  }
+}
+
+async function resolveMailIdentity(
+  supabase: ReturnType<typeof createClient>,
+  tenantId?: string | null,
+  fromNameOverride?: string,
+  replyToOverride?: string
+): Promise<MailIdentity> {
+  const tid = typeof tenantId === 'string' ? tenantId.trim() : ''
+  if (!tid) {
+    return platformMailIdentity(fromNameOverride, replyToOverride)
+  }
+
+  const { data, error } = await supabase
+    .from('tenant_settings')
+    .select('mail_from_name, mail_from_local_part, mail_reply_to')
+    .eq('tenant_id', tid)
+    .maybeSingle()
+
+  if (error) {
+    console.error('tenant mail identity lookup failed; using platform fallback:', error)
+    return platformMailIdentity()
+  }
+
+  return tenantMailIdentity(data)
 }
 
 function listUnsubscribeHeaders(listUnsubscribeHttpsUrl?: string): Record<string, string> {
@@ -121,15 +212,14 @@ async function sendEmail(options: {
   subject: string
   htmlBody?: string
   textBody?: string
-  replyTo?: string
-  fromName?: string
+  identity: MailIdentity
   listUnsubscribeHttpsUrl?: string
 }): Promise<void> {
   const recipients = Array.isArray(options.to) ? options.to : [options.to]
-  const from = buildFrom(options.fromName)
+  const from = options.identity.fromHeader
 
   console.log('📤 Sending email via Resend:', {
-    from: MAIL_SENDER_ADDRESS,
+    from: options.identity.fromAddress,
     to:
       recipients.length > 5
         ? `${recipients.slice(0, 5).join(', ')}... (${recipients.length} total)`
@@ -147,7 +237,7 @@ async function sendEmail(options: {
         options.subject,
         options.htmlBody,
         options.textBody,
-        options.replyTo,
+        options.identity.replyTo,
         options.listUnsubscribeHttpsUrl
       ),
       to: chunk,
@@ -179,14 +269,13 @@ async function sendBulkToSubscribers(
     subject: string
     htmlBody?: string
     textBody?: string
-    replyTo?: string
-    fromName?: string
+    identity: MailIdentity
   }
 ): Promise<{ sent: number; failed: number; errors: string[] }> {
   let sent = 0
   let failed = 0
   const errors: string[] = []
-  const from = buildFrom(options.fromName)
+  const from = options.identity.fromHeader
 
   console.log(`📧 Sending to ${recipients.length} subscribers via Resend batch...`)
 
@@ -205,7 +294,7 @@ async function sendBulkToSubscribers(
           options.subject,
           injected.htmlBody ?? options.htmlBody,
           injected.textBody ?? options.textBody,
-          options.replyTo,
+          options.identity.replyTo,
           oneClickUnsubscribeUrl(supabaseUrl, row.unsubscribe_token)
         ),
         to: [row.email],
@@ -275,17 +364,32 @@ serve(async (req) => {
       textBody,
       replyTo,
       fromName,
+      tenantId,
+      tenant_id,
       listUnsubscribeHttpsUrl,
     } = body
+    const resolvedTenantId =
+      typeof tenantId === 'string'
+        ? tenantId.trim()
+        : typeof tenant_id === 'string'
+          ? tenant_id.trim()
+          : ''
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
     if (action === 'send_to_all_subscribers') {
       console.log('📧 Action: Send to all subscribers')
 
-      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+      if (!resolvedTenantId) {
+        throw new Error('tenantId is required for send_to_all_subscribers')
+      }
+
+      const identity = await resolveMailIdentity(supabase, resolvedTenantId)
 
       const { data: subscribers, error } = await supabase
         .from('tenant_memberships')
         .select('user_email, unsubscribe_token')
+        .eq('tenant_id', resolvedTenantId)
         .eq('is_active', true)
         .eq('is_blocked', false)
 
@@ -315,8 +419,7 @@ serve(async (req) => {
         subject,
         htmlBody,
         textBody,
-        replyTo,
-        fromName,
+        identity,
       })
 
       return new Response(JSON.stringify({ success: true, ...result }), {
@@ -337,13 +440,19 @@ serve(async (req) => {
       throw new Error('Missing required field: subject')
     }
 
+    const identity = await resolveMailIdentity(
+      supabase,
+      resolvedTenantId || null,
+      typeof fromName === 'string' ? fromName : undefined,
+      typeof replyTo === 'string' ? replyTo : undefined
+    )
+
     await sendEmail({
       to,
       subject,
       htmlBody,
       textBody,
-      replyTo,
-      fromName,
+      identity,
       listUnsubscribeHttpsUrl:
         typeof listUnsubscribeHttpsUrl === 'string'
           ? listUnsubscribeHttpsUrl

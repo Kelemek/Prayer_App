@@ -52,8 +52,97 @@ function applyTemplateVariables(
   return result;
 }
 
-function buildFromHeader(mailFromName: string, mailSender: string): string {
-  return `${mailFromName} <${mailSender}>`;
+const MAIL_FROM_LOCAL_PART_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
+const MAIL_REPLY_TO_PATTERN = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+
+interface MailIdentity {
+  fromHeader: string;
+  fromAddress: string;
+  replyTo?: string;
+}
+
+function platformDomainFromSenderAddress(senderAddress: string): string | null {
+  const trimmed = senderAddress.trim();
+  const at = trimmed.lastIndexOf("@");
+  if (at <= 0 || at === trimmed.length - 1) return null;
+  const domain = trimmed.slice(at + 1).trim().toLowerCase();
+  return domain || null;
+}
+
+function coerceMailFromLocalPart(raw: string | null | undefined): string | null {
+  const v = (raw ?? "").trim().toLowerCase();
+  if (!v || !MAIL_FROM_LOCAL_PART_PATTERN.test(v)) return null;
+  return v;
+}
+
+function coerceMailFromName(raw: string | null | undefined): string | null {
+  const v = (raw ?? "").trim();
+  if (!v || v.length > 78 || /[<>\r\n]/.test(v)) return null;
+  return v;
+}
+
+function coerceMailReplyTo(raw: string | null | undefined): string | null {
+  const v = (raw ?? "").trim();
+  if (!v || v.length > 254 || /[\r\n<>]/.test(v) || !MAIL_REPLY_TO_PATTERN.test(v)) {
+    return null;
+  }
+  return v.toLowerCase();
+}
+
+function platformMailIdentity(mailFromName: string, mailSender: string): MailIdentity {
+  return {
+    fromHeader: `${mailFromName} <${mailSender}>`,
+    fromAddress: mailSender,
+  };
+}
+
+function tenantMailIdentity(
+  mailFromName: string,
+  mailSender: string,
+  row: {
+    mail_from_name?: string | null;
+    mail_from_local_part?: string | null;
+    mail_reply_to?: string | null;
+  } | null,
+): MailIdentity {
+  const domain = platformDomainFromSenderAddress(mailSender);
+  const fromName = coerceMailFromName(row?.mail_from_name) || mailFromName;
+  const localPart = coerceMailFromLocalPart(row?.mail_from_local_part);
+  const fromAddress = domain && localPart ? `${localPart}@${domain}` : mailSender;
+  const replyTo = coerceMailReplyTo(row?.mail_reply_to);
+  return {
+    fromHeader: `${fromName} <${fromAddress}>`,
+    fromAddress,
+    replyTo: replyTo || undefined,
+  };
+}
+
+async function resolveQueueMailIdentity(
+  supabase: ReturnType<typeof createClient>,
+  tenantId: string | null | undefined,
+  mailFromName: string,
+  mailSender: string,
+  cache: Map<string, MailIdentity>,
+): Promise<MailIdentity> {
+  const fallback = platformMailIdentity(mailFromName, mailSender);
+  const tid = tenantId?.trim() ?? "";
+  if (!tid) return fallback;
+  const cached = cache.get(tid);
+  if (cached) return cached;
+
+  const { data, error } = await supabase
+    .from("tenant_settings")
+    .select("mail_from_name, mail_from_local_part, mail_reply_to")
+    .eq("tenant_id", tid)
+    .maybeSingle();
+  if (error) {
+    console.warn("tenant mail identity lookup failed:", error.message);
+    cache.set(tid, fallback);
+    return fallback;
+  }
+  const identity = tenantMailIdentity(mailFromName, mailSender, data);
+  cache.set(tid, identity);
+  return identity;
 }
 
 function listUnsubscribeHeaders(
@@ -85,15 +174,16 @@ async function sendViaResend(
   textBody: string,
   resendKey: string,
   mailSender: string,
-  mailFromName: string,
+  identity: MailIdentity,
   listUnsubscribeHttpsUrl?: string,
 ): Promise<void> {
   const payload: Record<string, unknown> = {
-    from: buildFromHeader(mailFromName, mailSender),
+    from: identity.fromHeader,
     to: [recipient],
     subject,
     headers: listUnsubscribeHeaders(mailSender, listUnsubscribeHttpsUrl),
   };
+  if (identity.replyTo) payload.reply_to = identity.replyTo;
   if (htmlBody) {
     payload.html = htmlBody;
     if (textBody) payload.text = textBody;
@@ -216,6 +306,7 @@ async function processOne(
   mailFromName: string,
   supabaseUrl: string,
   defaultTenantId: string | null,
+  identityCache: Map<string, MailIdentity>,
 ): Promise<boolean> {
   try {
     const tid = email.tenant_id ?? defaultTenantId;
@@ -251,6 +342,14 @@ async function processOne(
         ? oneClickUnsubscribeUrl(supabaseUrl, token)
         : undefined;
 
+    const identity = await resolveQueueMailIdentity(
+      supabase,
+      tid,
+      mailFromName,
+      mailSender,
+      identityCache,
+    );
+
     await sendViaResend(
       email.recipient,
       subject,
@@ -258,7 +357,7 @@ async function processOne(
       textBody,
       resendKey,
       mailSender,
-      mailFromName,
+      identity,
       listUnsubscribeHttpsUrl,
     );
 
@@ -328,6 +427,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
     const supabasePublicUrl = supabaseUrl.replace(/\/+$/, "");
     const templateCache = new Map<string, EmailTemplate>();
+    const identityCache = new Map<string, MailIdentity>();
     const defaultTenantId = await getDefaultTenantId(supabase);
 
     let totalSent = 0;
@@ -375,6 +475,7 @@ serve(async (req) => {
           mailFromName,
           supabasePublicUrl,
           defaultTenantId,
+          identityCache,
         );
         if (ok) totalSent++;
         else totalFailed++;

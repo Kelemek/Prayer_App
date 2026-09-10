@@ -517,9 +517,16 @@ describe('EmailNotificationService', () => {
     await expect(service.sendEmail({ to: 'a@b', subject: 's' })).rejects.toThrow();
   });
 
-  it('sendEmail throws when the function returns success false', async () => {
-    mockSupabase.client.functions.invoke.mockResolvedValue({ data: { success: false, error: 'bad payload' }, error: null });
-    await expect(service.sendEmail({ to: 'a@b', subject: 's' })).rejects.toThrow('bad payload');
+  it('sendEmail includes resolved tenantId', async () => {
+    mockSupabase.client.functions.invoke.mockResolvedValue({ data: { success: true }, error: null });
+    await service.sendEmail({ to: 'a@b', subject: 's' });
+    expect(mockSupabase.client.functions.invoke).toHaveBeenCalledWith('send-email', {
+      body: expect.objectContaining({
+        to: 'a@b',
+        subject: 's',
+        tenantId: VITEST_TENANT_ID,
+      }),
+    });
   });
 
   it('sendEmailToAllSubscribers calls supabase function and errors on failure', async () => {

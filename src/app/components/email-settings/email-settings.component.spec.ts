@@ -115,6 +115,14 @@ describe('EmailSettingsComponent', () => {
     it('should have successReminders default to false', () => {
       expect(component.successReminders).toBe(false);
     });
+
+    it('should have identity fields empty by default', () => {
+      expect(component.mailFromName).toBe('');
+      expect(component.mailFromLocalPart).toBe('');
+      expect(component.mailReplyTo).toBe('');
+      expect(component.identitySectionExpanded).toBe(false);
+      expect(component.mailFromPreview).toBe('Platform default (MAIL_SENDER_ADDRESS)');
+    });
   });
 
   describe('ngOnInit', () => {
@@ -537,6 +545,75 @@ describe('EmailSettingsComponent', () => {
       component.daysBeforeArchive = 90;
       component.validateArchiveDays();
       expect(component.daysBeforeArchive).toBe(90);
+    });
+  });
+
+  describe('sending identity', () => {
+    it('previews a sanitized local-part on the platform domain', () => {
+      component.mailFromLocalPart = 'CrossPointe';
+      expect(component.mailFromPreview).toBe('crosspointe@your-verified-resend-domain');
+    });
+
+    it('loads mail identity via RPC', async () => {
+      mockSupabaseService.client.rpc = vi.fn(() =>
+        Promise.resolve({
+          data: [
+            {
+              mail_from_name: 'Cross Pointe Prayer',
+              mail_from_local_part: 'crosspointe',
+              mail_reply_to: 'prayer@church.org'
+            }
+          ],
+          error: null
+        })
+      );
+
+      await component.loadMailIdentity();
+
+      expect(mockSupabaseService.client.rpc).toHaveBeenCalledWith('get_tenant_mail_identity', {
+        p_tenant_id: MOCK_TENANT.id,
+        p_email: 'admin@test.com'
+      });
+      expect(component.mailFromName).toBe('Cross Pointe Prayer');
+      expect(component.mailFromLocalPart).toBe('crosspointe');
+      expect(component.mailReplyTo).toBe('prayer@church.org');
+    });
+
+    it('saves mail identity via RPC', async () => {
+      vi.useFakeTimers();
+      const rpcMock = vi.fn(() => Promise.resolve({ error: null }));
+      mockSupabaseService.client.rpc = rpcMock;
+      vi.spyOn(component, 'loadMailIdentity').mockResolvedValue(undefined);
+
+      component.mailFromName = 'Church A';
+      component.mailFromLocalPart = 'church-a';
+      component.mailReplyTo = 'hello@church.org';
+
+      await component.saveMailIdentity();
+
+      expect(rpcMock).toHaveBeenCalledWith('update_tenant_mail_identity', {
+        p_tenant_id: MOCK_TENANT.id,
+        p_mail_from_name: 'Church A',
+        p_mail_from_local_part: 'church-a',
+        p_mail_reply_to: 'hello@church.org',
+        p_email: 'admin@test.com'
+      });
+      expect(component.successIdentity).toBe(true);
+      expect(mockToastService.success).toHaveBeenCalledWith('Sending identity saved.');
+      vi.advanceTimersByTime(3000);
+      expect(component.successIdentity).toBe(false);
+      vi.useRealTimers();
+    });
+
+    it('rejects an invalid local-part before calling RPC', async () => {
+      const rpcMock = vi.fn(() => Promise.resolve({ error: null }));
+      mockSupabaseService.client.rpc = rpcMock;
+      component.mailFromLocalPart = 'not@other.com';
+
+      await component.saveMailIdentity();
+
+      expect(rpcMock).not.toHaveBeenCalled();
+      expect(component.identityError).toContain('lowercase');
     });
   });
 });

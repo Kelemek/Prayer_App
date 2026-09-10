@@ -513,7 +513,7 @@ serve(async (req) => {
 
     const { data: subscribers, error: subErr } = await supabase
       .from('tenant_memberships')
-      .select('user_email, receive_push, is_active, is_blocked, unsubscribe_token')
+      .select('user_email, tenant_id, receive_push, is_active, is_blocked, unsubscribe_token')
       .in('user_email', uniqueEmails);
 
     if (subErr) {
@@ -553,6 +553,7 @@ serve(async (req) => {
       const sub = subByLower.get(canonicalEmail.toLowerCase()) as
         | {
           user_email: string;
+          tenant_id?: string;
           receive_push: boolean | null;
           is_active: boolean | null;
           is_blocked: boolean | null;
@@ -630,6 +631,7 @@ serve(async (req) => {
             subject,
             textBody,
             htmlBody,
+            ...(sub.tenant_id ? { tenantId: sub.tenant_id } : {}),
             ...(listUnsubscribeHttpsUrl
               ? { listUnsubscribeHttpsUrl }
               : {}),

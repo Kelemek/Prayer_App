@@ -15,6 +15,7 @@ interface EmailQueueItem {
   attempts: number;
   last_error: string | null;
   processing_started_at?: string;
+  tenant_id?: string | null;
 }
 
 interface EmailTemplate {
@@ -53,10 +54,83 @@ const supabase = createClient(
 );
 
 const templateCache = new Map<string, EmailTemplate>();
+const identityCache = new Map<string, MailIdentity>();
 
-function buildFromHeader(): string {
+const MAIL_FROM_LOCAL_PART_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
+const MAIL_REPLY_TO_PATTERN = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+
+interface MailIdentity {
+  fromHeader: string;
+  fromAddress: string;
+  replyTo?: string;
+}
+
+function platformDomainFromSenderAddress(senderAddress: string): string | null {
+  const trimmed = senderAddress.trim();
+  const at = trimmed.lastIndexOf('@');
+  if (at <= 0 || at === trimmed.length - 1) return null;
+  const domain = trimmed.slice(at + 1).trim().toLowerCase();
+  return domain || null;
+}
+
+function coerceMailFromLocalPart(raw: string | null | undefined): string | null {
+  const v = (raw ?? '').trim().toLowerCase();
+  if (!v || !MAIL_FROM_LOCAL_PART_PATTERN.test(v)) return null;
+  return v;
+}
+
+function coerceMailFromName(raw: string | null | undefined): string | null {
+  const v = (raw ?? '').trim();
+  if (!v || v.length > 78 || /[<>\r\n]/.test(v)) return null;
+  return v;
+}
+
+function coerceMailReplyTo(raw: string | null | undefined): string | null {
+  const v = (raw ?? '').trim();
+  if (!v || v.length > 254 || /[\r\n<>]/.test(v) || !MAIL_REPLY_TO_PATTERN.test(v)) {
+    return null;
+  }
+  return v.toLowerCase();
+}
+
+function platformMailIdentity(): MailIdentity {
   const name = process.env.MAIL_FROM_NAME || 'Prayer Ministry';
-  return `${name} <${process.env.MAIL_SENDER_ADDRESS}>`;
+  const sender = process.env.MAIL_SENDER_ADDRESS!;
+  return { fromHeader: `${name} <${sender}>`, fromAddress: sender };
+}
+
+async function resolveQueueMailIdentity(tenantId?: string | null): Promise<MailIdentity> {
+  const fallback = platformMailIdentity();
+  const tid = tenantId?.trim() ?? '';
+  if (!tid) return fallback;
+  const cached = identityCache.get(tid);
+  if (cached) return cached;
+
+  const { data, error } = await supabase
+    .from('tenant_settings')
+    .select('mail_from_name, mail_from_local_part, mail_reply_to')
+    .eq('tenant_id', tid)
+    .maybeSingle();
+  if (error) {
+    console.warn('tenant mail identity lookup failed:', error.message);
+    identityCache.set(tid, fallback);
+    return fallback;
+  }
+
+  const sender = process.env.MAIL_SENDER_ADDRESS!;
+  const platformName = process.env.MAIL_FROM_NAME || 'Prayer Ministry';
+  const domain = platformDomainFromSenderAddress(sender);
+  const fromName = coerceMailFromName(data?.mail_from_name) || platformName;
+  const localPart = coerceMailFromLocalPart(data?.mail_from_local_part);
+  const fromAddress = domain && localPart ? `${localPart}@${domain}` : sender;
+  const replyTo = coerceMailReplyTo(data?.mail_reply_to);
+  const identity: MailIdentity = {
+    fromHeader: `${fromName} <${fromAddress}>`,
+    fromAddress,
+    replyTo: replyTo || undefined
+  };
+  identityCache.set(tid, identity);
+  return identity;
 }
 
 function listUnsubscribeHeaders(
@@ -82,15 +156,17 @@ async function sendViaResend(
   subject: string,
   htmlBody: string,
   textBody: string,
+  identity: MailIdentity,
   listUnsubscribeHttpsUrl?: string
 ): Promise<void> {
   const sender = process.env.MAIL_SENDER_ADDRESS!;
   const payload: Record<string, unknown> = {
-    from: buildFromHeader(),
+    from: identity.fromHeader,
     to: [recipient],
     subject,
     headers: listUnsubscribeHeaders(sender, listUnsubscribeHttpsUrl)
   };
+  if (identity.replyTo) payload.reply_to = identity.replyTo;
 
   if (htmlBody) {
     payload.html = htmlBody;
@@ -281,12 +357,15 @@ async function processEmail(email: EmailQueueItem): Promise<boolean> {
         ? `${supabaseBase}/functions/v1/email-unsubscribe?token=${encodeURIComponent(token)}`
         : undefined;
 
+    const identity = await resolveQueueMailIdentity(email.tenant_id);
+
     // Send email
     await sendViaResend(
       email.recipient,
       subject,
       htmlBody,
       textBody,
+      identity,
       listUnsubscribeHttpsUrl
     );
 

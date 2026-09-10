@@ -2,6 +2,14 @@
 
 Major features and milestones for the Prayer App.
 
+## [Current] - September 2026
+
+### Per-tenant outbound email identity
+- Each church can set From display name, a local-part on the platform verified Resend domain, and optional Reply-To (`tenant_settings.mail_from_name`, `mail_from_local_part`, `mail_reply_to`).
+- RPCs: `get_tenant_mail_identity` / `update_tenant_mail_identity` (tenant_admin / super_admin for that tenant). Admin UI: **Email → Sending identity**.
+- `send-email`, `trigger-email-processor`, and `process-email-queue` resolve identity from `tenant_id` with `MAIL_*` fallback. From addresses cannot leave the platform domain this pass.
+- Migration: `20260910020417_tenant_mail_identity.sql` (commit only; apply when ready).
+
 ## [Current] - February 2026
 
 ### Removed Planning Center integration
