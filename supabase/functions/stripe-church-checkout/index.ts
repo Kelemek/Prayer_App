@@ -1,12 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type, x-supabase-client-platform',
-};
-
 /** Allowed: APP_URL host, www.{host}, or single-label subdomain of that host. */
 function resolveStripeReturnOrigin(
   appUrl: string,
@@ -39,6 +32,13 @@ function resolveStripeReturnOrigin(
   }
   return base;
 }
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type, x-supabase-client-platform',
+};
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -89,6 +89,7 @@ Deno.serve(async (req: Request) => {
   const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? serviceKey, {
     global: { headers: { Authorization: authHeader } },
   });
+  const adminClient = createClient(supabaseUrl, serviceKey);
 
   const { data: userData, error: userError } = await userClient.auth.getUser();
   if (userError || !userData?.user?.email) {
@@ -100,21 +101,65 @@ Deno.serve(async (req: Request) => {
 
   const email = userData.user.email.toLowerCase().trim();
 
-  const customerRes = await fetch('https://api.stripe.com/v1/customers', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${stripeSecret}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({ email }),
-  });
-  const customer = await customerRes.json();
-  if (!customerRes.ok) {
-    console.error('Stripe customer create failed:', customer);
-    return new Response(JSON.stringify({ error: 'Failed to create Stripe customer' }), {
-      status: 500,
+  const { data: tenant, error: tenantError } = await adminClient
+    .from('tenants')
+    .select('id, stripe_customer_id')
+    .eq('id', tenantId)
+    .maybeSingle();
+
+  if (tenantError || !tenant) {
+    return new Response(JSON.stringify({ error: 'Tenant not found' }), {
+      status: 404,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
+  }
+
+  const { data: isAdmin } = await adminClient.rpc('is_tenant_admin', {
+    tenant_to_check: tenantId,
+    email_to_check: email,
+  });
+  const { data: isSuperAdmin } = await adminClient.rpc('is_super_admin', {
+    email_to_check: email,
+  });
+
+  if (!isAdmin && !isSuperAdmin) {
+    return new Response(JSON.stringify({ error: 'Forbidden' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  let customerId = tenant.stripe_customer_id as string | undefined;
+  if (!customerId) {
+    const customerRes = await fetch('https://api.stripe.com/v1/customers', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${stripeSecret}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        email,
+        'metadata[kind]': 'church',
+        'metadata[tenant_id]': tenantId,
+      }),
+    });
+    const customer = await customerRes.json();
+    if (!customerRes.ok) {
+      console.error('Stripe customer create failed:', customer);
+      return new Response(JSON.stringify({ error: 'Failed to create Stripe customer' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    customerId = customer.id;
+
+    await adminClient
+      .from('tenants')
+      .update({
+        stripe_customer_id: customerId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', tenantId);
   }
 
   const sessionRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {
@@ -125,14 +170,18 @@ Deno.serve(async (req: Request) => {
     },
     body: new URLSearchParams({
       mode: 'subscription',
-      customer: customer.id,
+      customer: customerId!,
       'line_items[0][price]': priceId,
       'line_items[0][quantity]': '1',
+      // Managed Payments (default on new Stripe accounts) requires product tax codes.
+      'managed_payments[enabled]': 'false',
       success_url: `${returnOrigin}/admin?church_checkout=success`,
       cancel_url: `${returnOrigin}/admin?church_checkout=cancel`,
       'metadata[kind]': 'church',
       'metadata[tenant_id]': tenantId,
       'metadata[user_email]': email,
+      'subscription_data[metadata][kind]': 'church',
+      'subscription_data[metadata][tenant_id]': tenantId,
     }),
   });
 

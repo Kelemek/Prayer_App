@@ -88,6 +88,11 @@ describe('TenantManagementComponent', () => {
         removeSuperAdmin,
       } as any,
       { canManageTenant } as any,
+      {
+        loadGraceDays: vi.fn().mockResolvedValue(7),
+        saveGraceDays: vi.fn().mockResolvedValue(undefined),
+        listTenantBilling: vi.fn().mockResolvedValue([]),
+      } as any,
       { success: toastSuccess, error: toastError } as any
     );
     component.ngOnInit();
@@ -124,7 +129,7 @@ describe('TenantManagementComponent', () => {
     component.newTenantSlug = 'New Org!!';
     switchTenant.mockResolvedValue(true);
     await component.createNewTenant();
-    expect(createTenant).toHaveBeenCalledWith('New Org', 'new-org', 'churches');
+    expect(createTenant).toHaveBeenCalledWith('New Org', 'new-org', 'churches', 'incomplete');
     expect(toastSuccess).toHaveBeenCalledWith(
       'Organization "Beta Group" created and set as active'
     );
@@ -178,14 +183,14 @@ describe('TenantManagementComponent', () => {
     expect(createInvite).not.toHaveBeenCalled();
   });
 
-  it('updatePlan checks permissions and updates plan', async () => {
-    canManageTenant.mockReturnValue(false);
+  it('updatePlan requires super admin and updates plan', async () => {
+    component.isSuperAdmin = false;
     await component.updatePlan();
     expect(toastError).toHaveBeenCalledWith(
-      'You do not have permission to update plan settings'
+      'Only super admins can manually change plan tiers'
     );
 
-    canManageTenant.mockReturnValue(true);
+    component.isSuperAdmin = true;
     component.planTier = 'churches';
     component.planStatus = 'trialing';
     await component.updatePlan();

@@ -141,7 +141,9 @@ export class TenantContextService {
       const [{ data: memberships, error: membershipsError }, { data: superRole, error: roleError }] = await Promise.all([
         this.supabase.client
           .from('tenant_memberships')
-          .select('tenant_id, user_email, role, tenants(id, name, slug, plan_tier, plan_status)')
+          .select(
+            'tenant_id, user_email, role, tenants(id, name, slug, plan_tier, plan_status, stripe_customer_id, stripe_subscription_id, stripe_cancel_at_period_end, stripe_current_period_end, past_due_since, grace_until)'
+          )
           .eq('user_email', lowerEmail),
         this.supabase.client
           .from('global_roles')
@@ -396,7 +398,9 @@ export class TenantContextService {
 
     const { data: tenantRows, error: tenantError } = await this.supabase.client
       .from('tenants')
-      .select('id, name, slug, plan_tier, plan_status')
+      .select(
+        'id, name, slug, plan_tier, plan_status, stripe_customer_id, stripe_subscription_id, stripe_cancel_at_period_end, stripe_current_period_end, past_due_since, grace_until'
+      )
       .order('name', { ascending: true });
     if (tenantError) {
       console.error('[TenantContext] Fallback all-tenant query failed:', tenantError);

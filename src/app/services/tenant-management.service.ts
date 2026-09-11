@@ -17,7 +17,12 @@ export class TenantManagementService {
     private tenantContext: TenantContextService
   ) {}
 
-  async createTenant(name: string, slug: string, planTier: Tenant['plan_tier'] = 'groups'): Promise<Tenant> {
+  async createTenant(
+    name: string,
+    slug: string,
+    planTier: Tenant['plan_tier'] = 'groups',
+    planStatus: Tenant['plan_status'] = planTier === 'churches' ? 'incomplete' : 'active'
+  ): Promise<Tenant> {
     const userEmail = await this.getCurrentUserEmail();
     if (!userEmail) {
       throw new Error('You must be logged in to create a tenant');
@@ -30,7 +35,7 @@ export class TenantManagementService {
       p_name: name,
       p_slug: slug,
       p_plan_tier: planTier,
-      p_plan_status: 'active',
+      p_plan_status: planStatus,
       // MFA-only sessions have no JWT; RPC needs explicit email + DB-side authorization.
       ...(hasSupabaseJwt ? {} : { p_email: userEmail })
     });

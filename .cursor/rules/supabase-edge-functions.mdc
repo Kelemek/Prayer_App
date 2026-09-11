@@ -9,6 +9,7 @@ alwaysApply: false
 ## Structure
 
 - Each function lives in `supabase/functions/<name>/index.ts`.
+- **Self-contained only:** Supabase deploys each Edge Function in isolation. Do **not** import from `supabase/functions/_shared/`, sibling function folders (`../other-function/`), or parent paths (`../`). Put helpers **inline** in that function’s `index.ts` (or files under the same `<name>/` folder if the bundler supports it for that function only). Duplicate small helpers across functions when needed rather than sharing a top-level `_shared` module.
 - Use **Deno** runtime. Entry point: `serve(async (req) => { ... })` from `https://deno.land/std@0.168.0/http/server.ts`.
 - Create admin Supabase client with `createClient(SUPABASE_URL, secretKey)` from `https://esm.sh/@supabase/supabase-js@2`, where `secretKey` is `Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')`.
 - **Naming:** Supabase still injects **`SUPABASE_SERVICE_ROLE_KEY`** and **`SUPABASE_ANON_KEY`** on hosted Edge Functions. The **values** are your project’s **secret** and **publishable** API keys (`sb_secret_…` / `sb_publishable_…` or legacy JWTs)—do not rename these env vars to match dashboard labels.

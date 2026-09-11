@@ -315,6 +315,55 @@ Email queue is processed by GitHub Actions workflow:
 
 ---
 
+## Stripe (Church + Pro billing)
+
+Web-only Stripe Checkout and Customer Portal. Native apps do not show buy/manage UI in-app; church admins may open the system browser for billing.
+
+### Edge Function secrets
+
+Set on **Supabase → Edge Functions → Secrets** (test mode until you explicitly go live):
+
+| Secret | Used by |
+|--------|---------|
+| `STRIPE_SECRET_KEY` | `stripe-church-checkout`, `stripe-pro-checkout`, `stripe-billing-portal` |
+| `STRIPE_WEBHOOK_SECRET` | `stripe-webhook` |
+| `STRIPE_CHURCH_PRICE_ID` | Church Checkout |
+| `STRIPE_PRO_PRICE_ID` | Pro Checkout |
+| `APP_URL` | Checkout/portal return URLs (match `VITE_APP_URL`) |
+| `STRIPE_PORTAL_CONFIGURATION_ID` | Optional Customer Portal configuration |
+
+Do **not** put Stripe secrets in `VITE_*` or client bundles.
+
+### Deploy functions
+
+```bash
+./scripts/deploy-functions.sh stripe-church-checkout
+./scripts/deploy-functions.sh stripe-pro-checkout
+./scripts/deploy-functions.sh stripe-billing-portal
+./scripts/deploy-functions.sh stripe-webhook
+./scripts/deploy-functions.sh reconcile-church-billing
+```
+
+`stripe-webhook` and `reconcile-church-billing` use `--no-verify-jwt` (Stripe / pg_cron invoke with service role).
+
+### Stripe Dashboard (test)
+
+1. **Webhook** endpoint: `https://<project>.supabase.co/functions/v1/stripe-webhook`
+2. Events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted` (optional: `invoice.paid`, `invoice.payment_failed`)
+3. Enable **customer emails** for failed payments, upcoming invoices, and cancellations (complements in-app past_due mail from the app).
+
+### Database migration
+
+Apply `supabase/migrations/20260910180000_church_stripe_lifecycle.sql` before enabling Church billing in production. It adds tenant Stripe IDs, past_due grace (`admin_settings.church_past_due_grace_days`), webhook idempotency, and the hourly `invoke-reconcile-church-billing` cron job (requires Vault `project_url` + `service_role_key` like other cron jobs).
+
+### Church billing behavior
+
+- **Past due:** Church features stay on for `church_past_due_grace_days` (super-admin editable in Tenant Manager). Then downgrade to `free`.
+- **Cancel at period end:** Access until Stripe `current_period_end`, then downgrade (not the past_due grace clock).
+- **PCI:** Stripe-hosted Checkout/Portal only; store customer/subscription IDs and plan status—never card data.
+
+---
+
 ## Deployment
 
 ### Vercel Deployment

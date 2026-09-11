@@ -7,7 +7,7 @@ import {
   ChangeDetectorRef,
   NgZone,
 } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Subject, distinctUntilChanged, filter, map, skip, take, takeUntil } from 'rxjs';
 import { AdminDataService, type AdminData } from '../../services/admin-data.service';
 import { AdminAuthService } from '../../services/admin-auth.service';
@@ -27,6 +27,8 @@ import { AdminApprovalsPanelComponent } from '../../components/admin-approvals-p
 import { AdminDeletionsPanelComponent } from '../../components/admin-deletions-panel/admin-deletions-panel.component';
 import { AdminAccountsPanelComponent } from '../../components/admin-accounts-panel/admin-accounts-panel.component';
 import { AdminSettingsPanelComponent } from '../../components/admin-settings-panel/admin-settings-panel.component';
+import { AdminChurchBillingBannerComponent } from '../../components/admin-church-billing-banner/admin-church-billing-banner.component';
+import { isChurchPlanTier, tenantHasChurchFeatures } from '../../lib/church-billing';
 import {
   type AdminTab,
   type ConsolidatedApproval,
@@ -65,6 +67,7 @@ const EMPTY_ANALYTICS_STATS: AnalyticsStats = {
     AdminDeletionsPanelComponent,
     AdminAccountsPanelComponent,
     AdminSettingsPanelComponent,
+    AdminChurchBillingBannerComponent,
     SendNotificationDialogComponent,
     ConfirmationDialogComponent,
   ],
@@ -95,11 +98,12 @@ export class AdminComponent implements OnInit, OnDestroy {
 
   constructor(
     private router: Router,
+    private route: ActivatedRoute,
     private adminDataService: AdminDataService,
     private analyticsService: AnalyticsService,
     public adminAuthService: AdminAuthService,
     public userSessionService: UserSessionService,
-    private tenantContextService: TenantContextService,
+    public tenantContextService: TenantContextService,
     private githubFeedbackService: GitHubFeedbackService,
     private toastService: ToastService,
     private ngZone: NgZone,
@@ -116,6 +120,7 @@ export class AdminComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     void this.loadGitHubFeedbackStatus();
+    void this.handleChurchCheckoutQuery();
 
     this.tenantContextService.loading$
       .pipe(
@@ -200,11 +205,43 @@ export class AdminComponent implements OnInit, OnDestroy {
     if (this.tenantContextService.getIsSuperAdmin()) {
       return true;
     }
-    return this.tenantContextService.getActiveTenant()?.plan_tier === 'churches';
+    return tenantHasChurchFeatures(this.tenantContextService.getActiveTenant());
   }
 
   isChurchTenant(): boolean {
-    return this.tenantContextService.getActiveTenant()?.plan_tier === 'churches';
+    return isChurchPlanTier(this.tenantContextService.getActiveTenant());
+  }
+
+  canManageChurchBilling(): boolean {
+    if (this.isSuperAdmin) {
+      return isChurchPlanTier(this.tenantContextService.getActiveTenant());
+    }
+    return this.tenantContextService.getActiveTenant()?.plan_tier === 'churches' &&
+      this.tenantContextService.getMemberships().some(
+        (m) =>
+          m.tenant_id === this.tenantContextService.getActiveTenant()?.id &&
+          m.role === 'tenant_admin'
+      );
+  }
+
+  private async handleChurchCheckoutQuery(): Promise<void> {
+    const checkout = this.route.snapshot.queryParamMap.get('church_checkout');
+    if (!checkout) return;
+
+    if (checkout === 'success') {
+      this.toastService.success('Church checkout completed. Refreshing your plan…');
+      await this.tenantContextService.refresh();
+    } else if (checkout === 'cancel') {
+      this.toastService.info('Church checkout was canceled.');
+    }
+
+    await this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { church_checkout: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+    this.cdr.markForCheck();
   }
 
   private ensureSettingsTabAllowed(): void {

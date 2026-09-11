@@ -68,7 +68,14 @@ describe("HomeChurchOnboardingModalComponent", () => {
             ]),
           },
         },
-        { provide: ChurchCheckoutService, useValue: { startChurchCheckout } },
+        {
+          provide: ChurchCheckoutService,
+          useValue: {
+            startChurchCheckout,
+            openBillingUrl: vi.fn().mockResolvedValue(undefined),
+            isNativeStripeCheckoutUi: vi.fn(() => false),
+          },
+        },
         { provide: ToastService, useValue: { success: toastSuccess, error: toastError } },
       ],
     }).compileComponents();

@@ -14,6 +14,7 @@ import { TenantContextService } from "../../services/tenant-context.service";
 import { ChurchCheckoutService } from "../../services/church-checkout.service";
 import { ToastService } from "../../services/toast.service";
 import { switchTenantWithNavigation } from "../../lib/tenant-navigation";
+import { Capacitor } from "@capacitor/core";
 import {
   normalizeTenantSlug,
   suggestTenantSlugFromName,
@@ -139,14 +140,20 @@ export class HomeChurchOnboardingModalComponent implements OnChanges {
         this.toast.error("Church created but could not switch organization");
         return;
       }
-      const checkoutUrl = await this.churchCheckout.startChurchCheckout(
-        tenant.id,
-        tenant.slug
-      );
-      if (checkoutUrl) {
-        this.completed.emit();
-        window.location.assign(checkoutUrl);
-        return;
+      if (!Capacitor.isNativePlatform()) {
+        const checkoutUrl = await this.churchCheckout.startChurchCheckout(
+          tenant.id,
+          tenant.slug
+        );
+        if (checkoutUrl) {
+          this.completed.emit();
+          await this.churchCheckout.openBillingUrl(checkoutUrl);
+          return;
+        }
+      } else {
+        this.toast.success(
+          `Church "${tenant.name}" created. Finish billing on the web to unlock Church features.`
+        );
       }
       const navResult = await switchTenantWithNavigation(
         tenant.id,

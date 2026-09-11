@@ -54,6 +54,11 @@
       (tabSelect)="onTabChange($event)"
     ></app-admin-nav-tiles>
 
+    <app-admin-church-billing-banner
+      [tenant]="tenantContextService.getActiveTenant()"
+      [canManage]="canManageChurchBilling()"
+    ></app-admin-church-billing-banner>
+
     @if (adminData?.loading) {
       <div class="text-center py-12">
         <div

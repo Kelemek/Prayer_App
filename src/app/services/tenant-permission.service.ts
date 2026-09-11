@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import type { TenantMembershipRole } from '../types/tenant';
+import { isChurchPlanTier, tenantHasChurchFeatures } from '../lib/church-billing';
 import { TenantContextService } from './tenant-context.service';
 import { PrayerGroupService } from './prayer-group.service';
 import { UserSubscriptionService } from './user-subscription.service';
@@ -16,8 +17,7 @@ export class TenantPermissionService {
 
   canAccessShared(): boolean {
     const tenant = this.tenantContext.getActiveTenant();
-    if (!tenant) return false;
-    return tenant.plan_tier === 'churches';
+    return tenantHasChurchFeatures(tenant);
   }
 
   canCreatePrayerGroups(): boolean {
@@ -37,7 +37,7 @@ export class TenantPermissionService {
     }
 
     const tenant = this.tenantContext.getActiveTenant();
-    if (!tenant || tenant.plan_tier !== 'churches') {
+    if (!tenant || !isChurchPlanTier(tenant)) {
       return false;
     }
 

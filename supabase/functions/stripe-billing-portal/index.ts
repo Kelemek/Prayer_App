@@ -55,12 +55,20 @@ Deno.serve(async (req: Request) => {
   const stripeSecret = Deno.env.get('STRIPE_SECRET_KEY');
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const priceId = Deno.env.get('STRIPE_PRO_PRICE_ID');
   const appUrl = Deno.env.get('APP_URL') ?? 'http://localhost:4200';
+  const portalConfigId = Deno.env.get('STRIPE_PORTAL_CONFIGURATION_ID');
 
-  if (!stripeSecret || !supabaseUrl || !serviceKey || !priceId) {
-    return new Response(JSON.stringify({ error: 'Stripe Pro checkout is not configured' }), {
+  if (!stripeSecret || !supabaseUrl || !serviceKey) {
+    return new Response(JSON.stringify({ error: 'Billing portal is not configured' }), {
       status: 503,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
@@ -70,11 +78,10 @@ Deno.serve(async (req: Request) => {
     appUrl,
     typeof body.return_origin === 'string' ? body.return_origin : null
   );
-
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
+  const tenantId = String(body.tenant_id ?? '').trim();
+  if (!tenantId) {
+    return new Response(JSON.stringify({ error: 'tenant_id is required' }), {
+      status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
@@ -94,74 +101,61 @@ Deno.serve(async (req: Request) => {
 
   const email = userData.user.email.toLowerCase().trim();
 
-  const { data: existing } = await adminClient
-    .from('user_subscriptions')
-    .select('stripe_customer_id')
-    .eq('user_email', email)
+  const { data: tenant, error: tenantError } = await adminClient
+    .from('tenants')
+    .select('id, stripe_customer_id')
+    .eq('id', tenantId)
     .maybeSingle();
 
-  let customerId = existing?.stripe_customer_id as string | undefined;
-  if (!customerId) {
-    const customerRes = await fetch('https://api.stripe.com/v1/customers', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${stripeSecret}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({ email }),
+  if (tenantError || !tenant?.stripe_customer_id) {
+    return new Response(JSON.stringify({ error: 'No billing account for this church' }), {
+      status: 404,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
-    const customer = await customerRes.json();
-    if (!customerRes.ok) {
-      console.error('Stripe customer create failed:', customer);
-      return new Response(JSON.stringify({ error: 'Failed to create Stripe customer' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-    customerId = customer.id;
   }
 
-  const sessionRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+  const { data: isAdmin } = await adminClient.rpc('is_tenant_admin', {
+    tenant_to_check: tenantId,
+    email_to_check: email,
+  });
+  const { data: isSuperAdmin } = await adminClient.rpc('is_super_admin', {
+    email_to_check: email,
+  });
+
+  if (!isAdmin && !isSuperAdmin) {
+    return new Response(JSON.stringify({ error: 'Forbidden' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const params = new URLSearchParams({
+    customer: tenant.stripe_customer_id,
+    return_url: `${returnOrigin}/admin`,
+  });
+  if (portalConfigId) {
+    params.set('configuration', portalConfigId);
+  }
+
+  const portalRes = await fetch('https://api.stripe.com/v1/billing_portal/sessions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${stripeSecret}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: new URLSearchParams({
-      mode: 'subscription',
-      customer: customerId!,
-      'line_items[0][price]': priceId,
-      'line_items[0][quantity]': '1',
-      // Managed Payments (default on new Stripe accounts) requires product tax codes.
-      'managed_payments[enabled]': 'false',
-      success_url: `${returnOrigin}/?pro_checkout=success`,
-      cancel_url: `${returnOrigin}/?pro_checkout=cancel`,
-      'metadata[kind]': 'pro',
-      'metadata[user_email]': email,
-    }),
+    body: params,
   });
 
-  const session = await sessionRes.json();
-  if (!sessionRes.ok) {
-    console.error('Stripe checkout session failed:', session);
-    return new Response(JSON.stringify({ error: 'Failed to create checkout session' }), {
+  const portal = await portalRes.json();
+  if (!portalRes.ok) {
+    console.error('Stripe billing portal failed:', portal);
+    return new Response(JSON.stringify({ error: 'Failed to create billing portal session' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
-  await adminClient.from('user_subscriptions').upsert(
-    {
-      user_email: email,
-      plan_tier: 'free',
-      plan_status: 'incomplete',
-      source: 'future_stripe',
-      stripe_customer_id: customerId,
-    },
-    { onConflict: 'user_email' }
-  );
-
-  return new Response(JSON.stringify({ url: session.url }), {
+  return new Response(JSON.stringify({ url: portal.url }), {
     status: 200,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });

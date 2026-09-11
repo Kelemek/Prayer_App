@@ -12,6 +12,7 @@ describe('AdminComponent', () => {
   let userSessionService: any;
   let tenantContextService: any;
   let router: any;
+  let route: any;
   let githubFeedbackService: any;
   let toastService: any;
   let ngZone: any;
@@ -76,7 +77,11 @@ describe('AdminComponent', () => {
         plan_tier: 'churches',
         plan_status: 'active'
       }),
-      loading$: new BehaviorSubject<boolean>(false)
+      loading$: new BehaviorSubject<boolean>(false),
+      getMemberships: vi.fn(() => [
+        { tenant_id: MOCK_TENANT_ID, role: 'tenant_admin' },
+      ]),
+      refresh: vi.fn().mockResolvedValue(undefined),
     };
 
     adminAuthService = {
@@ -89,16 +94,20 @@ describe('AdminComponent', () => {
       getCurrentSession: vi.fn().mockReturnValue({ email: 'admin@example.com', fullName: 'Admin User' })
     };
 
-    router = { navigate: vi.fn() };
+    router = { navigate: vi.fn().mockResolvedValue(true) };
+    route = {
+      snapshot: { queryParamMap: { get: vi.fn(() => null) } },
+    };
     githubFeedbackService = {
       getGitHubConfig: vi.fn().mockResolvedValue({ enabled: false })
     };
-    toastService = { error: vi.fn(), success: vi.fn() };
+    toastService = { error: vi.fn(), success: vi.fn(), info: vi.fn() };
     ngZone = { run: (fn: () => void) => fn() };
     cdr = { markForCheck: vi.fn() };
 
     component = new AdminComponent(
       router,
+      route,
       adminDataService,
       analyticsService,
       adminAuthService,

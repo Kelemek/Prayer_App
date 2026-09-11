@@ -15,6 +15,7 @@ import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/a
 import { buildTenantInviteUrl } from "../../lib/app-origin";
 import { switchTenantWithNavigation } from "../../lib/tenant-navigation";
 import { normalizeTenantSlug, validateTenantSlug } from "../../lib/tenant-slug";
+import { PlatformBillingService, type TenantBillingRow } from "../../services/platform-billing.service";
 import type {
   PlanTier,
   PlanStatus,
@@ -193,10 +194,11 @@ import type {
             {{ activeTenantName }}
           </div>
         </div>
+        @if (isSuperAdmin) {
         <div>
           <label
             class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1"
-            >Plan Tier</label
+            >Plan Tier (manual comp)</label
           >
           <div class="flex gap-2">
             <select
@@ -225,6 +227,7 @@ import type {
             </button>
           </div>
         </div>
+        }
       </div>
 
       <div class="mb-4">
@@ -278,6 +281,84 @@ import type {
         }
       </div>
       } } @if (!contextLoading && isSuperAdmin) {
+      <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
+          Church billing (platform)
+        </h4>
+        <div class="mb-4 p-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50/80 dark:bg-gray-900/40">
+          <label class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+            Past due grace days
+          </label>
+          <div class="flex flex-wrap items-center gap-2">
+            <input
+              [(ngModel)]="graceDays"
+              type="number"
+              min="1"
+              max="90"
+              class="w-24 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+            />
+            <button
+              type="button"
+              (click)="saveGraceDays()"
+              [disabled]="savingGraceDays"
+              class="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-60"
+            >
+              {{ savingGraceDays ? "Saving…" : "Save grace days" }}
+            </button>
+          </div>
+        </div>
+
+        <div class="mb-6">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <h5 class="text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wide">
+              Tenant billing status
+            </h5>
+            <button
+              type="button"
+              (click)="loadTenantBilling()"
+              [disabled]="tenantBillingLoading"
+              class="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600"
+            >
+              {{ tenantBillingLoading ? "…" : "Refresh" }}
+            </button>
+          </div>
+          @if (tenantBillingLoading && tenantBillingRows.length === 0) {
+          <p class="text-xs text-gray-500">Loading billing…</p>
+          } @else if (tenantBillingRows.length === 0) {
+          <p class="text-xs text-gray-500">No tenants found.</p>
+          } @else {
+          <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-600">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-gray-50 dark:bg-gray-900/80 text-gray-600 dark:text-gray-300">
+                <tr>
+                  <th class="px-2 py-2">Church</th>
+                  <th class="px-2 py-2">Status</th>
+                  <th class="px-2 py-2">Stripe customer</th>
+                  <th class="px-2 py-2">Subscription</th>
+                  <th class="px-2 py-2">Past due since</th>
+                  <th class="px-2 py-2">Grace ends</th>
+                  <th class="px-2 py-2">Period end</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
+                @for (row of tenantBillingRows; track row.id) {
+                <tr>
+                  <td class="px-2 py-2">{{ row.name }}</td>
+                  <td class="px-2 py-2">{{ row.plan_tier }} / {{ row.plan_status }}</td>
+                  <td class="px-2 py-2 break-all">{{ row.stripe_customer_id || "—" }}</td>
+                  <td class="px-2 py-2 break-all">{{ row.stripe_subscription_id || "—" }}</td>
+                  <td class="px-2 py-2">{{ row.past_due_since || "—" }}</td>
+                  <td class="px-2 py-2">{{ row.grace_until || "—" }}</td>
+                  <td class="px-2 py-2">{{ row.stripe_current_period_end || "—" }}</td>
+                </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          }
+        </div>
+      </div>
+
       <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
         <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
@@ -443,12 +524,17 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
   newTenantSlug = "";
   newTenantPlanTier: PlanTier = "churches";
   isCreatingTenant = false;
+  graceDays = 7;
+  savingGraceDays = false;
+  tenantBillingRows: TenantBillingRow[] = [];
+  tenantBillingLoading = false;
   private destroy$ = new Subject<void>();
 
   constructor(
     private tenantContext: TenantContextService,
     private tenantManagement: TenantManagementService,
     private tenantPermissions: TenantPermissionService,
+    private platformBilling: PlatformBillingService,
     private toast: ToastService
   ) {}
 
@@ -469,7 +555,11 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
         if (isSuperAdmin) {
           const actor = await this.tenantManagement.getActorEmail();
           this.actorEmail = actor?.toLowerCase().trim() ?? null;
-          await this.loadSuperAdmins();
+          await Promise.all([
+            this.loadSuperAdmins(),
+            this.loadGraceDays(),
+            this.loadTenantBilling(),
+          ]);
         } else {
           this.superAdmins = [];
           this.actorEmail = null;
@@ -503,10 +593,15 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
     }
     this.isCreatingTenant = true;
     try {
+      const planStatus =
+        this.newTenantPlanTier === "churches" && !this.isSuperAdmin
+          ? "incomplete"
+          : "active";
       const tenant = await this.tenantManagement.createTenant(
         name,
         slug,
-        this.newTenantPlanTier
+        this.newTenantPlanTier,
+        planStatus
       );
       const navResult = await switchTenantWithNavigation(
         tenant.id,
@@ -593,8 +688,8 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
 
   async updatePlan(): Promise<void> {
     if (!this.activeTenantId) return;
-    if (!this.tenantPermissions.canManageTenant()) {
-      this.toast.error("You do not have permission to update plan settings");
+    if (!this.isSuperAdmin) {
+      this.toast.error("Only super admins can manually change plan tiers");
       return;
     }
     try {
@@ -609,6 +704,47 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
       this.toast.error(
         error instanceof Error ? error.message : "Failed to update plan"
       );
+    }
+  }
+
+  async loadGraceDays(): Promise<void> {
+    if (!this.isSuperAdmin) return;
+    try {
+      this.graceDays = await this.platformBilling.loadGraceDays();
+    } catch (error) {
+      this.toast.error(
+        error instanceof Error ? error.message : "Failed to load grace days"
+      );
+    }
+  }
+
+  async saveGraceDays(): Promise<void> {
+    if (!this.isSuperAdmin) return;
+    this.savingGraceDays = true;
+    try {
+      await this.platformBilling.saveGraceDays(this.graceDays);
+      this.toast.success("Grace days updated");
+    } catch (error) {
+      this.toast.error(
+        error instanceof Error ? error.message : "Failed to save grace days"
+      );
+    } finally {
+      this.savingGraceDays = false;
+    }
+  }
+
+  async loadTenantBilling(): Promise<void> {
+    if (!this.isSuperAdmin) return;
+    this.tenantBillingLoading = true;
+    try {
+      this.tenantBillingRows = await this.platformBilling.listTenantBilling();
+    } catch (error) {
+      this.tenantBillingRows = [];
+      this.toast.error(
+        error instanceof Error ? error.message : "Failed to load tenant billing"
+      );
+    } finally {
+      this.tenantBillingLoading = false;
     }
   }
 

@@ -8,6 +8,12 @@ export interface Tenant {
   slug: string;
   plan_tier: PlanTier;
   plan_status: PlanStatus;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+  stripe_cancel_at_period_end?: boolean;
+  stripe_current_period_end?: string | null;
+  past_due_since?: string | null;
+  grace_until?: string | null;
 }
 
 export interface TenantMembership {

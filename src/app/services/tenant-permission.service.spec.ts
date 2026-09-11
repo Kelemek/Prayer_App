@@ -25,6 +25,7 @@ describe('TenantPermissionService', () => {
         id: 'tenant-1',
         name: 'Test Church',
         plan_tier: 'churches',
+        plan_status: 'active',
       })),
       getIsSuperAdmin: vi.fn(() => false),
       getMemberships: vi.fn(() => [
@@ -56,6 +57,27 @@ describe('TenantPermissionService', () => {
     expect(service.canAccessShared()).toBe(true);
     expect(service.canAccessPresentation()).toBe(true);
     expect(service.isPersonalOnlyUser()).toBe(false);
+  });
+
+  it('denies shared access for incomplete church plan', () => {
+    tenantContext.getActiveTenant.mockReturnValue({
+      id: 'tenant-1',
+      name: 'Incomplete Church',
+      plan_tier: 'churches',
+      plan_status: 'incomplete',
+    });
+    expect(service.canAccessShared()).toBe(false);
+  });
+
+  it('allows shared access during past_due grace', () => {
+    tenantContext.getActiveTenant.mockReturnValue({
+      id: 'tenant-1',
+      name: 'Past Due Church',
+      plan_tier: 'churches',
+      plan_status: 'past_due',
+      grace_until: new Date(Date.now() + 86400000).toISOString(),
+    });
+    expect(service.canAccessShared()).toBe(true);
   });
 
   it('denies shared access for groups and free plans', () => {

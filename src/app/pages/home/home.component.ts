@@ -43,6 +43,7 @@ import {
   type GroupFilterMode,
 } from "../../lib/home-group-catalog";
 import { ConnectivityService } from "../../services/connectivity.service";
+import { Capacitor } from "@capacitor/core";
 import { MemorizationService } from "../../services/memorization.service";
 import { MemorizationRecommendationsService } from "../../services/memorization-recommendations.service";
 import { ScriptureService } from "../../services/scripture.service";
@@ -873,6 +874,9 @@ export class HomeComponent
   }
 
   get showGroupProUpgrade(): boolean {
+    if (Capacitor.isNativePlatform()) {
+      return false;
+    }
     const limits = this.userSubscriptionService.getGroupLimits();
     return !limits.can_create_group && limits.individual_plan_tier === "free";
   }

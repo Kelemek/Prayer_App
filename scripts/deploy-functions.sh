@@ -71,6 +71,27 @@ case $FUNCTION_NAME in
         deploy_function "cleanup-device-tokens" ""
         echo "💡 Daily invoke: Supabase pg_cron (invoke-cleanup-device-tokens, 03:00 UTC) + Vault. See docs/SETUP.md."
         ;;
+    "stripe-church-checkout")
+        deploy_function "stripe-church-checkout" ""
+        echo "📋 Secrets: STRIPE_SECRET_KEY, STRIPE_CHURCH_PRICE_ID, APP_URL, SUPABASE_*"
+        ;;
+    "stripe-pro-checkout")
+        deploy_function "stripe-pro-checkout" ""
+        echo "📋 Secrets: STRIPE_SECRET_KEY, STRIPE_PRO_PRICE_ID, APP_URL, SUPABASE_*"
+        ;;
+    "stripe-billing-portal")
+        deploy_function "stripe-billing-portal" ""
+        echo "📋 Secrets: STRIPE_SECRET_KEY, APP_URL (optional STRIPE_PORTAL_CONFIGURATION_ID)"
+        ;;
+    "stripe-webhook")
+        deploy_function "stripe-webhook" "--no-verify-jwt"
+        echo "💡 Stripe Dashboard webhook → …/functions/v1/stripe-webhook (no JWT)"
+        echo "📋 Secrets: STRIPE_WEBHOOK_SECRET, SUPABASE_*"
+        ;;
+    "reconcile-church-billing")
+        deploy_function "reconcile-church-billing" "--no-verify-jwt"
+        echo "💡 Hourly invoke: pg_cron job invoke-reconcile-church-billing + Vault. See docs/SETUP.md."
+        ;;
     "send-verification-code")
         deploy_function "send-verification-code" "--no-verify-jwt"
         echo "💡 Remember: send-verification-code runs without JWT verification"
@@ -113,6 +134,11 @@ case $FUNCTION_NAME in
         deploy_function "transcribe-audio" ""
         deploy_function "get-openai-org-usage" ""
         deploy_function "cleanup-device-tokens" ""
+        deploy_function "stripe-church-checkout" ""
+        deploy_function "stripe-pro-checkout" ""
+        deploy_function "stripe-billing-portal" ""
+        deploy_function "stripe-webhook" "--no-verify-jwt"
+        deploy_function "reconcile-church-billing" "--no-verify-jwt"
         echo "🎉 All functions deployed successfully!"
         ;;
     *)
@@ -132,6 +158,11 @@ case $FUNCTION_NAME in
         echo "  transcribe-audio              - Memorization Recite Whisper STT (JWT)"
         echo "  get-openai-org-usage          - OpenAI org spend for admin UI"
         echo "  cleanup-device-tokens    - Stale device tokens + push log cleanup (cron)"
+        echo "  stripe-church-checkout   - Church Stripe Checkout (JWT)"
+        echo "  stripe-pro-checkout      - Pro Stripe Checkout (JWT)"
+        echo "  stripe-billing-portal    - Stripe Customer Portal for churches (JWT)"
+        echo "  stripe-webhook           - Stripe webhooks (no JWT)"
+        echo "  reconcile-church-billing - Hourly grace/period-end downgrades (no JWT; cron)"
         echo "  all                      - Deploy all functions (default)"
         echo ""
         exit 1
