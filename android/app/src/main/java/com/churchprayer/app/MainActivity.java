@@ -1,4 +1,4 @@
-package com.prayerapp.mobile;
+package com.churchprayer.app;
 
 import com.getcapacitor.BridgeActivity;
 

@@ -2,6 +2,8 @@
 
 This guide walks you through setting up and using Capacitor with your Angular Prayer App to run on iOS and Android.
 
+See [NATIVE_IDENTITY.md](NATIVE_IDENTITY.md) for SaaS vs Cross Pointe bundle IDs (`com.churchprayer.app` vs `com.prayerapp.mobile`).
+
 ## What Was Installed
 
 1. **@capacitor/core** - Core Capacitor framework
@@ -13,7 +15,7 @@ This guide walks you through setting up and using Capacitor with your Angular Pr
 ## Project Structure
 
 ```
-angular_prayerapp/
+Prayer_App/
 ├── android/                          # Android native project (Gradle)
 ├── ios/                              # iOS native project (Xcode)
 ├── capacitor.config.ts               # Capacitor configuration
@@ -31,7 +33,7 @@ The main configuration file that connects your Angular build to the native platf
 
 ```typescript
 const config: CapacitorConfig = {
-  appId: 'com.prayerapp.mobile',     // Unique app identifier
+  appId: 'com.churchprayer.app',      // Unique app identifier (not Cross Pointe)
   appName: 'Prayer App',              // Display name
   webDir: 'dist/prayerapp/browser'   // Where built Angular assets are located
 };

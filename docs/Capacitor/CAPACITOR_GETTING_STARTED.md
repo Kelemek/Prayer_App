@@ -30,6 +30,7 @@ Your Angular Prayer App is now ready to run on iOS and Android as native apps.
 - [CAPACITOR_SETUP.md](CAPACITOR_SETUP.md) - Complete detailed setup guide
 - [CAPACITOR_QUICKSTART.md](CAPACITOR_QUICKSTART.md) - Quick start reference  
 - [CAPACITOR_BACKEND_SETUP.md](CAPACITOR_BACKEND_SETUP.md) - Backend setup checklist
+- [NATIVE_IDENTITY.md](NATIVE_IDENTITY.md) - SaaS vs Cross Pointe bundle IDs, reinstall note, App Review draft
 
 ## What's Ready Now
 
@@ -121,7 +122,7 @@ So to point the native app at your **dev** site: run **`npm run cap:dev`**, then
 ## File Structure
 
 ```
-angular_prayerapp/
+Prayer_App/
 ├── ios/                          # Xcode project
 ├── android/                       # Android Studio project  
 ├── capacitor.config.ts           # Capacitor config

@@ -137,10 +137,8 @@ import { environment } from "../../../environments/environment";
             </div>
 
             <div class="w-full flex flex-col items-center gap-2">
-              <button
-                type="button"
-                (click)="openIosStore()"
-                class="group w-full inline-flex flex-row sm:flex-col items-center justify-center gap-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-200/80 dark:bg-gray-800/70 px-5 py-3 hover:bg-gray-300 dark:hover:bg-gray-700 text-sm sm:text-base font-medium text-gray-900 dark:text-gray-100 shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-300 transition-colors cursor-pointer"
+              <div
+                class="w-full inline-flex flex-row sm:flex-col items-center justify-center gap-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-200/80 dark:bg-gray-800/70 px-5 py-3 text-sm sm:text-base font-medium text-gray-900 dark:text-gray-100 shadow-md"
               >
                 <span class="flex w-full items-center justify-center">
                   <span
@@ -152,8 +150,8 @@ import { environment } from "../../../environments/environment";
                   </span>
                   <span class="text-left leading-tight">
                     <span
-                      class="block text-[10px] uppercase tracking-wider text-gray-600 group-hover:text-gray-800 dark:text-gray-400 whitespace-nowrap"
-                      >Download on the</span
+                      class="block text-[10px] uppercase tracking-wider text-gray-600 dark:text-gray-400 whitespace-nowrap"
+                      >Coming soon</span
                     >
                     <span class="block text-sm font-semibold whitespace-nowrap"
                       >Apple App Store</span
@@ -161,30 +159,23 @@ import { environment } from "../../../environments/environment";
                   </span>
                 </span>
                 <div
-                  class="h-20 w-20 min-h-20 min-w-20 shrink-0 rounded-xl border-2 border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-100 flex items-center justify-center p-1 ring-2 ring-emerald-400/50"
-                  aria-hidden="true"
+                  class="h-20 w-20 min-h-20 min-w-20 shrink-0 rounded-xl border-2 border-dashed border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-100 flex items-center justify-center p-1"
                 >
-                  <img
-                    [src]="iosStoreQrUrl"
-                    alt="QR code for App Store"
-                    class="h-16 w-16 shrink-0 rounded object-contain"
-                    width="64"
-                    height="64"
-                    loading="lazy"
-                  />
+                  <span
+                    class="text-center text-[10px] font-medium leading-tight text-gray-500 dark:text-gray-600"
+                    >Coming soon</span
+                  >
                 </div>
                 <span
-                  class="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 group-hover:text-emerald-800 group-hover:dark:text-emerald-200 transition-colors"
-                  >Tap or Scan</span
+                  class="text-[11px] font-medium text-gray-500 dark:text-gray-400"
+                  >Not listed yet</span
                 >
-              </button>
+              </div>
             </div>
 
             <div class="w-full flex flex-col items-center gap-2">
-              <button
-                type="button"
-                (click)="openAndroidStore()"
-                class="group w-full inline-flex flex-row sm:flex-col items-center justify-center gap-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-200/80 dark:bg-gray-800/70 px-5 py-3 hover:bg-gray-300 dark:hover:bg-gray-700 text-sm sm:text-base font-medium text-gray-900 dark:text-gray-100 shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-300 transition-colors cursor-pointer"
+              <div
+                class="w-full inline-flex flex-row sm:flex-col items-center justify-center gap-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-200/80 dark:bg-gray-800/70 px-5 py-3 text-sm sm:text-base font-medium text-gray-900 dark:text-gray-100 shadow-md"
               >
                 <span class="flex w-full items-center justify-center">
                   <span
@@ -199,8 +190,8 @@ import { environment } from "../../../environments/environment";
                   </span>
                   <span class="text-left leading-tight">
                     <span
-                      class="block text-[10px] uppercase tracking-wider text-gray-600 group-hover:text-gray-800 dark:text-gray-400 whitespace-nowrap"
-                      >Download on the</span
+                      class="block text-[10px] uppercase tracking-wider text-gray-600 dark:text-gray-400 whitespace-nowrap"
+                      >Coming soon</span
                     >
                     <span class="block text-sm font-semibold whitespace-nowrap"
                       >Google Play Store</span
@@ -208,23 +199,18 @@ import { environment } from "../../../environments/environment";
                   </span>
                 </span>
                 <div
-                  class="h-20 w-20 min-h-20 min-w-20 shrink-0 rounded-xl border-2 border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-100 flex items-center justify-center p-1 ring-2 ring-emerald-400/50"
-                  aria-hidden="true"
+                  class="h-20 w-20 min-h-20 min-w-20 shrink-0 rounded-xl border-2 border-dashed border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-100 flex items-center justify-center p-1"
                 >
-                  <img
-                    [src]="androidStoreQrUrl"
-                    alt="QR code for Google Play"
-                    class="h-16 w-16 shrink-0 rounded object-contain"
-                    width="64"
-                    height="64"
-                    loading="lazy"
-                  />
+                  <span
+                    class="text-center text-[10px] font-medium leading-tight text-gray-500 dark:text-gray-600"
+                    >Coming soon</span
+                  >
                 </div>
                 <span
-                  class="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 group-hover:text-emerald-800 group-hover:dark:text-emerald-200 transition-colors"
-                  >Tap or Scan</span
+                  class="text-[11px] font-medium text-gray-500 dark:text-gray-400"
+                  >Not listed yet</span
                 >
-              </button>
+              </div>
             </div>
           </div>
 
@@ -260,14 +246,7 @@ import { environment } from "../../../environments/environment";
   `,
 })
 export class InfoComponent implements OnInit {
-  private readonly iosStoreUrl =
-    "https://apps.apple.com/us/app/cross-pointe-prayer/id6759469929";
-  private readonly androidStoreUrl =
-    "https://play.google.com/store/apps/details?id=com.prayerapp.mobile";
-
   webAppQrUrl = "";
-  iosStoreQrUrl = "";
-  androidStoreQrUrl = "";
   readonly appIconPath = APP_ICON_PATH;
 
   ngOnInit(): void {
@@ -280,19 +259,5 @@ export class InfoComponent implements OnInit {
     this.webAppQrUrl =
       "https://api.qrserver.com/v1/create-qr-code/?size=384x384&data=" +
       encodeURIComponent(`${publicAppUrl}/`);
-    this.iosStoreQrUrl =
-      "https://api.qrserver.com/v1/create-qr-code/?size=384x384&data=" +
-      encodeURIComponent(this.iosStoreUrl);
-    this.androidStoreQrUrl =
-      "https://api.qrserver.com/v1/create-qr-code/?size=384x384&data=" +
-      encodeURIComponent(this.androidStoreUrl);
-  }
-
-  openIosStore(): void {
-    window.open(this.iosStoreUrl, "_blank", "noopener");
-  }
-
-  openAndroidStore(): void {
-    window.open(this.androidStoreUrl, "_blank", "noopener");
   }
 }

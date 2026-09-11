@@ -165,4 +165,4 @@ See [CAPACITOR_SETUP.md](CAPACITOR_SETUP.md) for complete details.
 - [Capacitor Docs](https://capacitorjs.com)
 - [Xcode Documentation](https://developer.apple.com/xcode/)
 - [Android Studio Guide](https://developer.android.com/studio/intro)
-- Your local guides: [CAPACITOR_SETUP.md](CAPACITOR_SETUP.md)
+- Your local guides: [CAPACITOR_SETUP.md](CAPACITOR_SETUP.md), [NATIVE_IDENTITY.md](NATIVE_IDENTITY.md)

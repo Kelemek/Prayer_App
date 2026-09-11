@@ -2,6 +2,8 @@
 
 This checklist guides you through setting up the backend to support push notifications in your native apps.
 
+SaaS native ID is `com.churchprayer.app`. See [NATIVE_IDENTITY.md](NATIVE_IDENTITY.md). Cross Pointe keeps `com.prayerapp.mobile`.
+
 ## Phase 1: Database Setup
 
 - [ ] **Run database migrations** — Push-related schema lives in the single consolidated file [`supabase/migrations/20260123140820_remote_schema.sql`](../../supabase/migrations/20260123140820_remote_schema.sql). Search inside it for sections *Former file: 20260218…* through *20260223…* (device tokens, `push_notification_log`, `receive_push`, `receive_admin_push`, admin RLS tweaks, defaults/backfill). The Edge Function uses `service_role` and bypasses RLS. Without those objects, you get **500 "Failed to retrieve device tokens"** when sending push. Apply with `supabase db push` or run the full migration SQL once in the Dashboard **SQL Editor**.
@@ -30,7 +32,7 @@ Firebase uses the **FCM HTTP v1 API** only. The legacy "Server Key" is disabled 
 
 - [ ] **Set Android package name**
   - Firebase Console → Project Settings → General
-  - Add "com.prayerapp.mobile" as Android package name
+  - Add `com.churchprayer.app` as the Android package name (SaaS). Do not use Cross Pointe’s `com.prayerapp.mobile`.
 
 - [ ] **Register Firebase with Android app**
   - Firebase Console → Your App → Android
@@ -46,7 +48,7 @@ Firebase uses the **FCM HTTP v1 API** only. The legacy "Server Key" is disabled 
 
 - [ ] **Enable Push Notifications for your App ID**
   - Developer.apple.com → Certificates, IDs & Profiles
-  - Create new App ID: `com.prayerapp.mobile`
+  - Create new App ID: `com.churchprayer.app`
   - Enable "Push Notifications" capability
 
 - [ ] **Create APNs key or certificates (so FCM can send to iOS)**
@@ -61,8 +63,8 @@ Firebase uses the **FCM HTTP v1 API** only. The legacy "Server Key" is disabled 
 
 - [ ] **Upload APNs credentials to Firebase**
   - Firebase is your delivery backend for both Android and iOS. FCM needs your Apple credentials to send to iPhones.
-  - Firebase Console → **Project Settings** (gear) → **Cloud Messaging** tab. You'll see "Firebase Cloud Messaging API (V1)" and possibly "Web configuration" (Web Push certificates). **Ignore Web configuration**—that's for PWA/web push only. **Scroll down** on this same tab until you see **Apple app configuration** (or "iOS app configuration" / "APNs authentication key"). That's where you add iOS credentials. If that section doesn't appear, add an iOS app first: **Project Overview** → **Add app** → **iOS** → enter bundle ID `com.prayerapp.mobile` (you can skip downloading the config file), then go back to **Project Settings** → **Cloud Messaging** and scroll down again.
-  - **If you used Option A (.p8):** In Apple app configuration, click **Upload** under "APNs Authentication Key". Upload your **.p8** file and enter your **Key ID** and **Team ID** (from Apple Developer → Keys, and Membership details). Set **Bundle ID** to your app's bundle ID (e.g. `com.prayerapp.mobile`).
+  - Firebase Console → **Project Settings** (gear) → **Cloud Messaging** tab. You'll see "Firebase Cloud Messaging API (V1)" and possibly "Web configuration" (Web Push certificates). **Ignore Web configuration**—that's for PWA/web push only. **Scroll down** on this same tab until you see **Apple app configuration** (or "iOS app configuration" / "APNs authentication key"). That's where you add iOS credentials. If that section doesn't appear, add an iOS app first: **Project Overview** → **Add app** → **iOS** → enter bundle ID `com.churchprayer.app` (you can skip downloading the config file), then go back to **Project Settings** → **Cloud Messaging** and scroll down again.
+  - **If you used Option A (.p8):** In Apple app configuration, click **Upload** under "APNs Authentication Key". Upload your **.p8** file and enter your **Key ID** and **Team ID** (from Apple Developer → Keys, and Membership details). Set **Bundle ID** to your app's bundle ID (`com.churchprayer.app`).
   - **If you used Option B (.p12):** Under "APNs Certificates", upload your **Sandbox** and **Production** .p12 files and enter the password you set when exporting.
   - Do not commit .p8 or .p12 files to git; store them only in Firebase and/or a secure secret store.
 
@@ -95,8 +97,8 @@ The function sends **Android** via **FCM HTTP v1** (service account) and **iOS**
   # From Apple Developer → Membership
   supabase secrets set APNS_TEAM_ID 'FLM12NG8W1'
 
-  # Optional; defaults to com.prayerapp.mobile
-  supabase secrets set APNS_BUNDLE_ID 'com.prayerapp.mobile'
+  # Optional; defaults to com.churchprayer.app
+  supabase secrets set APNS_BUNDLE_ID 'com.churchprayer.app'
 
   # Optional; default true. Set to 'false' for production/Archive builds
   supabase secrets set APNS_USE_SANDBOX 'true'
@@ -182,7 +184,7 @@ The function sends **Android** via **FCM HTTP v1** (service account) and **iOS**
   - Test with real Firebase project (not sandbox)
 
 - [ ] **Update capacitor.config.ts**
-  - Ensure appId matches iOS Bundle ID and Android package name
+  - Ensure appId is `com.churchprayer.app` and matches iOS Bundle ID and Android package name (see [NATIVE_IDENTITY.md](NATIVE_IDENTITY.md))
 
 - [ ] **Create app icons**
   - iOS: 1024x1024 PNG in Xcode Assets
@@ -198,8 +200,10 @@ The function sends **Android** via **FCM HTTP v1** (service account) and **iOS**
 
 ## Phase 9: App Store Submission
 
+Do **not** submit until the public marketing name is ready. Checklist and App Review notes: [NATIVE_IDENTITY.md](NATIVE_IDENTITY.md).
+
 - [ ] **iOS**
-  - Create App ID in App Store Connect
+  - Create App ID `com.churchprayer.app` in App Store Connect
   - Build in Xcode: Product → Archive
   - Upload via Xcode or Transporter
   - Fill out app information
@@ -244,7 +248,7 @@ The function sends **Android** via **FCM HTTP v1** (service account) and **iOS**
   Without these, the `registration` / `registrationError` events never fire in JS.
 - [ ] **iOS real device:** Push entitlement is added via `ios/App/App/App.entitlements` (includes `aps-environment`). If **Push Notifications** does not appear under + Capability (e.g. with some Apple IDs or Xcode versions), the project already has the entitlement file; ensure **Signing & Capabilities** uses it (build setting `CODE_SIGN_ENTITLEMENTS = App/App.entitlements`). For production/Archive builds you may need to switch `aps-environment` in that file from `development` to `production`.
 - [ ] **iOS provisioning:** The app's provisioning profile must include push. Use a Development profile that's tied to your App ID with Push Notifications enabled (Apple Developer → Identifiers → your App ID → Push Notifications on).
-- [ ] **If Xcode says "Provisioning profile doesn't include the aps-environment entitlement":** Enable Push on the App ID: go to developer.apple.com → Certificates, Identifiers & Profiles → Identifiers → select **com.prayerapp.mobile** (or create it). Under Capabilities, enable **Push Notifications** and Save. Back in Xcode: Product → Clean Build Folder, then build again. If the error remains, in the Developer portal open **Profiles**, find and delete "iOS Team Provisioning Profile: com.prayerapp.mobile" so Xcode can create a new profile that includes push. (Requires a paid Apple Developer Program membership.)
+- [ ] **If Xcode says "Provisioning profile doesn't include the aps-environment entitlement":** Enable Push on the App ID: go to developer.apple.com → Certificates, Identifiers & Profiles → Identifiers → select **com.churchprayer.app** (or create it). Under Capabilities, enable **Push Notifications** and Save. Back in Xcode: Product → Clean Build Folder, then build again. If the error remains, in the Developer portal open **Profiles**, find and delete "iOS Team Provisioning Profile: com.churchprayer.app" so Xcode can create a new profile that includes push. (Requires a paid Apple Developer Program membership.)
 - [ ] Check that notification permission was granted (logs show "receive":"granted").
 - [ ] Check for "[Capacitor] Push registration error" in Xcode console—this indicates why native registration failed.
 - [ ] Check for "Push token received" in logs (token arrives asynchronously after register()).

@@ -75,22 +75,15 @@ describe("InfoComponent", () => {
   describe("default state", () => {
     it("should have empty webAppQrUrl before init", () => {
       expect(component.webAppQrUrl).toBe("");
-      expect(component.iosStoreQrUrl).toBe("");
     });
   });
 
   describe("ngOnInit", () => {
-    it("should set webAppQrUrl and store QR URLs with encoded URLs", () => {
+    it("should set webAppQrUrl with the encoded public web URL", () => {
       component.ngOnInit();
       expect(component.webAppQrUrl).toContain("api.qrserver.com");
       expect(component.webAppQrUrl).toContain(
         encodeURIComponent("https://prayerapp.romans8.net/")
-      );
-      expect(component.iosStoreQrUrl).toContain("api.qrserver.com");
-      expect(component.iosStoreQrUrl).toContain(
-        encodeURIComponent(
-          "https://apps.apple.com/us/app/cross-pointe-prayer/id6759469929"
-        )
       );
     });
   });
@@ -115,6 +108,9 @@ describe("InfoComponent", () => {
       expect(el.textContent).toContain("Web Site");
       expect(el.textContent).toContain("App Store");
       expect(el.textContent).toContain("Play Store");
+      expect(el.textContent).toContain("Coming soon");
+      expect(el.textContent).not.toContain("cross-pointe-prayer");
+      expect(el.innerHTML).not.toContain("com.prayerapp.mobile");
     });
 
     it("should show filter tabs with Church, Personal, Prompts and public sub-chips", () => {

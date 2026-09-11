@@ -86,7 +86,7 @@ src/
 The **info page** (`/info`) is a public landing/overview. It is used to introduce the app and drive installs:
 
 - **Hero**: App icon, “Prayer Community Manager” title, short description
-- **CTAs**: Web App (with QR), App Store (with QR), Android (coming soon)
+- **CTAs**: Web Site (with QR); App Store and Play Store coming soon until SaaS listings exist
 - **Feature overview**: Interactive preview of the main app (mock header, filter tabs, sample cards). Users can tap filter tabs (Current, Answered, Total, Prompts, Personal) and open modals (Help, Settings, badges, prompt categories, personal actions) to see how the app works
 - **Theme**: Supports light/dark mode via theme toggle
 - **Implementation**: `src/app/pages/info/info.component.ts` (standalone). Lazy-loaded in `app.routes.ts`. Uses `BrandingService` (via `BRANDING_SERVICE_TOKEN`) for optional logo; no auth required.

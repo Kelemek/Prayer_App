@@ -85,7 +85,7 @@ function stringifyData(data: Record<string, string> | undefined): Record<string,
 const apnsKeyP8 = Deno.env.get('APNS_KEY_P8') || '';
 const apnsKeyId = Deno.env.get('APNS_KEY_ID') || '';
 const apnsTeamId = Deno.env.get('APNS_TEAM_ID') || '';
-const apnsBundleId = Deno.env.get('APNS_BUNDLE_ID') || 'com.prayerapp.mobile';
+const apnsBundleId = Deno.env.get('APNS_BUNDLE_ID') || 'com.churchprayer.app';
 const apnsSandbox = Deno.env.get('APNS_USE_SANDBOX') !== 'false'; // default true for dev builds
 
 let cachedApnsJwt: { jwt: string; exp: number } | null = null;

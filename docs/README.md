@@ -8,7 +8,7 @@ Complete documentation for the Prayer App multi-tenant prayer management platfor
 - **[SETUP.md](SETUP.md)** - Installation, configuration, and deployment
 - **[DEVELOPMENT.md](DEVELOPMENT.md)** - Architecture, testing, development, timezone handling, and component documentation
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Solutions to common issues
-- **[Capacitor (iOS/Android)](Capacitor/)** - Native app build, push notifications, and backend setup ([CAPACITOR_GETTING_STARTED.md](Capacitor/CAPACITOR_GETTING_STARTED.md), [CAPACITOR_BACKEND_SETUP.md](Capacitor/CAPACITOR_BACKEND_SETUP.md))
+- **[Capacitor (iOS/Android)](Capacitor/)** - Native app build, push notifications, and backend setup ([CAPACITOR_GETTING_STARTED.md](Capacitor/CAPACITOR_GETTING_STARTED.md), [CAPACITOR_BACKEND_SETUP.md](Capacitor/CAPACITOR_BACKEND_SETUP.md), [NATIVE_IDENTITY.md](Capacitor/NATIVE_IDENTITY.md))
 
 ---
 
@@ -36,7 +36,7 @@ A comprehensive prayer request management platform built with:
 - ✅ **Prayer reminders** (Settings): Optional hourly nudges at the top of chosen clock hours (device time zone); email and/or push depending on **Email subscription** and push registration. Separate from community prayer-update reminders. In-app Help: **Prayer reminders** topic + **App Settings** subsection.
 - ✅ **Delete account** (Settings): Users can remove their account; verification dialog offers to keep prayers (so they stay lifted up) or delete account and all their prayers, then sign out
 - ✅ Badge indicators (unread prayers/prompts)
-- ✅ **Info page** (`/info`) – Public landing/overview with app icon, CTAs (Web App, App Store, Android), and interactive feature preview (filters, modals)
+- ✅ **Info page** (`/info`) – Public landing/overview with app icon, CTAs (Web Site with QR; App Store and Play Store coming soon until SaaS listings exist), and interactive feature preview (filters, modals)
 
 ## 🚀 Getting Started
 

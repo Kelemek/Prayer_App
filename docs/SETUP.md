@@ -27,7 +27,7 @@ Complete guide to setting up, configuring, and deploying the Prayer App.
 ```bash
 # Clone repository
 git clone https://github.com/your-org/Prayer_App.git
-cd angular_prayerapp
+cd Prayer_App
 
 # Install dependencies
 npm install
