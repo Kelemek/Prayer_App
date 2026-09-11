@@ -355,6 +355,7 @@ describe('PrayerTypesManagerComponent', () => {
         name: 'Trimmed Name',
         display_order: 0,
         is_active: true,
+        include_in_booklet: false,
         tenant_id: TEST_TENANT_ID
       });
     });

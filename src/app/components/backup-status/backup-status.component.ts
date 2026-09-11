@@ -663,6 +663,7 @@ export class BackupStatusComponent {
           "personal_prayers",
           "prayer_prompts",
           "prayer_types",
+          "booklet_insert_pages",
           "prayer_updates",
           "prayers",
           "update_deletion_requests",
@@ -814,6 +815,7 @@ export class BackupStatusComponent {
       // Define dependency order for known tables (for proper foreign key handling)
       const knownOrder = [
         "prayer_types",
+        "booklet_insert_pages",
         "prayers",
         "prayer_updates",
         "prayer_prompts",

@@ -905,8 +905,8 @@ The BrandingService implements a multi-tier caching strategy to eliminate logo f
 
 ### Monitoring
 
-- Vercel Analytics and Speed Insights
-- Monitor Core Web Vitals
+- **PostHog** (`posthog-js`): product analytics, session replay, and client error tracking when `VITE_POSTHOG_KEY` is set. Events include `app_environment`, `tenant_id`, and `tenant_slug` when an organization is active. Filter Live events by `app_environment` in development. See [`src/lib/posthog.ts`](../src/lib/posthog.ts).
+- **Site Analytics** (admin portal): first-party Supabase `analytics` table — separate from PostHog; do not merge the two.
 - Check Vercel deployment logs
 - Supabase query performance
 - BrandingService logs: `[BrandingService]` prefix in console

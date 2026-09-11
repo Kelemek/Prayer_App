@@ -31,6 +31,9 @@ describe('environment.prod', () => {
     expect(environment).toHaveProperty('platformHosts');
     expect(environment).toHaveProperty('cookieParentDomain');
     expect(environment).toHaveProperty('tenantHostSuffix');
+    expect(environment).toHaveProperty('posthogKey');
+    expect(environment).toHaveProperty('posthogHost');
+    expect(environment).toHaveProperty('posthogUiHost');
   });
 
   it('should use different Supabase configuration from development when env vars are set', () => {

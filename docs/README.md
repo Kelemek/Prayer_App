@@ -20,6 +20,7 @@ A comprehensive prayer request management platform built with:
 - **Auth**: Supabase Auth with email verification
 - **Email**: [Resend](https://resend.com) API (Edge Function + queue processor)
 - **Testing**: Vitest with 2840+ tests
+- **Analytics**: PostHog (platform ops; optional) + in-app Site Analytics (tenant admins; Supabase)
 
 ## 🎯 Core Capabilities
 

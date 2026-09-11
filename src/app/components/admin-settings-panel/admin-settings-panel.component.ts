@@ -16,6 +16,7 @@ import { HourlyReminderTemplateSectionComponent } from '../hourly-reminder-templ
 import { AdminUserManagementComponent } from '../admin-user-management/admin-user-management.component';
 import { PrayerSearchComponent } from '../prayer-search/prayer-search.component';
 import { PrayerArchiveTimelineComponent } from '../prayer-archive-timeline/prayer-archive-timeline.component';
+import { PrayerListBookletPrintComponent } from '../prayer-list-booklet-print/prayer-list-booklet-print.component';
 import { BackupStatusComponent } from '../backup-status/backup-status.component';
 import { SecurityPolicySettingsComponent } from '../security-policy-settings/security-policy-settings.component';
 import { TestAccountSettingsComponent } from '../test-account-settings/test-account-settings.component';
@@ -49,6 +50,7 @@ import type { AnalyticsStats } from '../../services/analytics.service';
     AdminUserManagementComponent,
     PrayerSearchComponent,
     PrayerArchiveTimelineComponent,
+    PrayerListBookletPrintComponent,
     BackupStatusComponent,
     SecurityPolicySettingsComponent,
     TestAccountSettingsComponent,

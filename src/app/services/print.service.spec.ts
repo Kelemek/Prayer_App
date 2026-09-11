@@ -20,6 +20,35 @@ const mockTenantContext = {
   })
 };
 
+const mockBrandingService = {
+  initialize: vi.fn().mockResolvedValue(undefined),
+  getBranding: vi.fn().mockReturnValue({ useLogo: false, lightLogo: '', darkLogo: '' }),
+};
+
+const mockEmailNotificationService = {
+  getEmailBaseUrl: vi.fn().mockReturnValue('https://example.com'),
+};
+
+const mockToastService = {
+  warning: vi.fn(),
+  info: vi.fn(),
+  error: vi.fn(),
+};
+
+function createPrintService(
+  supabase: SupabaseService,
+  prayerService: PrayerService
+): PrintService {
+  return new PrintService(
+    supabase,
+    prayerService,
+    mockTenantContext as never,
+    mockBrandingService as never,
+    mockEmailNotificationService as never,
+    mockToastService as never
+  );
+}
+
 describe('PrintService', () => {
   let service: PrintService;
   let mockSupabaseService: any;
@@ -126,7 +155,7 @@ describe('PrintService', () => {
       } as any;
     });
 
-    service = new PrintService(mockSupabaseService, mockPrayerService, mockTenantContext as any);
+    service = createPrintService(mockSupabaseService, mockPrayerService);
   });
 
   afterEach(() => {
@@ -553,7 +582,7 @@ describe('PrintService', () => {
         client: mockSupabaseClient
       };
 
-      service = new PrintService(mockSupabaseService as any, mockPrayerService, mockTenantContext as any);
+      service = createPrintService(mockSupabaseService as any, mockPrayerService);
     });
 
     it('should filter by month correctly', () => {
@@ -635,7 +664,7 @@ describe('PrintService', () => {
         }
       };
 
-      service = new PrintService(mockSupabaseService as any, mockPrayerService, mockTenantContext as any);
+      service = createPrintService(mockSupabaseService as any, mockPrayerService);
     });
 
     it('should handle current prayer status', () => {
@@ -705,7 +734,7 @@ describe('PrintService', () => {
         }
       };
 
-      service = new PrintService(mockSupabaseService as any, mockPrayerService, mockTenantContext as any);
+      service = createPrintService(mockSupabaseService as any, mockPrayerService);
     });
 
     it('should generate valid HTML', () => {
@@ -781,7 +810,7 @@ describe('PrintService', () => {
         }
       };
 
-      service = new PrintService(mockSupabaseService as any, mockPrayerService, mockTenantContext as any);
+      service = createPrintService(mockSupabaseService as any, mockPrayerService);
     });
 
     it('should create valid filename', () => {
@@ -853,7 +882,7 @@ describe('PrintService', () => {
         }
       };
 
-      service = new PrintService(mockSupabaseService as any, mockPrayerService, mockTenantContext as any);
+      service = createPrintService(mockSupabaseService as any, mockPrayerService);
     });
 
     it('should handle database query errors', { timeout: 10000 }, async () => {
@@ -1464,7 +1493,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
 
       mockSupabaseService = { client: mockSupabaseClient } as any;
       mockPrayerService = { getPersonalPrayers: vi.fn() };
-      service = new PrintService(mockSupabaseService, mockPrayerService, mockTenantContext as any);
+      service = createPrintService(mockSupabaseService, mockPrayerService);
 
       global.window.open = vi.fn(() => ({
         document: {
@@ -2062,7 +2091,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
 
       mockSupabaseService = { client: mockSupabaseClient } as any;
       mockPrayerService = { getPersonalPrayers: vi.fn() };
-      service = new PrintService(mockSupabaseService, mockPrayerService, mockTenantContext as any);
+      service = createPrintService(mockSupabaseService, mockPrayerService);
 
       global.window.open = vi.fn(() => ({
         document: {
@@ -2320,7 +2349,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
         }
       } as any;
       mockPrayerService = { getPersonalPrayers: vi.fn() };
-      service = new PrintService(mockSupabaseService, mockPrayerService, mockTenantContext as any);
+      service = createPrintService(mockSupabaseService, mockPrayerService);
       
       global.window.open = vi.fn(() => ({
         document: {
@@ -2579,7 +2608,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
         client: { from: vi.fn() }
       } as any;
       mockPrayerService = { getPersonalPrayers: vi.fn() };
-      service = new PrintService(mockSupabaseService, mockPrayerService, mockTenantContext as any);
+      service = createPrintService(mockSupabaseService, mockPrayerService);
     });
 
     it('should escape HTML in prompt titles during generation', () => {
@@ -2742,7 +2771,7 @@ describe('PrintService - Advanced Coverage Tests', () => {
         getPersonalPrayers: vi.fn()
       };
 
-      service = new PrintService(mockSupabaseService, mockPrayerService, mockTenantContext as any);
+      service = createPrintService(mockSupabaseService, mockPrayerService);
 
       global.window.open = vi.fn(() => ({
         document: {

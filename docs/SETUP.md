@@ -97,7 +97,14 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 # VITE_PLATFORM_HOSTS=prayer.romans8.net,www.prayer.romans8.net,prayerapp-nu.vercel.app,prayerapp.romans8.net
 # VITE_COOKIE_PARENT_DOMAIN=.prayer.romans8.net
 # VITE_TENANT_HOST_SUFFIX=prayer.romans8.net
+
+# PostHog (optional — product analytics, session replay, error tracking)
+# VITE_POSTHOG_KEY=phc_...
+# VITE_POSTHOG_HOST=https://us.i.posthog.com
+# VITE_POSTHOG_UI_HOST=https://us.posthog.com
 ```
+
+**Analytics:** Tenant admins use **Site Analytics** in the admin portal (first-party Supabase `page_view` data). **PostHog** is for platform operators only (product analytics, replay, exceptions). Leave `VITE_POSTHOG_KEY` empty to disable PostHog. Vercel Analytics / Speed Insights are not used.
 
 **Hostname strategy:** Platform hosts (`prayer.romans8.net`, `www`, preview aliases) do **not** force a tenant. Church tenants load at `{slug}.{VITE_TENANT_HOST_SUFFIX}` (e.g. `cross-pointe.prayer.romans8.net`). `VITE_COOKIE_PARENT_DOMAIN` shares Supabase auth across those subdomains. Local dev leaves suffix/cookie empty (in-place tenant switcher on `localhost`).
 
@@ -391,6 +398,9 @@ VITE_APP_URL=https://prayer.romans8.net
 VITE_PLATFORM_HOSTS=prayer.romans8.net,www.prayer.romans8.net,prayerapp-nu.vercel.app
 VITE_COOKIE_PARENT_DOMAIN=.prayer.romans8.net
 VITE_TENANT_HOST_SUFFIX=prayer.romans8.net
+VITE_POSTHOG_KEY=phc_...
+VITE_POSTHOG_HOST=https://us.i.posthog.com
+VITE_POSTHOG_UI_HOST=https://us.posthog.com
 # Email (Resend) uses Supabase Edge secrets and GitHub Actions, not Vercel env for send-email.
 ```
 

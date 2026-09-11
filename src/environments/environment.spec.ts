@@ -29,5 +29,8 @@ describe('environment', () => {
     expect(environment).toHaveProperty('platformHosts');
     expect(environment).toHaveProperty('cookieParentDomain');
     expect(environment).toHaveProperty('tenantHostSuffix');
+    expect(environment).toHaveProperty('posthogKey');
+    expect(environment).toHaveProperty('posthogHost');
+    expect(environment).toHaveProperty('posthogUiHost');
   });
 });

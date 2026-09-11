@@ -9,6 +9,7 @@ import { PrayerEncouragementService } from './prayer-encouragement.service';
 import { TenantContextService } from './tenant-context.service';
 import { AuthIdentityService } from './auth-identity.service';
 import { getAuthRedirectOrigin } from '../lib/app-origin';
+import { resetPostHogUser } from '../../lib/posthog';
 import type { User } from '@supabase/supabase-js';
 
 @Injectable({
@@ -523,6 +524,7 @@ export class AdminAuthService {
       }
 
       await this.supabase.client.auth.signOut();
+      resetPostHogUser();
       this.userSubject.next(null);
       this.isAdminSubject.next(false);
       this.isAuthenticatedSubject.next(false);

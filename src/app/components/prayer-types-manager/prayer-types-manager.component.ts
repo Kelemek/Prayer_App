@@ -143,6 +143,20 @@ import type { PrayerTypeRecord } from '../../types/prayer';
               </p>
             </div>
           </div>
+          <div>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                [(ngModel)]="includeInBooklet"
+                name="includeInBooklet"
+                class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Include in saddle-stitch booklet</span>
+            </label>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              When active, prompts of this type may appear in the admin prayer booklet (Tools).
+            </p>
+          </div>
         </div>
         <div class="flex gap-2 mt-4">
           <button
@@ -218,6 +232,9 @@ import type { PrayerTypeRecord } from '../../types/prayer';
               </div>
               <p class="text-xs text-gray-500 dark:text-gray-500">
                 Order: {{ type.display_order }} • Created {{ formatDate(type.created_at) }}
+                @if (type.include_in_booklet) {
+                  <span class="ml-1 text-blue-600 dark:text-blue-400">• Booklet</span>
+                }
               </p>
             </div>
           </div>
@@ -331,6 +348,7 @@ export class PrayerTypesManagerComponent implements OnInit, OnDestroy {
   name = '';
   displayOrder = 0;
   isActive = true;
+  includeInBooklet = false;
   submitting = false;
   reordering = false;
 
@@ -463,6 +481,7 @@ export class PrayerTypesManagerComponent implements OnInit, OnDestroy {
     this.name = '';
     this.displayOrder = 0;
     this.isActive = true;
+    this.includeInBooklet = false;
     this.error = null;
     this.success = null;
   }
@@ -493,7 +512,8 @@ export class PrayerTypesManagerComponent implements OnInit, OnDestroy {
           .update({
             name: this.name.trim(),
             display_order: this.displayOrder,
-            is_active: this.isActive
+            is_active: this.isActive,
+            include_in_booklet: this.includeInBooklet,
           })
           .eq('id', this.editingId)
           .eq('tenant_id', tenantId);
@@ -508,6 +528,7 @@ export class PrayerTypesManagerComponent implements OnInit, OnDestroy {
             name: this.name.trim(),
             display_order: this.displayOrder,
             is_active: this.isActive,
+            include_in_booklet: this.includeInBooklet,
             tenant_id: tenantId
           });
 
@@ -519,6 +540,7 @@ export class PrayerTypesManagerComponent implements OnInit, OnDestroy {
       this.name = '';
       this.displayOrder = 0;
       this.isActive = true;
+      this.includeInBooklet = false;
       this.editingId = null;
       this.showAddForm = false;
 
@@ -542,6 +564,7 @@ export class PrayerTypesManagerComponent implements OnInit, OnDestroy {
     this.name = type.name;
     this.displayOrder = type.display_order;
     this.isActive = type.is_active;
+    this.includeInBooklet = type.include_in_booklet ?? false;
     this.editingId = type.id;
     this.showAddForm = true;
     this.error = null;
@@ -690,6 +713,7 @@ export class PrayerTypesManagerComponent implements OnInit, OnDestroy {
     this.name = '';
     this.displayOrder = 0;
     this.isActive = true;
+    this.includeInBooklet = false;
     this.error = null;
   }
 

@@ -126,6 +126,7 @@ export interface PrayerTypeRecord {
   name: string;
   display_order: number;
   is_active: boolean;
+  include_in_booklet?: boolean;
   tenant_id?: string;
   created_at: string;
   updated_at: string;

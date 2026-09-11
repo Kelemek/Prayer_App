@@ -20,4 +20,7 @@ export const environment: AppEnvironment = {
     import.meta.env.VITE_COOKIE_PARENT_DOMAIN
   ),
   tenantHostSuffix: normalizeTenantHostSuffix(import.meta.env.VITE_TENANT_HOST_SUFFIX),
+  posthogKey: import.meta.env.VITE_POSTHOG_KEY || '',
+  posthogHost: import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
+  posthogUiHost: import.meta.env.VITE_POSTHOG_UI_HOST || 'https://us.posthog.com',
 };

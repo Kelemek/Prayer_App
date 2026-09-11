@@ -9,4 +9,7 @@ export const environment: AppEnvironment = {
   platformHosts: ['localhost', '127.0.0.1'],
   cookieParentDomain: '',
   tenantHostSuffix: '',
+  posthogKey: '',
+  posthogHost: 'https://us.i.posthog.com',
+  posthogUiHost: 'https://us.posthog.com',
 };

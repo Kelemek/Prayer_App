@@ -12,30 +12,7 @@ import { routes } from "./app/app.routes";
 import { AdminAuthService } from "./app/services/admin-auth.service";
 import { BrandingService } from "./app/services/branding.service";
 import { BRANDING_SERVICE_TOKEN } from "./app/components/app-logo/app-logo.component";
-
-// Initialize Vercel Analytics
-const initVercelAnalytics = async () => {
-  try {
-    const { inject } = await import("@vercel/analytics");
-    inject();
-  } catch (error) {
-    console.error("Failed to initialize Vercel Analytics:", error);
-  }
-};
-
-initVercelAnalytics();
-
-// Initialize Vercel Speed Insights
-const initVercelSpeedInsights = async () => {
-  try {
-    const { injectSpeedInsights } = await import("@vercel/speed-insights");
-    injectSpeedInsights();
-  } catch (error) {
-    console.error("Failed to initialize Vercel Speed Insights:", error);
-  }
-};
-
-initVercelSpeedInsights();
+import { providePostHogErrorHandler } from "./app/posthog-error-handler";
 
 // Add a global visibility check to ensure content stays visible during background refresh
 const setupVisibilityRecovery = () => {
@@ -75,6 +52,7 @@ setupVisibilityRecovery();
 
 bootstrapApplication(AppComponent, {
   providers: [
+    providePostHogErrorHandler(),
     provideRouter(
       routes,
       withInMemoryScrolling({ scrollPositionRestoration: "top" })

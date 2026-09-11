@@ -2,8 +2,31 @@ import { Injectable } from '@angular/core';
 import { SupabaseService } from './supabase.service';
 import { PrayerService } from './prayer.service';
 import { TenantContextService } from './tenant-context.service';
+import { BrandingService } from './branding.service';
+import { EmailNotificationService } from './email-notification.service';
+import { ToastService } from './toast.service';
 import { Printer } from '@capgo/capacitor-printer';
 import { markdownToSafeHtml } from '../../utils/markdown';
+import type { BookletInsertPage } from '../types/booklet-insert-page';
+import { buildBookletInsertPageHtml as renderBookletInsertPageHtml } from '../lib/print-booklet-chrome';
+import { buildSaddleStitchBookletHtml } from '../lib/print-booklet-html';
+import { splitBookletMarkdownIntoPanelParts } from '../lib/print-booklet-pack';
+import { getPrintBookletAppIconUrl, resolvePrintAssetUrl } from '../lib/print-asset-url';
+import {
+  buildInfoQrImageSrc,
+  resolvePrintInfoPageUrl,
+  tryFetchImageAsDataUrl,
+} from '../lib/print-info-footer';
+import { isPrintNativeApp, sharePrintHtmlOnNativeApp } from '../lib/print-native';
+import { sortPromptsAlphabeticalByTitle } from '../lib/print-prompt-layout';
+import {
+  getPrintEmptyRangeUserMessage,
+  getPrintRangeFileLabel,
+  setPrintStartDateForTimeRange,
+} from '../lib/print-time-range';
+import type { BookletTimeRange, Prayer as BookletPrayer, TimeRange as PrintTimeRange } from '../lib/print-types';
+
+export type { BookletTimeRange } from '../lib/print-types';
 
 export interface Prayer {
   id: string;
@@ -32,7 +55,10 @@ export class PrintService {
   constructor(
     private supabase: SupabaseService,
     private prayerService: PrayerService,
-    private tenantContext: TenantContextService
+    private tenantContext: TenantContextService,
+    private brandingService: BrandingService,
+    private emailNotificationService: EmailNotificationService,
+    private toast: ToastService
   ) {}
 
   /**
@@ -1500,5 +1526,304 @@ export class PrintService {
 
     const hue = Math.abs(hash % 360);
     return `hsl(${hue}, 70%, 50%)`;
+  }
+
+  private getActiveTenantId(): string | null {
+    return this.tenantContext.getActiveTenant()?.id ?? null;
+  }
+
+  private async loadPublicPrayersForBookletTimeRange(
+    timeRange: PrintTimeRange,
+    newWindow: Window | null
+  ): Promise<BookletPrayer[] | null> {
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) {
+      alert('Select an active organization to print shared prayers.');
+      if (newWindow) {
+        newWindow.close();
+      }
+      return null;
+    }
+
+    const endDate = new Date();
+    const startDate = new Date();
+    setPrintStartDateForTimeRange(startDate, endDate, timeRange);
+
+    const { data: allPrayers, error: prayersError } = await this.supabase.client
+      .from('prayers')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('approval_status', 'approved')
+      .neq('status', 'closed')
+      .order('created_at', { ascending: false });
+
+    if (prayersError) {
+      console.error('[PrintService] Error fetching prayers:', prayersError);
+      alert('Failed to fetch prayers. Please try again.');
+      if (newWindow) {
+        newWindow.close();
+      }
+      return null;
+    }
+
+    const { data: allUpdates, error: updatesError } = await this.supabase.client
+      .from('prayer_updates')
+      .select('*')
+      .eq('tenant_id', tenantId);
+
+    if (updatesError) {
+      console.error('[PrintService] Error fetching updates:', updatesError);
+      alert('Failed to fetch prayer updates. Please try again.');
+      if (newWindow) {
+        newWindow.close();
+      }
+      return null;
+    }
+
+    const updatesByPrayerId = new Map<string, typeof allUpdates>();
+    allUpdates?.forEach((update) => {
+      if (update.approval_status === 'approved') {
+        if (!updatesByPrayerId.has(update.prayer_id)) {
+          updatesByPrayerId.set(update.prayer_id, []);
+        }
+        updatesByPrayerId.get(update.prayer_id)!.push(update);
+      }
+    });
+
+    const prayersWithUpdates = (allPrayers || []).map((prayer) => ({
+      ...prayer,
+      prayer_updates: updatesByPrayerId.get(prayer.id) || [],
+    }));
+
+    return prayersWithUpdates.filter((prayer) => {
+      const prayerCreatedDate = new Date(prayer.created_at);
+      if (prayerCreatedDate >= startDate && prayerCreatedDate <= endDate) {
+        return true;
+      }
+      if (prayer.prayer_updates?.length) {
+        return prayer.prayer_updates.some((update: { created_at: string }) => {
+          const updateDate = new Date(update.created_at);
+          return updateDate >= startDate && updateDate <= endDate;
+        });
+      }
+      return false;
+    });
+  }
+
+  async downloadPrintableBookletPrayerList(
+    timeRange: BookletTimeRange = 'month',
+    newWindow: Window | null = null
+  ): Promise<void> {
+    try {
+      const prayers = await this.loadPublicPrayersForBookletTimeRange(timeRange, newWindow);
+      if (prayers === null) {
+        return;
+      }
+
+      const [bookletPromptSections, bookletInsertPages] = await Promise.all([
+        this.loadBookletPromptSectionsOrdered(),
+        this.loadBookletInsertPagesOrdered(),
+      ]);
+
+      if (
+        prayers.length === 0 &&
+        bookletPromptSections.length === 0 &&
+        bookletInsertPages.length === 0
+      ) {
+        this.toast.warning(getPrintEmptyRangeUserMessage(timeRange));
+        if (newWindow) {
+          newWindow.close();
+        }
+        return;
+      }
+
+      await this.brandingService.initialize();
+      const tenant = this.tenantContext.getActiveTenant();
+      const tenantName = tenant?.name ?? 'Prayer App';
+      const coverLogoUrl = this.getBookletFrontCoverLogoUrl();
+      const [embeddedQr, embeddedAppIcon, embeddedBackLogo] = await Promise.all([
+        this.tryEmbedInfoQrAsDataUrl(),
+        this.tryEmbedBookletAppIconAsDataUrl(),
+        coverLogoUrl.trim().length > 0
+          ? this.tryEmbedBookletBackLogoAsDataUrl(coverLogoUrl)
+          : Promise.resolve<string | null>(null),
+      ]);
+      const html = buildSaddleStitchBookletHtml(
+        prayers,
+        timeRange,
+        coverLogoUrl,
+        embeddedQr,
+        embeddedAppIcon,
+        embeddedBackLogo,
+        bookletPromptSections,
+        bookletInsertPages,
+        this.resolveInfoQrImageSrc(),
+        getPrintBookletAppIconUrl(),
+        tenantName
+      );
+
+      if (isPrintNativeApp()) {
+        const today = new Date().toISOString().split('T')[0];
+        const rangeLabel = getPrintRangeFileLabel(timeRange);
+        const filename = `prayer-list-booklet-${rangeLabel}-${today}.html`;
+        await sharePrintHtmlOnNativeApp(html, filename, 'Prayer list booklet');
+        return;
+      }
+
+      const targetWindow = newWindow || window.open('', '_blank');
+      if (!targetWindow) {
+        const blob = new Blob([html], { type: 'text/html' });
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        const today = new Date().toISOString().split('T')[0];
+        const rangeLabel = getPrintRangeFileLabel(timeRange);
+        link.download = `prayer-list-booklet-${rangeLabel}-${today}.html`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+        this.toast.info(
+          'Booklet download started. Open the file to print; use double-sided, flip on short edge, then fold and staple.'
+        );
+      } else {
+        targetWindow.document.open();
+        targetWindow.document.write(html);
+        targetWindow.document.close();
+        targetWindow.focus();
+      }
+    } catch (error) {
+      console.error('Error generating prayer booklet:', error);
+      this.toast.error('Failed to generate prayer booklet. Please try again.');
+      if (newWindow) {
+        newWindow.close();
+      }
+    }
+  }
+
+  private async loadBookletPromptSectionsOrdered(): Promise<
+    Array<{ typeName: string; prompts: Array<{ title: string }> }>
+  > {
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) {
+      return [];
+    }
+
+    const { data: typesRows, error: typesErr } = await this.supabase.client
+      .from('prayer_types')
+      .select('name, display_order')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .eq('include_in_booklet', true)
+      .order('display_order', { ascending: true });
+
+    if (typesErr) {
+      console.error('[PrintService] Booklet prompt types:', typesErr);
+      return [];
+    }
+    if (!typesRows?.length) {
+      return [];
+    }
+
+    const names = typesRows.map((t: { name: string }) => t.name);
+    const { data: promptsData, error: promptsErr } = await this.supabase.client
+      .from('prayer_prompts')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .in('type', names)
+      .order('title', { ascending: true });
+
+    if (promptsErr) {
+      console.error('[PrintService] Booklet prompts:', promptsErr);
+      return [];
+    }
+    if (!promptsData?.length) {
+      return [];
+    }
+
+    const byType = new Map<string, Array<{ title: string }>>();
+    for (const p of promptsData) {
+      const k = p.type as string;
+      if (!byType.has(k)) {
+        byType.set(k, []);
+      }
+      byType.get(k)!.push(p);
+    }
+
+    const ordered: Array<{ typeName: string; prompts: Array<{ title: string }> }> = [];
+    for (const row of typesRows) {
+      const list = byType.get(row.name);
+      if (list?.length) {
+        ordered.push({
+          typeName: row.name,
+          prompts: sortPromptsAlphabeticalByTitle(list),
+        });
+      }
+    }
+    return ordered;
+  }
+
+  async loadBookletInsertPagesOrdered(): Promise<BookletInsertPage[]> {
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) {
+      return [];
+    }
+
+    const { data, error } = await this.supabase.client
+      .from('booklet_insert_pages')
+      .select('id, sort_order, label, mime_type, image_data')
+      .eq('tenant_id', tenantId)
+      .order('sort_order', { ascending: true });
+
+    if (error) {
+      console.error('[PrintService] Booklet insert pages:', error);
+      return [];
+    }
+    return (data ?? []) as BookletInsertPage[];
+  }
+
+  buildBookletInsertPageHtml(dataUrl: string): string {
+    return renderBookletInsertPageHtml(dataUrl);
+  }
+
+  /** @internal Used by unit tests — prefer `splitBookletMarkdownIntoPanelParts` from print-booklet-pack. */
+  splitBookletMarkdownIntoPanelParts(markdown: string, maxChars: number): string[] {
+    return splitBookletMarkdownIntoPanelParts(markdown, maxChars);
+  }
+
+  private resolveInfoQrImageSrc(): string {
+    const infoUrl = resolvePrintInfoPageUrl(
+      this.emailNotificationService.getEmailBaseUrl(),
+      typeof window !== 'undefined' && window.location?.origin ? window.location.origin : ''
+    );
+    return buildInfoQrImageSrc(infoUrl);
+  }
+
+  private async tryEmbedInfoQrAsDataUrl(): Promise<string | null> {
+    return tryFetchImageAsDataUrl(this.resolveInfoQrImageSrc());
+  }
+
+  private async tryEmbedBookletAppIconAsDataUrl(): Promise<string | null> {
+    return tryFetchImageAsDataUrl(getPrintBookletAppIconUrl());
+  }
+
+  private async tryEmbedBookletBackLogoAsDataUrl(resolvedLogoUrl: string): Promise<string | null> {
+    const t = resolvedLogoUrl.trim();
+    if (!t) {
+      return null;
+    }
+    return tryFetchImageAsDataUrl(t);
+  }
+
+  private getBookletFrontCoverLogoUrl(): string {
+    const b = this.brandingService.getBranding();
+    if (!b.useLogo) {
+      return '';
+    }
+    const url = (b.lightLogo || b.darkLogo || '').trim();
+    if (!url) {
+      return '';
+    }
+    return resolvePrintAssetUrl(url);
   }
 }
