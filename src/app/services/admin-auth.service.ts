@@ -509,7 +509,7 @@ export class AdminAuthService {
   /**
    * Logout current user
    */
-  async logout(): Promise<void> {
+  async logout(loginQueryParams?: Record<string, string>): Promise<void> {
     try {
       // Get user email before clearing auth state
       const userEmail = this.userSubject.value?.email ?? (await this.authIdentity.getEmail());
@@ -567,7 +567,11 @@ export class AdminAuthService {
       }
       
       // Always redirect to login page after logout
-      this.router.navigate(['/login']);
+      if (loginQueryParams && Object.keys(loginQueryParams).length > 0) {
+        this.router.navigate(['/login'], { queryParams: loginQueryParams });
+      } else {
+        this.router.navigate(['/login']);
+      }
     } catch (error) {
       console.error('Error during logout:', error);
     }

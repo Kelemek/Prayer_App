@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TenantManagementService } from './tenant-management.service';
 import { SupabaseService } from './supabase.service';
 import { TenantContextService } from './tenant-context.service';
+import { EmailNotificationService } from './email-notification.service';
+import { InviteEmailSendError } from '../lib/tenant-invite';
 
 describe('TenantManagementService', () => {
   let service: TenantManagementService;
@@ -9,6 +11,27 @@ describe('TenantManagementService', () => {
   let from: ReturnType<typeof vi.fn>;
   let refresh: ReturnType<typeof vi.fn>;
   let getSession: ReturnType<typeof vi.fn>;
+  let getTemplate: ReturnType<typeof vi.fn>;
+  let sendEmail: ReturnType<typeof vi.fn>;
+  let applyTemplateVariables: ReturnType<typeof vi.fn>;
+
+  const stubTenantsFrom = () => {
+    from.mockImplementation((table: string) => {
+      if (table === 'tenants') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: { name: 'Alpha Church', slug: 'alpha' },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      return {};
+    });
+  };
 
   beforeEach(() => {
     rpc = vi.fn();
@@ -17,11 +40,26 @@ describe('TenantManagementService', () => {
       data: { session: { user: { email: 'admin@example.com' }, access_token: 'jwt' } },
     });
     from = vi.fn();
+    stubTenantsFrom();
+    getTemplate = vi.fn().mockResolvedValue(null);
+    sendEmail = vi.fn().mockResolvedValue(undefined);
+    applyTemplateVariables = vi.fn((content: string, variables: Record<string, string>) => {
+      let result = content;
+      for (const [key, value] of Object.entries(variables)) {
+        result = result.replaceAll(`{{${key}}}`, value);
+      }
+      return result;
+    });
     service = new TenantManagementService(
       {
         client: { auth: { getSession }, rpc, from },
       } as unknown as SupabaseService,
-      { refresh } as unknown as TenantContextService
+      { refresh } as unknown as TenantContextService,
+      {
+        getTemplate,
+        sendEmail,
+        applyTemplateVariables,
+      } as unknown as EmailNotificationService
     );
   });
 
@@ -51,10 +89,11 @@ describe('TenantManagementService', () => {
     );
   });
 
-  it('creates invite with normalized email', async () => {
+  it('creates invite with normalized email and sends mail with tenantId', async () => {
     rpc.mockResolvedValue({ data: 'invite-token', error: null });
-    const token = await service.createInvite('tenant-1', ' Member@Example.com ');
-    expect(token).toBe('invite-token');
+    const created = await service.createInvite('tenant-1', ' Member@Example.com ');
+    expect(created.token).toBe('invite-token');
+    expect(created.url).toContain('/join/invite-token');
     expect(rpc).toHaveBeenCalledWith(
       'create_tenant_invite',
       expect.objectContaining({
@@ -63,6 +102,76 @@ describe('TenantManagementService', () => {
         p_invited_by_email: 'admin@example.com',
       })
     );
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'member@example.com',
+        tenantId: 'tenant-1',
+        subject: "You're invited to join Alpha Church",
+      })
+    );
+  });
+
+  it('uses tenant_invite template variables when present', async () => {
+    rpc.mockResolvedValue({ data: 'invite-token', error: null });
+    getTemplate.mockResolvedValue({
+      subject: 'Join {{tenantName}}',
+      html_body: '<p>{{joinLink}}</p>',
+      text_body: '{{inviteeEmail}} {{inviterEmail}} {{expiresAt}}',
+    });
+    await service.createInvite('tenant-1', 'member@example.com');
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: 'Join Alpha Church',
+        htmlBody: expect.stringContaining('/join/invite-token'),
+        textBody: expect.stringContaining('member@example.com'),
+        tenantId: 'tenant-1',
+      })
+    );
+  });
+
+  it('throws InviteEmailSendError with token and url when send fails', async () => {
+    rpc.mockResolvedValue({ data: 'invite-token', error: null });
+    sendEmail.mockRejectedValue(new Error('Resend down'));
+    try {
+      await service.createInvite('tenant-1', 'a@b.com');
+      throw new Error('expected InviteEmailSendError');
+    } catch (err) {
+      expect(err).toBeInstanceOf(InviteEmailSendError);
+      expect((err as InviteEmailSendError).token).toBe('invite-token');
+      expect((err as InviteEmailSendError).url).toContain('/join/invite-token');
+      expect((err as InviteEmailSendError).message).toBe('Resend down');
+    }
+  });
+
+  it('loads invite preview from RPC', async () => {
+    rpc.mockResolvedValue({
+      data: {
+        tenant_name: 'Alpha Church',
+        tenant_slug: 'alpha',
+        invitee_email: 'member@example.com',
+        expires_at: '2026-09-17T00:00:00.000Z',
+        status: 'pending',
+      },
+      error: null,
+    });
+    await expect(service.getInvitePreview(' tok ')).resolves.toEqual({
+      tenantName: 'Alpha Church',
+      tenantSlug: 'alpha',
+      inviteeEmail: 'member@example.com',
+      expiresAt: '2026-09-17T00:00:00.000Z',
+      status: 'pending',
+    });
+    expect(rpc).toHaveBeenCalledWith('get_tenant_invite_preview', { p_token: 'tok' });
+  });
+
+  it('getInvitePreview returns null for a blank token', async () => {
+    await expect(service.getInvitePreview('  ')).resolves.toBeNull();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('throws when getInvitePreview RPC fails', async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: 'preview failed' } });
+    await expect(service.getInvitePreview('tok')).rejects.toThrow('preview failed');
   });
 
   it('claims invite when email matches and invite is pending', async () => {
@@ -188,7 +297,12 @@ describe('TenantManagementService', () => {
       {
         refresh,
         getActiveTenant: vi.fn(() => ({ id: 'tenant-1', name: 'Test' })),
-      } as unknown as TenantContextService
+      } as unknown as TenantContextService,
+      {
+        getTemplate,
+        sendEmail,
+        applyTemplateVariables,
+      } as unknown as EmailNotificationService
     );
 
     const memberships = await service.getMembershipsForActiveTenant();
@@ -351,7 +465,12 @@ describe('TenantManagementService', () => {
       {
         refresh,
         getActiveTenant: vi.fn(() => null),
-      } as unknown as TenantContextService
+      } as unknown as TenantContextService,
+      {
+        getTemplate,
+        sendEmail,
+        applyTemplateVariables,
+      } as unknown as EmailNotificationService
     );
     await expect(service.getMembershipsForActiveTenant()).resolves.toEqual([]);
   });
@@ -369,7 +488,12 @@ describe('TenantManagementService', () => {
       {
         refresh,
         getActiveTenant: vi.fn(() => ({ id: 'tenant-1' })),
-      } as unknown as TenantContextService
+      } as unknown as TenantContextService,
+      {
+        getTemplate,
+        sendEmail,
+        applyTemplateVariables,
+      } as unknown as EmailNotificationService
     );
     await expect(service.getMembershipsForActiveTenant()).rejects.toThrow('query failed');
   });

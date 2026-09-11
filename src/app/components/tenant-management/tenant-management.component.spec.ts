@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
 import { TenantManagementComponent } from './tenant-management.component';
 import type { Tenant } from '../../types/tenant';
+import { InviteEmailSendError } from '../../lib/tenant-invite';
 
 const tenantA: Tenant = {
   id: 'tenant-a',
@@ -56,7 +57,10 @@ describe('TenantManagementComponent', () => {
     getMembershipsForActiveTenant = vi.fn().mockResolvedValue([
       { tenant_id: tenantA.id, user_email: 'admin@test.com', role: 'tenant_admin' },
     ]);
-    createInvite = vi.fn().mockResolvedValue('invite-token-123');
+    createInvite = vi.fn().mockResolvedValue({
+      token: 'invite-token-123',
+      url: 'https://alpha-church.example/join/invite-token-123',
+    });
     setTenantPlan = vi.fn().mockResolvedValue(undefined);
     listSuperAdmins = vi.fn().mockResolvedValue([{ user_email: 'super@test.com' }]);
     getActorEmail = vi.fn().mockResolvedValue('super@test.com');
@@ -172,8 +176,32 @@ describe('TenantManagementComponent', () => {
     await component.createInvite();
     expect(createInvite).toHaveBeenCalledWith('tenant-a', 'member@example.com');
     expect(component.lastInviteToken).toBe('invite-token-123');
-    expect(toastSuccess).toHaveBeenCalledWith('Invite created');
+    expect(component.lastInviteUrl).toBe(
+      'https://alpha-church.example/join/invite-token-123'
+    );
+    expect(toastSuccess).toHaveBeenCalledWith(
+      'Invitation sent to member@example.com'
+    );
     expect(component.inviteEmail).toBe('');
+  });
+
+  it('createInvite keeps backup link when email send fails', async () => {
+    createInvite.mockRejectedValue(
+      new InviteEmailSendError(
+        'Resend down',
+        'invite-token-123',
+        'https://alpha-church.example/join/invite-token-123'
+      )
+    );
+    component.inviteEmail = 'member@example.com';
+    await component.createInvite();
+    expect(component.lastInviteUrl).toBe(
+      'https://alpha-church.example/join/invite-token-123'
+    );
+    expect(toastError).toHaveBeenCalledWith(
+      'Invite created, but the email could not be sent. Copy the link below.'
+    );
+    expect(toastSuccess).not.toHaveBeenCalled();
   });
 
   it('createInvite returns early without tenant or email', async () => {

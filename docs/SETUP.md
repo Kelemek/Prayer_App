@@ -301,6 +301,7 @@ Templates are stored in Supabase `email_templates` table:
 - `prayer_answered` - Notification when prayer marked answered
 - `update_approved` - Notification for approved updates
 - `subscriber_welcome` - Welcome to email list
+- `tenant_invite` - Transactional member invite with `/join/:token` link (Admin → Tenant Manager). Seeded by `20260910220000_tenant_invite_email.sql` (apply that migration before relying on the DB template; the app falls back to inline copy if the row is missing). Uses per-tenant Sending identity when `tenantId` is passed to `send-email`.
 
 ### Email Queue Processing
 

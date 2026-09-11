@@ -25,7 +25,7 @@ Church-scoped configuration lives on **`tenant_settings`** (keyed by `tenant_id`
 
 Personal-only users (no church membership) use safe defaults and do not read another church's `tenant_settings`.
 
-**Outbound mail identity:** `get_tenant_mail_identity(p_tenant_id, p_email)` / `update_tenant_mail_identity(...)` (same MFA `p_email` pattern as reminder settings). Stores display name + DNS-safe local-part (not a full From address) so From always stays on the `MAIL_SENDER_ADDRESS` domain; optional `mail_reply_to` can be any church inbox. Resolution lives in `src/lib/mail-identity.ts` (unit tests) and is inlined in `send-email`, `trigger-email-processor`, and `scripts/process-email-queue.ts`. Admin UI: Email → Sending identity.
+**Outbound mail identity:** `get_tenant_mail_identity(p_tenant_id, p_email)` / `update_tenant_mail_identity(...)` (same MFA `p_email` pattern as reminder settings). Stores display name + DNS-safe local-part (not a full From address) so From always stays on the `MAIL_SENDER_ADDRESS` domain; optional `mail_reply_to` can be any church inbox. Resolution lives in `src/lib/mail-identity.ts` (unit tests) and is inlined in `send-email`, `trigger-email-processor`, and `scripts/process-email-queue.ts`. Admin UI: Email → Sending identity. Member invites (`tenant_invite` template) pass the church `tenantId` so From identity applies.
 
 ### Project Structure
 

@@ -20,6 +20,8 @@ import { ConnectivityService } from "../../services/connectivity.service";
 import { ToastService } from "../../services/toast.service";
 import { PrayerGroupService } from "../../services/prayer-group.service";
 import { UserSubscriptionService } from "../../services/user-subscription.service";
+import { TenantManagementService } from "../../services/tenant-management.service";
+import { parseJoinInviteToken } from "../../lib/tenant-invite";
 import { Subject, takeUntil } from "rxjs";
 
 @Component({
@@ -62,6 +64,21 @@ import { Subject, takeUntil } from "rxjs";
           role="status"
         >
           You’re offline. Connect to the internet to sign in.
+        </div>
+        }
+
+        @if (isJoinInviteFlow) {
+        <div
+          class="rounded-lg border border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/30 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100"
+          role="status"
+        >
+          @if (joinInvite) {
+            You're invited to join
+            <strong>{{ joinInvite.tenantName }}</strong>. Sign in or sign up as
+            <strong>{{ joinInvite.inviteeEmail }}</strong>.
+          } @else {
+            Sign in or sign up with the email address this invite was sent to.
+          }
         </div>
         }
 
@@ -667,6 +684,8 @@ export class LoginComponent implements OnInit, OnDestroy {
   private returnUrl: string = "/";
 
   isOnline = true;
+  isJoinInviteFlow = false;
+  joinInvite: { tenantName: string; inviteeEmail: string } | null = null;
 
   private destroy$ = new Subject<void>();
 
@@ -683,7 +702,8 @@ export class LoginComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private cdr: ChangeDetectorRef,
     private prayerGroupService: PrayerGroupService,
-    private userSubscriptionService: UserSubscriptionService
+    private userSubscriptionService: UserSubscriptionService,
+    private tenantManagement: TenantManagementService
   ) {}
 
   /** Tenant for new subscribers / approval requests (active org, localStorage, or default-tenant). */
@@ -727,6 +747,31 @@ export class LoginComponent implements OnInit, OnDestroy {
     return this.isExplicitChurchTenantId(tenantId);
   }
 
+  private async loadJoinInviteBanner(): Promise<void> {
+    const token = parseJoinInviteToken(this.returnUrl);
+    this.isJoinInviteFlow = !!token;
+    this.joinInvite = null;
+    if (!token) {
+      this.cdr?.markForCheck?.();
+      return;
+    }
+    try {
+      const preview = await this.tenantManagement.getInvitePreview(token);
+      if (preview) {
+        this.joinInvite = {
+          tenantName: preview.tenantName,
+          inviteeEmail: preview.inviteeEmail,
+        };
+        if (!this.email.trim()) {
+          this.email = preview.inviteeEmail;
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to load invite preview for login:", error);
+    }
+    this.cdr?.markForCheck?.();
+  }
+
   async ngOnInit() {
     // Detect dark mode from document class
     this.detectDarkMode();
@@ -760,6 +805,8 @@ export class LoginComponent implements OnInit, OnDestroy {
       if (params["blocked"] === "true") {
         this.showBlockedMessage = true;
       }
+
+      void this.loadJoinInviteBanner();
     });
 
     // Subscribe to site protection status

@@ -128,7 +128,7 @@ const makeComponent = (mocks: any) => {
 
 // Helper to create LoginComponent with custom service mocks (for tests with modified mocks)
 let componentsToCleanup: LoginComponent[] = [];
-const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, userSession: any, theme: any, tenantContext: any, router: any, route: any, cdr: any, connectivity?: any, toast?: any, userSubscription?: any) => {
+const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, userSession: any, theme: any, tenantContext: any, router: any, route: any, cdr: any, connectivity?: any, toast?: any, userSubscription?: any, tenantManagement?: any) => {
   const connectivityMock = connectivity ?? {
     isOnline: vi.fn(() => true),
     isOnline$: new BehaviorSubject(true).asObservable(),
@@ -143,6 +143,9 @@ const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, 
     registerFreeUser: vi.fn(async () => true),
     refreshCapabilities: vi.fn(async () => undefined),
   };
+  const tenantManagementMock = tenantManagement ?? {
+    getInvitePreview: vi.fn(async () => null),
+  };
   const comp = new LoginComponent(
     adminAuth,
     supabase,
@@ -156,7 +159,8 @@ const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, 
     route,
     cdr,
     prayerGroupMock as any,
-    userSubscriptionMock as any
+    userSubscriptionMock as any,
+    tenantManagementMock as any
   );
   comp.codeInputs = { toArray: () => [{ nativeElement: { focus: vi.fn() } }] } as any;
   // Register for cleanup
@@ -795,6 +799,47 @@ describe('LoginComponent', () => {
     comp.codeInputs = { toArray: () => [] } as any;
     await comp.ngOnInit();
     expect(comp.email).toBe('prefilled@example.com');
+  });
+
+  it('ngOnInit shows join invite banner and prefills invited email', async () => {
+    const queryMocks = makeMocks();
+    queryMocks.route = {
+      queryParams: {
+        subscribe: (cb: any) => cb({ returnUrl: '/join/invite-token-123' }),
+      },
+    } as any;
+    const getInvitePreview = vi.fn(async () => ({
+      tenantName: 'Alpha Church',
+      tenantSlug: 'alpha',
+      inviteeEmail: 'member@example.com',
+      expiresAt: '2099-01-01T00:00:00.000Z',
+      status: 'pending',
+    }));
+    const comp = makeComponentWithMocks(
+      queryMocks.adminAuthService,
+      queryMocks.supabaseService,
+      queryMocks.emailNotificationService,
+      queryMocks.userSessionService,
+      queryMocks.themeService,
+      queryMocks.tenantContextService,
+      queryMocks.router,
+      queryMocks.route,
+      queryMocks.cdr,
+      undefined,
+      undefined,
+      undefined,
+      { getInvitePreview }
+    );
+    comp.codeInputs = { toArray: () => [] } as any;
+    await comp.ngOnInit();
+    await vi.waitFor(() => {
+      expect(comp.isJoinInviteFlow).toBe(true);
+      expect(comp.joinInvite).toEqual({
+        tenantName: 'Alpha Church',
+        inviteeEmail: 'member@example.com',
+      });
+      expect(comp.email).toBe('member@example.com');
+    });
   });
 
   it('ngOnInit subscribes to requireSiteLogin$ and updates component state', async () => {

@@ -4,6 +4,12 @@ Major features and milestones for the Prayer App.
 
 ## [Current] - September 2026
 
+### Invite email funnel
+- Creating a member invite in Admin → Tenant Manager emails the invitee a `/join/:token` link (template key `tenant_invite`) via existing `send-email` and per-tenant From identity.
+- Admin still shows a backup invite link. If Resend fails, the invite row is kept and the toast says the email did not send.
+- Login and join pages explain signing in as the invited email. Claim rules are unchanged (logged-in email must match, pending, not expired).
+- Migration: `20260910220000_tenant_invite_email.sql` (commit only; apply when ready). Re-creating an invite for the same pending email reuses or refreshes that row so a second send works.
+
 ### Per-tenant outbound email identity
 - Each church can set From display name, a local-part on the platform verified Resend domain, and optional Reply-To (`tenant_settings.mail_from_name`, `mail_from_local_part`, `mail_reply_to`).
 - RPCs: `get_tenant_mail_identity` / `update_tenant_mail_identity` (tenant_admin / super_admin for that tenant). Admin UI: **Email → Sending identity**.

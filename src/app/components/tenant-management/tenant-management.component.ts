@@ -12,8 +12,8 @@ import { TenantManagementService } from "../../services/tenant-management.servic
 import { TenantPermissionService } from "../../services/tenant-permission.service";
 import { ToastService } from "../../services/toast.service";
 import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/admin-collapsible-section.component";
-import { buildTenantInviteUrl } from "../../lib/app-origin";
 import { switchTenantWithNavigation } from "../../lib/tenant-navigation";
+import { InviteEmailSendError } from "../../lib/tenant-invite";
 import { normalizeTenantSlug, validateTenantSlug } from "../../lib/tenant-slug";
 import { PlatformBillingService, type TenantBillingRow } from "../../services/platform-billing.service";
 import type {
@@ -249,15 +249,10 @@ import type {
             Create Invite
           </button>
         </div>
-        @if (lastInviteToken) {
-        <p class="mt-2 text-xs text-gray-600 dark:text-gray-300 break-all">
-          Invite Token: {{ lastInviteToken }}
-        </p>
         @if (lastInviteUrl) {
-        <p class="mt-1 text-xs text-gray-600 dark:text-gray-300 break-all">
-          Invite Link: {{ lastInviteUrl }}
+        <p class="mt-2 text-xs text-gray-600 dark:text-gray-300 break-all">
+          Invite link (backup): {{ lastInviteUrl }}
         </p>
-        }
         }
       </div>
 
@@ -670,16 +665,25 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
 
   async createInvite(): Promise<void> {
     if (!this.activeTenantId || !this.inviteEmail.trim()) return;
+    const inviteeEmail = this.inviteEmail.trim();
     try {
-      this.lastInviteToken = await this.tenantManagement.createInvite(
+      const created = await this.tenantManagement.createInvite(
         this.activeTenantId,
-        this.inviteEmail
+        inviteeEmail
       );
-      const activeSlug = this.tenantContext.getActiveTenant()?.slug ?? "";
-      this.lastInviteUrl = buildTenantInviteUrl(activeSlug, this.lastInviteToken);
-      this.toast.success("Invite created");
+      this.lastInviteToken = created.token;
+      this.lastInviteUrl = created.url;
+      this.toast.success(`Invitation sent to ${inviteeEmail.toLowerCase()}`);
       this.inviteEmail = "";
     } catch (error) {
+      if (error instanceof InviteEmailSendError) {
+        this.lastInviteToken = error.token;
+        this.lastInviteUrl = error.url;
+        this.toast.error(
+          "Invite created, but the email could not be sent. Copy the link below."
+        );
+        return;
+      }
       this.toast.error(
         error instanceof Error ? error.message : "Failed to create invite"
       );

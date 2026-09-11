@@ -48,4 +48,11 @@ describe('app-origin', () => {
       'https://alpha.prayer.romans8.net/join/token-123'
     );
   });
+
+  it('buildTenantInviteUrl falls back to platform appUrl when suffix is empty', () => {
+    environment.tenantHostSuffix = '';
+    expect(buildTenantInviteUrl('alpha', 'token-123')).toBe(
+      'https://prayer.romans8.net/join/token-123'
+    );
+  });
 });

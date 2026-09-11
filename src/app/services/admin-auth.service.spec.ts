@@ -199,6 +199,22 @@ describe('AdminAuthService', () => {
       expect(isAuthenticated).toBe(false);
     });
 
+    it('should pass login query params when signing out for an invite', async () => {
+      await vi.advanceTimersByTimeAsync(100);
+
+      await service.logout({
+        returnUrl: '/join/invite-token-123',
+        email: 'member@example.com',
+      });
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/login'], {
+        queryParams: {
+          returnUrl: '/join/invite-token-123',
+          email: 'member@example.com',
+        },
+      });
+    });
+
     it('should clear session data on logout', async () => {
       await vi.advanceTimersByTimeAsync(100);
       
