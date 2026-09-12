@@ -38,15 +38,18 @@ The Edge Function `send-push-notification` falls back to `APNS_BUNDLE_ID=com.chu
 
 Subscriptions are **web Stripe only** (Checkout + Customer Portal). Native apps must not offer In-App Purchase.
 
-- Church checkout and Pro upgrade UI are hidden on native.
-- **Manage billing** on native opens the system browser (`@capacitor/browser`).
-- Creating a church on native skips Checkout and tells the admin to finish billing on the web.
+- Native **Create a church** is a **Church feature tour**. Last step is **Email me a link to set up** — no prices, Buy, Stripe, or Checkout CTAs in the Capacitor binary. Pricing lives in the email and on the website.
+- Hitting the free **group limit** launches a **Pro feature tour**. Native last step emails a web pay link; web last step starts Stripe Checkout.
+- Church tenants are created **only after payment is confirmed**, on the web `/church-setup` wizard. Unpaid interest does not create `incomplete` church rows.
+- After Church pay on mobile, the personal/Free app stays usable with a banner: “You’re paid — finish church setup on the web.”
+- **Join via invite** stays fully in-app.
+- **Manage billing** on native opens the system browser (`@capacitor/browser`) to the Stripe Customer Portal.
 
 ## App Review notes (draft)
 
 Paste into App Store Connect when you submit (after the public marketing name is ready):
 
-> This app provides access to a multi-church prayer service that is also available on the web. Church and Pro subscriptions are purchased and managed on the web via Stripe Checkout and the Stripe Customer Portal. The app does not offer In-App Purchase. The same account and features are available at the website. On native devices, “Manage billing” opens the system browser to the Stripe portal. Privacy policy: /privacy. Support: /support. Users can delete their account in Settings.
+> This app provides access to a multi-church prayer service that is also available on the web. Church and Pro subscriptions are purchased and managed on the web via Stripe Checkout and the Stripe Customer Portal. The native app does not offer In-App Purchase or in-app prices or Buy buttons. Users can preview Church and Pro features in an in-app tour, then receive an email link to complete purchase on the website. A church organization is created only after web payment succeeds. The same account and features are available at the website. On native devices, “Manage billing” opens the system browser to the Stripe portal. Privacy policy: /privacy. Support: /support. Users can delete their account in Settings.
 
 ## Later steps (not done in repo config)
 

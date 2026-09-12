@@ -208,14 +208,3 @@
   (cancel)="cancelDelete()"
 />
 }
-
-@if (showProUpgradeModal) {
-<app-confirmation-dialog
-  title="Group limit reached"
-  [message]="proUpgradeMessage()"
-  confirmText="Upgrade to Pro"
-  cancelText="Not now"
-  (confirm)="confirmProUpgrade()"
-  (cancel)="cancelProUpgrade()"
-/>
-}

@@ -35,6 +35,14 @@ import { TenantPermissionService } from "../../services/tenant-permission.servic
 import { TenantContextService } from "../../services/tenant-context.service";
 import { UserSubscriptionService } from "../../services/user-subscription.service";
 import { ProCheckoutService } from "../../services/pro-checkout.service";
+import { BillingSignupService } from "../../services/billing-signup.service";
+import { PayFirstFeatureTourService } from "../../services/pay-first-feature-tour.service";
+import {
+  BillingSignupEmailSendError,
+  shouldRedirectHomeToChurchSetup,
+  shouldShowChurchSetupPendingBanner,
+  type BillingSignupKind,
+} from "../../lib/billing-signup";
 import { PrayerGroupService } from "../../services/prayer-group.service";
 import type { PrayerGroup } from "../../types/prayer-group";
 import {
@@ -44,6 +52,7 @@ import {
 } from "../../lib/home-group-catalog";
 import { ConnectivityService } from "../../services/connectivity.service";
 import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
 import { MemorizationService } from "../../services/memorization.service";
 import { MemorizationRecommendationsService } from "../../services/memorization-recommendations.service";
 import { ScriptureService } from "../../services/scripture.service";
@@ -107,6 +116,7 @@ import { HomeGroupFiltersComponent } from "../../components/home-group-filters/h
 import { HomeGroupEditorModalComponent } from "../../components/home-group-editor-modal/home-group-editor-modal.component";
 import { HomePersonalCategoryEditorModalComponent } from "../../components/home-personal-category-editor-modal/home-personal-category-editor-modal.component";
 import { HomeChurchOnboardingModalComponent } from "../../components/home-church-onboarding-modal/home-church-onboarding-modal.component";
+import { ChurchSetupPendingBannerComponent } from "../../components/church-setup-pending-banner/church-setup-pending-banner.component";
 import { HomePrayerContentComponent } from "../../components/home-prayer-content/home-prayer-content.component";
 import { ScrollToTopButtonComponent } from "../../components/scroll-to-top-button/scroll-to-top-button.component";
 import type { PrayerPrompt } from "../../components/prompt-card/prompt-card.component";
@@ -132,6 +142,7 @@ import {
     HomeGroupEditorModalComponent,
     HomePersonalCategoryEditorModalComponent,
     HomeChurchOnboardingModalComponent,
+    ChurchSetupPendingBannerComponent,
     HomePrayerContentComponent,
     ScrollToTopButtonComponent,
     PrayerFiltersComponent,
@@ -202,6 +213,8 @@ export class HomeComponent
   showGroupEditor = false;
   groupEditorSubmitting = false;
   showChurchOnboardingModal = false;
+  showChurchSetupPendingBanner = false;
+  lastSignupLink = "";
   membersGroupIdToOpen: string | null = null;
   groupPrayers: PrayerRequest[] = [];
   tenantMemberships: TenantMembership[] = [];
@@ -296,6 +309,8 @@ export class HomeComponent
     public prayerGroupService: PrayerGroupService,
     private userSubscriptionService: UserSubscriptionService,
     private proCheckoutService: ProCheckoutService,
+    private billingSignup: BillingSignupService,
+    private payFirstTour: PayFirstFeatureTourService,
     private connectivity: ConnectivityService,
     private personalCategoryColorService: PersonalCategoryColorService,
     private readonly deepLinkCoordinator: HomeDeepLinkCoordinator,
@@ -393,6 +408,7 @@ export class HomeComponent
     this.lifecycleCoordinator.initialize(this.destroy$);
     void this.userSubscriptionService.refreshCapabilities();
     void this.loadPrayerGroups();
+    void this.handlePayFirstHomeEntry();
     this.prayerGroupService.groups$
       .pipe(takeUntil(this.destroy$))
       .subscribe((groups) => {
@@ -874,9 +890,6 @@ export class HomeComponent
   }
 
   get showGroupProUpgrade(): boolean {
-    if (Capacitor.isNativePlatform()) {
-      return false;
-    }
     const limits = this.userSubscriptionService.getGroupLimits();
     return !limits.can_create_group && limits.individual_plan_tier === "free";
   }
@@ -890,15 +903,14 @@ export class HomeComponent
   }
 
   async onUpgradeToPro(): Promise<void> {
-    if (!this.connectivity.requireOnline("Upgrade to Pro")) {
+    if (!this.connectivity.requireOnline("See Pro features")) {
       return;
     }
-    const url = await this.proCheckoutService.startProCheckout();
-    if (url) {
-      window.location.assign(url);
-      return;
-    }
-    this.toastService.error("Could not start checkout. Please try again.");
+    this.payFirstTour.startProTour(
+      this.payFirstTourHost(),
+      () => this.finishPayFirstTour("pro"),
+      this.userSubscriptionService.getGroupLimits()
+    );
   }
 
   get selectedGroupName(): string {
@@ -967,10 +979,135 @@ export class HomeComponent
     this.cdr.markForCheck();
   }
 
+  onStartChurchTour(): void {
+    this.showChurchOnboardingModal = false;
+    this.filter.setFilter("current");
+    this.cdr.markForCheck();
+    window.setTimeout(() => {
+      this.payFirstTour.startChurchTour(this.payFirstTourHost(), () =>
+        this.finishPayFirstTour("church")
+      );
+    }, 280);
+  }
+
   onChurchOnboardingCompleted(): void {
     this.showChurchOnboardingModal = false;
     this.canAccessShared = this.tenantPermissionService.canAccessShared();
     this.filter.setFilter("current");
+    this.cdr.markForCheck();
+  }
+
+  async onCopyChurchSetupLink(): Promise<void> {
+    const url = this.lastSignupLink || this.billingSignup.churchSetupAbsoluteUrl();
+    try {
+      await navigator.clipboard.writeText(url);
+      this.toastService.success("Setup link copied");
+    } catch {
+      this.toastService.info(url);
+    }
+  }
+
+  async onOpenChurchSetupWeb(): Promise<void> {
+    const url = this.lastSignupLink || this.billingSignup.churchSetupAbsoluteUrl();
+    if (Capacitor.isNativePlatform()) {
+      await Browser.open({ url });
+      return;
+    }
+    await this.router.navigateByUrl("/church-setup");
+  }
+
+  private payFirstTourHost() {
+    return {
+      setFilter: (filter: "current" | "answered" | "prompts" | "groups") => {
+        this.filter.setFilter(filter);
+      },
+      openUserSettings: () => this.modals.openUserSettings("tour-settings-print-buttons"),
+      markForCheck: () => this.cdr.markForCheck(),
+    };
+  }
+
+  private async finishPayFirstTour(kind: BillingSignupKind): Promise<void> {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const created = await this.billingSignup.sendSignupEmail(kind);
+        this.lastSignupLink = created.url;
+        this.toastService.success("Check your email for a link to continue on the web.");
+      } catch (error) {
+        if (error instanceof BillingSignupEmailSendError) {
+          this.lastSignupLink = error.url;
+          this.toastService.error(
+            "Could not send email. Copy the link to continue on the web."
+          );
+          try {
+            await navigator.clipboard.writeText(error.url);
+            this.toastService.success("Setup link copied");
+          } catch {
+            this.toastService.info(error.url);
+          }
+          return;
+        }
+        this.toastService.error(
+          error instanceof Error ? error.message : "Could not email a setup link"
+        );
+      }
+      this.cdr.markForCheck();
+      return;
+    }
+
+    if (kind === "church") {
+      await this.router.navigateByUrl("/church-setup");
+      return;
+    }
+
+    if (!this.connectivity.requireOnline("Continue")) {
+      return;
+    }
+    const url = await this.proCheckoutService.startProCheckout();
+    if (url) {
+      window.location.assign(url);
+      return;
+    }
+    this.toastService.error("Could not start checkout. Please try again.");
+  }
+
+  private async handlePayFirstHomeEntry(): Promise<void> {
+    const isNative = Capacitor.isNativePlatform();
+    const checkout = this.route.snapshot.queryParamMap.get("pro_checkout");
+    const signupToken = this.route.snapshot.queryParamMap.get("pro_signup_token");
+
+    if (checkout === "success") {
+      await this.userSubscriptionService.refreshCapabilities();
+      this.toastService.success("Pro is active. You can create more groups.");
+    } else if (checkout === "cancel") {
+      this.toastService.info("Pro checkout was canceled.");
+    }
+
+    if (checkout || signupToken) {
+      await this.router.navigate([], {
+        queryParams: { pro_checkout: null, pro_signup_token: null },
+        queryParamsHandling: "merge",
+        replaceUrl: true,
+      });
+    }
+
+    const churchState = await this.billingSignup.getChurchSetupState();
+    this.showChurchSetupPendingBanner = shouldShowChurchSetupPendingBanner(
+      isNative,
+      churchState.status
+    );
+    if (shouldRedirectHomeToChurchSetup(isNative, churchState.status)) {
+      await this.router.navigateByUrl("/church-setup");
+      return;
+    }
+
+    if (signupToken && !isNative) {
+      const url = await this.proCheckoutService.startProCheckout();
+      if (url) {
+        window.location.assign(url);
+      } else {
+        this.toastService.error("Could not start checkout. Please try again.");
+      }
+    }
     this.cdr.markForCheck();
   }
 

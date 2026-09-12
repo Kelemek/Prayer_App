@@ -133,11 +133,22 @@ describe('TenantManagementComponent', () => {
     component.newTenantSlug = 'New Org!!';
     switchTenant.mockResolvedValue(true);
     await component.createNewTenant();
-    expect(createTenant).toHaveBeenCalledWith('New Org', 'new-org', 'churches', 'incomplete');
+    expect(createTenant).toHaveBeenCalledWith('New Org', 'new-org', 'free', 'active');
     expect(toastSuccess).toHaveBeenCalledWith(
       'Organization "Beta Group" created and set as active'
     );
     expect(component.newTenantName).toBe('');
+  });
+
+  it('blocks church create for non-super-admins', async () => {
+    component.newTenantName = 'New Org';
+    component.newTenantSlug = 'new-org';
+    component.newTenantPlanTier = 'churches';
+    await component.createNewTenant();
+    expect(createTenant).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith(
+      'Church organizations are created after payment on the web'
+    );
   });
 
   it('createNewTenant shows success when switch fails', async () => {

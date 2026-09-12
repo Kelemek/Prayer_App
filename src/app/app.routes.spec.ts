@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { routes, routerConfig } from './app.routes';
+import { adminGuard } from './guards/admin.guard';
+import { siteAuthGuard } from './guards/site-auth.guard';
 
 describe('AppRoutes', () => {
   it('should have routes defined', () => {
@@ -81,7 +83,7 @@ describe('AppRoutes', () => {
   });
 
   it('should have all essential routes', () => {
-    const essentialPaths = ['', 'info', 'login', 'admin', 'presentation', 'privacy', 'support', 'unsubscribe', '**'];
+    const essentialPaths = ['', 'info', 'login', 'admin', 'presentation', 'privacy', 'support', 'unsubscribe', 'join/:token', 'church-setup', '**'];
     const routePaths = routes.map(r => r.path);
     essentialPaths.forEach(path => {
       expect(routePaths).toContain(path);
@@ -111,6 +113,12 @@ describe('AppRoutes', () => {
     expect(unsubRoute).toBeDefined();
     expect(unsubRoute?.loadComponent).toBeInstanceOf(Function);
     expect(unsubRoute?.canActivate).toBeUndefined();
+  });
+
+  it('protects church-setup with siteAuthGuard only', () => {
+    const churchSetup = routes.find(r => r.path === 'church-setup');
+    expect(churchSetup?.canActivate).toEqual([siteAuthGuard]);
+    expect(churchSetup?.canActivate).not.toContain(adminGuard);
   });
 
   it('should have admin route with preload hint', () => {

@@ -138,6 +138,7 @@ Deno.serve(async (req: Request) => {
       cancel_url: `${returnOrigin}/?pro_checkout=cancel`,
       'metadata[kind]': 'pro',
       'metadata[user_email]': email,
+      'metadata[user_id]': userData.user.id,
     }),
   });
 

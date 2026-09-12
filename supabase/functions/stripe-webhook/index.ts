@@ -203,6 +203,128 @@ async function applyChurchBillingPatch(
   }
 }
 
+async function consumeProSignupLead(
+  adminClient: SupabaseClient,
+  email: string
+): Promise<void> {
+  await adminClient
+    .from('billing_signup_leads')
+    .update({
+      status: 'consumed',
+      consumed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('kind', 'pro')
+    .eq('user_email', email)
+    .in('status', ['pending', 'paid_pending_setup']);
+}
+
+async function markChurchSignupPaid(
+  adminClient: SupabaseClient,
+  email: string,
+  userId: string | null,
+  customerId: string | null,
+  subscriptionId: string | null
+): Promise<void> {
+  const now = new Date().toISOString();
+  const { data: existing } = await adminClient
+    .from('billing_signup_leads')
+    .select('id')
+    .eq('kind', 'church')
+    .eq('user_email', email)
+    .in('status', ['pending', 'paid_pending_setup'])
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const patch: Record<string, unknown> = {
+    status: 'paid_pending_setup',
+    stripe_customer_id: customerId,
+    stripe_subscription_id: subscriptionId,
+    updated_at: now,
+  };
+  if (userId) {
+    patch.user_id = userId;
+  }
+
+  if (existing?.id) {
+    await adminClient.from('billing_signup_leads').update(patch).eq('id', existing.id);
+    return;
+  }
+
+  await adminClient.from('billing_signup_leads').insert({
+    kind: 'church',
+    token: crypto.randomUUID(),
+    user_email: email,
+    user_id: userId,
+    status: 'paid_pending_setup',
+    stripe_customer_id: customerId,
+    stripe_subscription_id: subscriptionId,
+    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  });
+}
+
+function churchLeadStatusFromSubscription(
+  subscription: Record<string, unknown>,
+  eventDeleted: boolean
+): 'paid_pending_setup' | 'canceled' {
+  const stripeStatus = String(subscription.status ?? 'canceled');
+  if (eventDeleted) {
+    return 'canceled';
+  }
+  if (stripeStatus === 'active' || stripeStatus === 'trialing') {
+    return 'paid_pending_setup';
+  }
+  if (stripeStatus === 'canceled' || stripeStatus === 'incomplete_expired' || stripeStatus === 'unpaid') {
+    return 'canceled';
+  }
+  return 'paid_pending_setup';
+}
+
+async function syncChurchSignupLeadFromSubscription(
+  adminClient: SupabaseClient,
+  subscription: Record<string, unknown>,
+  eventDeleted: boolean
+): Promise<void> {
+  const subscriptionId = String(subscription.id ?? '');
+  const customerId =
+    typeof subscription.customer === 'string'
+      ? subscription.customer
+      : (subscription.customer as { id?: string } | undefined)?.id ?? null;
+  const metadata = (subscription.metadata ?? {}) as Record<string, string>;
+  if ((metadata.kind ?? '') !== 'church' && !subscriptionId) {
+    return;
+  }
+
+  let query = adminClient
+    .from('billing_signup_leads')
+    .select('id, tenant_id, status')
+    .eq('kind', 'church')
+    .in('status', ['pending', 'paid_pending_setup']);
+
+  if (subscriptionId) {
+    query = query.eq('stripe_subscription_id', subscriptionId);
+  } else if (customerId) {
+    query = query.eq('stripe_customer_id', customerId);
+  } else {
+    return;
+  }
+
+  const { data: lead } = await query.maybeSingle();
+  if (!lead?.id || lead.tenant_id) {
+    return;
+  }
+
+  const nextStatus = churchLeadStatusFromSubscription(subscription, eventDeleted);
+  await adminClient
+    .from('billing_signup_leads')
+    .update({
+      status: nextStatus,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', lead.id);
+}
+
 async function sendPastDueNotifications(
   adminClient: SupabaseClient,
   supabaseUrl: string,
@@ -430,6 +552,7 @@ Deno.serve(async (req: Request) => {
         proUpdate.stripe_customer_id = customerId;
       }
       await adminClient.from('user_subscriptions').upsert(proUpdate, { onConflict: 'user_email' });
+      await consumeProSignupLead(adminClient, email);
     }
 
     if (kind === 'church') {
@@ -440,6 +563,15 @@ Deno.serve(async (req: Request) => {
           subscriptionId || null
         );
         await applyChurchBillingPatch(adminClient, tenantId, patch);
+      } else if (email) {
+        const userId = String(session.metadata?.user_id ?? '');
+        await markChurchSignupPaid(
+          adminClient,
+          email,
+          userId || null,
+          customerId || null,
+          subscriptionId || null
+        );
       }
     }
   }
@@ -480,6 +612,12 @@ Deno.serve(async (req: Request) => {
             String(tenantRow?.name ?? 'Church')
           );
         }
+      } else {
+        await syncChurchSignupLeadFromSubscription(
+          adminClient,
+          subscription,
+          event.type === 'customer.subscription.deleted'
+        );
       }
     } else {
       const status = String(subscription.status ?? 'canceled');

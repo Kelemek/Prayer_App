@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
-import { getTenantOrigin } from '../lib/app-origin';
+import { getAuthRedirectOrigin, getTenantOrigin } from '../lib/app-origin';
 import { SupabaseService } from './supabase.service';
 
 @Injectable({
@@ -15,13 +15,31 @@ export class ChurchCheckoutService {
   }
 
   async startChurchCheckout(
-    tenantId: string,
+    tenantId?: string | null,
     tenantSlug?: string
   ): Promise<string | null> {
+    if (Capacitor.isNativePlatform()) {
+      return null;
+    }
+
     const session = await this.supabase.client.auth.getSession();
     const token = session.data.session?.access_token;
     if (!token) {
       return null;
+    }
+
+    const body: Record<string, string> = {};
+    const trimmedTenantId = tenantId?.trim() ?? '';
+    if (trimmedTenantId) {
+      body['tenant_id'] = trimmedTenantId;
+      if (tenantSlug) {
+        body['return_origin'] = getTenantOrigin(tenantSlug);
+      }
+    } else {
+      const origin = getAuthRedirectOrigin();
+      if (origin) {
+        body['return_origin'] = origin;
+      }
     }
 
     const response = await fetch(
@@ -33,14 +51,18 @@ export class ChurchCheckoutService {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          tenant_id: tenantId,
-          return_origin: tenantSlug ? getTenantOrigin(tenantSlug) : undefined,
-        }),
+        body: JSON.stringify(body),
       }
     );
 
-    const payload = (await response.json()) as { url?: string; error?: string };
+    const payload = (await response.json()) as {
+      url?: string;
+      error?: string;
+      code?: string;
+    };
+    if (response.status === 409 && payload.code === 'setup_pending') {
+      return 'setup_pending';
+    }
     if (!response.ok) {
       console.error('[ChurchCheckout] failed:', payload.error);
       return null;

@@ -40,6 +40,71 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type, x-supabase-client-platform',
 };
 
+async function createStripeCustomer(
+  stripeSecret: string,
+  email: string,
+  metadata: Record<string, string>
+): Promise<{ id?: string; error?: unknown }> {
+  const params = new URLSearchParams({ email });
+  for (const [key, value] of Object.entries(metadata)) {
+    params.set(`metadata[${key}]`, value);
+  }
+  const customerRes = await fetch('https://api.stripe.com/v1/customers', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${stripeSecret}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params,
+  });
+  const customer = await customerRes.json();
+  if (!customerRes.ok) {
+    return { error: customer };
+  }
+  return { id: customer.id };
+}
+
+async function createCheckoutSession(
+  stripeSecret: string,
+  args: {
+    customerId: string;
+    priceId: string;
+    successUrl: string;
+    cancelUrl: string;
+    metadata: Record<string, string>;
+    subscriptionMetadata: Record<string, string>;
+  }
+): Promise<{ url?: string; error?: unknown }> {
+  const params = new URLSearchParams({
+    mode: 'subscription',
+    customer: args.customerId,
+    'line_items[0][price]': args.priceId,
+    'line_items[0][quantity]': '1',
+    'managed_payments[enabled]': 'false',
+    success_url: args.successUrl,
+    cancel_url: args.cancelUrl,
+  });
+  for (const [key, value] of Object.entries(args.metadata)) {
+    params.set(`metadata[${key}]`, value);
+  }
+  for (const [key, value] of Object.entries(args.subscriptionMetadata)) {
+    params.set(`subscription_data[metadata][${key}]`, value);
+  }
+  const sessionRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${stripeSecret}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params,
+  });
+  const session = await sessionRes.json();
+  if (!sessionRes.ok) {
+    return { error: session };
+  }
+  return { url: session.url };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -79,12 +144,6 @@ Deno.serve(async (req: Request) => {
     typeof body.return_origin === 'string' ? body.return_origin : null
   );
   const tenantId = String(body.tenant_id ?? '').trim();
-  if (!tenantId) {
-    return new Response(JSON.stringify({ error: 'tenant_id is required' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
 
   const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? serviceKey, {
     global: { headers: { Authorization: authHeader } },
@@ -100,94 +159,163 @@ Deno.serve(async (req: Request) => {
   }
 
   const email = userData.user.email.toLowerCase().trim();
+  const userId = userData.user.id;
 
-  const { data: tenant, error: tenantError } = await adminClient
-    .from('tenants')
-    .select('id, stripe_customer_id')
-    .eq('id', tenantId)
+  if (tenantId) {
+    const { data: tenant, error: tenantError } = await adminClient
+      .from('tenants')
+      .select('id, stripe_customer_id')
+      .eq('id', tenantId)
+      .maybeSingle();
+
+    if (tenantError || !tenant) {
+      return new Response(JSON.stringify({ error: 'Tenant not found' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { data: isAdmin } = await adminClient.rpc('is_tenant_admin', {
+      tenant_to_check: tenantId,
+      email_to_check: email,
+    });
+    const { data: isSuperAdmin } = await adminClient.rpc('is_super_admin', {
+      email_to_check: email,
+    });
+
+    if (!isAdmin && !isSuperAdmin) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    let customerId = tenant.stripe_customer_id as string | undefined;
+    if (!customerId) {
+      const created = await createStripeCustomer(stripeSecret, email, {
+        kind: 'church',
+        tenant_id: tenantId,
+      });
+      if (!created.id) {
+        console.error('Stripe customer create failed:', created.error);
+        return new Response(JSON.stringify({ error: 'Failed to create Stripe customer' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      customerId = created.id;
+      await adminClient
+        .from('tenants')
+        .update({
+          stripe_customer_id: customerId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', tenantId);
+    }
+
+    const session = await createCheckoutSession(stripeSecret, {
+      customerId,
+      priceId,
+      successUrl: `${returnOrigin}/admin?church_checkout=success`,
+      cancelUrl: `${returnOrigin}/admin?church_checkout=cancel`,
+      metadata: {
+        kind: 'church',
+        tenant_id: tenantId,
+        user_email: email,
+        user_id: userId,
+      },
+      subscriptionMetadata: {
+        kind: 'church',
+        tenant_id: tenantId,
+      },
+    });
+    if (!session.url) {
+      console.error('Stripe checkout session failed:', session.error);
+      return new Response(JSON.stringify({ error: 'Failed to create checkout session' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ url: session.url }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const { data: setupState } = await userClient.rpc('get_church_setup_state');
+  const status = (setupState as { status?: string } | null)?.status;
+  if (status === 'attached') {
+    return new Response(JSON.stringify({ error: 'You already have a Church subscription' }), {
+      status: 409,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+  if (status === 'paid_pending_setup') {
+    return new Response(
+      JSON.stringify({ error: 'Finish church setup', code: 'setup_pending' }),
+      {
+        status: 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
+
+  await userClient.rpc('create_billing_signup_lead', { p_kind: 'church' });
+
+  const { data: existingLead } = await adminClient
+    .from('billing_signup_leads')
+    .select('id, stripe_customer_id, token')
+    .eq('kind', 'church')
+    .eq('user_email', email)
+    .in('status', ['pending', 'paid_pending_setup'])
+    .order('updated_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
-  if (tenantError || !tenant) {
-    return new Response(JSON.stringify({ error: 'Tenant not found' }), {
-      status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  const { data: isAdmin } = await adminClient.rpc('is_tenant_admin', {
-    tenant_to_check: tenantId,
-    email_to_check: email,
-  });
-  const { data: isSuperAdmin } = await adminClient.rpc('is_super_admin', {
-    email_to_check: email,
-  });
-
-  if (!isAdmin && !isSuperAdmin) {
-    return new Response(JSON.stringify({ error: 'Forbidden' }), {
-      status: 403,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  let customerId = tenant.stripe_customer_id as string | undefined;
+  let customerId = existingLead?.stripe_customer_id as string | undefined;
   if (!customerId) {
-    const customerRes = await fetch('https://api.stripe.com/v1/customers', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${stripeSecret}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        email,
-        'metadata[kind]': 'church',
-        'metadata[tenant_id]': tenantId,
-      }),
+    const created = await createStripeCustomer(stripeSecret, email, {
+      kind: 'church',
+      user_id: userId,
     });
-    const customer = await customerRes.json();
-    if (!customerRes.ok) {
-      console.error('Stripe customer create failed:', customer);
+    if (!created.id) {
+      console.error('Stripe customer create failed:', created.error);
       return new Response(JSON.stringify({ error: 'Failed to create Stripe customer' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    customerId = customer.id;
-
-    await adminClient
-      .from('tenants')
-      .update({
-        stripe_customer_id: customerId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', tenantId);
+    customerId = created.id;
+    if (existingLead?.id) {
+      await adminClient
+        .from('billing_signup_leads')
+        .update({
+          stripe_customer_id: customerId,
+          user_id: userId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingLead.id);
+    }
   }
 
-  const sessionRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${stripeSecret}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
+  const session = await createCheckoutSession(stripeSecret, {
+    customerId,
+    priceId,
+    successUrl: `${returnOrigin}/church-setup?church_checkout=success`,
+    cancelUrl: `${returnOrigin}/church-setup?church_checkout=cancel`,
+    metadata: {
+      kind: 'church',
+      user_email: email,
+      user_id: userId,
     },
-    body: new URLSearchParams({
-      mode: 'subscription',
-      customer: customerId!,
-      'line_items[0][price]': priceId,
-      'line_items[0][quantity]': '1',
-      // Managed Payments (default on new Stripe accounts) requires product tax codes.
-      'managed_payments[enabled]': 'false',
-      success_url: `${returnOrigin}/admin?church_checkout=success`,
-      cancel_url: `${returnOrigin}/admin?church_checkout=cancel`,
-      'metadata[kind]': 'church',
-      'metadata[tenant_id]': tenantId,
-      'metadata[user_email]': email,
-      'subscription_data[metadata][kind]': 'church',
-      'subscription_data[metadata][tenant_id]': tenantId,
-    }),
+    subscriptionMetadata: {
+      kind: 'church',
+      user_id: userId,
+    },
   });
-
-  const session = await sessionRes.json();
-  if (!sessionRes.ok) {
-    console.error('Stripe checkout session failed:', session);
+  if (!session.url) {
+    console.error('Stripe checkout session failed:', session.error);
     return new Response(JSON.stringify({ error: 'Failed to create checkout session' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

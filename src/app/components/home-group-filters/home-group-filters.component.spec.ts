@@ -221,7 +221,7 @@ describe("HomeGroupFiltersComponent", () => {
     ).toBeNull();
   });
 
-  it("opens an upgrade modal when Add is clicked at the free group cap", () => {
+  it("emits upgradePro when Add is clicked at the free group cap", () => {
     fixture.componentRef.setInput("canCreateGroups", false);
     fixture.componentRef.setInput("showProUpgrade", true);
     fixture.componentRef.setInput("maxGroupsOwned", 1);
@@ -234,15 +234,8 @@ describe("HomeGroupFiltersComponent", () => {
       ) as HTMLButtonElement
     ).click();
     fixture.detectChanges();
-    expect(fixture.componentInstance.showProUpgradeModal).toBe(true);
-    expect(fixture.nativeElement.textContent).toContain("Group limit reached");
-    expect(fixture.nativeElement.textContent).toContain(
-      "You've reached your free plan limit of 1 group."
-    );
-    expect(emitted).toEqual([]);
-    fixture.componentInstance.confirmProUpgrade();
     expect(emitted).toEqual([1]);
-    expect(fixture.componentInstance.showProUpgradeModal).toBe(false);
+    expect(fixture.nativeElement.textContent).not.toContain("Upgrade to Pro");
   });
 
   it("shows Add for creators with no groups yet", () => {

@@ -1,0 +1,78 @@
+<div
+  class="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-6"
+>
+  <div
+    class="max-w-md w-full bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6"
+  >
+    <h1 class="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-2">
+      Church setup
+    </h1>
+    @if (loading) {
+    <p class="text-sm text-gray-600 dark:text-gray-300">Loading…</p>
+    } @else if (status === "paid_pending_setup") {
+    <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+      Payment is confirmed. Choose a name and web address for your church.
+    </p>
+    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+      Church name
+      <input
+        type="text"
+        class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+        [ngModel]="nameDraft"
+        (ngModelChange)="onNameInput($event)"
+        placeholder="Cross Pointe Church"
+        [disabled]="submitting"
+      />
+    </label>
+    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mt-3">
+      Slug
+      <input
+        type="text"
+        class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+        [ngModel]="slugDraft"
+        (ngModelChange)="onSlugInput($event)"
+        placeholder="cross-pointe-church"
+        [disabled]="submitting"
+        (keydown.enter)="submitSetup()"
+      />
+    </label>
+    <button
+      type="button"
+      class="mt-4 w-full px-4 py-2 rounded-md btn-chip btn-chip-blue cursor-pointer disabled:opacity-50"
+      (click)="submitSetup()"
+      [disabled]="!canSubmit"
+    >
+      {{ submitting ? "Saving…" : "Create church" }}
+    </button>
+    } @else {
+    <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+      Subscribe on the web to create your church. Nothing is created until
+      payment is confirmed.
+    </p>
+    @if (!isNative) {
+    <button
+      type="button"
+      class="w-full px-4 py-2 rounded-md btn-chip btn-chip-blue cursor-pointer disabled:opacity-50"
+      (click)="startCheckoutIfNeeded()"
+      [disabled]="checkoutStarting"
+    >
+      {{ checkoutStarting ? "Opening…" : "Continue to payment" }}
+    </button>
+    } @else {
+    <button
+      type="button"
+      class="w-full px-4 py-2 rounded-md btn-chip btn-chip-blue cursor-pointer disabled:opacity-50"
+      (click)="emailSetupLink()"
+      [disabled]="emailingLink"
+    >
+      {{ emailingLink ? "Sending…" : "Email me a link to set up" }}
+    </button>
+    }
+    <a
+      routerLink="/"
+      class="mt-3 inline-block text-sm text-blue-700 dark:text-blue-300 underline"
+      >Back to the app</a
+    >
+    }
+  </div>
+</div>

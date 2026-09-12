@@ -7,7 +7,6 @@ import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { HomeChurchOnboardingModalComponent } from "./home-church-onboarding-modal.component";
 import { TenantManagementService } from "../../services/tenant-management.service";
 import { TenantContextService } from "../../services/tenant-context.service";
-import { ChurchCheckoutService } from "../../services/church-checkout.service";
 import { ToastService } from "../../services/toast.service";
 
 const componentDir = dirname(fileURLToPath(import.meta.url));
@@ -31,21 +30,13 @@ describe("HomeChurchOnboardingModalComponent", () => {
   let createTenant: ReturnType<typeof vi.fn>;
   let claimInvite: ReturnType<typeof vi.fn>;
   let switchTenant: ReturnType<typeof vi.fn>;
-  let startChurchCheckout: ReturnType<typeof vi.fn>;
   let toastSuccess: ReturnType<typeof vi.fn>;
   let toastError: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
-    createTenant = vi.fn().mockResolvedValue({
-      id: "tenant-new",
-      name: "New Church",
-      slug: "new-church",
-      plan_tier: "churches",
-      plan_status: "active",
-    });
+    createTenant = vi.fn();
     claimInvite = vi.fn().mockResolvedValue("tenant-join");
     switchTenant = vi.fn().mockResolvedValue(true);
-    startChurchCheckout = vi.fn().mockResolvedValue(null);
     toastSuccess = vi.fn();
     toastError = vi.fn();
 
@@ -68,14 +59,6 @@ describe("HomeChurchOnboardingModalComponent", () => {
             ]),
           },
         },
-        {
-          provide: ChurchCheckoutService,
-          useValue: {
-            startChurchCheckout,
-            openBillingUrl: vi.fn().mockResolvedValue(undefined),
-            isNativeStripeCheckoutUi: vi.fn(() => false),
-          },
-        },
         { provide: ToastService, useValue: { success: toastSuccess, error: toastError } },
       ],
     }).compileComponents();
@@ -89,29 +72,19 @@ describe("HomeChurchOnboardingModalComponent", () => {
     fixture?.destroy();
   });
 
-  it("shows create and join choices", () => {
+  it("shows tour and join choices without create-church purchase copy", () => {
     expect(fixture.nativeElement.textContent).toContain("Connect to a church");
-    expect(fixture.nativeElement.textContent).toContain("Create a church");
+    expect(fixture.nativeElement.textContent).toContain("See Church features");
     expect(fixture.nativeElement.textContent).toContain("Join a church");
+    expect(fixture.nativeElement.textContent).not.toContain("Create a church");
+    expect(fixture.nativeElement.textContent).not.toMatch(/\$|Buy|Checkout/i);
   });
 
-  it("suggests a slug from the church name", () => {
-    fixture.componentInstance.showCreate();
-    fixture.detectChanges();
-    fixture.componentInstance.onNameInput("Cross Pointe");
-    expect(fixture.componentInstance.slugDraft).toBe("cross-pointe");
-  });
-
-  it("creates a churches tenant and emits completed", async () => {
-    const completedSpy = vi.spyOn(fixture.componentInstance.completed, "emit");
-    fixture.componentInstance.showCreate();
-    fixture.componentInstance.onNameInput("New Church");
-    await fixture.componentInstance.submitCreate();
-    expect(createTenant).toHaveBeenCalledWith("New Church", "new-church", "churches");
-    expect(switchTenant).toHaveBeenCalledWith("tenant-new");
-    expect(startChurchCheckout).toHaveBeenCalledWith("tenant-new", "new-church");
-    expect(toastSuccess).toHaveBeenCalled();
-    expect(completedSpy).toHaveBeenCalled();
+  it("emits startChurchTour and does not create a tenant", () => {
+    const tourSpy = vi.spyOn(fixture.componentInstance.startChurchTour, "emit");
+    fixture.componentInstance.onSeeChurchFeatures();
+    expect(tourSpy).toHaveBeenCalled();
+    expect(createTenant).not.toHaveBeenCalled();
   });
 
   it("claims an invite token and switches tenant", async () => {

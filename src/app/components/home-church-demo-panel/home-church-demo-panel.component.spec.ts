@@ -44,7 +44,7 @@ describe("HomeChurchDemoPanelComponent", () => {
     expect(fixture.nativeElement.textContent).toContain(
       "preview of current church prayers"
     );
-    expect(fixture.nativeElement.textContent).toContain("Create or join a church");
+    expect(fixture.nativeElement.textContent).toContain("See Church features or join");
   });
 
   it("swaps copy for Answered, Total, Archived, and Prompts", () => {
@@ -79,7 +79,7 @@ describe("HomeChurchDemoPanelComponent", () => {
     const emitSpy = vi.spyOn(fixture.componentInstance.addChurch, "emit");
     const button = [...fixture.nativeElement.querySelectorAll("button")].find(
       (el: HTMLButtonElement) =>
-        el.textContent?.includes("Create or join a church")
+        el.textContent?.includes("See Church features or join")
     ) as HTMLButtonElement;
     button.click();
     expect(emitSpy).toHaveBeenCalled();

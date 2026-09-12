@@ -46,6 +46,11 @@ export const routes: Routes = [
     canActivate: [siteAuthGuard]
   },
   {
+    path: 'church-setup',
+    loadComponent: () => import('./pages/church-setup/church-setup.component').then(m => m.ChurchSetupComponent),
+    canActivate: [siteAuthGuard]
+  },
+  {
     path: '**',
     redirectTo: ''
   }

@@ -29,6 +29,11 @@
     You're offline. You can view previously loaded prayers. Connect to submit or update.
   </div>
   }
+  <app-church-setup-pending-banner
+    [visible]="showChurchSetupPendingBanner"
+    (openWeb)="onOpenChurchSetupWeb()"
+    (copyLink)="onCopyChurchSetupLink()"
+  />
   <div
     #safeAreaViewport
     class="safe-area-viewport w-full bg-gray-50 dark:bg-gray-900"
@@ -163,6 +168,7 @@
         [isOpen]="showChurchOnboardingModal"
         (close)="closeChurchOnboardingModal()"
         (completed)="onChurchOnboardingCompleted()"
+        (startChurchTour)="onStartChurchTour()"
       ></app-home-church-onboarding-modal>
 
       <app-home-filter-tabs

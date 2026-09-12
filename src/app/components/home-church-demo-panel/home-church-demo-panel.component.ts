@@ -40,19 +40,19 @@ export class HomeChurchDemoPanelComponent {
   get body(): string {
     switch (this.activeFilter) {
       case "current":
-        return "This is a preview of current church prayers. Create or join a church to share open requests with your congregation.";
+        return "This is a preview of current church prayers. Join a church or take a feature tour to share open requests with your congregation.";
       case "answered":
-        return "This is a preview of answered church prayers. Create or join a church to celebrate answers together.";
+        return "This is a preview of answered church prayers. Join a church or take a feature tour to celebrate answers together.";
       case "total":
-        return "This is a preview of the full church prayer list. Create or join a church to see every request in one place.";
+        return "This is a preview of the full church prayer list. Join a church or take a feature tour to see every request in one place.";
       case "archived":
-        return "This is a preview of archived church prayers. Create or join a church to keep a history of past requests.";
+        return "This is a preview of archived church prayers. Join a church or take a feature tour to keep a history of past requests.";
       case "prompts":
-        return "This is a preview of church prayer prompts. Create or join a church to guide your congregation with shared prompts.";
+        return "This is a preview of church prayer prompts. Join a church or take a feature tour to guide your congregation with shared prompts.";
       case "personal":
       case "memorize":
       case "groups":
-        return "Join or create a church to share prayer requests with your congregation.";
+        return "Join a church or take a feature tour to share prayer requests with your congregation.";
       default: {
         const _exhaustive: never = this.activeFilter;
         return _exhaustive;

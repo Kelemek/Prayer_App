@@ -88,6 +88,11 @@ case $FUNCTION_NAME in
         echo "💡 Stripe Dashboard webhook → …/functions/v1/stripe-webhook (no JWT)"
         echo "📋 Secrets: STRIPE_WEBHOOK_SECRET, SUPABASE_*"
         ;;
+    "send-billing-signup-email")
+        deploy_function "send-billing-signup-email" ""
+        echo "📋 Secrets: STRIPE_SECRET_KEY, STRIPE_CHURCH_PRICE_ID, STRIPE_PRO_PRICE_ID, APP_URL, SUPABASE_*"
+        echo "💡 Optional: STRIPE_CHURCH_PRICE_DISPLAY, STRIPE_PRO_PRICE_DISPLAY"
+        ;;
     "reconcile-church-billing")
         deploy_function "reconcile-church-billing" "--no-verify-jwt"
         echo "💡 Hourly invoke: pg_cron job invoke-reconcile-church-billing + Vault. See docs/SETUP.md."
@@ -139,6 +144,7 @@ case $FUNCTION_NAME in
         deploy_function "stripe-billing-portal" ""
         deploy_function "stripe-webhook" "--no-verify-jwt"
         deploy_function "reconcile-church-billing" "--no-verify-jwt"
+        deploy_function "send-billing-signup-email" ""
         echo "🎉 All functions deployed successfully!"
         ;;
     *)
@@ -163,6 +169,7 @@ case $FUNCTION_NAME in
         echo "  stripe-billing-portal    - Stripe Customer Portal for churches (JWT)"
         echo "  stripe-webhook           - Stripe webhooks (no JWT)"
         echo "  reconcile-church-billing - Hourly grace/period-end downgrades (no JWT; cron)"
+        echo "  send-billing-signup-email - Native tour signup emails (JWT; platform From)"
         echo "  all                      - Deploy all functions (default)"
         echo ""
         exit 1

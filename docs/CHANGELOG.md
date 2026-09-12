@@ -4,6 +4,12 @@ Major features and milestones for the Prayer App.
 
 ## [Current] - September 2026
 
+### Native pay-first Church + Pro
+- Native Create-a-church and Pro upgrade purchase UI are replaced by feature tours. Native last step emails a web pay link (`church_signup_web` / `pro_signup_web`); web last step starts Stripe. No prices or Checkout CTAs in the Capacitor binary.
+- Church Checkout is user-scoped until paid (`billing_signup_leads` `paid_pending_setup`). `/church-setup` creates the tenant after payment. Existing incomplete church tenants keep tenant-scoped Checkout.
+- Mobile shows a persistent banner after Church pay until web setup finishes. Join-via-invite is unchanged.
+- Migration: `20260911120000_billing_signup_pay_first.sql` (commit only; apply when ready). Edge function: `send-billing-signup-email`.
+
 ### Invite email funnel
 - Creating a member invite in Admin → Tenant Manager emails the invitee a `/join/:token` link (template key `tenant_invite`) via existing `send-email` and per-tenant From identity.
 - Admin still shows a backup invite link. If Resend fails, the invite row is kept and the toast says the email did not send.

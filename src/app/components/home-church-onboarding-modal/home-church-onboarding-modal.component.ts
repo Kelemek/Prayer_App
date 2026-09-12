@@ -11,17 +11,10 @@ import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { TenantManagementService } from "../../services/tenant-management.service";
 import { TenantContextService } from "../../services/tenant-context.service";
-import { ChurchCheckoutService } from "../../services/church-checkout.service";
 import { ToastService } from "../../services/toast.service";
 import { switchTenantWithNavigation } from "../../lib/tenant-navigation";
-import { Capacitor } from "@capacitor/core";
-import {
-  normalizeTenantSlug,
-  suggestTenantSlugFromName,
-  validateTenantSlug,
-} from "../../lib/tenant-slug";
 
-export type ChurchOnboardingView = "chooser" | "create" | "join";
+export type ChurchOnboardingView = "chooser" | "join";
 
 @Component({
   selector: "app-home-church-onboarding-modal",
@@ -35,17 +28,14 @@ export class HomeChurchOnboardingModalComponent implements OnChanges {
 
   @Output() close = new EventEmitter<void>();
   @Output() completed = new EventEmitter<void>();
+  @Output() startChurchTour = new EventEmitter<void>();
 
   view: ChurchOnboardingView = "chooser";
   submitting = false;
-  nameDraft = "";
-  slugDraft = "";
-  slugTouched = false;
   inviteToken = "";
 
   private readonly tenantManagement = inject(TenantManagementService);
   private readonly tenantContext = inject(TenantContextService);
-  private readonly churchCheckout = inject(ChurchCheckoutService);
   private readonly toast = inject(ToastService);
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -57,14 +47,7 @@ export class HomeChurchOnboardingModalComponent implements OnChanges {
   resetForm(): void {
     this.view = "chooser";
     this.submitting = false;
-    this.nameDraft = "";
-    this.slugDraft = "";
-    this.slugTouched = false;
     this.inviteToken = "";
-  }
-
-  showCreate(): void {
-    this.view = "create";
   }
 
   showJoin(): void {
@@ -78,24 +61,9 @@ export class HomeChurchOnboardingModalComponent implements OnChanges {
     this.view = "chooser";
   }
 
-  onNameInput(value: string): void {
-    this.nameDraft = value;
-    if (!this.slugTouched) {
-      this.slugDraft = suggestTenantSlugFromName(value);
-    }
-  }
-
-  onSlugInput(value: string): void {
-    this.slugTouched = true;
-    this.slugDraft = value;
-  }
-
-  get canSubmitCreate(): boolean {
-    return (
-      !this.submitting &&
-      this.nameDraft.trim().length > 0 &&
-      normalizeTenantSlug(this.slugDraft).length > 0
-    );
+  onSeeChurchFeatures(): void {
+    this.startChurchTour.emit();
+    this.close.emit();
   }
 
   get canSubmitJoin(): boolean {
@@ -106,72 +74,12 @@ export class HomeChurchOnboardingModalComponent implements OnChanges {
     switch (this.view) {
       case "chooser":
         return "Connect to a church";
-      case "create":
-        return "Create a church";
       case "join":
         return "Join a church";
       default: {
         const _exhaustive: never = this.view;
         return _exhaustive;
       }
-    }
-  }
-
-  async submitCreate(): Promise<void> {
-    const name = this.nameDraft.trim();
-    const slug = normalizeTenantSlug(this.slugDraft);
-    if (!name || !slug || this.submitting) {
-      return;
-    }
-    const slugError = validateTenantSlug(slug);
-    if (slugError) {
-      this.toast.error(slugError);
-      return;
-    }
-    this.submitting = true;
-    try {
-      const tenant = await this.tenantManagement.createTenant(
-        name,
-        slug,
-        "churches"
-      );
-      const switched = await this.tenantContext.switchTenant(tenant.id);
-      if (!switched) {
-        this.toast.error("Church created but could not switch organization");
-        return;
-      }
-      if (!Capacitor.isNativePlatform()) {
-        const checkoutUrl = await this.churchCheckout.startChurchCheckout(
-          tenant.id,
-          tenant.slug
-        );
-        if (checkoutUrl) {
-          this.completed.emit();
-          await this.churchCheckout.openBillingUrl(checkoutUrl);
-          return;
-        }
-      } else {
-        this.toast.success(
-          `Church "${tenant.name}" created. Finish billing on the web to unlock Church features.`
-        );
-      }
-      const navResult = await switchTenantWithNavigation(
-        tenant.id,
-        tenant.slug,
-        (id) => this.tenantContext.switchTenant(id)
-      );
-      if (navResult === "navigated") {
-        this.completed.emit();
-        return;
-      }
-      this.toast.success(`Church "${tenant.name}" created`);
-      this.completed.emit();
-    } catch (error) {
-      this.toast.error(
-        error instanceof Error ? error.message : "Failed to create church"
-      );
-    } finally {
-      this.submitting = false;
     }
   }
 

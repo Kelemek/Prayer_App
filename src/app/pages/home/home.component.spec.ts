@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BehaviorSubject, of, NEVER } from 'rxjs';
+
+vi.mock('@capacitor/core', () => ({
+  Capacitor: { isNativePlatform: vi.fn(() => false) },
+}));
+vi.mock('@capacitor/browser', () => ({
+  Browser: { open: vi.fn() },
+}));
+
+import { Capacitor } from '@capacitor/core';
 import { HomeComponent } from './home.component';
+import { BillingSignupEmailSendError } from '../../lib/billing-signup';
 import { PrayerRequest } from '../../services/prayer.service';
 import { HomeDeepLinkCoordinator } from '../../services/home-deep-link.coordinator';
 import { HomeHelpTourLauncher } from '../../services/home-help-tour.launcher';
@@ -111,7 +121,8 @@ const makeMocks = () => {
   };
 
   const router: any = {
-    navigate: vi.fn(),
+    navigate: vi.fn().mockResolvedValue(true),
+    navigateByUrl: vi.fn().mockResolvedValue(true),
     events: NEVER,
   };
 
@@ -225,7 +236,18 @@ const makeMocks = () => {
     loadColors: vi.fn().mockResolvedValue({}),
   };
 
-  return { prayerService, promptService, adminAuthService, userSessionService, badgeService, cacheService, toastService, analyticsService, cdr, router, route, supabaseService, tenantPermissionService, tenantContextService, memorizationService, memorizationRecommendationsService, scriptureService, connectivity, personalCategoryColorService, userSubscriptionService, proCheckoutService, prayersSubject, promptsSubject, userSessionSubject, allPersonalPrayersSubject };
+  const billingSignup: any = {
+    getChurchSetupState: vi.fn().mockResolvedValue({ status: 'none' }),
+    sendSignupEmail: vi.fn(),
+    churchSetupAbsoluteUrl: vi.fn(() => 'https://app.example/church-setup'),
+  };
+
+  const payFirstTour: any = {
+    startChurchTour: vi.fn(),
+    startProTour: vi.fn(),
+  };
+
+  return { prayerService, promptService, adminAuthService, userSessionService, badgeService, cacheService, toastService, analyticsService, cdr, router, route, supabaseService, tenantPermissionService, tenantContextService, memorizationService, memorizationRecommendationsService, scriptureService, connectivity, personalCategoryColorService, userSubscriptionService, proCheckoutService, billingSignup, payFirstTour, prayersSubject, promptsSubject, userSessionSubject, allPersonalPrayersSubject };
 };
 
 let mocks: ReturnType<typeof makeMocks>;
@@ -348,6 +370,8 @@ const createHomeComponent = (
     prayerGroupService,
     m.userSubscriptionService,
     m.proCheckoutService,
+    m.billingSignup,
+    m.payFirstTour,
     connect,
     categoryColors,
     new HomeDeepLinkCoordinator(),
@@ -431,6 +455,7 @@ const makeSupabaseForEmail = (options: SupabaseEmailOptions = {}) => {
 describe('HomeComponent', () => {
   beforeEach(() => {
     mocks = makeMocks();
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
     // ensure localStorage is clean for each test
     localStorage.clear();
     // clear any cached logo
@@ -3919,6 +3944,205 @@ describe('HomeComponent', () => {
       expect(comp.showChurchOnboardingModal).toBe(false);
       expect(comp.canAccessShared).toBe(true);
       expect(comp.activeFilter).toBe('current');
+    });
+
+    it('shows Pro tour entry when free group cap is reached', () => {
+      mocks = makeMocks();
+      mocks.userSubscriptionService.getGroupLimits.mockReturnValue({
+        can_create_group: false,
+        max_groups_owned: 1,
+        groups_owned: 1,
+        max_members_per_group: 5,
+        individual_plan_tier: 'free',
+        is_church_member: false,
+      });
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      expect(comp.showGroupProUpgrade).toBe(true);
+    });
+
+    it('launches church tour instead of creating a tenant', () => {
+      mocks = makeMocks();
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      vi.useFakeTimers();
+      comp.onStartChurchTour();
+      vi.advanceTimersByTime(300);
+      expect(mocks.payFirstTour.startChurchTour).toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('redirects web home to church setup when paid and pending', async () => {
+      mocks = makeMocks();
+      mocks.billingSignup.getChurchSetupState.mockResolvedValue({
+        status: 'paid_pending_setup',
+      });
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      await (comp as unknown as { handlePayFirstHomeEntry(): Promise<void> }).handlePayFirstHomeEntry();
+      expect(mocks.router.navigateByUrl).toHaveBeenCalledWith('/church-setup');
+      expect(comp.showChurchSetupPendingBanner).toBe(false);
+    });
+
+    it('shows the native pending banner and does not redirect', async () => {
+      mocks = makeMocks();
+      vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+      mocks.billingSignup.getChurchSetupState.mockResolvedValue({
+        status: 'paid_pending_setup',
+      });
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      await (comp as unknown as { handlePayFirstHomeEntry(): Promise<void> }).handlePayFirstHomeEntry();
+      expect(mocks.router.navigateByUrl).not.toHaveBeenCalledWith('/church-setup');
+      expect(comp.showChurchSetupPendingBanner).toBe(true);
+    });
+
+    it('refreshes Pro limits after checkout success', async () => {
+      mocks = makeMocks();
+      mocks.route.snapshot.queryParamMap.get = vi.fn((key: string) =>
+        key === 'pro_checkout' ? 'success' : null
+      );
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      await (comp as unknown as { handlePayFirstHomeEntry(): Promise<void> }).handlePayFirstHomeEntry();
+      expect(mocks.userSubscriptionService.refreshCapabilities).toHaveBeenCalled();
+      expect(mocks.toastService.success).toHaveBeenCalled();
+    });
+
+    it('starts Pro checkout from a signup token on web', async () => {
+      mocks = makeMocks();
+      mocks.route.snapshot.queryParamMap.get = vi.fn((key: string) =>
+        key === 'pro_signup_token' ? 'tok' : null
+      );
+      mocks.proCheckoutService.startProCheckout.mockResolvedValue(null);
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      await (comp as unknown as { handlePayFirstHomeEntry(): Promise<void> }).handlePayFirstHomeEntry();
+      expect(mocks.proCheckoutService.startProCheckout).toHaveBeenCalled();
+    });
+
+    it('launches the Pro tour at the free group cap', async () => {
+      mocks = makeMocks();
+      vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      await comp.onUpgradeToPro();
+      expect(mocks.payFirstTour.startProTour).toHaveBeenCalled();
+      expect(mocks.proCheckoutService.startProCheckout).not.toHaveBeenCalled();
+    });
+
+    it('copies the setup link when native email send fails', async () => {
+      mocks = makeMocks();
+      vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+      mocks.billingSignup.sendSignupEmail.mockRejectedValue(
+        new BillingSignupEmailSendError(
+          'Resend down',
+          'tok',
+          'https://app.example/church-setup?signup_token=tok'
+        )
+      );
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText },
+      });
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      await (comp as unknown as { finishPayFirstTour(kind: 'church' | 'pro'): Promise<void> }).finishPayFirstTour(
+        'church'
+      );
+      expect(writeText).toHaveBeenCalledWith(
+        'https://app.example/church-setup?signup_token=tok'
+      );
+      expect(comp.lastSignupLink).toContain('/church-setup');
     });
   });
 });

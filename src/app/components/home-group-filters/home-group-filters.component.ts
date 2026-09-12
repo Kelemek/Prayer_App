@@ -83,7 +83,6 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
   private readonly destroyRef = inject(DestroyRef);
 
   pendingDeleteGroup: PrayerGroup | null = null;
-  showProUpgradeModal = false;
   renameTarget: PrayerGroup | null = null;
   membersTarget: PrayerGroup | null = null;
   renameDraft = "";
@@ -284,26 +283,8 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
       return;
     }
     if (this.showProUpgrade) {
-      this.showProUpgradeModal = true;
-      this.cdr.markForCheck();
+      this.upgradePro.emit();
     }
-  }
-
-  proUpgradeMessage(): string {
-    const limit = Math.max(1, this.maxGroupsOwned);
-    const groupWord = limit === 1 ? "group" : "groups";
-    return `You've reached your free plan limit of ${limit} ${groupWord}. Upgrade to Pro to create more groups.`;
-  }
-
-  confirmProUpgrade(): void {
-    this.showProUpgradeModal = false;
-    this.cdr.markForCheck();
-    this.upgradePro.emit();
-  }
-
-  cancelProUpgrade(): void {
-    this.showProUpgradeModal = false;
-    this.cdr.markForCheck();
   }
 
   deleteConfirmMessage(): string {

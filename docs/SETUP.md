@@ -325,7 +325,9 @@ Email queue is processed by GitHub Actions workflow:
 
 ## Stripe (Church + Pro billing)
 
-Web-only Stripe Checkout and Customer Portal. Native apps do not show buy/manage UI in-app; church admins may open the system browser for billing.
+Web-only Stripe Checkout and Customer Portal. Native apps do not show buy/manage UI in-app; church admins may open the system browser for billing. Church and Pro acquisition on native is **tour → email a web link**; web tours start Checkout. Church tenants are created only after payment, on `/church-setup`.
+
+`stripe-church-checkout` is **dual-mode**: omit `tenant_id` for the pay-first user-scoped path (success/cancel `/church-setup?church_checkout=`). Pass `tenant_id` only for **legacy incomplete** church tenants (success/cancel `/admin?church_checkout=`).
 
 ### Edge Function secrets
 
@@ -333,14 +335,16 @@ Set on **Supabase → Edge Functions → Secrets** (test mode until you explicit
 
 | Secret | Used by |
 |--------|---------|
-| `STRIPE_SECRET_KEY` | `stripe-church-checkout`, `stripe-pro-checkout`, `stripe-billing-portal` |
+| `STRIPE_SECRET_KEY` | `stripe-church-checkout`, `stripe-pro-checkout`, `stripe-billing-portal`, `send-billing-signup-email` |
 | `STRIPE_WEBHOOK_SECRET` | `stripe-webhook` |
-| `STRIPE_CHURCH_PRICE_ID` | Church Checkout |
-| `STRIPE_PRO_PRICE_ID` | Pro Checkout |
-| `APP_URL` | Checkout/portal return URLs (match `VITE_APP_URL`) |
+| `STRIPE_CHURCH_PRICE_ID` | Church Checkout + signup email display |
+| `STRIPE_PRO_PRICE_ID` | Pro Checkout + signup email display |
+| `STRIPE_CHURCH_PRICE_DISPLAY` | Optional fallback if Stripe Price retrieve fails |
+| `STRIPE_PRO_PRICE_DISPLAY` | Optional fallback if Stripe Price retrieve fails |
+| `APP_URL` | Checkout/portal return URLs and signup email links (match `VITE_APP_URL`) |
 | `STRIPE_PORTAL_CONFIGURATION_ID` | Optional Customer Portal configuration |
 
-Do **not** put Stripe secrets in `VITE_*` or client bundles.
+Do **not** put Stripe secrets in `VITE_*` or client bundles. There is a **single** Church Price ID and a **single** Pro Price ID (no month/year picker in app code).
 
 ### Deploy functions
 
@@ -350,9 +354,12 @@ Do **not** put Stripe secrets in `VITE_*` or client bundles.
 ./scripts/deploy-functions.sh stripe-billing-portal
 ./scripts/deploy-functions.sh stripe-webhook
 ./scripts/deploy-functions.sh reconcile-church-billing
+./scripts/deploy-functions.sh send-billing-signup-email
 ```
 
 `stripe-webhook` and `reconcile-church-billing` use `--no-verify-jwt` (Stripe / pg_cron invoke with service role).
+
+Email templates `church_signup_web` and `pro_signup_web` are seeded by `20260911120000_billing_signup_pay_first.sql` (commit in repo; apply when ready). Signup mail uses **platform From** (no `tenantId` on `send-email`).
 
 ### Stripe Dashboard (test)
 
@@ -363,6 +370,8 @@ Do **not** put Stripe secrets in `VITE_*` or client bundles.
 ### Database migration
 
 Apply `supabase/migrations/20260910180000_church_stripe_lifecycle.sql` before enabling Church billing in production. It adds tenant Stripe IDs, past_due grace (`admin_settings.church_past_due_grace_days`), webhook idempotency, and the hourly `invoke-reconcile-church-billing` cron job (requires Vault `project_url` + `service_role_key` like other cron jobs).
+
+Apply `supabase/migrations/20260911120000_billing_signup_pay_first.sql` for pay-first Church/Pro leads (`billing_signup_leads`), `complete_church_setup_for_user`, and signup email templates. Commit that file in the repo; apply when ready.
 
 ### Church billing behavior
 

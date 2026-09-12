@@ -99,7 +99,9 @@ import type {
               class="w-full md:max-w-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="free">free</option>
+              @if (isSuperAdmin) {
               <option value="churches">churches (Church)</option>
+              }
             </select>
           </div>
         </div>
@@ -517,7 +519,7 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
   isImpersonatingTenant = false;
   newTenantName = "";
   newTenantSlug = "";
-  newTenantPlanTier: PlanTier = "churches";
+  newTenantPlanTier: PlanTier = "free";
   isCreatingTenant = false;
   graceDays = 7;
   savingGraceDays = false;
@@ -547,6 +549,9 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe(async (isSuperAdmin) => {
         this.isSuperAdmin = isSuperAdmin;
+        if (!isSuperAdmin && this.newTenantPlanTier === "churches") {
+          this.newTenantPlanTier = "free";
+        }
         if (isSuperAdmin) {
           const actor = await this.tenantManagement.getActorEmail();
           this.actorEmail = actor?.toLowerCase().trim() ?? null;
@@ -588,15 +593,15 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
     }
     this.isCreatingTenant = true;
     try {
-      const planStatus =
-        this.newTenantPlanTier === "churches" && !this.isSuperAdmin
-          ? "incomplete"
-          : "active";
+      if (this.newTenantPlanTier === "churches" && !this.isSuperAdmin) {
+        this.toast.error("Church organizations are created after payment on the web");
+        return;
+      }
       const tenant = await this.tenantManagement.createTenant(
         name,
         slug,
         this.newTenantPlanTier,
-        planStatus
+        "active"
       );
       const navResult = await switchTenantWithNavigation(
         tenant.id,
@@ -618,7 +623,7 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
       }
       this.newTenantName = "";
       this.newTenantSlug = "";
-      this.newTenantPlanTier = "churches";
+      this.newTenantPlanTier = this.isSuperAdmin ? "churches" : "free";
       await this.hydrateFromContext();
     } catch (error) {
       this.toast.error(
