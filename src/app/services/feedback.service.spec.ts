@@ -51,6 +51,28 @@ describe('FeedbackService', () => {
     expect(JSON.stringify(invokeBody)).not.toMatch(/github_token|ghp_/);
   });
 
+  it('checks configured status without reading github_token or Notion secrets', async () => {
+    invoke.mockResolvedValue({ data: { configured: false }, error: null });
+
+    const result = await service.isConfigured();
+
+    expect(result).toBe(false);
+    expect(from).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(invoke).toHaveBeenCalledWith('submit-feedback', {
+      body: { configuredCheck: true },
+    });
+    expect(JSON.stringify(invoke.mock.calls[0][1])).not.toMatch(/NOTION_TOKEN|ntn_|github_token/i);
+  });
+
+  it('caches the configured check', async () => {
+    invoke.mockResolvedValue({ data: { configured: true }, error: null });
+
+    await expect(service.isConfigured()).resolves.toBe(true);
+    await expect(service.isConfigured()).resolves.toBe(true);
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
   it('surfaces Edge Function errors without leaking tokens', async () => {
     invoke.mockResolvedValue({
       data: { success: false, error: 'Feedback is not configured on the server.' },

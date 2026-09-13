@@ -97,3 +97,29 @@ export function buildNotionFeedbackProperties(
 export function feedbackSuccessResponse(): { success: true } {
   return { success: true };
 }
+
+/** Status payload only — never include the Notion token. */
+export function feedbackConfiguredResponse(configured: boolean): { configured: boolean } {
+  return { configured };
+}
+
+const NOT_CONFIGURED_ERROR = 'Feedback is not configured on the server.';
+
+/**
+ * Whether in-app feedback should be shown.
+ * Explicit `{ configured: false }` / 503 hides it. Unknown responses stay visible
+ * so an older submit-feedback deploy still lets members send feedback.
+ */
+export function parseFeedbackConfiguredResponse(
+  data: unknown,
+  response?: Response | null
+): boolean {
+  if (data && typeof data === 'object') {
+    const payload = data as { configured?: unknown; error?: unknown };
+    if (payload.configured === true) return true;
+    if (payload.configured === false) return false;
+    if (payload.error === NOT_CONFIGURED_ERROR) return false;
+  }
+  if (response?.status === 503) return false;
+  return true;
+}

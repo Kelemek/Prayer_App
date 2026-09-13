@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -36,6 +36,26 @@ describe('AdminSettingsPanelComponent', () => {
     expect(panel.isChurchTenant).toBe(true);
   });
 
+  it('shows the tools feedback form only after the server reports it is configured', async () => {
+    const cdr = { markForCheck: vi.fn() };
+    const hidden = new AdminSettingsPanelComponent(
+      { isConfigured: vi.fn().mockResolvedValue(false) } as never,
+      cdr as never
+    );
+    hidden.ngOnInit();
+    await Promise.resolve();
+    expect(hidden.showFeedbackForm).toBe(false);
+
+    const shown = new AdminSettingsPanelComponent(
+      { isConfigured: vi.fn().mockResolvedValue(true) } as never,
+      cdr as never
+    );
+    shown.ngOnInit();
+    await Promise.resolve();
+    expect(shown.showFeedbackForm).toBe(true);
+    expect(cdr.markForCheck).toHaveBeenCalled();
+  });
+
   it('content template gates verse memorization manager behind isChurchTenant', () => {
     const htmlPath = join(
       dirname(fileURLToPath(import.meta.url)),
@@ -48,6 +68,7 @@ describe('AdminSettingsPanelComponent', () => {
     expect(churchBlock).toBeTruthy();
     expect(html).toContain('app-memorization-recommendations-manager');
     expect(html).toContain('app-feedback-form');
+    expect(html).toContain('@if (showFeedbackForm)');
     expect(html).not.toContain('app-github-settings');
     expect(html).not.toContain('github_token');
     expect(html).not.toContain('github-settings');

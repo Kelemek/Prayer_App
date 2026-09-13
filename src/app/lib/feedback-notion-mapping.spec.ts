@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_NOTION_FEEDBACK_DATA_SOURCE_ID,
   buildNotionFeedbackProperties,
+  feedbackConfiguredResponse,
   feedbackSuccessResponse,
   isFeedbackType,
   normalizeFeedbackPlatform,
+  parseFeedbackConfiguredResponse,
 } from './feedback-notion-mapping';
 
 describe('feedback Notion mapping', () => {
@@ -97,6 +99,37 @@ describe('feedback Notion mapping', () => {
   it('success response is only { success: true }', () => {
     expect(feedbackSuccessResponse()).toEqual({ success: true });
     expect(JSON.stringify(feedbackSuccessResponse())).not.toMatch(/token|notion\.so/i);
+  });
+
+  it('configured response is only { configured } and never a token', () => {
+    expect(feedbackConfiguredResponse(true)).toEqual({ configured: true });
+    expect(feedbackConfiguredResponse(false)).toEqual({ configured: false });
+    expect(JSON.stringify(feedbackConfiguredResponse(true))).not.toMatch(
+      /NOTION_TOKEN|ntn_|secret_/i
+    );
+  });
+
+  it('hides feedback when the server says it is not configured', () => {
+    expect(parseFeedbackConfiguredResponse({ configured: false })).toBe(false);
+    expect(
+      parseFeedbackConfiguredResponse({
+        success: false,
+        error: 'Feedback is not configured on the server.',
+      })
+    ).toBe(false);
+    expect(parseFeedbackConfiguredResponse(null, new Response(null, { status: 503 }))).toBe(
+      false
+    );
+  });
+
+  it('shows feedback when configured, and stays visible on unknown status responses', () => {
+    expect(parseFeedbackConfiguredResponse({ configured: true })).toBe(true);
+    expect(parseFeedbackConfiguredResponse({ success: false, error: 'Title and description are required' })).toBe(
+      true
+    );
+    expect(parseFeedbackConfiguredResponse(null, new Response(null, { status: 405 }))).toBe(
+      true
+    );
   });
 
   it('validates types and normalizes platform', () => {

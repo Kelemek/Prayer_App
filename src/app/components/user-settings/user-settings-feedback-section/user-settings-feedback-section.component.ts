@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { FeedbackFormComponent } from '../../github-feedback-form/github-feedback-form.component';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { FeedbackFormComponent } from '../../feedback-form/feedback-form.component';
+import { FeedbackService } from '../../../services/feedback.service';
 
 @Component({
   selector: 'app-user-settings-feedback-section',
@@ -8,4 +9,18 @@ import { FeedbackFormComponent } from '../../github-feedback-form/github-feedbac
   templateUrl: './user-settings-feedback-section.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
 })
-export class UserSettingsFeedbackSectionComponent {}
+export class UserSettingsFeedbackSectionComponent implements OnInit {
+  showFeedbackForm = false;
+
+  constructor(
+    private feedbackService: FeedbackService,
+    private cdr: ChangeDetectorRef
+  ) {}
+
+  ngOnInit(): void {
+    void this.feedbackService.isConfigured().then((configured) => {
+      this.showFeedbackForm = configured;
+      this.cdr.markForCheck();
+    });
+  }
+}

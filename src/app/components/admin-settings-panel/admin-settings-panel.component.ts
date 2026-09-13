@@ -1,10 +1,14 @@
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   EventEmitter,
   Input,
+  OnInit,
+  Optional,
   Output,
 } from '@angular/core';
+import { FeedbackService } from '../../services/feedback.service';
 import { AppBrandingComponent } from '../app-branding/app-branding.component';
 import { PromptManagerComponent } from '../prompt-manager/prompt-manager.component';
 import { PrayerTypesManagerComponent } from '../prayer-types-manager/prayer-types-manager.component';
@@ -20,7 +24,7 @@ import { PrayerListBookletPrintComponent } from '../prayer-list-booklet-print/pr
 import { BackupStatusComponent } from '../backup-status/backup-status.component';
 import { SecurityPolicySettingsComponent } from '../security-policy-settings/security-policy-settings.component';
 import { TestAccountSettingsComponent } from '../test-account-settings/test-account-settings.component';
-import { FeedbackFormComponent } from '../github-feedback-form/github-feedback-form.component';
+import { FeedbackFormComponent } from '../feedback-form/feedback-form.component';
 import { PrayerEncouragementSettingsComponent } from '../prayer-encouragement-settings/prayer-encouragement-settings.component';
 import { MemorizationRecommendationsManagerComponent } from '../memorization-recommendations-manager/memorization-recommendations-manager.component';
 import { VerseMemorizationPrayerManagerComponent } from '../verse-memorization-prayer-manager/verse-memorization-prayer-manager.component';
@@ -64,14 +68,27 @@ import type { AnalyticsStats } from '../../services/analytics.service';
   ],
   templateUrl: './admin-settings-panel.component.html',
 })
-export class AdminSettingsPanelComponent {
+export class AdminSettingsPanelComponent implements OnInit {
   @Input({ required: true }) activeSettingsTab!: AdminSettingsTab;
   @Input({ required: true }) analyticsStats!: AnalyticsStats;
   @Input() showAnalyticsTab = true;
   @Input() isChurchTenant = true;
   @Input() isSuperAdmin = false;
+  showFeedbackForm = false;
 
   @Output() settingsTabChange = new EventEmitter<AdminSettingsTab>();
+
+  constructor(
+    @Optional() private feedbackService?: FeedbackService,
+    @Optional() private cdr?: ChangeDetectorRef
+  ) {}
+
+  ngOnInit(): void {
+    void this.feedbackService?.isConfigured().then((configured) => {
+      this.showFeedbackForm = configured;
+      this.cdr?.markForCheck();
+    });
+  }
 
   readonly hourlyMemorizationReminderTemplateOptions = [
     { value: 'user_hourly_memorization_reminder', label: 'Simple nudge (default)' },

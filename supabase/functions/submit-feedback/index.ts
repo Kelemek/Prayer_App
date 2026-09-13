@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers':
     'authorization, x-client-info, apikey, content-type, x-supabase-client-platform',
 };
@@ -21,6 +21,7 @@ type FeedbackType = 'bug' | 'feature' | 'suggestion';
 type FeedbackPlatform = 'web' | 'ios' | 'android';
 
 interface SubmitFeedbackBody {
+  configuredCheck?: unknown;
   title?: string;
   description?: string;
   type?: FeedbackType;
@@ -82,6 +83,14 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
+function isNotionConfigured(): boolean {
+  return Boolean(Deno.env.get('NOTION_TOKEN')?.trim());
+}
+
+function configuredResponse(): Response {
+  return jsonResponse({ configured: isNotionConfigured() }, 200);
+}
+
 async function resolveAuthenticatedEmail(userClient: SupabaseClient): Promise<string | null> {
   const { data: userData, error } = await userClient.auth.getUser();
   if (error || !userData?.user?.email) return null;
@@ -104,7 +113,7 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  if (req.method !== 'POST') {
+  if (req.method !== 'GET' && req.method !== 'POST') {
     return jsonResponse({ success: false, error: 'Method not allowed' }, 405);
   }
 
@@ -118,13 +127,6 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ success: false, error: 'Server configuration error' }, 500);
   }
 
-  if (!notionToken) {
-    return jsonResponse(
-      { success: false, error: 'Feedback is not configured on the server.' },
-      503
-    );
-  }
-
   const authHeader = req.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
@@ -136,11 +138,30 @@ Deno.serve(async (req: Request) => {
   const adminClient = createClient(supabaseUrl, serviceKey);
 
   try {
+    if (req.method === 'GET') {
+      const authenticatedEmail = await resolveAuthenticatedEmail(userClient);
+      if (!authenticatedEmail) {
+        return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+      }
+      return configuredResponse();
+    }
+
     const body = (await req.json()) as SubmitFeedbackBody;
 
     const authenticatedEmail = await resolveAuthenticatedEmail(userClient);
     if (!authenticatedEmail) {
       return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+    }
+
+    if (body.configuredCheck === true) {
+      return configuredResponse();
+    }
+
+    if (!notionToken?.trim()) {
+      return jsonResponse(
+        { success: false, error: 'Feedback is not configured on the server.' },
+        503
+      );
     }
 
     if (isRateLimited(authenticatedEmail)) {

@@ -325,7 +325,7 @@ Email queue is processed by GitHub Actions workflow:
 
 ## In-app feedback (Notion)
 
-Authenticated users submit feedback from Settings (and Admin → Tools). The browser calls Edge Function **`submit-feedback`** with the user JWT. The function writes a row to the Prayer App Biz **Feedback** Notion database. Tokens never live in `admin_settings` or the Angular client.
+Authenticated users submit feedback from Settings (and Admin → Tools). The browser calls Edge Function **`submit-feedback`** with the user JWT. The function writes a row to the Prayer App Biz **Feedback** Notion database. Tokens never live in `admin_settings` or the Angular client. If `NOTION_TOKEN` is unset, the function reports `{ configured: false }` (never the secret) and the app hides the feedback UI entirely — that is how the feature is turned off.
 
 ### Edge Function secrets
 

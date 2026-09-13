@@ -212,11 +212,13 @@
     }
     @case ('tools') {
       <div class="space-y-6">
-        <div class="mb-4">
-          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-            <app-feedback-form></app-feedback-form>
+        @if (showFeedbackForm) {
+          <div class="mb-4">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
+              <app-feedback-form></app-feedback-form>
+            </div>
           </div>
-        </div>
+        }
         <div class="mb-4">
           <app-prayer-search></app-prayer-search>
         </div>

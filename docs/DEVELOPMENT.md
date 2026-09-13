@@ -21,7 +21,7 @@ For developers working on the Prayer App codebase.
 
 Church-scoped configuration lives on **`tenant_settings`** (keyed by `tenant_id`, RLS: members read, `tenant_admin` / `super_admin` write). Examples: branding, prayer encouragement, deletion/update policies, `require_site_login`, rich-text flag, reminder/archive knobs, outbound mail identity (`mail_from_name`, `mail_from_local_part`, `mail_reply_to`).
 
-**`admin_settings`** (single row `id = 1`) is **platform-global**: the Apple/Android test account. Only super-admins can write it (Admin → Tenant Manager). In-app feedback is **not** stored here — the `submit-feedback` Edge Function writes to the shared Prayer App Biz **Feedback** Notion database using server-side `NOTION_TOKEN`. Tenant admins cannot change another church’s behavior through this table.
+**`admin_settings`** (single row `id = 1`) is **platform-global**: the Apple/Android test account. Only super-admins can write it (Admin → Tenant Manager). In-app feedback is **not** stored here — the `submit-feedback` Edge Function writes to the shared Prayer App Biz **Feedback** Notion database using server-side `NOTION_TOKEN`. If that secret is missing, the function reports `{ configured: false }` and the Angular app hides the feedback UI. Tenant admins cannot change another church’s behavior through this table.
 
 Personal-only users (no church membership) use safe defaults and do not read another church's `tenant_settings`.
 

@@ -1,6 +1,10 @@
 import { Injectable } from '@angular/core';
 import { describeFunctionInvokeFailure } from '../utils/supabase-function-invoke-error';
-import type { FeedbackPlatform, FeedbackType } from '../lib/feedback-notion-mapping';
+import {
+  parseFeedbackConfiguredResponse,
+  type FeedbackPlatform,
+  type FeedbackType,
+} from '../lib/feedback-notion-mapping';
 import { SupabaseService } from './supabase.service';
 
 export interface FeedbackSubmitPayload {
@@ -17,7 +21,30 @@ export interface FeedbackSubmitPayload {
   providedIn: 'root',
 })
 export class FeedbackService {
+  private configuredPromise: Promise<boolean> | null = null;
+
   constructor(private supabaseService: SupabaseService) {}
+
+  /** True when the server has `NOTION_TOKEN`. Never returns the token. */
+  async isConfigured(): Promise<boolean> {
+    if (!this.configuredPromise) {
+      this.configuredPromise = this.fetchConfigured();
+    }
+    return this.configuredPromise;
+  }
+
+  private async fetchConfigured(): Promise<boolean> {
+    try {
+      const { data, response } = await this.supabaseService.client.functions.invoke(
+        'submit-feedback',
+        { body: { configuredCheck: true } }
+      );
+      return parseFeedbackConfiguredResponse(data, response);
+    } catch (err) {
+      console.error('[Feedback] Could not check feedback configuration:', err);
+      return true;
+    }
+  }
 
   async submitFeedback(
     payload: FeedbackSubmitPayload

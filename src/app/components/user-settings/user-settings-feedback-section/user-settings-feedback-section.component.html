@@ -1,6 +1,8 @@
-<div
-  id="tour-settings-feedback-section"
-  class="settings-modal-section-card rounded-lg p-3 sm:p-4"
->
-  <app-feedback-form></app-feedback-form>
-</div>
+@if (showFeedbackForm) {
+  <div
+    id="tour-settings-feedback-section"
+    class="settings-modal-section-card rounded-lg p-3 sm:p-4"
+  >
+    <app-feedback-form></app-feedback-form>
+  </div>
+}

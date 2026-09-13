@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { FeedbackFormComponent } from './github-feedback-form.component';
+import { FeedbackFormComponent } from './feedback-form.component';
 import { ChangeDetectorRef } from '@angular/core';
 
 describe('FeedbackFormComponent', () => {
@@ -90,7 +90,6 @@ describe('FeedbackFormComponent', () => {
     );
     const payload = mockFeedbackService.submitFeedback.mock.calls[0][0];
     expect(payload).not.toHaveProperty('userEmail');
-    expect(JSON.stringify(payload)).not.toMatch(/github_token|ghp_/);
     expect(component.successMessage).toContain('Thank you');
     expect(component.feedbackTitle).toBe('');
     expect(component.feedbackType).toBe('suggestion');
