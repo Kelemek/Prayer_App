@@ -47,5 +47,9 @@ describe('AdminSettingsPanelComponent', () => {
     );
     expect(churchBlock).toBeTruthy();
     expect(html).toContain('app-memorization-recommendations-manager');
+    expect(html).toContain('app-feedback-form');
+    expect(html).not.toContain('app-github-settings');
+    expect(html).not.toContain('github_token');
+    expect(html).not.toContain('github-settings');
   });
 });

@@ -21,7 +21,7 @@ For developers working on the Prayer App codebase.
 
 Church-scoped configuration lives on **`tenant_settings`** (keyed by `tenant_id`, RLS: members read, `tenant_admin` / `super_admin` write). Examples: branding, prayer encouragement, deletion/update policies, `require_site_login`, rich-text flag, reminder/archive knobs, outbound mail identity (`mail_from_name`, `mail_from_local_part`, `mail_reply_to`).
 
-**`admin_settings`** (single row `id = 1`) is **platform-global**: the shared SaaS GitHub feedback repo and the Apple/Android test account. Only super-admins can write it (Admin → Tenant Manager). Tenant admins cannot change another church’s behavior through this table.
+**`admin_settings`** (single row `id = 1`) is **platform-global**: the Apple/Android test account. Only super-admins can write it (Admin → Tenant Manager). In-app feedback is **not** stored here — the `submit-feedback` Edge Function writes to the shared Prayer App Biz **Feedback** Notion database using server-side `NOTION_TOKEN`. Tenant admins cannot change another church’s behavior through this table.
 
 Personal-only users (no church membership) use safe defaults and do not read another church's `tenant_settings`.
 
@@ -820,7 +820,7 @@ Users can change on-screen text size from the Settings modal:
 
 Users can opt in to **personal** reminders at the top of selected clock hours (not tied to community prayer-update cadence):
 
-- **Location**: Settings modal → **Prayer reminders** section (above the feedback form when GitHub feedback is enabled). Pick an hour, **Add reminder**, or **Remove** on a slot. Times use the device IANA time zone when saving.
+- **Location**: Settings modal → **Prayer reminders** section (above the feedback form). Pick an hour, **Add reminder**, or **Remove** on a slot. Times use the device IANA time zone when saving.
 - **Delivery**: **Email** when the user’s **Email subscription** is on (`is_active`). **Push** when `receive_push` is true and a device token exists. Both may fire in the same hour if both are enabled.
 - **Implementation**: `UserPrayerReminderService` (`src/app/services/user-prayer-reminder.service.ts`) — loads/caches slots on `UserSessionData`; `user-settings.component.ts` — `loadPrayerReminders()`, add/remove handlers. Backend: table `user_prayer_hour_reminders`, Edge Function `send-user-hourly-prayer-reminders`, hourly **`pg_cron`** job in Postgres (see § *User hourly prayer reminders* below).
 - **Help**: `help-content.service.ts` — standalone section `help_prayer_reminders` (“Prayer reminders”) and **App Settings** item **“Prayer reminders (hourly nudges)”** (after Default Prayer View, before Feedback Form).

@@ -263,7 +263,7 @@ Key tables created by migrations:
 - `email_queue` - Email processing queue
 - `admin_users` - Admin access list
 - `tenant_settings` - Per-church configuration (branding, prayer policies, reminders, outbound mail identity)
-- `admin_settings` - Platform-only singleton (GitHub feedback repo, app test account); super-admin writes only
+- `admin_settings` - Platform-only singleton (app test account); super-admin writes only. Legacy GitHub PAT columns are dropped by `20260913160000_restrict_github_feedback_columns.sql`. In-app feedback uses Edge Function `submit-feedback` + `NOTION_TOKEN`.
 - `email_templates` - Email HTML templates
 
 ---
@@ -320,6 +320,29 @@ Email queue is processed by GitHub Actions workflow:
 # Processes up to 20 emails per run
 # Uses Resend; pacing helps stay within plan rate limits
 ```
+
+---
+
+## In-app feedback (Notion)
+
+Authenticated users submit feedback from Settings (and Admin → Tools). The browser calls Edge Function **`submit-feedback`** with the user JWT. The function writes a row to the Prayer App Biz **Feedback** Notion database. Tokens never live in `admin_settings` or the Angular client.
+
+### Edge Function secrets
+
+Set on **Supabase → Edge Functions → Secrets**:
+
+| Secret | Used by |
+|--------|---------|
+| `NOTION_TOKEN` | `submit-feedback` (required). Internal integration token with insert access to Biz Feedback. |
+| `NOTION_FEEDBACK_DATA_SOURCE_ID` | Optional. Defaults to `ad60c0ea-da0e-4a36-be18-b395c7bcb564` (Prayer App Biz Feedback). Do not point this at Cross Pointe or Gospel Site issue databases. |
+
+Deploy with JWT verification on (default):
+
+```bash
+./scripts/deploy-functions.sh submit-feedback
+```
+
+Apply `supabase/migrations/20260913160000_restrict_github_feedback_columns.sql` when ready (drops legacy `github_*` / `enabled` from `admin_settings` and leftover `tenant_settings` copies). Deploy the Angular cutover and `submit-feedback` first. After cutover, **rotate/revoke** any GitHub PAT that lived in `admin_settings`.
 
 ---
 

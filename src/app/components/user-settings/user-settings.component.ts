@@ -16,7 +16,6 @@ import { SupabaseService } from '../../services/supabase.service';
 import { PrintService } from '../../services/print.service';
 import { PrayerService } from '../../services/prayer.service';
 import { AdminAuthService } from '../../services/admin-auth.service';
-import { GitHubFeedbackService } from '../../services/github-feedback.service';
 import { UserSessionService } from '../../services/user-session.service';
 import { BadgeService } from '../../services/badge.service';
 import { PrayerEncouragementService } from '../../services/prayer-encouragement.service';
@@ -52,7 +51,6 @@ export class UserSettingsComponent
     supabase: SupabaseService,
     prayerService: PrayerService,
     adminAuthService: AdminAuthService,
-    githubFeedbackService: GitHubFeedbackService,
     badgeService: BadgeService,
     userSessionService: UserSessionService,
     capacitorService: CapacitorService,
@@ -73,7 +71,6 @@ export class UserSettingsComponent
       supabase,
       prayerService,
       adminAuthService,
-      githubFeedbackService,
       badgeService,
       userSessionService,
       capacitorService,

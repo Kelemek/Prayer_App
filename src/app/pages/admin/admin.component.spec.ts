@@ -13,7 +13,6 @@ describe('AdminComponent', () => {
   let tenantContextService: any;
   let router: any;
   let route: any;
-  let githubFeedbackService: any;
   let toastService: any;
   let ngZone: any;
   let cdr: any;
@@ -98,9 +97,6 @@ describe('AdminComponent', () => {
     route = {
       snapshot: { queryParamMap: { get: vi.fn(() => null) } },
     };
-    githubFeedbackService = {
-      getGitHubConfig: vi.fn().mockResolvedValue({ enabled: false })
-    };
     toastService = { error: vi.fn(), success: vi.fn(), info: vi.fn() };
     ngZone = { run: (fn: () => void) => fn() };
     cdr = { markForCheck: vi.fn() };
@@ -113,7 +109,6 @@ describe('AdminComponent', () => {
       adminAuthService,
       userSessionService,
       tenantContextService,
-      githubFeedbackService,
       toastService,
       ngZone,
       cdr

@@ -17,7 +17,6 @@ import {
   SendNotificationDialogComponent,
   type NotificationType,
 } from '../../components/send-notification-dialog/send-notification-dialog.component';
-import { GitHubFeedbackService } from '../../services/github-feedback.service';
 import { ConfirmationDialogComponent } from '../../components/confirmation-dialog/confirmation-dialog.component';
 import { TenantContextService } from '../../services/tenant-context.service';
 import { ToastService } from '../../services/toast.service';
@@ -91,7 +90,6 @@ export class AdminComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
   private hasFetchStarted = false;
   isSuperAdmin = false;
-  githubFeedbackEnabled = false;
   tenantContextLoading = true;
   approvingAccountRequestId: string | null = null;
   denyingAccountRequestId: string | null = null;
@@ -104,7 +102,6 @@ export class AdminComponent implements OnInit, OnDestroy {
     public adminAuthService: AdminAuthService,
     public userSessionService: UserSessionService,
     public tenantContextService: TenantContextService,
-    private githubFeedbackService: GitHubFeedbackService,
     private toastService: ToastService,
     private ngZone: NgZone,
     public cdr: ChangeDetectorRef,
@@ -119,7 +116,6 @@ export class AdminComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    void this.loadGitHubFeedbackStatus();
     void this.handleChurchCheckoutQuery();
 
     this.tenantContextService.loading$
@@ -186,18 +182,6 @@ export class AdminComponent implements OnInit, OnDestroy {
 
     if (this.activeTab === 'settings' && this.activeSettingsTab === 'analytics' && this.canAccessAnalytics()) {
       void this.loadAnalytics();
-    }
-  }
-
-  async loadGitHubFeedbackStatus(): Promise<void> {
-    try {
-      const config = await this.githubFeedbackService.getGitHubConfig();
-      this.githubFeedbackEnabled = config?.enabled ?? false;
-    } catch (err) {
-      console.error('[Admin] Error loading GitHub feedback status:', err);
-      this.githubFeedbackEnabled = false;
-    } finally {
-      this.cdr.markForCheck();
     }
   }
 

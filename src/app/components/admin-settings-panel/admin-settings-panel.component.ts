@@ -20,8 +20,7 @@ import { PrayerListBookletPrintComponent } from '../prayer-list-booklet-print/pr
 import { BackupStatusComponent } from '../backup-status/backup-status.component';
 import { SecurityPolicySettingsComponent } from '../security-policy-settings/security-policy-settings.component';
 import { TestAccountSettingsComponent } from '../test-account-settings/test-account-settings.component';
-import { GitHubSettingsComponent } from '../github-settings/github-settings.component';
-import { GitHubFeedbackFormComponent } from '../github-feedback-form/github-feedback-form.component';
+import { FeedbackFormComponent } from '../github-feedback-form/github-feedback-form.component';
 import { PrayerEncouragementSettingsComponent } from '../prayer-encouragement-settings/prayer-encouragement-settings.component';
 import { MemorizationRecommendationsManagerComponent } from '../memorization-recommendations-manager/memorization-recommendations-manager.component';
 import { VerseMemorizationPrayerManagerComponent } from '../verse-memorization-prayer-manager/verse-memorization-prayer-manager.component';
@@ -54,8 +53,7 @@ import type { AnalyticsStats } from '../../services/analytics.service';
     BackupStatusComponent,
     SecurityPolicySettingsComponent,
     TestAccountSettingsComponent,
-    GitHubSettingsComponent,
-    GitHubFeedbackFormComponent,
+    FeedbackFormComponent,
     PrayerEncouragementSettingsComponent,
     MemorizationRecommendationsManagerComponent,
     VerseMemorizationPrayerManagerComponent,
@@ -72,10 +70,8 @@ export class AdminSettingsPanelComponent {
   @Input() showAnalyticsTab = true;
   @Input() isChurchTenant = true;
   @Input() isSuperAdmin = false;
-  @Input() githubFeedbackEnabled = false;
 
   @Output() settingsTabChange = new EventEmitter<AdminSettingsTab>();
-  @Output() githubSettingsSaved = new EventEmitter<void>();
 
   readonly hourlyMemorizationReminderTemplateOptions = [
     { value: 'user_hourly_memorization_reminder', label: 'Simple nudge (default)' },

@@ -6,14 +6,17 @@ import {
 } from "@angular/core";
 import { CommonModule, NgClass } from "@angular/common";
 import { FormsModule } from "@angular/forms";
-import { GitHubFeedbackService } from "../../services/github-feedback.service";
+import { FeedbackService } from "../../services/feedback.service";
 import { UserSessionService } from "../../services/user-session.service";
-import { Subject, takeUntil } from "rxjs";
+import { TenantContextService } from "../../services/tenant-context.service";
+import { CapacitorService } from "../../services/capacitor.service";
+import { normalizeFeedbackPlatform } from "../../lib/feedback-notion-mapping";
+import { Subject } from "rxjs";
 
 type FeedbackType = "suggestion" | "feature" | "bug";
 
 @Component({
-  selector: "app-github-feedback-form",
+  selector: "app-feedback-form",
   standalone: true,
   imports: [CommonModule, NgClass, FormsModule],
   template: `
@@ -245,7 +248,7 @@ type FeedbackType = "suggestion" | "feature" | "bug";
   changeDetection: ChangeDetectionStrategy.Eager,
   styles: [],
 })
-export class GitHubFeedbackFormComponent implements OnDestroy {
+export class FeedbackFormComponent implements OnDestroy {
   readonly feedbackTypeOptions: ReadonlyArray<{
     value: FeedbackType;
     label: string;
@@ -261,13 +264,14 @@ export class GitHubFeedbackFormComponent implements OnDestroy {
   isLoading: boolean = false;
   successMessage: string = "";
   errorMessage: string = "";
-  issueUrl: string = "";
 
   private destroy$ = new Subject<void>();
 
   constructor(
-    private githubFeedbackService: GitHubFeedbackService,
+    private feedbackService: FeedbackService,
     private userSessionService: UserSessionService,
+    private tenantContext: TenantContextService,
+    private capacitorService: CapacitorService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -338,11 +342,9 @@ export class GitHubFeedbackFormComponent implements OnDestroy {
     this.isLoading = true;
     this.successMessage = "";
     this.errorMessage = "";
-    this.issueUrl = "";
     this.cdr.markForCheck();
 
     try {
-      // Wait for user session to be available
       const userSession = await this.userSessionService.waitForSession();
       if (!userSession) {
         this.errorMessage = "User session not available. Please try again.";
@@ -350,23 +352,23 @@ export class GitHubFeedbackFormComponent implements OnDestroy {
         return;
       }
 
-      const result = await this.githubFeedbackService.createGitHubIssue({
+      const tenant = this.tenantContext.getActiveTenant();
+      const result = await this.feedbackService.submitFeedback({
         title: this.feedbackTitle.trim(),
-        body: this.feedbackDescription.trim(),
+        description: this.feedbackDescription.trim(),
         type: this.feedbackType,
-        userEmail: userSession.email,
         userName: userSession.fullName,
+        pageUrl: globalThis.location?.href,
+        tenantId: tenant?.id,
+        platform: normalizeFeedbackPlatform(this.capacitorService.getPlatform()),
       });
 
       if (result.success) {
         this.successMessage = "Thank you! Your feedback has been submitted.";
-        this.issueUrl = result.url || "";
-        // Reset form after success
         this.feedbackTitle = "";
         this.feedbackDescription = "";
         this.feedbackType = "suggestion";
         this.cdr.markForCheck();
-        // Clear success message after 5 seconds
         setTimeout(() => {
           this.successMessage = "";
           this.cdr.markForCheck();
@@ -377,7 +379,7 @@ export class GitHubFeedbackFormComponent implements OnDestroy {
         this.cdr.markForCheck();
       }
     } catch (err) {
-      console.error("[GitHubFeedbackForm] Submission error:", err);
+      console.error("[FeedbackForm] Submission error:", err);
       this.errorMessage = "An unexpected error occurred. Please try again.";
       this.cdr.markForCheck();
     } finally {

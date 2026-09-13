@@ -135,10 +135,6 @@ describe('UserSettingsComponent', () => {
       showPushNotificationSetting: vi.fn(() => false)
     };
 
-    const mockGitHubFeedbackService = {
-      getGitHubConfig: vi.fn(() => Promise.resolve(null)),
-    };
-
     mockMembershipPrefs = {
       matchFilter: vi.fn((email: string) => ({
         user_email: email,
@@ -180,7 +176,6 @@ describe('UserSettingsComponent', () => {
       mockSupabaseService,
       mockPrayerService,
       mockAdminAuthService,
-      mockGitHubFeedbackService as any,
       mockBadgeService as any,
       mockUserSessionService,
       mockCapacitorService as CapacitorService,
@@ -2510,15 +2505,6 @@ describe('UserSettingsComponent', () => {
       mockConnectivity.requireOnline.mockReturnValue(false);
       await component.onDefaultViewChange('personal');
       expect(mockMembershipPrefs.upsert).not.toHaveBeenCalled();
-    });
-
-    it('loadGitHubFeedbackStatus handles errors', async () => {
-      const github = (component as any).githubFeedbackService;
-      github.getGitHubConfig.mockRejectedValueOnce(new Error('gh'));
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      await component.loadGitHubFeedbackStatus();
-      expect(component.githubFeedbackEnabled).toBe(false);
-      consoleSpy.mockRestore();
     });
 
     it('ngOnChanges without session or email uses defaults', () => {

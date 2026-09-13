@@ -121,9 +121,7 @@
             [showAnalyticsTab]="canAccessAnalytics()"
             [isChurchTenant]="isChurchTenant()"
             [isSuperAdmin]="isSuperAdmin"
-            [githubFeedbackEnabled]="githubFeedbackEnabled"
             (settingsTabChange)="onSettingsTabChange($event)"
-            (githubSettingsSaved)="loadGitHubFeedbackStatus()"
           ></app-admin-settings-panel>
         }
       }
