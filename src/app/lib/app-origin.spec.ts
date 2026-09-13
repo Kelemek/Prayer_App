@@ -4,6 +4,7 @@ import {
   buildTenantInviteUrl,
   getAuthRedirectOrigin,
   getTenantOrigin,
+  resolveTenantHostSuffixForPreview,
 } from './app-origin';
 
 describe('app-origin', () => {
@@ -54,5 +55,27 @@ describe('app-origin', () => {
     expect(buildTenantInviteUrl('alpha', 'token-123')).toBe(
       'https://prayer.romans8.net/join/token-123'
     );
+  });
+
+  it('resolveTenantHostSuffixForPreview prefers tenantHostSuffix', () => {
+    expect(resolveTenantHostSuffixForPreview()).toBe('prayer.romans8.net');
+  });
+
+  it('resolveTenantHostSuffixForPreview uses appUrl host when suffix is empty', () => {
+    environment.tenantHostSuffix = '';
+    expect(resolveTenantHostSuffixForPreview()).toBe('prayer.romans8.net');
+  });
+
+  it('resolveTenantHostSuffixForPreview uses the public host on loopback', () => {
+    environment.tenantHostSuffix = '';
+    environment.appUrl = 'http://localhost:4200';
+    vi.stubGlobal('window', {
+      location: {
+        origin: 'http://localhost:4200',
+        protocol: 'http:',
+        hostname: 'localhost',
+      },
+    });
+    expect(resolveTenantHostSuffixForPreview()).toBe('prayer.romans8.net');
   });
 });

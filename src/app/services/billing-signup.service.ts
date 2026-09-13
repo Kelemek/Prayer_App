@@ -25,6 +25,17 @@ export class BillingSignupService {
     return mapChurchSetupState(data);
   }
 
+  async isTenantSlugAvailable(slug: string): Promise<boolean | null> {
+    const { data, error } = await this.supabase.client.rpc('is_tenant_slug_available', {
+      p_slug: slug,
+    });
+    if (error) {
+      console.error('[BillingSignup] is_tenant_slug_available failed:', error);
+      return null;
+    }
+    return data === true;
+  }
+
   async completeChurchSetup(name: string, slug: string): Promise<{ id: string; slug: string; name: string }> {
     const { data, error } = await this.supabase.client.rpc('complete_church_setup_for_user', {
       p_name: name,

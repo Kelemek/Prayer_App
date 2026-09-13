@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  OnDestroy,
+  OnInit,
+  inject,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -13,10 +20,16 @@ import {
   suggestTenantSlugFromName,
   validateTenantSlug,
 } from '../../lib/tenant-slug';
+import { resolveTenantHostSuffixForPreview } from '../../lib/app-origin';
 import {
   BillingSignupEmailSendError,
   type ChurchSetupStatus,
 } from '../../lib/billing-signup';
+import {
+  TENANT_SLUG_AVAILABILITY_DEBOUNCE_MS,
+  slugAvailabilityBlocksSubmit,
+  type SlugAvailabilityStatus,
+} from '../../lib/tenant-slug-availability';
 
 @Component({
   selector: 'app-church-setup',
@@ -25,7 +38,7 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './church-setup.component.html',
 })
-export class ChurchSetupComponent implements OnInit {
+export class ChurchSetupComponent implements OnInit, OnDestroy {
   status: ChurchSetupStatus = 'none';
   loading = true;
   submitting = false;
@@ -34,6 +47,7 @@ export class ChurchSetupComponent implements OnInit {
   slugTouched = false;
   checkoutStarting = false;
   emailingLink = false;
+  slugAvailabilityStatus: SlugAvailabilityStatus = 'idle';
 
   get isNative(): boolean {
     return Capacitor.isNativePlatform();
@@ -46,6 +60,13 @@ export class ChurchSetupComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly cdr = inject(ChangeDetectorRef);
+  private slugAvailabilityRequestId = 0;
+  private slugAvailabilityDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  ngOnDestroy(): void {
+    this.clearSlugAvailabilityDebounce();
+    this.slugAvailabilityRequestId += 1;
+  }
 
   async ngOnInit(): Promise<void> {
     const checkout = this.route.snapshot.queryParamMap.get('church_checkout');
@@ -88,19 +109,46 @@ export class ChurchSetupComponent implements OnInit {
     if (!this.slugTouched) {
       this.slugDraft = suggestTenantSlugFromName(value);
     }
+    this.queueSlugAvailabilityCheck();
+    this.cdr.markForCheck();
   }
 
   onSlugInput(value: string): void {
     this.slugTouched = true;
     this.slugDraft = value;
+    this.queueSlugAvailabilityCheck();
+    this.cdr.markForCheck();
+  }
+
+  get slugValidationError(): string | null {
+    const slug = normalizeTenantSlug(this.slugDraft);
+    if (!slug) {
+      return null;
+    }
+    return validateTenantSlug(slug);
   }
 
   get canSubmit(): boolean {
+    const slug = normalizeTenantSlug(this.slugDraft);
     return (
       !this.submitting &&
       this.nameDraft.trim().length > 0 &&
-      normalizeTenantSlug(this.slugDraft).length > 0
+      slug.length > 0 &&
+      this.slugValidationError === null &&
+      !slugAvailabilityBlocksSubmit(this.slugAvailabilityStatus)
     );
+  }
+
+  get webAddressHostSuffix(): string {
+    return resolveTenantHostSuffixForPreview();
+  }
+
+  get webAddressPreview(): string {
+    const slug =
+      normalizeTenantSlug(this.slugDraft) ||
+      this.slugDraft.trim() ||
+      'your-church-name';
+    return `https://${slug}.${this.webAddressHostSuffix}`;
   }
 
   async submitSetup(): Promise<void> {
@@ -112,6 +160,13 @@ export class ChurchSetupComponent implements OnInit {
     const slugError = validateTenantSlug(slug);
     if (slugError) {
       this.toast.error(slugError);
+      return;
+    }
+    if (this.slugAvailabilityStatus === 'taken') {
+      this.toast.error('This web address is already taken. Try another.');
+      return;
+    }
+    if (slugAvailabilityBlocksSubmit(this.slugAvailabilityStatus)) {
       return;
     }
     this.submitting = true;
@@ -208,5 +263,57 @@ export class ChurchSetupComponent implements OnInit {
       }
       await new Promise((resolve) => setTimeout(resolve, 400));
     }
+  }
+
+  private queueSlugAvailabilityCheck(): void {
+    this.clearSlugAvailabilityDebounce();
+    this.slugAvailabilityRequestId += 1;
+
+    const normalized = normalizeTenantSlug(this.slugDraft);
+    const validationError = validateTenantSlug(normalized);
+    if (!normalized) {
+      this.slugAvailabilityStatus = 'idle';
+      return;
+    }
+    if (validationError) {
+      this.slugAvailabilityStatus = 'invalid';
+      return;
+    }
+
+    this.slugAvailabilityStatus = 'idle';
+    this.slugAvailabilityDebounceTimer = setTimeout(() => {
+      const requestId = this.slugAvailabilityRequestId;
+      this.slugAvailabilityDebounceTimer = null;
+      void this.runSlugAvailabilityCheck(normalized, requestId);
+    }, TENANT_SLUG_AVAILABILITY_DEBOUNCE_MS);
+  }
+
+  private clearSlugAvailabilityDebounce(): void {
+    if (this.slugAvailabilityDebounceTimer !== null) {
+      clearTimeout(this.slugAvailabilityDebounceTimer);
+      this.slugAvailabilityDebounceTimer = null;
+    }
+  }
+
+  private async runSlugAvailabilityCheck(normalized: string, requestId: number): Promise<void> {
+    this.slugAvailabilityStatus = 'checking';
+    this.cdr.markForCheck();
+
+    const available = await this.billingSignup.isTenantSlugAvailable(normalized);
+    if (requestId !== this.slugAvailabilityRequestId) {
+      return;
+    }
+    if (normalizeTenantSlug(this.slugDraft) !== normalized) {
+      return;
+    }
+
+    if (available === true) {
+      this.slugAvailabilityStatus = 'available';
+    } else if (available === false) {
+      this.slugAvailabilityStatus = 'taken';
+    } else {
+      this.slugAvailabilityStatus = 'idle';
+    }
+    this.cdr.markForCheck();
   }
 }

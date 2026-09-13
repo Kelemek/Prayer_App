@@ -20,21 +20,57 @@
         class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
         [ngModel]="nameDraft"
         (ngModelChange)="onNameInput($event)"
-        placeholder="Cross Pointe Church"
+        placeholder="Your Church Name"
+        name="churchName"
         [disabled]="submitting"
       />
     </label>
     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mt-3">
-      Slug
-      <input
-        type="text"
-        class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-        [ngModel]="slugDraft"
-        (ngModelChange)="onSlugInput($event)"
-        placeholder="cross-pointe-church"
-        [disabled]="submitting"
-        (keydown.enter)="submitSetup()"
-      />
+      Web address
+      <div
+        class="mt-1 flex items-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 overflow-x-auto font-mono text-sm"
+        [title]="webAddressPreview"
+      >
+        <span
+          class="pl-3 py-2 text-gray-500 dark:text-gray-400 select-none shrink-0"
+          >https://</span
+        >
+        <input
+          type="text"
+          class="flex-1 min-w-[7rem] px-0.5 py-2 border-0 bg-transparent text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-0"
+          [ngModel]="slugDraft"
+          (ngModelChange)="onSlugInput($event)"
+          placeholder="your-church-name"
+          name="churchWebAddress"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          [disabled]="submitting"
+          (keydown.enter)="submitSetup()"
+          aria-label="Church web address"
+        />
+        <span
+          class="pr-3 py-2 text-gray-500 dark:text-gray-400 select-none shrink-0"
+          >.{{ webAddressHostSuffix }}</span
+        >
+      </div>
+      @if (slugAvailabilityStatus === "checking") {
+      <p class="mt-1 text-xs text-gray-500 dark:text-gray-400" aria-live="polite">
+        Checking availability…
+      </p>
+      } @else if (slugAvailabilityStatus === "available") {
+      <p class="mt-1 text-xs text-emerald-600 dark:text-emerald-400" aria-live="polite">
+        This web address is available.
+      </p>
+      } @else if (slugAvailabilityStatus === "taken") {
+      <p class="mt-1 text-xs text-red-600 dark:text-red-400" aria-live="polite">
+        This web address is already taken. Try another.
+      </p>
+      } @else if (slugAvailabilityStatus === "invalid" && slugValidationError) {
+      <p class="mt-1 text-xs text-red-600 dark:text-red-400" aria-live="polite">
+        {{ slugValidationError }}
+      </p>
+      }
     </label>
     <button
       type="button"

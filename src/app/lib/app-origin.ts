@@ -13,6 +13,48 @@ export function getPlatformOrigin(): string {
   return '';
 }
 
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1']);
+
+function hostnameFromOrigin(raw: string | undefined): string {
+  const value = raw?.trim() ?? '';
+  if (!value) {
+    return '';
+  }
+  try {
+    const url = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+    return url.hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function isLoopbackHost(host: string): boolean {
+  return LOOPBACK_HOSTS.has(host);
+}
+
+/**
+ * Hostname used after the church slug in setup preview
+ * (`https://{slug}.{suffix}`). Prefers configured tenant suffix, then a public
+ * app host, then the current page host. Loopback hosts are skipped.
+ */
+export function resolveTenantHostSuffixForPreview(): string {
+  const configured = environment.tenantHostSuffix?.trim().toLowerCase() ?? '';
+  if (configured && !isLoopbackHost(configured)) {
+    return configured;
+  }
+  const fromAppUrl = hostnameFromOrigin(environment.appUrl);
+  if (fromAppUrl && !isLoopbackHost(fromAppUrl)) {
+    return fromAppUrl;
+  }
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname.toLowerCase();
+    if (host && !isLoopbackHost(host)) {
+      return host;
+    }
+  }
+  return 'prayer.romans8.net';
+}
+
 /** Origin for a tenant when subdomain mode is configured; else platform origin. */
 export function getTenantOrigin(slug: string): string {
   const suffix = environment.tenantHostSuffix?.trim() ?? '';

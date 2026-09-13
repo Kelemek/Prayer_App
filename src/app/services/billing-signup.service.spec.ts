@@ -28,6 +28,15 @@ describe('BillingSignupService', () => {
     expect(state.status).toBe('paid_pending_setup');
   });
 
+  it('checks tenant slug availability via RPC', async () => {
+    rpc.mockResolvedValue({ data: true, error: null });
+    const available = await service().isTenantSlugAvailable('new-church');
+    expect(rpc).toHaveBeenCalledWith('is_tenant_slug_available', {
+      p_slug: 'new-church',
+    });
+    expect(available).toBe(true);
+  });
+
   it('completes church setup via RPC', async () => {
     rpc.mockResolvedValue({
       data: { id: 't1', slug: 'new-church', name: 'New Church' },
