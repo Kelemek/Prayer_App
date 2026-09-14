@@ -365,6 +365,23 @@ Or: `bash scripts/deploy-functions.sh send-email`
 
 The same applies if **`send-prayer-reminders`** or **`send-user-hourly-prayer-reminders`** fail when calling `send-email`.
 
+### User reminders sent the wrong / basic email after PostgREST 504 or 500
+
+**Symptoms**: Users with a configured memorization spotlight or tenant email template receive the generic “Take a moment to pray” / memorization nudge instead of the admin template, often after a transient Supabase API error.
+
+**Cause**: Older reminder jobs treated a failed `email_templates` or `tenant_settings` read as “template missing” and fell back to inline/DEFAULT copy.
+
+**Expected behavior (after `dispatch-user-reminders` hardening)**:
+
+- Transient PostgREST/gateway errors are retried; if settings/templates still fail, the phase returns **HTTP 500** and **sends no email** for that run.
+- Spotlight memorization emails are **skipped** (push may still send) when `memorized_items` fails to load—not replaced with an empty-spotlight basic body.
+
+**Checks**:
+
+1. Cron should show **`invoke-dispatch-user-reminders`** only (not three separate `invoke-user-*` jobs). See [SETUP.md](SETUP.md).
+2. Edge logs for **`dispatch-user-reminders`** and the failing phase (`send-user-hourly-*`, `send-user-prayer-item-reminders`).
+3. Redeploy: `bash scripts/deploy-functions.sh dispatch-user-reminders` and the three phase functions; apply migration `20260914183751_dispatch_user_reminders.sql` if not applied.
+
 ### "Failed to send a request to the Edge Function" (MFA / verification email)
 
 This message comes from the Supabase client when the **browser never got an HTTP response** from the Edge Function URL (network failure, blocked request, or wrong project host). It is **not** the same as "wrong MFA code" (that path returns HTTP 400 with a JSON body).

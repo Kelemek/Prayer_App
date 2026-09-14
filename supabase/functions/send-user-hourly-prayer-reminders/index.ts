@@ -381,7 +381,8 @@ function buildSpotlightEmailTemplateVars(
  * Email when tenant_memberships.is_active !== false (matches UserSessionData.isActive).
  * Push when receive_push and a device_tokens row exists (matches receivePush + native token).
  * Both run when both are enabled.
- * Email body uses email_templates.user_hourly_prayer_reminder with {{appLink}} (same pattern as send-verification-code).
+ * Email body uses per-tenant email_templates.user_hourly_prayer_reminder with {{appLink}}.
+ * Cron invokes dispatch-user-reminders, which runs this function first among hourly phases (UTC :00 only).
  * Set Edge secret APP_URL to match Angular environment.appUrl in production.
  * If APP_URL is host-only (no https://), it is prefixed with https:// so mail clients do not rewrite links to x-webdoc://…
  * Auth matches send-prayer-reminders: Supabase Edge JWT verification only.
@@ -396,11 +397,79 @@ const corsHeaders = {
   'Access-Control-Max-Age': '86400',
 };
 
+const HOURLY_PRAYER_TEMPLATE_KEY = 'user_hourly_prayer_reminder';
+
 interface ReminderRow {
   id: string;
   user_email: string;
   iana_timezone: string;
   local_hour: number;
+}
+
+interface EmailTemplateRow {
+  subject: string;
+  text_body: string;
+  html_body: string;
+}
+
+type QueryResult<T> = {
+  data: T | null;
+  error: { message: string; code?: string; status?: number } | null;
+};
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function isTransientPostgrestError(
+  err: { message?: string; code?: string; status?: number } | null
+): boolean {
+  if (!err) return false;
+  const msg = (err.message ?? '').toLowerCase();
+  const code = String(err.code ?? '');
+  const status = Number(err.status ?? 0);
+  return (
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504 ||
+    code === '500' ||
+    code === '502' ||
+    code === '503' ||
+    code === '504' ||
+    msg.includes('504') ||
+    msg.includes('502') ||
+    msg.includes('503') ||
+    msg.includes('500') ||
+    msg.includes('timeout') ||
+    msg.includes('timed out') ||
+    msg.includes('fetch failed') ||
+    msg.includes('network') ||
+    msg.includes('connection') ||
+    msg.includes('gateway') ||
+    msg.includes('failed to get project config') ||
+    msg.includes('internal server error')
+  );
+}
+
+async function withRetry<T>(
+  label: string,
+  fn: () => PromiseLike<QueryResult<T>>,
+  opts: { attempts?: number; baseDelayMs?: number } = {}
+): Promise<QueryResult<T>> {
+  const attempts = opts.attempts ?? 4;
+  const baseDelayMs = opts.baseDelayMs ?? 400;
+  let last: QueryResult<T> = { data: null, error: { message: 'no attempt' } };
+  for (let i = 0; i < attempts; i++) {
+    last = await fn();
+    if (!last.error) return last;
+    if (!isTransientPostgrestError(last.error) || i === attempts - 1) {
+      console.error(`${label} failed (attempt ${i + 1}/${attempts}):`, last.error);
+      return last;
+    }
+    const delay = baseDelayMs * Math.pow(2, i);
+    console.warn(`${label} transient error; retrying in ${delay}ms:`, last.error);
+    await sleep(delay);
+  }
+  return last;
 }
 
 /** Absolute http(s) base for email <a href>; host-only values get https:// (avoids x-webdoc:// in Apple Mail). */
@@ -467,8 +536,9 @@ serve(async (req) => {
   const pushBody = 'Take a moment to pray.';
 
   try {
-    const { data: dueRows, error: rpcError } = await supabase.rpc(
-      'get_user_prayer_hour_reminders_due_now'
+    const { data: dueRows, error: rpcError } = await withRetry(
+      'get_user_prayer_hour_reminders_due_now',
+      () => supabase.rpc('get_user_prayer_hour_reminders_due_now')
     );
 
     if (rpcError) {
@@ -492,18 +562,6 @@ serve(async (req) => {
       );
     }
 
-    const { data: hourlyTemplate } = await supabase
-      .from('email_templates')
-      .select('*')
-      .eq('template_key', 'user_hourly_prayer_reminder')
-      .maybeSingle();
-
-    if (!hourlyTemplate) {
-      console.warn(
-        'email_templates.user_hourly_prayer_reminder not found; using inline fallback. Run migration or add template in admin.'
-      );
-    }
-
     const byLower = new Map<string, string>();
     for (const r of rows) {
       const k = r.user_email.toLowerCase();
@@ -511,10 +569,14 @@ serve(async (req) => {
     }
     const uniqueEmails = [...byLower.values()];
 
-    const { data: subscribers, error: subErr } = await supabase
-      .from('tenant_memberships')
-      .select('user_email, tenant_id, receive_push, is_active, is_blocked, unsubscribe_token')
-      .in('user_email', uniqueEmails);
+    const { data: subscribers, error: subErr } = await withRetry(
+      'tenant_memberships',
+      () =>
+        supabase
+          .from('tenant_memberships')
+          .select('user_email, tenant_id, receive_push, is_active, is_blocked, unsubscribe_token')
+          .in('user_email', uniqueEmails)
+    );
 
     if (subErr) {
       console.error('tenant_memberships batch failed:', subErr);
@@ -528,10 +590,47 @@ serve(async (req) => {
       (subscribers ?? []).map((s: { user_email: string }) => [s.user_email.toLowerCase(), s])
     );
 
-    const { data: tokenRows, error: tokErr } = await supabase
-      .from('device_tokens')
-      .select('user_email')
-      .in('user_email', uniqueEmails);
+    const tenantIds = [
+      ...new Set(
+        (subscribers ?? [])
+          .map((s: { tenant_id?: string }) => s.tenant_id)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0)
+      ),
+    ];
+
+    const templateByTenant = new Map<string, EmailTemplateRow>();
+    if (tenantIds.length > 0) {
+      const { data: templateRows, error: tplErr } = await withRetry(
+        'email_templates',
+        () =>
+          supabase
+            .from('email_templates')
+            .select('tenant_id, subject, text_body, html_body')
+            .eq('template_key', HOURLY_PRAYER_TEMPLATE_KEY)
+            .in('tenant_id', tenantIds)
+      );
+
+      if (tplErr) {
+        return new Response(
+          JSON.stringify({
+            error: 'Failed to load email templates',
+            details: tplErr.message,
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      for (const row of templateRows ?? []) {
+        const t = row as EmailTemplateRow & { tenant_id: string };
+        templateByTenant.set(t.tenant_id, t);
+      }
+    }
+
+    const { data: tokenRows, error: tokErr } = await withRetry(
+      'device_tokens',
+      () =>
+        supabase.from('device_tokens').select('user_email').in('user_email', uniqueEmails)
+    );
 
     if (tokErr) {
       console.error('device_tokens batch failed:', tokErr);
@@ -614,11 +713,17 @@ serve(async (req) => {
         let subject: string;
         let textBody: string;
         let htmlBody: string;
+        const hourlyTemplate = sub.tenant_id
+          ? templateByTenant.get(sub.tenant_id)
+          : undefined;
         if (hourlyTemplate) {
           subject = applyTemplateVariables(hourlyTemplate.subject, variables);
           textBody = applyTemplateVariables(hourlyTemplate.text_body, variables);
           htmlBody = applyTemplateVariables(hourlyTemplate.html_body, variables);
         } else {
+          console.warn(
+            `email_templates.${HOURLY_PRAYER_TEMPLATE_KEY} not found for tenant ${sub.tenant_id ?? 'unknown'}; using inline fallback.`
+          );
           const fb = hourlyReminderFallbackParts(appLink, unsubscribeUrl);
           subject = fb.subject;
           textBody = fb.textBody;

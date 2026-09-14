@@ -6,6 +6,8 @@
  * {{spotlightVerseText}}, {{spotlightBlockHtml}} (empty when user has no memorized items).
  * Spotlight picks the item needing the most work (learning tier, least recently practiced, fewest sessions).
  * Set Edge secret APP_URL to match Angular environment.appUrl in production.
+ * Cron invokes dispatch-user-reminders (hourly phases UTC :00 only). Dispatcher may pass tenantMemorizationTemplateKeys.
+ * Spotlight email gate mirrors src/app/lib/memorization/memorization-spotlight-reminder-email.ts (keep in sync).
  * Spotlight selection logic is duplicated from src/app/lib/memorization/memorization-reminder-spotlight.ts
  * (single-file bundle required for Supabase Edge deploy; keep both in sync).
  */
@@ -21,6 +23,108 @@ const corsHeaders = {
 
 const DEFAULT_HOURLY_TEMPLATE_KEY = 'user_hourly_memorization_reminder';
 const SPOTLIGHT_TEMPLATE_KEY = 'user_hourly_memorization_reminder_with_spotlight';
+
+interface DispatchInvokeBody {
+  dispatchedBy?: string;
+  tenantMemorizationTemplateKeys?: Record<string, string | null>;
+}
+
+type MemorizationSpotlightLoadStatus = 'ok' | 'empty' | 'error';
+
+/** Mirror memorization-spotlight-reminder-email.ts — keep in sync. */
+function shouldSendHourlyMemorizationReminderEmail(
+  wantEmail: boolean,
+  useSpotlightTemplate: boolean,
+  spotlightLoadStatus: MemorizationSpotlightLoadStatus | null
+): boolean {
+  if (!wantEmail) return false;
+  if (!useSpotlightTemplate) return true;
+  return spotlightLoadStatus !== 'error';
+}
+
+async function readDispatchInvokeBody(req: Request): Promise<DispatchInvokeBody> {
+  try {
+    const raw = await req.text();
+    if (!raw.trim()) return {};
+    return JSON.parse(raw) as DispatchInvokeBody;
+  } catch {
+    return {};
+  }
+}
+
+function templateKeyForTenantFromDispatch(
+  body: DispatchInvokeBody,
+  tenantId: string
+): string | null {
+  if (body.dispatchedBy !== 'dispatch-user-reminders') return null;
+  if (!body.tenantMemorizationTemplateKeys) return null;
+  if (!Object.prototype.hasOwnProperty.call(body.tenantMemorizationTemplateKeys, tenantId)) {
+    return null;
+  }
+  const rawKey = body.tenantMemorizationTemplateKeys[tenantId];
+  if (typeof rawKey === 'string' && rawKey.trim()) return rawKey.trim();
+  return DEFAULT_HOURLY_TEMPLATE_KEY;
+}
+
+type QueryResult<T> = {
+  data: T | null;
+  error: { message: string; code?: string; status?: number } | null;
+};
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function isTransientPostgrestError(
+  err: { message?: string; code?: string; status?: number } | null
+): boolean {
+  if (!err) return false;
+  const msg = (err.message ?? '').toLowerCase();
+  const code = String(err.code ?? '');
+  const status = Number(err.status ?? 0);
+  return (
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504 ||
+    code === '500' ||
+    code === '502' ||
+    code === '503' ||
+    code === '504' ||
+    msg.includes('504') ||
+    msg.includes('502') ||
+    msg.includes('503') ||
+    msg.includes('500') ||
+    msg.includes('timeout') ||
+    msg.includes('timed out') ||
+    msg.includes('fetch failed') ||
+    msg.includes('network') ||
+    msg.includes('connection') ||
+    msg.includes('gateway') ||
+    msg.includes('failed to get project config') ||
+    msg.includes('internal server error')
+  );
+}
+
+async function withRetry<T>(
+  label: string,
+  fn: () => PromiseLike<QueryResult<T>>,
+  opts: { attempts?: number; baseDelayMs?: number } = {}
+): Promise<QueryResult<T>> {
+  const attempts = opts.attempts ?? 4;
+  const baseDelayMs = opts.baseDelayMs ?? 400;
+  let last: QueryResult<T> = { data: null, error: { message: 'no attempt' } };
+  for (let i = 0; i < attempts; i++) {
+    last = await fn();
+    if (!last.error) return last;
+    if (!isTransientPostgrestError(last.error) || i === attempts - 1) {
+      console.error(`${label} failed (attempt ${i + 1}/${attempts}):`, last.error);
+      return last;
+    }
+    const delay = baseDelayMs * Math.pow(2, i);
+    console.warn(`${label} transient error; retrying in ${delay}ms:`, last.error);
+    await sleep(delay);
+  }
+  return last;
+}
 
 interface ReminderRow {
   id: string;
@@ -236,10 +340,12 @@ Deno.serve(async (req: Request) => {
   const appUrl = normalizeAppUrl(Deno.env.get('APP_URL'), 'http://localhost:4200');
   const appLink = `${appUrl}/?filter=memorize`;
   const pushTitle = 'Memorization reminder';
+  const dispatchBody = await readDispatchInvokeBody(req);
 
   try {
-    const { data: dueRows, error: rpcError } = await supabase.rpc(
-      'get_user_memorization_hour_reminders_due_now'
+    const { data: dueRows, error: rpcError } = await withRetry(
+      'get_user_memorization_hour_reminders_due_now',
+      () => supabase.rpc('get_user_memorization_hour_reminders_due_now')
     );
 
     if (rpcError) {
@@ -266,13 +372,17 @@ Deno.serve(async (req: Request) => {
     const uniqueEmails = [...new Set(rows.map((r) => r.user_email))];
     const tenantIds = [...new Set(rows.map((r) => r.tenant_id))];
 
-    const { data: memberships, error: subErr } = await supabase
-      .from('tenant_memberships')
-      .select(
-        'user_email, tenant_id, receive_push, is_active, is_blocked, unsubscribe_token, hourly_memorization_reminder_last_spotlight_key'
-      )
-      .in('user_email', uniqueEmails)
-      .in('tenant_id', tenantIds);
+    const { data: memberships, error: subErr } = await withRetry(
+      'tenant_memberships',
+      () =>
+        supabase
+          .from('tenant_memberships')
+          .select(
+            'user_email, tenant_id, receive_push, is_active, is_blocked, unsubscribe_token, hourly_memorization_reminder_last_spotlight_key'
+          )
+          .in('user_email', uniqueEmails)
+          .in('tenant_id', tenantIds)
+    );
 
     if (subErr) {
       console.error('tenant_memberships batch failed:', subErr);
@@ -291,31 +401,77 @@ Deno.serve(async (req: Request) => {
       ])
     );
 
-    const { data: tenantSettingsRows, error: settingsErr } = await supabase
-      .from('tenant_settings')
-      .select('tenant_id, user_hourly_memorization_reminder_template_key')
-      .in('tenant_id', tenantIds);
+    const templateKeyByTenant = new Map<string, string>();
+    const dispatchMap = dispatchBody.tenantMemorizationTemplateKeys;
+    const useDispatchMap =
+      dispatchBody.dispatchedBy === 'dispatch-user-reminders' && dispatchMap != null;
 
-    if (settingsErr) {
-      console.error('tenant_settings batch failed:', settingsErr);
+    if (useDispatchMap) {
+      for (const tenantId of tenantIds) {
+        const fromDispatch = templateKeyForTenantFromDispatch(dispatchBody, tenantId);
+        templateKeyByTenant.set(
+          tenantId,
+          fromDispatch ?? DEFAULT_HOURLY_TEMPLATE_KEY
+        );
+      }
+    } else {
+      const { data: tenantSettingsRows, error: settingsErr } = await withRetry(
+        'tenant_settings',
+        () =>
+          supabase
+            .from('tenant_settings')
+            .select('tenant_id, user_hourly_memorization_reminder_template_key')
+            .in('tenant_id', tenantIds)
+      );
+
+      if (settingsErr) {
+        console.error('tenant_settings batch failed:', settingsErr);
+        return new Response(
+          JSON.stringify({ error: 'Failed to load tenant settings', details: settingsErr.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      for (const row of tenantSettingsRows ?? []) {
+        const r = row as {
+          tenant_id: string;
+          user_hourly_memorization_reminder_template_key?: string;
+        };
+        templateKeyByTenant.set(
+          r.tenant_id,
+          r.user_hourly_memorization_reminder_template_key ?? DEFAULT_HOURLY_TEMPLATE_KEY
+        );
+      }
     }
 
-    const templateKeyByTenant = new Map<string, string>();
-    for (const row of tenantSettingsRows ?? []) {
-      const r = row as {
-        tenant_id: string;
-        user_hourly_memorization_reminder_template_key?: string;
-      };
-      templateKeyByTenant.set(
-        r.tenant_id,
-        r.user_hourly_memorization_reminder_template_key ?? DEFAULT_HOURLY_TEMPLATE_KEY
+    const { data: templateRows, error: tplErr } = await withRetry(
+      'email_templates',
+      () =>
+        supabase
+          .from('email_templates')
+          .select('tenant_id, template_key, subject, text_body, html_body')
+          .in('tenant_id', tenantIds)
+          .in('template_key', [DEFAULT_HOURLY_TEMPLATE_KEY, SPOTLIGHT_TEMPLATE_KEY])
+    );
+
+    if (tplErr) {
+      return new Response(
+        JSON.stringify({ error: 'Failed to load email templates', details: tplErr.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { data: tokenRows, error: tokErr } = await supabase
-      .from('device_tokens')
-      .select('user_email')
-      .in('user_email', uniqueEmails);
+    const templateByTenantKey = new Map<string, EmailTemplateRow>();
+    for (const row of templateRows ?? []) {
+      const t = row as EmailTemplateRow & { tenant_id: string; template_key: string };
+      templateByTenantKey.set(`${t.tenant_id}::${t.template_key}`, t);
+    }
+
+    const { data: tokenRows, error: tokErr } = await withRetry(
+      'device_tokens',
+      () =>
+        supabase.from('device_tokens').select('user_email').in('user_email', uniqueEmails)
+    );
 
     if (tokErr) {
       console.error('device_tokens batch failed:', tokErr);
@@ -364,21 +520,22 @@ Deno.serve(async (req: Request) => {
         templateKeyByTenant.get(row.tenant_id) ?? DEFAULT_HOURLY_TEMPLATE_KEY;
       const useSpotlightVariables = activeTemplateKey === SPOTLIGHT_TEMPLATE_KEY;
 
-      const { data: hourlyTemplate } = await supabase
-        .from('email_templates')
-        .select('subject, text_body, html_body')
-        .eq('tenant_id', row.tenant_id)
-        .eq('template_key', activeTemplateKey)
-        .maybeSingle();
+      const hourlyTemplate =
+        templateByTenantKey.get(`${row.tenant_id}::${activeTemplateKey}`) ?? null;
 
       let spotlight: SpotlightResult | null = null;
+      let spotlightLoadStatus: MemorizationSpotlightLoadStatus | null = null;
       if (useSpotlightVariables) {
-        spotlight = await loadSpotlightForRecipient(
+        const loadOutcome = await loadSpotlightForRecipient(
           supabase,
           recipient,
           row.tenant_id,
           sub.hourly_memorization_reminder_last_spotlight_key ?? null
         );
+        spotlightLoadStatus = loadOutcome.status;
+        if (loadOutcome.status === 'ok') {
+          spotlight = loadOutcome.spotlight;
+        }
       }
 
       const spotlightBlockHtml = buildSpotlightBlockHtml(spotlight);
@@ -450,7 +607,15 @@ Deno.serve(async (req: Request) => {
       }
 
       let emailDelivered = false;
-      if (wantEmail) {
+      const sendEmail = shouldSendHourlyMemorizationReminderEmail(
+        wantEmail,
+        useSpotlightVariables,
+        spotlightLoadStatus
+      );
+      if (wantEmail && !sendEmail && useSpotlightVariables && spotlightLoadStatus === 'error') {
+        errors.push(`${recipient} email: skipped (memorized_items load failed)`);
+      }
+      if (sendEmail) {
         const unsubTok = sub.unsubscribe_token?.trim() ?? '';
         const appBase = appUrl.replace(/\/+$/, '');
         const unsubscribeUrl = unsubTok
@@ -471,6 +636,9 @@ Deno.serve(async (req: Request) => {
           textBody = applyTemplateVariables(hourlyTemplate.text_body, variablesText);
           htmlBody = applyTemplateVariables(hourlyTemplate.html_body, variablesHtml);
         } else {
+          console.warn(
+            `email_templates ${activeTemplateKey} not found for tenant ${row.tenant_id}; using inline fallback.`
+          );
           const fb = hourlyReminderFallbackParts(appLink);
           subject = fb.subject;
           textBody = fb.textBody;
@@ -536,21 +704,28 @@ Deno.serve(async (req: Request) => {
   }
 });
 
+interface SpotlightLoadOutcome {
+  status: MemorizationSpotlightLoadStatus;
+  spotlight: SpotlightResult | null;
+}
+
 async function loadSpotlightForRecipient(
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient,
   recipientEmail: string,
   tenantId: string,
   lastSpotlightId: string | null
-): Promise<SpotlightResult | null> {
-  const { data: rows, error } = await supabase
-    .from('memorized_items')
-    .select('id, reference, text, translation, kind, last_practiced_at, practice_sessions')
-    .ilike('user_email', recipientEmail)
-    .eq('tenant_id', tenantId);
+): Promise<SpotlightLoadOutcome> {
+  const { data: rows, error } = await withRetry('memorized_items', () =>
+    supabase
+      .from('memorized_items')
+      .select('id, reference, text, translation, kind, last_practiced_at, practice_sessions')
+      .ilike('user_email', recipientEmail)
+      .eq('tenant_id', tenantId)
+  );
 
   if (error) {
     console.error('memorized_items query failed', error);
-    return null;
+    return { status: 'error', spotlight: null };
   }
 
   const candidates: MemorizationSpotlightCandidate[] = (rows ?? []).map(
@@ -564,25 +739,28 @@ async function loadSpotlightForRecipient(
   );
 
   const picked = pickMemorizationSpotlightCandidate(candidates, lastSpotlightId);
-  if (!picked) return null;
+  if (!picked) return { status: 'empty', spotlight: null };
 
   const row = (rows ?? []).find((r: MemorizedItemRow) => r.id === picked.id) as
     | MemorizedItemRow
     | undefined;
-  if (!row) return null;
+  if (!row) return { status: 'empty', spotlight: null };
 
   let verseText = '';
   if (row.kind === 'bibleBooks') {
     verseText = row.text?.trim() ?? '';
   } else {
-    const { data: cached, error: cacheErr } = await supabase
-      .from('scripture_cache')
-      .select('text')
-      .eq('reference', row.reference)
-      .eq('translation', row.translation || 'esv')
-      .maybeSingle();
+    const { data: cached, error: cacheErr } = await withRetry('scripture_cache', () =>
+      supabase
+        .from('scripture_cache')
+        .select('text')
+        .eq('reference', row.reference)
+        .eq('translation', row.translation || 'esv')
+        .maybeSingle()
+    );
     if (cacheErr) {
       console.error('scripture_cache lookup failed', cacheErr);
+      return { status: 'error', spotlight: null };
     }
     verseText = (cached as { text?: string } | null)?.text?.trim() ?? '';
   }
@@ -590,10 +768,13 @@ async function loadSpotlightForRecipient(
   const tier = masteryTierFromCompletedCount(picked.completedSessions);
 
   return {
-    id: picked.id,
-    reference: picked.reference,
-    kindLabel: kindLabelForMemorizedItem(picked.kind),
-    masteryLevel: masteryLevelLabel(tier),
-    verseText,
+    status: 'ok',
+    spotlight: {
+      id: picked.id,
+      reference: picked.reference,
+      kindLabel: kindLabelForMemorizedItem(picked.kind),
+      masteryLevel: masteryLevelLabel(tier),
+      verseText,
+    },
   };
 }

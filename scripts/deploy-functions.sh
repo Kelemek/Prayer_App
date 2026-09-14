@@ -53,11 +53,19 @@ case $FUNCTION_NAME in
         ;;
     "send-user-hourly-prayer-reminders")
         deploy_function "send-user-hourly-prayer-reminders" ""
-        echo "💡 Hourly invoke: Supabase pg_cron + Vault (project_url + service_role_key); set APP_URL on the function. See docs/SETUP.md."
+        echo "💡 Invoked by dispatch-user-reminders (hourly UTC :00); set APP_URL on the function. See docs/SETUP.md."
         ;;
     "send-user-hourly-memorization-reminders")
         deploy_function "send-user-hourly-memorization-reminders" ""
-        echo "💡 Hourly invoke: Supabase pg_cron + Vault (project_url + service_role_key); set APP_URL on the function. See docs/SETUP.md."
+        echo "💡 Invoked by dispatch-user-reminders (hourly UTC :00); set APP_URL on the function. See docs/SETUP.md."
+        ;;
+    "send-user-prayer-item-reminders")
+        deploy_function "send-user-prayer-item-reminders" ""
+        echo "💡 Invoked by dispatch-user-reminders (every 15m); set APP_URL on the function. See docs/SETUP.md."
+        ;;
+    "dispatch-user-reminders")
+        deploy_function "dispatch-user-reminders" ""
+        echo "💡 Cron: invoke-dispatch-user-reminders (*/15 UTC) + Vault (project_url + service_role_key). See docs/SETUP.md."
         ;;
     "transcribe-audio")
         deploy_function "transcribe-audio" ""
@@ -145,8 +153,10 @@ case $FUNCTION_NAME in
         deploy_function "trigger-email-processor" "--no-verify-jwt"
         deploy_function "send-verification-code" "--no-verify-jwt"
         deploy_function "send-prayer-reminders" ""
+        deploy_function "dispatch-user-reminders" ""
         deploy_function "send-user-hourly-prayer-reminders" ""
         deploy_function "send-user-hourly-memorization-reminders" ""
+        deploy_function "send-user-prayer-item-reminders" ""
         deploy_function "transcribe-audio" ""
         deploy_function "submit-feedback" ""
         deploy_function "delete-account" ""
@@ -174,6 +184,8 @@ case $FUNCTION_NAME in
         echo "  send-prayer-reminders    - Automated prayer reminders"
         echo "  send-user-hourly-prayer-reminders - User hourly self-reminders (cron)"
         echo "  send-user-hourly-memorization-reminders - User hourly memorization reminders (cron)"
+        echo "  send-user-prayer-item-reminders - Per-prayer item reminders (cron)"
+        echo "  dispatch-user-reminders    - Sequential reminder dispatcher (cron)"
         echo "  transcribe-audio              - Memorization Recite Whisper STT (JWT)"
         echo "  submit-feedback               - In-app feedback to Notion (JWT; NOTION_TOKEN)"
         echo "  delete-account                - Settings account erasure (JWT; service role RPC)"

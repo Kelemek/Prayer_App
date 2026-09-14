@@ -157,9 +157,11 @@ supabase db push
 # SQL Editor > Run migrations manually
 ```
 
-### User hourly prayer reminders (Vault + pg_cron)
+### User reminder jobs (Vault + pg_cron + dispatcher)
 
-The consolidated migration [`supabase/migrations/20260123140820_remote_schema.sql`](../supabase/migrations/20260123140820_remote_schema.sql) (section *Former file: 20260316130000_schedule_user_hourly_prayer_reminders_cron.sql*) enables **`pg_net`** and **`pg_cron`** and registers an hourly job (`invoke-user-hourly-prayer-reminders`, `0 * * * *` UTC) that POSTs to the Edge Function `send-user-hourly-prayer-reminders` using secrets from **Supabase Vault** (same behavior as the former GitHub Action).
+Migration [`supabase/migrations/20260914183751_dispatch_user_reminders.sql`](../supabase/migrations/20260914183751_dispatch_user_reminders.sql) registers a single job **`invoke-dispatch-user-reminders`** (`*/15 * * * *` UTC) that POSTs to **`dispatch-user-reminders`**, which invokes reminder Edge Functions **sequentially** (prayer hourly → memorization hourly → prayer-item) so PostgREST is not stamped by parallel crons. Hourly phases run only on the **UTC :00** tick; per-prayer item reminders run every 15 minutes.
+
+Older jobs (`invoke-user-hourly-prayer-reminders`, `invoke-user-hourly-memorization-reminders`, `invoke-user-prayer-item-reminders`) are unscheduled by that migration. Historical context: [`20260123140820_remote_schema.sql`](../supabase/migrations/20260123140820_remote_schema.sql) originally registered hourly prayer reminders via **`pg_net`** + **`pg_cron`**.
 
 **1. Create Vault secrets** (Supabase Dashboard → **Project Settings** → **Vault**, or SQL Editor). Required names:
 
@@ -182,13 +184,13 @@ If these already exist from another setup, do not duplicate them—only the name
 ```sql
 select net.http_post(
   url := (select decrypted_secret from vault.decrypted_secrets where name = 'project_url' limit 1)
-    || '/functions/v1/send-user-hourly-prayer-reminders',
+    || '/functions/v1/dispatch-user-reminders',
   headers := jsonb_build_object(
     'Content-Type', 'application/json',
     'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key' limit 1)
   ),
   body := '{}'::jsonb,
-  timeout_milliseconds := 120000
+  timeout_milliseconds := 360000
 );
 
 -- After a few seconds, inspect the HTTP result (status should be 200 if the function succeeded):
@@ -198,7 +200,14 @@ order by created desc
 limit 5;
 ```
 
-Confirm the Edge Function logs in **Supabase → Edge Functions → send-user-hourly-prayer-reminders → Logs**. Optionally `select * from cron.job where jobname = 'invoke-user-hourly-prayer-reminders';` to confirm the schedule.
+Confirm logs in **Supabase → Edge Functions → dispatch-user-reminders → Logs** (and phase functions as needed). Cron check:
+
+```sql
+select jobname, schedule from cron.job
+where jobname like 'invoke-%reminder%' or jobname = 'invoke-dispatch-user-reminders';
+```
+
+To test a single phase without the dispatcher, invoke that function from the Dashboard (e.g. `send-user-hourly-prayer-reminders`). To force hourly phases off the :00 tick, POST `{"forceHourly": true}` to `dispatch-user-reminders`.
 
 ### Community prayer reminders (`send-prayer-reminders`)
 

@@ -281,7 +281,8 @@ function buildPrayerUpdateBlockHtml(updateHtml: string): string {
  * Every-15-minutes job: send per-prayer item reminders (once / daily / weekly).
  * Email when tenant_memberships.is_active !== false (per tenant).
  * Push when receive_push and a device_tokens row exists.
- * Template: email_templates.user_prayer_item_reminder.
+ * Template: per-tenant email_templates.user_prayer_item_reminder.
+ * Cron invokes dispatch-user-reminders, which runs this function after hourly phases (every 15 minutes).
  * Auth: Supabase Edge JWT verification only (same as other reminder jobs).
  */
 
@@ -294,6 +295,66 @@ const corsHeaders = {
 };
 
 const TEMPLATE_KEY = 'user_prayer_item_reminder';
+
+type QueryResult<T> = {
+  data: T | null;
+  error: { message: string; code?: string; status?: number } | null;
+};
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function isTransientPostgrestError(
+  err: { message?: string; code?: string; status?: number } | null
+): boolean {
+  if (!err) return false;
+  const msg = (err.message ?? '').toLowerCase();
+  const code = String(err.code ?? '');
+  const status = Number(err.status ?? 0);
+  return (
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504 ||
+    code === '500' ||
+    code === '502' ||
+    code === '503' ||
+    code === '504' ||
+    msg.includes('504') ||
+    msg.includes('502') ||
+    msg.includes('503') ||
+    msg.includes('500') ||
+    msg.includes('timeout') ||
+    msg.includes('timed out') ||
+    msg.includes('fetch failed') ||
+    msg.includes('network') ||
+    msg.includes('connection') ||
+    msg.includes('gateway') ||
+    msg.includes('failed to get project config') ||
+    msg.includes('internal server error')
+  );
+}
+
+async function withRetry<T>(
+  label: string,
+  fn: () => PromiseLike<QueryResult<T>>,
+  opts: { attempts?: number; baseDelayMs?: number } = {}
+): Promise<QueryResult<T>> {
+  const attempts = opts.attempts ?? 4;
+  const baseDelayMs = opts.baseDelayMs ?? 400;
+  let last: QueryResult<T> = { data: null, error: { message: 'no attempt' } };
+  for (let i = 0; i < attempts; i++) {
+    last = await fn();
+    if (!last.error) return last;
+    if (!isTransientPostgrestError(last.error) || i === attempts - 1) {
+      console.error(`${label} failed (attempt ${i + 1}/${attempts}):`, last.error);
+      return last;
+    }
+    const delay = baseDelayMs * Math.pow(2, i);
+    console.warn(`${label} transient error; retrying in ${delay}ms:`, last.error);
+    await sleep(delay);
+  }
+  return last;
+}
 
 interface ItemReminderRow {
   id: string;
@@ -611,8 +672,9 @@ Deno.serve(async (req: Request) => {
   const appUrl = normalizeAppUrl(Deno.env.get('APP_URL'), 'http://localhost:4200');
 
   try {
-    const { data: dueRows, error: rpcError } = await supabase.rpc(
-      'get_user_prayer_item_reminders_due_now'
+    const { data: dueRows, error: rpcError } = await withRetry(
+      'get_user_prayer_item_reminders_due_now',
+      () => supabase.rpc('get_user_prayer_item_reminders_due_now')
     );
 
     if (rpcError) {
@@ -639,11 +701,15 @@ Deno.serve(async (req: Request) => {
     const uniqueEmails = [...new Set(rows.map((r) => r.user_email))];
     const tenantIds = [...new Set(rows.map((r) => r.tenant_id))];
 
-    const { data: memberships, error: subErr } = await supabase
-      .from('tenant_memberships')
-      .select('user_email, tenant_id, receive_push, is_active, is_blocked')
-      .in('user_email', uniqueEmails)
-      .in('tenant_id', tenantIds);
+    const { data: memberships, error: subErr } = await withRetry(
+      'tenant_memberships',
+      () =>
+        supabase
+          .from('tenant_memberships')
+          .select('user_email, tenant_id, receive_push, is_active, is_blocked')
+          .in('user_email', uniqueEmails)
+          .in('tenant_id', tenantIds)
+    );
 
     if (subErr) {
       console.error('tenant_memberships batch failed:', subErr);
@@ -662,14 +728,25 @@ Deno.serve(async (req: Request) => {
       ])
     );
 
-    const { data: templateRows, error: tplErr } = await supabase
-      .from('email_templates')
-      .select('tenant_id, subject, text_body, html_body')
-      .eq('template_key', TEMPLATE_KEY)
-      .in('tenant_id', tenantIds);
+    const { data: templateRows, error: tplErr } = await withRetry(
+      'email_templates',
+      () =>
+        supabase
+          .from('email_templates')
+          .select('tenant_id, subject, text_body, html_body')
+          .eq('template_key', TEMPLATE_KEY)
+          .in('tenant_id', tenantIds)
+    );
 
     if (tplErr) {
       console.error('email_templates batch failed:', tplErr);
+      return new Response(
+        JSON.stringify({
+          error: 'Failed to load email templates',
+          details: tplErr.message,
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const templateByTenant = new Map<string, EmailTemplateRow>();
@@ -678,10 +755,11 @@ Deno.serve(async (req: Request) => {
       templateByTenant.set(t.tenant_id, t);
     }
 
-    const { data: tokenRows, error: tokErr } = await supabase
-      .from('device_tokens')
-      .select('user_email')
-      .in('user_email', uniqueEmails);
+    const { data: tokenRows, error: tokErr } = await withRetry(
+      'device_tokens',
+      () =>
+        supabase.from('device_tokens').select('user_email').in('user_email', uniqueEmails)
+    );
 
     if (tokErr) {
       console.error('device_tokens batch failed:', tokErr);

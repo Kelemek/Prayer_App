@@ -4,6 +4,12 @@ Major features and milestones for the Prayer App.
 
 ## [Current] - September 2026
 
+### User reminder dispatch hardening (PostgREST / 504)
+- New Edge Function **`dispatch-user-reminders`**: one `pg_cron` job (`invoke-dispatch-user-reminders`, `*/15` UTC) invokes prayer hourly, memorization hourly, and prayer-item reminders **sequentially** with phase pauses and invoke retries.
+- Hourly phases run only on UTC **:00** (avoids 4× hourly sends); item reminders still every 15 minutes.
+- **`send-user-*` reminder functions**: transient PostgREST retries; **fail closed** (HTTP 500, no sends) when `tenant_settings` / `email_templates` fail to load; inline/DEFAULT fallbacks only when the row is genuinely missing. Memorization spotlight emails skipped when `memorized_items` load fails.
+- Migration: `20260914183751_dispatch_user_reminders.sql`. Deploy dispatcher + three phase functions before applying the migration.
+
 ### Native pay-first Church + Pro
 - Native Create-a-church and Pro upgrade purchase UI are replaced by feature tours. Native last step emails a web pay link (`church_signup_web` / `pro_signup_web`); web last step starts Stripe. No prices or Checkout CTAs in the Capacitor binary.
 - Church Checkout is user-scoped until paid (`billing_signup_leads` `paid_pending_setup`). `/church-setup` creates the tenant after payment. Existing incomplete church tenants keep tenant-scoped Checkout.
