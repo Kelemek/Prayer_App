@@ -1,7 +1,8 @@
 /**
  * Notion Feedback property mapping for Prayer App Biz Feedback.
  * Data source: collection://ad60c0ea-da0e-4a36-be18-b395c7bcb564
- * Confirmed 2026-09-13. Keep in sync with supabase/functions/submit-feedback/index.ts.
+ * PII stays in Postgres (feedback_submissions); Notion gets Submission ID only.
+ * Keep in sync with supabase/functions/submit-feedback/index.ts.
  */
 
 export type FeedbackType = 'bug' | 'feature' | 'suggestion';
@@ -20,8 +21,7 @@ export interface NotionFeedbackMappingInput {
   title: string;
   description: string;
   type: FeedbackType;
-  email: string;
-  userName?: string;
+  submissionId: string;
   pageUrl?: string;
   tenantName?: string;
   tenantSlug?: string;
@@ -56,9 +56,7 @@ export function buildNotionFeedbackProperties(
     Type: {
       select: { name: FEEDBACK_TYPE_TO_NOTION[input.type] },
     },
-    Email: {
-      email: input.email,
-    },
+    'Submission ID': richText(input.submissionId),
     Status: {
       status: { name: 'Not started' },
     },
@@ -69,11 +67,6 @@ export function buildNotionFeedbackProperties(
       select: { name: normalizeFeedbackPlatform(input.platform) },
     },
   };
-
-  const userName = input.userName?.trim();
-  if (userName) {
-    properties['User name'] = richText(userName.slice(0, 2000));
-  }
 
   const pageUrl = input.pageUrl?.trim();
   if (pageUrl && pageUrl.length <= 2000) {

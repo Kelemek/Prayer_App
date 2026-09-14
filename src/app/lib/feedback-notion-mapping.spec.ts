@@ -9,25 +9,27 @@ import {
   parseFeedbackConfiguredResponse,
 } from './feedback-notion-mapping';
 
+const SUBMISSION_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+
 describe('feedback Notion mapping', () => {
   it('maps form types to exact Notion select spellings', () => {
     const bug = buildNotionFeedbackProperties({
       title: 'Crash on save',
       description: 'Tap save and it dies',
       type: 'bug',
-      email: 'user@example.com',
+      submissionId: SUBMISSION_ID,
     });
     const feature = buildNotionFeedbackProperties({
       title: 'Print duplex',
       description: 'Need duplex',
       type: 'feature',
-      email: 'user@example.com',
+      submissionId: SUBMISSION_ID,
     });
     const suggestion = buildNotionFeedbackProperties({
       title: 'Darker gold',
       description: 'Gold is bright',
       type: 'suggestion',
-      email: 'user@example.com',
+      submissionId: SUBMISSION_ID,
     });
 
     expect((bug.Type as { select: { name: string } }).select.name).toBe('Bug');
@@ -37,20 +39,24 @@ describe('feedback Notion mapping', () => {
     );
   });
 
-  it('uses server-resolved email and default Status/Priority', () => {
+  it('uses Submission ID and omits email and user name from Notion properties', () => {
     const properties = buildNotionFeedbackProperties({
       title: 'Title',
       description: 'Description that is actionable',
       type: 'bug',
-      email: 'resolved@example.com',
-      userName: 'Jane Doe',
+      submissionId: SUBMISSION_ID,
       pageUrl: 'https://app.example.com/settings',
       tenantName: 'Cross Pointe',
       tenantSlug: 'cross-pointe',
       platform: 'ios',
     });
 
-    expect((properties.Email as { email: string }).email).toBe('resolved@example.com');
+    expect(
+      (properties['Submission ID'] as { rich_text: Array<{ text: { content: string } }> })
+        .rich_text[0].text.content
+    ).toBe(SUBMISSION_ID);
+    expect(properties).not.toHaveProperty('Email');
+    expect(properties).not.toHaveProperty('User name');
     expect((properties.Status as { status: { name: string } }).status.name).toBe(
       'Not started'
     );
@@ -66,10 +72,6 @@ describe('feedback Notion mapping', () => {
       (properties.Description as { rich_text: Array<{ text: { content: string } }> })
         .rich_text[0].text.content
     ).toBe('Description that is actionable');
-    expect(
-      (properties['User name'] as { rich_text: Array<{ text: { content: string } }> })
-        .rich_text[0].text.content
-    ).toBe('Jane Doe');
     expect((properties['Page URL'] as { url: string }).url).toBe(
       'https://app.example.com/settings'
     );
@@ -88,11 +90,12 @@ describe('feedback Notion mapping', () => {
       title: 'Title',
       description: 'Description',
       type: 'bug',
-      email: 'user@example.com',
+      submissionId: SUBMISSION_ID,
     });
     const serialized = JSON.stringify(properties);
     expect(serialized).not.toMatch(/github_token|NOTION_TOKEN|secret_|ntn_/i);
     expect(serialized).not.toContain('notion.so');
+    expect(serialized).not.toMatch(/@/);
     expect(Object.keys(properties)).not.toContain('url');
   });
 

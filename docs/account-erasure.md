@@ -11,7 +11,7 @@ Engineering path for self-serve account deletion. Not legal advice.
 
 ## Database (migration `20260914090000_erase_user_account.sql`)
 
-**Always deleted:** all `tenant_memberships` (every tenant), `device_tokens`, `push_notification_log`, `verification_codes`, `billing_signup_leads`, `user_subscriptions`, `account_approval_requests`, `tenant_invites`, `email_queue` (recipient), `global_roles`, memorization/reminder tables, `prompt_prayed_for_counts`, `badge_read_receipts`, personal categories/colors, delete-request rows for requester email, group membership (with owner promotion / empty-group delete), user-keyed `analytics` JSON.
+**Always deleted:** all `tenant_memberships` (every tenant), `device_tokens`, `push_notification_log`, `verification_codes`, `billing_signup_leads`, `user_subscriptions`, `account_approval_requests`, `tenant_invites`, `email_queue` (recipient), `global_roles`, `feedback_submissions`, memorization/reminder tables, `prompt_prayed_for_counts`, `badge_read_receipts`, personal categories/colors, delete-request rows for requester email, group membership (with owner promotion / empty-group delete), user-keyed `analytics` JSON.
 
 **keep_prayers:** anonymize `prayers`, `prayer_updates`, `personal_prayers` (+ updates), `group_prayers`, `group_prayer_updates` (placeholder email `deleted-user@invalid`, name `Deleted user`).
 
@@ -26,7 +26,7 @@ Engineering path for self-serve account deletion. Not legal advice.
 | **Stripe** | Deletes **Pro/personal** `stripe_customer_id` from `user_subscriptions` / pro `billing_signup_leads` only (never church tenant customers). Requires `STRIPE_SECRET_KEY`. | Orphan Checkout sessions or customers in Stripe Dashboard. |
 | **PostHog** | Person delete when `POSTHOG_PERSONAL_API_KEY` + `POSTHOG_PROJECT_ID` are set on the function. | Otherwise delete person in PostHog UI; client always `reset()` on logout. |
 | **Resend** | No durable contact list in-app. | No action. |
-| **Notion Feedback** | Not auto-deleted (noisy). | Filter Biz Feedback DB by **Email** and archive/delete rows. |
+| **Notion Feedback** | No submitter email/name on Notion (Submission ID only). | No per-user Notion cleanup; erasure deletes `feedback_submissions` in Postgres. User-typed text in Description may still be PII. |
 | **GitHub Issues** | Not auto-deleted. | Historical issues may still contain email/name. |
 
 ## Manual test plan (throwaway user)

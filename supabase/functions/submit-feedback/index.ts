@@ -91,10 +91,15 @@ function configuredResponse(): Response {
   return jsonResponse({ configured: isNotionConfigured() }, 200);
 }
 
-async function resolveAuthenticatedEmail(userClient: SupabaseClient): Promise<string | null> {
+async function resolveAuthenticatedUser(
+  userClient: SupabaseClient
+): Promise<{ id: string; email: string } | null> {
   const { data: userData, error } = await userClient.auth.getUser();
-  if (error || !userData?.user?.email) return null;
-  return userData.user.email.toLowerCase().trim();
+  if (error || !userData?.user?.id || !userData?.user?.email) return null;
+  return {
+    id: userData.user.id,
+    email: userData.user.email.toLowerCase().trim(),
+  };
 }
 
 async function isSuperAdmin(adminClient: SupabaseClient, email: string): Promise<boolean> {
@@ -139,8 +144,8 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (req.method === 'GET') {
-      const authenticatedEmail = await resolveAuthenticatedEmail(userClient);
-      if (!authenticatedEmail) {
+      const authUser = await resolveAuthenticatedUser(userClient);
+      if (!authUser) {
         return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
       }
       return configuredResponse();
@@ -148,10 +153,11 @@ Deno.serve(async (req: Request) => {
 
     const body = (await req.json()) as SubmitFeedbackBody;
 
-    const authenticatedEmail = await resolveAuthenticatedEmail(userClient);
-    if (!authenticatedEmail) {
+    const authUser = await resolveAuthenticatedUser(userClient);
+    if (!authUser) {
       return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
     }
+    const authenticatedEmail = authUser.email;
 
     if (body.configuredCheck === true) {
       return configuredResponse();
@@ -248,6 +254,31 @@ Deno.serve(async (req: Request) => {
       tenantIdExtra = tenant.id;
     }
 
+    const tenantIdForRow = tenantIdExtra || null;
+
+    const { data: submissionRow, error: submissionError } = await adminClient
+      .from('feedback_submissions')
+      .insert({
+        auth_user_id: authUser.id,
+        user_email: authenticatedEmail,
+        user_name: userName || null,
+        tenant_id: tenantIdForRow,
+        title,
+        description,
+        feedback_type: type,
+        platform,
+        page_url: pageUrl || null,
+      })
+      .select('id')
+      .single();
+
+    if (submissionError || !submissionRow?.id) {
+      console.error('feedback_submissions insert failed:', submissionError);
+      return jsonResponse({ success: false, error: 'Failed to submit feedback' }, 500);
+    }
+
+    const submissionId = submissionRow.id as string;
+
     const notionProperties: Record<string, unknown> = {
       'Task name': {
         title: [{ type: 'text', text: { content: title } }],
@@ -256,9 +287,7 @@ Deno.serve(async (req: Request) => {
       Type: {
         select: { name: TYPE_TO_NOTION[type] },
       },
-      Email: {
-        email: authenticatedEmail,
-      },
+      'Submission ID': richText(submissionId),
       Status: {
         status: { name: 'Not started' },
       },
@@ -269,10 +298,6 @@ Deno.serve(async (req: Request) => {
         select: { name: platform },
       },
     };
-
-    if (userName) {
-      notionProperties['User name'] = richText(userName.slice(0, 2000));
-    }
 
     if (pageUrl) {
       notionProperties['Page URL'] = { url: pageUrl };
@@ -291,23 +316,6 @@ Deno.serve(async (req: Request) => {
       properties: notionProperties,
     };
 
-    if (tenantIdExtra) {
-      notionBody.children = [
-        {
-          object: 'block',
-          type: 'paragraph',
-          paragraph: {
-            rich_text: [
-              {
-                type: 'text',
-                text: { content: `Tenant ID: ${tenantIdExtra}` },
-              },
-            ],
-          },
-        },
-      ];
-    }
-
     recordSubmission(authenticatedEmail);
 
     const notionRes = await fetch('https://api.notion.com/v1/pages', {
@@ -324,6 +332,15 @@ Deno.serve(async (req: Request) => {
     if (!notionRes.ok) {
       console.error('Notion API error:', notionPayload);
       return jsonResponse({ success: false, error: 'Failed to submit feedback' }, 502);
+    }
+
+    const notionPageId =
+      typeof notionPayload?.id === 'string' ? notionPayload.id : null;
+    if (notionPageId) {
+      await adminClient
+        .from('feedback_submissions')
+        .update({ notion_page_id: notionPageId })
+        .eq('id', submissionId);
     }
 
     return jsonResponse({ success: true }, 200);

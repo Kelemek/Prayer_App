@@ -222,7 +222,7 @@ Deno.serve(async (req: Request) => {
   }
 
   ops.push('resend:n/a');
-  ops.push('notion:manual');
+  ops.push('notion:n/a');
   ops.push('github:manual');
 
   const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(user.id);
