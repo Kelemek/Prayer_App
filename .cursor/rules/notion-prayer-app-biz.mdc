@@ -1,0 +1,28 @@
+---
+description: Notion workspace mapping for this repo (Prayer App Biz, not Cross Pointe)
+alwaysApply: true
+---
+
+# Notion — Prayer App Biz (this repo only)
+
+This workspace is **`Kelemek/Prayer_App`** (multi-tenant SaaS). It is **not** Cross Pointe church production.
+
+When creating or updating Notion pages, issues, feedback, or roadmap rows for work done **in this repo**, use **Prayer App Biz** only:
+
+- Hub: **Prayer App Biz** (🙏)
+- **Product → Build roadmap** — shipped features, backports, eng milestones (e.g. Backport CP polish)
+- **Product → Feedback** — bugs, polish, internal product issues (not in-app submit flow only)
+- Other Biz folders (Brand, GTM, Ops, Money) when the task is clearly biz/product ops
+
+**Do not** file Prayer_App work under **Cross Pointe Prayer** or its **Site issues** database.
+
+## Cross Pointe (different repo)
+
+**`Kelemek/angular_prayerapp`** and church prod (`cpprayer.*`) map to Notion **Cross Pointe Prayer → Site issues**. Only update that tree for CP-specific production issues.
+
+## Quick check
+
+| GitHub repo              | Notion home                          |
+|--------------------------|--------------------------------------|
+| `Kelemek/Prayer_App`     | Prayer App Biz                       |
+| `Kelemek/angular_prayerapp` | Cross Pointe Prayer → Site issues |
