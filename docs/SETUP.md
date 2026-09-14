@@ -346,6 +346,24 @@ Apply `supabase/migrations/20260913160000_restrict_github_feedback_columns.sql` 
 
 ---
 
+## Account erasure (`delete-account`)
+
+Settings **Delete account** calls Edge Function **`delete-account`** (JWT required). Apply migration **`20260914090000_erase_user_account.sql`** before deploy.
+
+```bash
+./scripts/deploy-functions.sh delete-account
+```
+
+| Secret | Used by |
+|--------|---------|
+| `STRIPE_SECRET_KEY` | Optional. Best-effort delete of **Pro/personal** Stripe customers only (never church tenant customers). |
+| `POSTHOG_PERSONAL_API_KEY` | Optional. PostHog person delete API. |
+| `POSTHOG_PROJECT_ID` | Optional. Project id for person delete (e.g. `438838`). |
+
+See [account-erasure.md](account-erasure.md) for DB table inventory, anonymize vs wipe modes, and manual ops (Notion Feedback, GitHub Issues, Stripe leftovers).
+
+---
+
 ## Stripe (Church + Pro billing)
 
 Web-only Stripe Checkout and Customer Portal. Native apps do not show buy/manage UI in-app; church admins may open the system browser for billing. Church and Pro acquisition on native is **tour → email a web link**; web tours start Checkout. Church tenants are created only after payment, on `/church-setup`.

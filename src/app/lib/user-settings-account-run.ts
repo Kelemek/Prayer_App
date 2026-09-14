@@ -1,4 +1,7 @@
 import type { UserSettingsFacade } from './user-settings-facade';
+import { describeFunctionInvokeFailure } from '../utils/supabase-function-invoke-error';
+
+export type AccountEraseMode = 'keep_prayers' | 'wipe_prayers';
 
 export function closeUserSettingsDeleteAccountVerification(
   host: UserSettingsFacade
@@ -10,41 +13,48 @@ export function closeUserSettingsDeleteAccountVerification(
   }
 }
 
-async function deleteActiveTenantMembership(
+async function invokeDeleteAccount(
   host: UserSettingsFacade,
-  email: string
+  mode: AccountEraseMode
 ): Promise<void> {
-  const { error } = await host.deps.supabase.client
-    .from('tenant_memberships')
-    .delete()
-    .match(host.deps.membershipPrefs.matchFilter(email));
+  const { data, error, response } = await host.deps.supabase.client.functions.invoke(
+    'delete-account',
+    { body: { mode } }
+  );
+
   if (error) {
-    throw error;
+    throw new Error(
+      await describeFunctionInvokeFailure(error, response, 'delete-account')
+    );
+  }
+
+  if (!data || typeof data !== 'object' || (data as { success?: unknown }).success !== true) {
+    const message =
+      data &&
+      typeof data === 'object' &&
+      typeof (data as { error?: unknown }).error === 'string'
+        ? (data as { error: string }).error
+        : 'Could not delete account. Please try again.';
+    throw new Error(message);
   }
 }
 
 export async function runUserSettingsDeleteAccountKeepPrayers(
   host: UserSettingsFacade
 ): Promise<void> {
-  const email =
-    host.email?.toLowerCase?.()?.trim?.() || host.email?.trim?.() || '';
-  if (!email) {
-    host.error = 'Could not determine your email. Please try again.';
-    host.markForCheck();
-    return;
-  }
   host.deletingAccount = true;
   host.error = null;
   host.markForCheck();
   try {
-    await deleteActiveTenantMembership(host, email);
+    await invokeDeleteAccount(host, 'keep_prayers');
     host.showDeleteAccountVerification = false;
     host.deletingAccount = false;
     host.markForCheck();
     await runUserSettingsLogout(host);
-  } catch {
+  } catch (err) {
     host.deletingAccount = false;
-    host.error = 'Could not delete account. Please try again.';
+    host.error =
+      err instanceof Error ? err.message : 'Could not delete account. Please try again.';
     host.showDeleteAccountVerification = false;
     host.markForCheck();
   }
@@ -53,44 +63,19 @@ export async function runUserSettingsDeleteAccountKeepPrayers(
 export async function runUserSettingsDeleteAccountAndPrayers(
   host: UserSettingsFacade
 ): Promise<void> {
-  const email =
-    host.email?.toLowerCase?.()?.trim?.() || host.email?.trim?.() || '';
-  if (!email) {
-    host.error = 'Could not determine your email. Please try again.';
-    host.markForCheck();
-    return;
-  }
   host.deletingAccount = true;
   host.error = null;
   host.markForCheck();
   try {
-    const client = host.deps.supabase.client;
-    const { error: err1 } = await client
-      .from('prayer_updates')
-      .delete()
-      .eq('author_email', email);
-    if (err1) {
-      throw err1;
-    }
-    const { error: err2 } = await client.from('prayers').delete().eq('email', email);
-    if (err2) {
-      throw err2;
-    }
-    const { error: err3 } = await client
-      .from('personal_prayers')
-      .delete()
-      .eq('user_email', email);
-    if (err3) {
-      throw err3;
-    }
-    await deleteActiveTenantMembership(host, email);
+    await invokeDeleteAccount(host, 'wipe_prayers');
     host.showDeleteAccountVerification = false;
     host.deletingAccount = false;
     host.markForCheck();
     await runUserSettingsLogout(host);
-  } catch {
+  } catch (err) {
     host.deletingAccount = false;
-    host.error = 'Could not delete account. Please try again.';
+    host.error =
+      err instanceof Error ? err.message : 'Could not delete account. Please try again.';
     host.showDeleteAccountVerification = false;
     host.markForCheck();
   }

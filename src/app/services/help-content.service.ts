@@ -712,7 +712,7 @@ export class HelpContentService {
           },
           {
             subtitle: 'Delete your account',
-            text: 'At the bottom of the settings panel you can delete your account. A verification dialog will ask you to choose: "Delete account but keep my prayers" so your prayers continue to be lifted up by others, or "Delete my account and all my prayers" to remove your account and all prayers you submitted. After either choice you will be signed out and would need to be re-approved to use the app again.',
+            text: 'At the bottom of the settings panel you can delete your account. A verification dialog will ask you to choose: "Delete account but keep my prayers" so your church prayers can still be lifted up by others (your name and email are removed from those requests), or "Delete my account and all my prayers" to remove your account and prayers you submitted. Either choice permanently deletes your login; you cannot sign back in with the same account.',
           },
         ],
         order: 13,

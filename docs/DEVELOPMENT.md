@@ -802,9 +802,10 @@ Users can delete their account from the main site settings modal:
 
 - **Location**: Bottom of the settings panel (below the feedback section), "Delete your account" link.
 - **Verification dialog**: Opens with a warning that the action cannot be undone. Two options:
-  - **Delete account but keep my prayers** — Deletes only the user’s row in `email_subscribers`; their prayers and updates remain so they can still be lifted up. Then calls `adminAuthService.logout()`.
-  - **Delete my account and all my prayers** — Deletes in order: `prayer_updates` (author_email), `prayers` (email), `personal_prayers` (user_email; DB cascades to `personal_prayer_updates`), then `email_subscribers`. Then calls `adminAuthService.logout()`.
-- **Implementation**: `user-settings.component.ts` — `showDeleteAccountVerification`, `deletingAccount`, `closeDeleteAccountVerification()`, `deleteAccountKeepPrayers()`, `deleteAccountAndPrayers()`. On any delete failure, error is set and logout is not called.
+  - **Delete account but keep my prayers** — Server-side erasure via Edge Function `delete-account` (`mode: keep_prayers`): removes all `tenant_memberships`, Auth user, tokens, reminders, memorization, billing leads, etc.; anonymizes church/group prayer PII (`deleted-user@invalid` / `Deleted user`) so content can still be lifted up.
+  - **Delete my account and all my prayers** — Same as keep, plus deletes prayers/updates/personal prayers the user authored across all tenants (`mode: wipe_prayers`).
+- **Implementation**: `user-settings-account-run.ts` invokes `delete-account` with the user JWT; `erase_user_account` RPC (service role only) performs DB work; Edge deletes Auth and best-effort Stripe Pro / PostHog. On success, `adminAuthService.logout()`. On failure, error is shown and logout is not called.
+- **Deploy**: Apply migration `20260914090000_erase_user_account.sql`, then `./scripts/deploy-functions.sh delete-account`. See `docs/account-erasure.md` for third-party ops.
 - **Help**: App Settings section in `help-content.service.ts` includes a "Delete your account" content item describing the two choices.
 
 #### Text Size (Settings)

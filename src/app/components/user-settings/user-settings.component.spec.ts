@@ -91,7 +91,16 @@ describe('UserSettingsComponent', () => {
             update: vi.fn(() => chainableEq()),
             insert: vi.fn(() => Promise.resolve({ data: null, error: null })),
             delete: vi.fn(() => chainableEq()),
-        }))
+        })),
+        functions: {
+          invoke: vi.fn(() =>
+            Promise.resolve({
+              data: { success: true, ops: ['db:erased', 'auth:deleted'] },
+              error: null,
+              response: new Response(null, { status: 200 }),
+            })
+          ),
+        },
       }
     };
 
@@ -832,11 +841,13 @@ describe('UserSettingsComponent', () => {
       component.showDeleteAccountVerification = false;
       component.deletingAccount = false;
       component.error = null;
-      mockSupabaseService.client.from.mockReturnValue({
-        delete: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-        }))
-      });
+      mockSupabaseService.client.functions.invoke = vi.fn(() =>
+        Promise.resolve({
+          data: { success: true, ops: ['db:erased', 'auth:deleted'] },
+          error: null,
+          response: new Response(null, { status: 200 }),
+        })
+      );
     });
 
     it('should show verification dialog when delete account is opened', () => {
@@ -860,82 +871,62 @@ describe('UserSettingsComponent', () => {
       expect(component.showDeleteAccountVerification).toBe(true);
     });
 
-    it('deleteAccountKeepPrayers should delete only tenant_memberships then call logout', async () => {
-      const matchMock = vi.fn(() => Promise.resolve({ data: null, error: null }));
-      const deleteMock = vi.fn(() => ({ match: matchMock }));
-      mockSupabaseService.client.from.mockReturnValue({ delete: deleteMock });
-
+    it('deleteAccountKeepPrayers should invoke delete-account then call logout', async () => {
       component.showDeleteAccountVerification = true;
       await component.deleteAccountKeepPrayers();
 
-      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('tenant_memberships');
-      expect(deleteMock).toHaveBeenCalled();
-      expect(matchMock).toHaveBeenCalledWith({
-        user_email: 'test@example.com',
-        tenant_id: 'test-tenant-id',
-      });
+      expect(mockSupabaseService.client.functions.invoke).toHaveBeenCalledWith(
+        'delete-account',
+        { body: { mode: 'keep_prayers' } }
+      );
       expect(mockAdminAuthService.logout).toHaveBeenCalled();
       expect(component.showDeleteAccountVerification).toBe(false);
       expect(component.deletingAccount).toBe(false);
     });
 
     it('deleteAccountKeepPrayers on delete failure should set error and not call logout', async () => {
-      mockSupabaseService.client.from.mockReturnValue({
-        delete: vi.fn(() => ({
-          match: vi.fn(() => Promise.resolve({ data: null, error: { message: 'DB error' } }))
-        }))
-      });
+      mockSupabaseService.client.functions.invoke = vi.fn(() =>
+        Promise.resolve({
+          data: { success: false, error: 'Server error' },
+          error: null,
+          response: new Response(null, { status: 200 }),
+        })
+      );
       await component.deleteAccountKeepPrayers();
 
-      expect(component.error).toBe('Could not delete account. Please try again.');
+      expect(component.error).toBe('Server error');
       expect(mockAdminAuthService.logout).not.toHaveBeenCalled();
       expect(component.showDeleteAccountVerification).toBe(false);
     });
 
-    it('deleteAccountAndPrayers should delete prayer_updates, prayers, personal_prayers, tenant_memberships then logout', async () => {
-      const deleteEq = vi.fn(() => Promise.resolve({ data: null, error: null }));
-      const deleteMatch = vi.fn(() => Promise.resolve({ data: null, error: null }));
-      const deleteChain = vi.fn(() => ({ eq: deleteEq, match: deleteMatch }));
-      mockSupabaseService.client.from.mockReturnValue({ delete: deleteChain });
-
+    it('deleteAccountAndPrayers should invoke delete-account with wipe_prayers then logout', async () => {
       await component.deleteAccountAndPrayers();
 
-      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('prayer_updates');
-      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('prayers');
-      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('personal_prayers');
-      expect(mockSupabaseService.client.from).toHaveBeenCalledWith('tenant_memberships');
-      expect(deleteEq).toHaveBeenCalledWith('author_email', 'test@example.com');
-      expect(deleteEq).toHaveBeenCalledWith('email', 'test@example.com');
-      expect(deleteEq).toHaveBeenCalledWith('user_email', 'test@example.com');
-      expect(deleteMatch).toHaveBeenCalledWith({
-        user_email: 'test@example.com',
-        tenant_id: 'test-tenant-id',
-      });
+      expect(mockSupabaseService.client.functions.invoke).toHaveBeenCalledWith(
+        'delete-account',
+        { body: { mode: 'wipe_prayers' } }
+      );
       expect(mockAdminAuthService.logout).toHaveBeenCalled();
       expect(component.showDeleteAccountVerification).toBe(false);
       expect(component.deletingAccount).toBe(false);
     });
 
     it('deleteAccountAndPrayers on failure should set error and not call logout', async () => {
-      mockSupabaseService.client.from.mockReturnValue({
-        delete: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ data: null, error: { message: 'DB error' } }))
-        }))
-      });
+      mockSupabaseService.client.functions.invoke = vi.fn(() =>
+        Promise.resolve({
+          data: null,
+          error: { name: 'FunctionsHttpError', message: 'fail' },
+          response: new Response(JSON.stringify({ error: 'Edge failed' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        })
+      );
       await component.deleteAccountAndPrayers();
 
-      expect(component.error).toBe('Could not delete account. Please try again.');
+      expect(component.error).toContain('Edge failed');
       expect(mockAdminAuthService.logout).not.toHaveBeenCalled();
       expect(component.showDeleteAccountVerification).toBe(false);
-    });
-
-    it('deleteAccountKeepPrayers with empty email should set error and not call supabase or logout', async () => {
-      component.email = '';
-      await component.deleteAccountKeepPrayers();
-
-      expect(component.error).toBe('Could not determine your email. Please try again.');
-      expect(mockSupabaseService.client.from).not.toHaveBeenCalled();
-      expect(mockAdminAuthService.logout).not.toHaveBeenCalled();
     });
   });
 
