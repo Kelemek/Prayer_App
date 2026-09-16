@@ -268,7 +268,7 @@ Key tables created by migrations:
 - `prayers` - Prayer requests
 - `prayer_updates` - Prayer status updates
 - `prayer_deletion_requests` - Deletion requests
-- `email_subscribers` - Email opt-in/out
+- `tenant_memberships` - Per-church membership, email/push prefs, unsubscribe token
 - `email_queue` - Email processing queue
 - `admin_users` - Admin access list
 - `tenant_settings` - Per-church configuration (branding, prayer policies, reminders, outbound mail identity)
@@ -301,7 +301,7 @@ Key tables created by migrations:
    - After changing secrets, redeploy the `send-email` Edge Function so it picks up `RESEND_API_KEY`.
 
 5. **HTTPS unsubscribe (one-click)**
-   - Run migrations so `email_subscribers` has `unsubscribe_token` and `email_templates` footers include `{{unsubscribe_url}}` where applicable.
+   - Run migrations so `tenant_memberships` has `unsubscribe_token` and `email_templates` footers include `{{unsubscribe_url}}` where applicable.
    - Deploy the **`email-unsubscribe`** Edge Function (`./scripts/deploy-functions.sh email-unsubscribe` or `all`). It uses **`verify_jwt: false`**; the secret is the per-row `unsubscribe_token`.
    - Set **`APP_URL`** on the **`send-email`** function (same host as your web app) so **`send_to_all_subscribers`** can substitute readable unsubscribe links in bulk HTML. If unset, the footer uses the Supabase function URL.
    - Optionally set **`APP_URL`** on **`email-unsubscribe`** for consistent copy in the standalone HTML response.
@@ -371,7 +371,7 @@ Settings **Delete account** calls Edge Function **`delete-account`** (JWT requir
 | `POSTHOG_PERSONAL_API_KEY` | Optional. PostHog person delete API. |
 | `POSTHOG_PROJECT_ID` | Optional. Project id for person delete (e.g. `438838`). |
 
-See [account-erasure.md](account-erasure.md) for DB table inventory, anonymize vs wipe modes, and manual ops (Notion Feedback, GitHub Issues, Stripe leftovers).
+See [account-erasure.md](account-erasure.md) for DB table inventory, anonymize vs wipe modes, **Retention / hygiene**, and manual ops (Notion Feedback, GitHub Issues, Stripe leftovers).
 
 ---
 

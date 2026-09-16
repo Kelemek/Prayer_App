@@ -92,8 +92,9 @@ src/
 - **Admin**: Can approve/deny, manage settings
 
 ### Email and Push Notifications
-- **Email:** Sent via **Resend** from the `send-email` Edge Function; queue-based processing for template mail; HTML templates; subscriber management. Each church can set its own From name / local-part (same verified Resend domain) and optional Reply-To in Admin → Email → Sending identity; otherwise the platform `MAIL_*` secrets are used. **`is_active`** on `email_subscribers` controls whether a user receives **mass email** (new/approved prayers, updates). Turning off "email notifications" only stops those bulk emails; direct emails (e.g. your prayer approved/denied) still go out.
-- **Push (native app):** Controlled by **`receive_push`** on `email_subscribers`. Push is set to `true` only when the user installs the app and a device token is registered; default is `false`. Admins have a separate **`receive_admin_push`** for admin alerts. See [Capacitor docs](Capacitor/CAPACITOR_BACKEND_SETUP.md) for setup. When an admin approves a prayer or update, the requester/author receives a push notification if they have push enabled.
+- **Email:** Sent via **Resend** from the `send-email` Edge Function; queue-based processing for template mail; HTML templates; subscriber management. Each church can set its own From name / local-part (same verified Resend domain) and optional Reply-To in Admin → Email → Sending identity; otherwise the platform `MAIL_*` secrets are used. Per-tenant **`is_active`** on **`tenant_memberships`** controls whether a user receives **mass email** (new/approved prayers, updates). Turning off "email notifications" only stops those bulk emails; direct emails (e.g. your prayer approved/denied) still go out.
+- **Push (native app):** Controlled by **`receive_push`** on **`tenant_memberships`**. Push is set to `true` only when the user installs the app and a device token is registered; default is `false`. Admins have a separate **`receive_admin_push`** for admin alerts. See [Capacitor docs](Capacitor/CAPACITOR_BACKEND_SETUP.md) for setup. When an admin approves a prayer or update, the requester/author receives a push notification if they have push enabled.
+- **Delete account:** Settings → **Delete your account** calls Edge Function **`delete-account`** (see [account-erasure.md](account-erasure.md)).
 - **Personal hourly prayer reminders (Settings):** Users can schedule **personal** “nudge” times (top of chosen hours, device time zone). Delivery uses **email** when mass email is on and/or **push** when the device is registered. The hourly trigger runs in **Supabase** (`pg_cron` + Vault); see [CHANGELOG](CHANGELOG.md) (*Prayer reminders (hourly nudges)*), [SETUP.md](SETUP.md) (User hourly prayer reminders), and [DEVELOPMENT.md](DEVELOPMENT.md) (*User hourly prayer reminders*). These are not the same as automated **community** prayer-update reminders configured by admins.
 
 ### Prayer Encouragement (Pray For)
@@ -109,6 +110,7 @@ When enabled by an admin, **community**, **personal**, and **prompt** cards (inc
 | **DEVELOPMENT.md** | Architecture, testing, performance optimization |
 | **TROUBLESHOOTING.md** | Common errors and solutions |
 | **CHANGELOG.md** | Project milestones and completed features |
+| **account-erasure.md** | Settings delete flow, retention, third-party ops |
 | **Capacitor/** | iOS/Android native app, push notifications, backend checklist |
 
 ---

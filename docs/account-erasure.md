@@ -35,3 +35,16 @@ Engineering path for self-serve account deletion. Not legal advice.
 2. **Keep prayers:** Settings → delete account but keep prayers. Confirm: Auth user gone, all memberships gone, prayer row remains with anonymized email/name, Network shows `delete-account` only.
 3. **Wipe prayers:** New user with prayers → delete all prayers. Confirm authored prayers/updates removed across tenants.
 4. Confirm cannot log in as erased user.
+
+## Retention / hygiene
+
+Not legal advice. This describes **actual** behavior for active accounts; account erase is documented above and in migration `20260914090000_erase_user_account.sql`.
+
+| Data | While account active | On account erase |
+|------|----------------------|------------------|
+| **`verification_codes`** | Rows get `expires_at` **15 minutes** after creation (`send-verification-code`). RPC `cleanup_expired_verification_codes()` removes expired rows and used rows older than 1 hour; it runs **opportunistically** when `verify-code` succeeds — **no pg_cron** TTL job. Leftover rows remain until the next verify or erase. | Deleted for the user’s email. |
+| **`email_queue`** | Processed by `trigger-email-processor` / queue workers. Rows are **deleted on successful send** and **deleted after max retries** (not kept as a durable `failed` archive). Pending or in-flight rows can remain until processed. **No separate purge cron.** | Rows where `recipient` matches the user are deleted. |
+| **`analytics`** (user-keyed) | JSON rows where `event_data.email` or `event_data.user_email` matches the user are retained for product analytics. | Matching rows deleted. |
+| **`device_tokens`** / **`push_notification_log`** | Daily **`cleanup-device-tokens`** cron (`0 3 * * *` UTC): stale tokens (`last_seen_at` > 30 days) and old log rows (`sent_at` > 7 days). See [SETUP.md](SETUP.md) (Device token cleanup). | Deleted with erase. |
+
+**PostHog:** Person delete is best-effort from **`delete-account`** when `POSTHOG_PERSONAL_API_KEY` and `POSTHOG_PROJECT_ID` are set; the client always `reset()` on logout. Session replay retention on the Prayer App project (611843) is configured separately (see Notion: Privacy — PostHog deletion + retention).

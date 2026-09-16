@@ -157,6 +157,7 @@ Major features and milestones for the Prayer App.
   - `user-settings.component.ts`: custom verification modal (z-[60]), `deleteAccountKeepPrayers()`, `deleteAccountAndPrayers()` with correct delete order; error handling and loading state.
   - Help: App Settings section in `help-content.service.ts` includes "Delete your account" with description of the two options.
   - Unit tests in `user-settings.component.spec.ts` (dialog, keep-prayers path, delete-prayers path, cancel, errors, empty email) and `help-content.service.spec.ts` (settings section includes delete-account help).
+  - **Superseded (2026):** Live delete is Edge **`delete-account`** + RPC **`erase_user_account`**; legacy `email_subscribers` was merged into **`tenant_memberships`** and dropped. See [account-erasure.md](account-erasure.md).
 
 ### Text Size (Settings) ✅
 - ✅ **Users can adjust on-screen text size from Settings**
@@ -182,6 +183,7 @@ Major features and milestones for the Prayer App.
   - **Edge**: `supabase/functions/send-user-hourly-prayer-reminders/` — invoked hourly via **Supabase `pg_cron` + `pg_net`** (same consolidated migration; section *Former file: 20260316130000_schedule_user_hourly_prayer_reminders_cron.sql*), Vault secrets `project_url` + `service_role_key`. Replaces former GitHub Action workflow for this job. See [SETUP.md](SETUP.md).
   - **App**: `UserPrayerReminderService` (stale-while-revalidate cache on session), `UserSessionService` fields `prayerHourReminders` / `prayerHourRemindersFetchedAt`; UI in `user-settings.component.ts`. Unit tests: `user-prayer-reminder.service.spec.ts`.
   - **Help**: Standalone section **`help_prayer_reminders`** (“Prayer reminders”) in `help-content.service.ts`, plus **“Prayer reminders (hourly nudges)”** under **App Settings** (above Feedback Form). See **DEVELOPMENT.md** (Settings + “User hourly prayer reminders”).
+  - **Note:** Email/push prefs for reminders now live on **`tenant_memberships`** (`is_active`, `receive_push`), not the removed `email_subscribers` table.
 
 ### Community prayer reminders (`send-prayer-reminders`) scheduling ✅
 - ✅ **Daily Edge Function trigger moved from GitHub Actions to Supabase `pg_cron`**

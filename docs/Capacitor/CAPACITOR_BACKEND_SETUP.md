@@ -123,7 +123,7 @@ The function sends **Android** via **FCM HTTP v1** (service account) and **iOS**
 ## Phase 5: Backend Token Storage
 
 - [x] **Device token registration sets receive_push (implemented)**
-  - When the app stores a device token (`PushNotificationService.storeDeviceToken()`), it also sets `receive_push = true` for that subscriber in `email_subscribers`. Thus push is enabled only when the user has installed the app and registered a device. Users can turn push off later in Settings.
+  - When the app stores a device token (`PushNotificationService.storeDeviceToken()`), it also sets `receive_push = true` on the user’s **`tenant_memberships`** row(s). Thus push is enabled only when the user has installed the app and registered a device. Users can turn push off later in Settings.
 
 - [ ] **Update user profile/admin to show device tokens** (optional)
   - **Where:** Admin → Email settings → Email Subscribers list (`src/app/components/email-subscribers/email-subscribers.component.ts`).

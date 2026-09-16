@@ -75,17 +75,11 @@ sudo sysctl -p
 
 **Cause**: Row Level Security (RLS) blocking access
 
-**Solution**: Apply RLS fix migrations:
-
-```bash
-# In Supabase SQL Editor:
-# 1. Run fix_email_subscribers_rls.sql
-# 2. Run fix_pending_preference_changes_rls.sql
-```
+**Solution**: Confirm the table has RLS enabled and policies match the current schema (e.g. `tenant_memberships` for membership and notification prefs). Apply any pending migrations from `supabase/migrations/` rather than archived one-off SQL scripts.
 
 **Verify**:
 ```sql
-SELECT * FROM pg_policies WHERE tablename = 'email_subscribers';
+SELECT * FROM pg_policies WHERE tablename = 'tenant_memberships';
 ```
 
 ### Status Change Request Failing
@@ -206,11 +200,13 @@ supabase functions logs send-notification
 ### User Not Receiving Notifications
 
 **Checklist**:
-1. ✅ Check user is in `email_subscribers`:
+1. ✅ Check membership rows for the user (one per tenant they joined):
 ```sql
-SELECT * FROM email_subscribers WHERE email = 'user@example.com';
+SELECT tenant_id, user_email, is_active, receive_push, is_blocked
+FROM tenant_memberships
+WHERE lower(trim(user_email)) = lower(trim('user@example.com'));
 ```
-2. ✅ Verify `is_active = true`
+2. ✅ Verify `is_active = true` (and `is_blocked = false`) on the relevant tenant row(s)
 3. ✅ Check for pending preference changes:
 ```sql
 SELECT * FROM pending_preference_changes 
