@@ -227,6 +227,11 @@ import { environment } from "../../../environments/environment";
               >Privacy</a
             >
             <a
+              routerLink="/terms"
+              class="hover:text-gray-700 dark:hover:text-gray-200 hover:underline"
+              >Terms</a
+            >
+            <a
               routerLink="/support"
               class="hover:text-gray-700 dark:hover:text-gray-200 hover:underline"
               >Support</a

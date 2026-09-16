@@ -83,7 +83,7 @@ describe('AppRoutes', () => {
   });
 
   it('should have all essential routes', () => {
-    const essentialPaths = ['', 'info', 'login', 'admin', 'presentation', 'privacy', 'support', 'unsubscribe', 'join/:token', 'church-setup', '**'];
+    const essentialPaths = ['', 'info', 'login', 'admin', 'presentation', 'privacy', 'terms', 'support', 'unsubscribe', 'join/:token', 'church-setup', '**'];
     const routePaths = routes.map(r => r.path);
     essentialPaths.forEach(path => {
       expect(routePaths).toContain(path);
@@ -100,6 +100,12 @@ describe('AppRoutes', () => {
     const privacyRoute = routes.find(r => r.path === 'privacy');
     expect(privacyRoute).toBeDefined();
     expect(privacyRoute?.loadComponent).toBeInstanceOf(Function);
+  });
+
+  it('should have terms route with loadComponent', () => {
+    const termsRoute = routes.find(r => r.path === 'terms');
+    expect(termsRoute).toBeDefined();
+    expect(termsRoute?.loadComponent).toBeInstanceOf(Function);
   });
 
   it('should have support route with loadComponent', () => {
@@ -183,6 +189,15 @@ describe('AppRoutes', () => {
     expect(privacyRoute?.loadComponent).toBeDefined();
     if (privacyRoute?.loadComponent) {
       const loaded = await privacyRoute.loadComponent();
+      expect(loaded).toBeDefined();
+    }
+  }, 10000);
+
+  it('should lazy load terms component successfully', async () => {
+    const termsRoute = routes.find(r => r.path === 'terms');
+    expect(termsRoute?.loadComponent).toBeDefined();
+    if (termsRoute?.loadComponent) {
+      const loaded = await termsRoute.loadComponent();
       expect(loaded).toBeDefined();
     }
   }, 10000);

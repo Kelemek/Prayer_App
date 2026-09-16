@@ -4,6 +4,10 @@ Major features and milestones for the Prayer App.
 
 ## [Current] - September 2026
 
+### Terms of Service (`/terms`)
+- Public Terms of Service page mirroring the Privacy page layout, with draft sections for lawyer review before public paid launch.
+- Linked from `/info` and `/support` alongside Privacy; documented in `DEVELOPMENT.md` and `NATIVE_IDENTITY.md`. Added `/privacy` and `/terms` to `public/sitemap.xml`.
+
 ### User reminder dispatch hardening (PostgREST / 504)
 - New Edge Function **`dispatch-user-reminders`**: one `pg_cron` job (`invoke-dispatch-user-reminders`, `*/15` UTC) invokes prayer hourly, memorization hourly, and prayer-item reminders **sequentially** with phase pauses and invoke retries.
 - Hourly phases run only on UTC **:00** (avoids 4× hourly sends); item reminders still every 15 minutes.

@@ -53,13 +53,19 @@ import { RouterModule } from "@angular/router";
                 notifications on or off in Settings (gear icon) in the app.
               </li>
               <li>
-                <strong>Privacy:</strong> Read our
+                <strong>Privacy and terms:</strong> Read our
                 <a
                   routerLink="/privacy"
                   class="text-blue-600 dark:text-blue-400 hover:underline"
                   >Privacy Policy</a
                 >
-                for how we handle your data.
+                and
+                <a
+                  routerLink="/terms"
+                  class="text-blue-600 dark:text-blue-400 hover:underline"
+                  >Terms of Service</a
+                >
+                for how we handle your data and your use of the app.
               </li>
             </ul>
           </section>
@@ -82,6 +88,12 @@ import { RouterModule } from "@angular/router";
             class="text-blue-600 dark:text-blue-400 hover:underline text-sm font-medium"
           >
             Privacy Policy
+          </a>
+          <a
+            routerLink="/terms"
+            class="text-blue-600 dark:text-blue-400 hover:underline text-sm font-medium"
+          >
+            Terms of Service
           </a>
           <a
             routerLink="/info"

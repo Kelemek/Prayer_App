@@ -49,7 +49,7 @@ Subscriptions are **web Stripe only** (Checkout + Customer Portal). Native apps 
 
 Paste into App Store Connect when you submit (after the public marketing name is ready):
 
-> This app provides access to a multi-church prayer service that is also available on the web. Church and Pro subscriptions are purchased and managed on the web via Stripe Checkout and the Stripe Customer Portal. The native app does not offer In-App Purchase or in-app prices or Buy buttons. Users can preview Church and Pro features in an in-app tour, then receive an email link to complete purchase on the website. A church organization is created only after web payment succeeds. The same account and features are available at the website. On native devices, “Manage billing” opens the system browser to the Stripe portal. Privacy policy: /privacy. Support: /support. Users can delete their account in Settings.
+> This app provides access to a multi-church prayer service that is also available on the web. Church and Pro subscriptions are purchased and managed on the web via Stripe Checkout and the Stripe Customer Portal. The native app does not offer In-App Purchase or in-app prices or Buy buttons. Users can preview Church and Pro features in an in-app tour, then receive an email link to complete purchase on the website. A church organization is created only after web payment succeeds. The same account and features are available at the website. On native devices, “Manage billing” opens the system browser to the Stripe portal. Privacy policy: /privacy. Terms: /terms. Support: /support. Users can delete their account in Settings.
 
 ## Later steps (not done in repo config)
 

@@ -77,6 +77,7 @@ src/
 | `/info` | none | Info/landing page – app overview, CTAs, feature preview |
 | `/login` | none | Login / MFA verification |
 | `/privacy` | none | Privacy policy |
+| `/terms` | none | Terms of Service |
 | `/support` | none | Support and help links |
 | `/admin` | siteAuthGuard, adminGuard | Admin portal |
 | `/presentation` | siteAuthGuard | Prayer presentation mode |
