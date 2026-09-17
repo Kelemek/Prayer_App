@@ -224,17 +224,6 @@ import { map } from "rxjs/operators";
             </div>
           </div>
           } } }
-
-          <button
-            type="button"
-            (click)="onClose()"
-            class="w-full flex flex-col items-center justify-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 ui-motion-interactive ui-press cursor-pointer"
-          >
-            <span
-              class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
-              >Close Help</span
-            >
-          </button>
         </div>
       </div>
     </div>
