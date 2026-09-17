@@ -23,6 +23,9 @@ import { CapacitorService } from '../../services/capacitor.service';
 import { TenantContextService } from '../../services/tenant-context.service';
 import { TenantMembershipPreferencesService } from '../../services/tenant-membership-preferences.service';
 import { ConnectivityService } from '../../services/connectivity.service';
+import { TenantPermissionService } from '../../services/tenant-permission.service';
+import { ToastService } from '../../services/toast.service';
+import { Router } from '@angular/router';
 import { UserSettingsFacade } from '../../lib/user-settings-facade';
 import { UserSettingsPanelComponent } from './user-settings-panel/user-settings-panel.component';
 import { UserSettingsDeleteAccountDialogComponent } from './user-settings-delete-account-dialog/user-settings-delete-account-dialog.component';
@@ -58,6 +61,9 @@ export class UserSettingsComponent
     tenantContext: TenantContextService,
     membershipPrefs: TenantMembershipPreferencesService,
     connectivity: ConnectivityService,
+    tenantPermissionService: TenantPermissionService,
+    router: Router,
+    toastService: ToastService,
     cdr: ChangeDetectorRef
   ) {
     const scrollCallbacks = {
@@ -78,6 +84,9 @@ export class UserSettingsComponent
       tenantContext,
       membershipPrefs,
       connectivity,
+      tenantPermissionService,
+      router,
+      toastService,
       cdr,
       markForCheck: () => cdr.markForCheck(),
       emitScrollToSectionComplete: () =>

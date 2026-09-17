@@ -5,6 +5,7 @@ import { UserSessionService } from "./user-session.service";
 import { TenantPermissionService } from "./tenant-permission.service";
 import { TenantContextService } from "./tenant-context.service";
 import { ConnectivityService } from "./connectivity.service";
+import { navigateToAdminPortal } from "../lib/admin-portal-navigation";
 
 @Injectable()
 export class HomeAdminNavigationController {
@@ -18,18 +19,13 @@ export class HomeAdminNavigationController {
   ) {}
 
   navigateToAdmin(): void {
-    if (!this.connectivity.requireOnline("open the admin portal")) {
-      return;
-    }
-    const memberships = this.tenantContextService.getMemberships();
-    if (
-      !this.tenantPermissionService.canAccessAdmin() &&
-      memberships.length > 0
-    ) {
-      this.toastService.error("Admin access is not available for this account");
-      return;
-    }
-    this.router.navigate(["/admin"]);
+    navigateToAdminPortal({
+      connectivity: this.connectivity,
+      tenantPermissionService: this.tenantPermissionService,
+      tenantContext: this.tenantContextService,
+      router: this.router,
+      toastService: this.toastService,
+    });
   }
 
   getUserEmail(): string {

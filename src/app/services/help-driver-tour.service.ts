@@ -2462,7 +2462,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Footer & account',
           description:
-            'At the bottom: <strong>Logout</strong> and <strong>Close</strong>. You can also sign out from your email badge in the header (with confirmation). <strong>Delete your account</strong> is at the bottom of this list when you need it.',
+            'At the bottom: tap <strong>Logout</strong> to sign out. <strong>Admin</strong> appears here too if you have admin access. Close Settings with the <strong>X</strong> in the panel header. <strong>Delete your account</strong> is in the account section above the footer when you need it.',
           side: 'bottom',
           align: 'center',
         },

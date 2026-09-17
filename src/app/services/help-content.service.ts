@@ -708,7 +708,7 @@ export class HelpContentService {
           },
           {
             subtitle: 'Logout',
-            text: 'Click the logout button in the settings panel to sign out of your account. Alternatively, you can click on your email badge in the top-right corner of the header, which will prompt you with a confirmation dialog before logging out. Both methods will end your session and return you to the login screen.',
+            text: 'Open Settings (gear icon in the header), then tap **Logout** at the bottom of the panel to sign out of your account. This ends your session and returns you to the login screen. If you have admin access, an **Admin** button appears next to Logout in that footer.',
           },
           {
             subtitle: 'Delete your account',

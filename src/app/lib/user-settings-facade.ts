@@ -42,6 +42,7 @@ import {
 } from './user-settings-user-info';
 import type { UserSettingsFacadeDeps } from './user-settings-facade-host';
 import type { HomeDefaultPrayerView } from './home-default-view-preference';
+import { navigateToAdminPortal } from './admin-portal-navigation';
 
 export class UserSettingsFacade {
   isOpen = false;
@@ -418,6 +419,20 @@ export class UserSettingsFacade {
 
   logout(): Promise<void> {
     return runUserSettingsLogout(this);
+  }
+
+  get canAccessAdminFeatures(): boolean {
+    return this.deps.tenantPermissionService.canAccessAdmin();
+  }
+
+  navigateToAdmin(): void {
+    navigateToAdminPortal({
+      connectivity: this.deps.connectivity,
+      tenantPermissionService: this.deps.tenantPermissionService,
+      tenantContext: this.deps.tenantContext,
+      router: this.deps.router,
+      toastService: this.deps.toastService,
+    });
   }
 
   closeDeleteAccountVerification(): void {

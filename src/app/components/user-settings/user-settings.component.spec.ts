@@ -160,7 +160,20 @@ describe('UserSettingsComponent', () => {
     };
 
     const mockTenantContextService = {
-      getActiveTenant: vi.fn(() => ({ id: 'test-tenant-id', name: 'Test', slug: 'test' }))
+      getActiveTenant: vi.fn(() => ({ id: 'test-tenant-id', name: 'Test', slug: 'test' })),
+      getMemberships: vi.fn(() => []),
+    };
+
+    const mockTenantPermissionService = {
+      canAccessAdmin: vi.fn(() => false),
+    };
+
+    const mockRouter = {
+      navigate: vi.fn(() => Promise.resolve(true)),
+    };
+
+    const mockToastService = {
+      error: vi.fn(),
     };
 
     mockChangeDetectorRef = {
@@ -192,6 +205,9 @@ describe('UserSettingsComponent', () => {
       mockTenantContextService as any,
       mockMembershipPrefs as any,
       mockConnectivity as any,
+      mockTenantPermissionService as any,
+      mockRouter as any,
+      mockToastService as any,
       mockChangeDetectorRef as ChangeDetectorRef
     );
   });

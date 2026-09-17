@@ -12,6 +12,9 @@ import type { CapacitorService } from '../services/capacitor.service';
 import type { TenantContextService } from '../services/tenant-context.service';
 import type { TenantMembershipPreferencesService } from '../services/tenant-membership-preferences.service';
 import type { ConnectivityService } from '../services/connectivity.service';
+import type { TenantPermissionService } from '../services/tenant-permission.service';
+import type { ToastService } from '../services/toast.service';
+import type { Router } from '@angular/router';
 
 export interface UserSettingsFacadeDeps {
   themeService: ThemeService;
@@ -27,6 +30,9 @@ export interface UserSettingsFacadeDeps {
   tenantContext: TenantContextService;
   membershipPrefs: TenantMembershipPreferencesService;
   connectivity: ConnectivityService;
+  tenantPermissionService: TenantPermissionService;
+  router: Router;
+  toastService: ToastService;
   cdr: ChangeDetectorRef;
   markForCheck: () => void;
   emitScrollToSectionComplete?: () => void;

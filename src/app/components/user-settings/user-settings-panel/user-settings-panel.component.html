@@ -88,7 +88,7 @@
   <app-user-settings-account-section [host]="host" />
 </div>
 <div
-  class="settings-modal-footer flex shrink-0 flex-row gap-2 p-4 sm:gap-3 sm:p-6"
+  class="settings-modal-footer flex shrink-0 flex-row flex-wrap gap-2 p-4 sm:gap-3 sm:p-6"
 >
   <button
     (click)="host.logout()"
@@ -112,4 +112,15 @@
     </svg>
     <span>Logout</span>
   </button>
+  @if (host.canAccessAdminFeatures) {
+  <button
+    type="button"
+    (click)="host.navigateToAdmin()"
+    title="Admin Portal"
+    class="flex items-center justify-center gap-2 px-4 py-2 sm:py-2.5 btn-chip btn-chip-red text-sm sm:text-base"
+    aria-label="Admin Portal"
+  >
+    <span>Admin</span>
+  </button>
+  }
 </div>

@@ -58,7 +58,6 @@ export interface HomePageShell {
   header: {
     readonly showSearchPanel: boolean;
     readonly presentationHandoffQueryParams: Record<string, string> | null;
-    getUserEmailFallback(): string;
   };
   modals: {
     readonly activeFilter: HomeActiveFilter;
@@ -123,7 +122,6 @@ export function createHomePageShell(deps: HomePageShellDeps): HomePageShell {
     get presentationHandoffQueryParams() {
       return deps.presentationNav.presentationHandoffQueryParams;
     },
-    getUserEmailFallback: () => deps.adminNav.getUserEmail(),
   };
 
   const modals = {
