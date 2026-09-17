@@ -8,14 +8,15 @@
   <div [class]="statusChipRowClass">
     <app-home-sub-filter-chip
       chipId="tour-filter-add-church"
+      [addIcon]="true"
+      chipAriaLabel="Add church prayer request"
       [active]="false"
       [stretch]="false"
       [activeClass]="chipThemes.current.active"
       [inactiveClass]="chipThemes.current.inactive"
+      [addIconInactiveClass]="addChipGhostInactiveClass"
       (chipClick)="addChurch.emit()"
-    >
-      Add
-    </app-home-sub-filter-chip>
+    />
 
     <app-home-sub-filter-chip
       chipId="tour-filter-current"

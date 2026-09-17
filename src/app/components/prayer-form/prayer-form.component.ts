@@ -49,6 +49,7 @@ import {
   ANCHORED_FIXED_DROPDOWN_MAX_HEIGHT,
   buildAnchoredFixedDropdownStyleFromTrigger,
 } from "../../lib/fixed-popover-placement";
+import { PRAYER_FORM_VISIBILITY_TILE_CLASS } from "../../lib/settings-choice-ui";
 
 @Component({
   selector: "app-prayer-form",
@@ -164,7 +165,7 @@ import {
                 type="button"
                 (click)="setVisibility('public')"
                 [class.ring-2]="visibility === 'public'"
-                class="relative flex flex-col items-center justify-start py-3 px-4 rounded-lg border-2 transition-all font-medium cursor-pointer text-left"
+                [class]="visibilityTileClass"
                 [ngClass]="
                   visibility === 'public'
                     ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 ring-blue-500 dark:ring-blue-400 ring-offset-2 dark:ring-offset-gray-800'
@@ -188,7 +189,7 @@ import {
                 type="button"
                 (click)="setVisibility('group')"
                 [class.ring-2]="visibility === 'group'"
-                class="relative flex flex-col items-center justify-start py-3 px-4 rounded-lg border-2 transition-all font-medium cursor-pointer text-left"
+                [class]="visibilityTileClass"
                 [ngClass]="
                   visibility === 'group'
                     ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 ring-blue-500 dark:ring-blue-400 ring-offset-2 dark:ring-offset-gray-800'
@@ -211,7 +212,7 @@ import {
                 type="button"
                 (click)="setVisibility('personal')"
                 [class.ring-2]="visibility === 'personal'"
-                class="relative flex flex-col items-center justify-start py-3 px-4 rounded-lg border-2 transition-all font-medium cursor-pointer text-left"
+                [class]="visibilityTileClass"
                 [ngClass]="
                   visibility === 'personal'
                     ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 ring-blue-500 dark:ring-blue-400 ring-offset-2 dark:ring-offset-gray-800'
@@ -246,7 +247,7 @@ import {
                     'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-600':
                       !showGroupDropdown
                   }"
-                  class="flex w-full rounded-lg border-2 transition-all overflow-hidden"
+                  class="flex w-full rounded-lg border-2 overflow-hidden transition-colors duration-150 ease-out"
                 >
                   <button
                     type="button"
@@ -256,7 +257,7 @@ import {
                     [attr.aria-expanded]="showGroupDropdown"
                     aria-haspopup="listbox"
                     aria-label="Group"
-                    class="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm transition-all cursor-pointer text-left focus:outline-none"
+                    class="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm ui-motion-interactive cursor-pointer text-left focus:outline-none"
                   >
                     <span
                       class="font-medium truncate"
@@ -446,6 +447,8 @@ import {
   styles: [],
 })
 export class PrayerFormComponent implements OnInit, OnChanges, OnDestroy {
+  readonly visibilityTileClass = PRAYER_FORM_VISIBILITY_TILE_CLASS;
+
   @ViewChild("descriptionEditor") descriptionEditor?: RichTextEditorComponent;
 
   @ViewChild("prayerForInput")

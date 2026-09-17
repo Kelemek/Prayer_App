@@ -9,6 +9,11 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NgClass } from '@angular/common';
 import { USER_SETTINGS_SECTION_HOST_STYLES } from '../user-settings-section-host';
+import {
+  SETTINGS_CHOICE_BTN_CLASS,
+  UI_FIELD_BORDER_TRANSITION,
+  settingsChoiceNgClass,
+} from '../../../lib/settings-choice-ui';
 
 @Component({
   selector: 'app-user-settings-prayer-encouragement-section',
@@ -19,6 +24,10 @@ import { USER_SETTINGS_SECTION_HOST_STYLES } from '../user-settings-section-host
   styles: [...USER_SETTINGS_SECTION_HOST_STYLES],
 })
 export class UserSettingsPrayerEncouragementSectionComponent {
+  readonly choiceBtnClass = SETTINGS_CHOICE_BTN_CLASS;
+  readonly choiceState = settingsChoiceNgClass;
+  readonly cooldownInputClass = UI_FIELD_BORDER_TRANSITION;
+
   @Input() prayerEncouragementUiLoaded = false;
   @Input() showPrayForButton: boolean | null = null;
   @Input() savingShowPrayForButton = false;

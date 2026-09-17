@@ -11,6 +11,7 @@ import {
   HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS,
   HOME_SUB_FILTER_CHIP_ROW_CLASS,
   HOME_WRAP_FILTER_CHIP_FLEX_CLASS,
+  HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_GREEN_CLASS,
 } from "../../lib/home-sub-filter-chip-classes";
 import { buildHomeSubFilterChipButtonClass } from "../../lib/home-sub-filter-chip-button-class";
 import { HOME_SHELL_SECTION_GAP_CLASSES } from "../../lib/home-shell-spacing";
@@ -62,6 +63,8 @@ export class HomePersonalCategoryFiltersComponent {
   readonly chipHostClass = HOME_WRAP_FILTER_CHIP_FLEX_CLASS;
   readonly chipButtonClass = HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS;
   readonly namedChipInactiveClass = HOME_PERSONAL_NAMED_CHIP_INACTIVE_CLASS;
+  readonly addChipGhostInactiveClass =
+    HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_GREEN_CLASS;
   readonly chipRowClass = HOME_SUB_FILTER_CHIP_ROW_CLASS;
   readonly sectionGapClass = HOME_SHELL_SECTION_GAP_CLASSES;
   readonly subFilterGroupClass = HOME_PERSONAL_SUB_FILTER_GROUP_CLASS;

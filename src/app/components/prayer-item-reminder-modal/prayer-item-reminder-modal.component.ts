@@ -50,6 +50,15 @@ import type {
   PrayerItemReminderKind,
   PrayerItemReminderMode,
 } from '../../types/prayer-item-reminder';
+import {
+  SETTINGS_CHOICE_ACTION_ROW_CLASS,
+  SETTINGS_CHOICE_DROPDOWN_SHELL_CLASS,
+  SETTINGS_CHOICE_DROPDOWN_TRIGGER_CLASS,
+  SETTINGS_CHOICE_LIST_ROW_CLASS,
+  SETTINGS_CHOICE_REMOVE_BTN_CLASS,
+  SETTINGS_CHOICE_SEGMENT_BTN_CLASS,
+  settingsChoiceSegmentNgClass,
+} from '../../lib/settings-choice-ui';
 
 @Component({
   selector: 'app-prayer-item-reminder-modal',
@@ -78,6 +87,13 @@ export class PrayerItemReminderModalComponent implements OnChanges, OnDestroy {
     { value: 'daily', label: 'Daily' },
     { value: 'weekly', label: 'Weekly' },
   ];
+  readonly choiceListRowClass = SETTINGS_CHOICE_LIST_ROW_CLASS;
+  readonly choiceRemoveBtnClass = SETTINGS_CHOICE_REMOVE_BTN_CLASS;
+  readonly choiceSegmentBtnClass = SETTINGS_CHOICE_SEGMENT_BTN_CLASS;
+  readonly choiceSegmentState = settingsChoiceSegmentNgClass;
+  readonly choiceDropdownShellClass = SETTINGS_CHOICE_DROPDOWN_SHELL_CLASS;
+  readonly choiceDropdownTriggerClass = SETTINGS_CHOICE_DROPDOWN_TRIGGER_CLASS;
+  readonly choiceActionRowClass = SETTINGS_CHOICE_ACTION_ROW_CLASS;
   readonly weekdays = PRAYER_ITEM_REMINDER_WEEKDAYS;
   readonly timeOptions = buildReminderTimeOptions();
   dateOptions: { value: string; label: string }[] = buildPrayerItemReminderDateOptions(

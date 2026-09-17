@@ -16,6 +16,14 @@ import {
   formatHour12,
   formatHourReminderSlotLabel,
 } from '../../lib/hour-reminders/hour-reminder-format';
+import {
+  SETTINGS_CHOICE_ACTION_ROW_CLASS,
+  SETTINGS_CHOICE_DROPDOWN_SHELL_CLASS,
+  SETTINGS_CHOICE_DROPDOWN_TRIGGER_CLASS,
+  SETTINGS_CHOICE_LIST_ROW_CLASS,
+  SETTINGS_CHOICE_REMOVE_BTN_CLASS,
+  settingsChoiceNgClass,
+} from '../../lib/settings-choice-ui';
 
 const LOAD_ERROR: Record<UserHourReminderKind, string> = {
   prayer: 'Failed to load prayer reminders',
@@ -73,9 +81,7 @@ const LOAD_ERROR: Record<UserHourReminderKind, string> = {
       } @else {
         <ul class="flex flex-col gap-1.5 sm:gap-2" role="list">
           @for (slot of slots; track slot.id) {
-            <li
-              class="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all overflow-hidden"
-            >
+            <li [class]="choiceListRowClass">
               <span
                 class="flex-1 p-2 sm:p-3 text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
                 >{{ formatSlotLabel(slot) }}</span
@@ -84,7 +90,7 @@ const LOAD_ERROR: Record<UserHourReminderKind, string> = {
                 type="button"
                 (click)="removeSlot(slot.id)"
                 [disabled]="saving"
-                class="self-stretch flex items-center justify-center px-3 border-l border-gray-200 dark:border-gray-700 text-xs sm:text-sm font-medium text-red-600 dark:text-red-400 hover:bg-blue-100/60 dark:hover:bg-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                [class]="choiceRemoveBtnClass"
                 [attr.aria-label]="'Remove reminder ' + formatSlotLabel(slot)"
               >
                 Remove
@@ -97,13 +103,8 @@ const LOAD_ERROR: Record<UserHourReminderKind, string> = {
       <div [id]="tourControlsId" class="grid grid-cols-2 gap-1.5 sm:gap-2">
         <div class="relative min-w-0">
           <div
-            [ngClass]="{
-              'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
-                showHourDropdown,
-              'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-                !showHourDropdown
-            }"
-            class="flex w-full min-w-0 rounded-lg border-2 transition-all overflow-hidden"
+            [ngClass]="choiceState(showHourDropdown)"
+            [class]="choiceDropdownShellClass"
           >
             <button
               type="button"
@@ -114,7 +115,7 @@ const LOAD_ERROR: Record<UserHourReminderKind, string> = {
               aria-haspopup="listbox"
               [attr.aria-label]="hourSelectLabel"
               [title]="hourSelectLabel"
-              class="w-full flex items-center justify-between gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              [class]="choiceDropdownTriggerClass"
             >
               <span class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100">{{
                 formatHour12(selectedHour)
@@ -169,7 +170,7 @@ const LOAD_ERROR: Record<UserHourReminderKind, string> = {
           (click)="addSlot()"
           [disabled]="saving || !email.trim()"
           [title]="addButtonTitle"
-          class="w-full min-w-0 flex flex-row items-center justify-center gap-2 p-2 sm:p-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          [class]="choiceActionRowClass"
         >
           @if (!saving) {
             <svg
@@ -257,6 +258,12 @@ export class HourReminderSettingsSectionComponent implements OnChanges {
 
   readonly hourOptions = buildReminderHourOptions();
   readonly formatHour12 = formatHour12;
+  readonly choiceListRowClass = SETTINGS_CHOICE_LIST_ROW_CLASS;
+  readonly choiceRemoveBtnClass = SETTINGS_CHOICE_REMOVE_BTN_CLASS;
+  readonly choiceDropdownShellClass = SETTINGS_CHOICE_DROPDOWN_SHELL_CLASS;
+  readonly choiceDropdownTriggerClass = SETTINGS_CHOICE_DROPDOWN_TRIGGER_CLASS;
+  readonly choiceActionRowClass = SETTINGS_CHOICE_ACTION_ROW_CLASS;
+  readonly choiceState = settingsChoiceNgClass;
 
   slots: UserHourReminderSlot[] = [];
   loading = false;

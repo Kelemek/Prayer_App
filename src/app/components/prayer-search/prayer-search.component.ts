@@ -514,7 +514,7 @@ interface TenantMemberPickRow {
               [class.border-blue-500]="showStatusFilterDropdown"
               [class.ring-1]="showStatusFilterDropdown"
               [class.ring-blue-500/40]="showStatusFilterDropdown"
-              class="overflow-hidden rounded-md border border-blue-300 bg-white transition-all dark:border-blue-600 dark:bg-gray-800"
+              class="overflow-hidden rounded-md border border-blue-300 bg-white transition-colors duration-150 ease-out dark:border-blue-600 dark:bg-gray-800"
             >
               <button
                 type="button"
@@ -595,7 +595,7 @@ interface TenantMemberPickRow {
               [class.border-blue-500]="showApprovalFilterDropdown"
               [class.ring-1]="showApprovalFilterDropdown"
               [class.ring-blue-500/40]="showApprovalFilterDropdown"
-              class="overflow-hidden rounded-md border border-blue-300 bg-white transition-all dark:border-blue-600 dark:bg-gray-800"
+              class="overflow-hidden rounded-md border border-blue-300 bg-white transition-colors duration-150 ease-out dark:border-blue-600 dark:bg-gray-800"
             >
               <button
                 type="button"
@@ -823,7 +823,7 @@ interface TenantMemberPickRow {
         @for (prayer of displayPrayers; track prayer.id) {
         <div
           [class]="
-            'border rounded-lg transition-all duration-200 ' +
+            'border rounded-lg transition-colors duration-150 ease-out ' +
             (selectedPrayers.has(prayer.id)
               ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'
               : 'bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800')

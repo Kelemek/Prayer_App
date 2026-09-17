@@ -16,6 +16,10 @@ import {
   includesPresentationContentType,
   showsPrayerTimeStatusFilters,
 } from "../../types/presentation";
+import {
+  SETTINGS_CHOICE_BTN_CLASS,
+  settingsChoiceNgClass,
+} from "../../lib/settings-choice-ui";
 
 type ThemeOption = "light" | "dark" | "system";
 
@@ -77,13 +81,8 @@ type ThemeOption = "light" | "dark" | "system";
                 <div class="grid grid-cols-3 gap-1.5 sm:gap-2">
                   <button
                     (click)="themeChange.emit('light')"
-                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer"
-                    [ngClass]="{
-                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20':
-                        theme === 'light',
-                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600':
-                        theme !== 'light'
-                    }"
+                    [class]="choiceBtnClass"
+                    [ngClass]="choiceState(theme === 'light')"
                   >
                     <svg
                       width="18"
@@ -113,13 +112,8 @@ type ThemeOption = "light" | "dark" | "system";
                   </button>
                   <button
                     (click)="themeChange.emit('dark')"
-                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer"
-                    [ngClass]="{
-                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20':
-                        theme === 'dark',
-                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600':
-                        theme !== 'dark'
-                    }"
+                    [class]="choiceBtnClass"
+                    [ngClass]="choiceState(theme === 'dark')"
                   >
                     <svg
                       width="18"
@@ -143,13 +137,8 @@ type ThemeOption = "light" | "dark" | "system";
                   </button>
                   <button
                     (click)="themeChange.emit('system')"
-                    class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer"
-                    [ngClass]="{
-                      'border-blue-500 bg-blue-50 dark:bg-blue-900/20':
-                        theme === 'system',
-                      'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600':
-                        theme !== 'system'
-                    }"
+                    [class]="choiceBtnClass"
+                    [ngClass]="choiceState(theme === 'system')"
                   >
                     <svg
                       width="18"
@@ -544,7 +533,7 @@ type ThemeOption = "light" | "dark" | "system";
                     class="sr-only peer"
                   />
                   <div
-                    class="w-14 h-8 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"
+                    class="w-14 h-8 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-transform after:duration-150 after:ease-out peer-checked:bg-blue-600"
                   ></div>
                 </div>
               </label>
@@ -577,7 +566,7 @@ type ThemeOption = "light" | "dark" | "system";
                     class="sr-only peer"
                   />
                   <div
-                    class="w-14 h-8 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"
+                    class="w-14 h-8 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-transform after:duration-150 after:ease-out peer-checked:bg-blue-600"
                   ></div>
                 </div>
               </label>
@@ -685,7 +674,7 @@ type ThemeOption = "light" | "dark" | "system";
                     class="sr-only peer"
                   />
                   <div
-                    class="w-14 h-8 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"
+                    class="w-14 h-8 bg-gray-300 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-transform after:duration-150 after:ease-out peer-checked:bg-blue-600"
                   ></div>
                 </div>
               </label>
@@ -822,6 +811,9 @@ type ThemeOption = "light" | "dark" | "system";
   ],
 })
 export class PresentationSettingsModalComponent implements OnInit, OnChanges {
+  readonly choiceBtnClass = SETTINGS_CHOICE_BTN_CLASS;
+  readonly choiceState = settingsChoiceNgClass;
+
   @Input() visible = false;
   @Input() theme: ThemeOption = "system";
   @Input() smartMode = true;

@@ -32,6 +32,7 @@ import {
   HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS,
   HOME_SUB_FILTER_CHIP_ROW_CLASS,
   HOME_WRAP_FILTER_CHIP_FLEX_CLASS,
+  HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS,
 } from "../../lib/home-sub-filter-chip-classes";
 import { buildHomeSubFilterChipButtonClass } from "../../lib/home-sub-filter-chip-button-class";
 import { HOME_SHELL_SECTION_GAP_CLASSES } from "../../lib/home-shell-spacing";
@@ -99,6 +100,8 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
   readonly sectionGapClass = HOME_SHELL_SECTION_GAP_CLASSES;
   readonly subFilterGroupClass = HOME_GROUPS_SUB_FILTER_GROUP_CLASS;
   readonly chipThemes = HOME_PUBLIC_STATUS_CHIP_THEMES;
+  readonly addChipGhostInactiveClass =
+    HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS;
 
   ngOnInit(): void {
     this.prayerGroupService.groupPrayerCounts$
@@ -285,6 +288,17 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
     if (this.showProUpgrade) {
       this.upgradePro.emit();
     }
+  }
+
+  /** Matches {@link onAddChipClick} so title/aria-label align with the action. */
+  get addGroupChipAriaLabel(): string {
+    if (this.canCreateGroups) {
+      return "Add prayer group";
+    }
+    if (this.showProUpgrade) {
+      return "Upgrade to add more groups";
+    }
+    return "Add prayer group";
   }
 
   deleteConfirmMessage(): string {

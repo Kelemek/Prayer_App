@@ -6,6 +6,10 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { NgClass } from '@angular/common';
+import {
+  SETTINGS_CHOICE_BTN_CLASS,
+  settingsChoiceNgClass,
+} from '../../lib/settings-choice-ui';
 
 @Component({
   selector: 'app-enabled-disabled-toggle',
@@ -19,14 +23,9 @@ import { NgClass } from '@angular/common';
           type="button"
           (click)="onSelect(true)"
           [disabled]="saving"
-          [ngClass]="{
-            'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
-              value === true,
-            'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-              value !== true
-          }"
+          [ngClass]="choiceState(value === true)"
           [title]="enabledTitle"
-          class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          [class]="choiceBtnClass"
         >
           <span class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100">{{
             enabledLabel
@@ -36,14 +35,9 @@ import { NgClass } from '@angular/common';
           type="button"
           (click)="onSelect(false)"
           [disabled]="saving"
-          [ngClass]="{
-            'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
-              value === false,
-            'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-              value !== false
-          }"
+          [ngClass]="choiceState(value === false)"
           [title]="disabledTitle"
-          class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          [class]="choiceBtnClass"
         >
           <span class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100">{{
             disabledLabel
@@ -59,6 +53,9 @@ import { NgClass } from '@angular/common';
   `,
 })
 export class EnabledDisabledToggleComponent {
+  readonly choiceBtnClass = SETTINGS_CHOICE_BTN_CLASS;
+  readonly choiceState = settingsChoiceNgClass;
+
   @Input() loaded = false;
   @Input() saving = false;
   @Input() value: boolean | null = null;

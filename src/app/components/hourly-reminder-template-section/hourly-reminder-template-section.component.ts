@@ -94,7 +94,7 @@ export interface HourlyReminderTemplateOption {
                       'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
                         !showDropdown
                     }"
-                    class="flex w-full rounded-lg border-2 transition-all overflow-hidden"
+                    class="flex w-full rounded-lg border-2 overflow-hidden transition-colors duration-150 ease-out"
                   >
                     <button
                       type="button"
@@ -105,7 +105,7 @@ export interface HourlyReminderTemplateOption {
                       aria-haspopup="listbox"
                       [attr.aria-labelledby]="templateLabelId"
                       [attr.aria-describedby]="helpTextId"
-                      class="w-full flex items-center justify-between gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left"
+                      class="w-full flex items-center justify-between gap-2 p-2 sm:p-3 ui-motion-interactive ui-press cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-left"
                     >
                       <span class="text-sm font-medium text-gray-800 dark:text-gray-100">{{
                         selectedLabel()

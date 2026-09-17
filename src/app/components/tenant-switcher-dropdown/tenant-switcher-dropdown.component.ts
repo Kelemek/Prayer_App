@@ -32,7 +32,7 @@ import type { Tenant } from '../../types/tenant';
             showDropdown,
           'border-gray-300 dark:border-gray-600': !showDropdown
         }"
-        class="overflow-hidden rounded-lg border bg-white dark:bg-gray-800 transition-all"
+        class="overflow-hidden rounded-lg border bg-white dark:bg-gray-800 transition-colors duration-150 ease-out"
       >
         <button
           type="button"
@@ -42,7 +42,7 @@ import type { Tenant } from '../../types/tenant';
           aria-haspopup="listbox"
           aria-label="Switch organization"
           title="Switch active tenant"
-          class="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 px-2 py-1 text-left transition-all"
+          class="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 px-2 py-1 text-left transition-colors duration-150 ease-out"
           [class.text-[10px]]="compact"
           [class.text-xs]="!compact"
         >

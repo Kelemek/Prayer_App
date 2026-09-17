@@ -3,14 +3,15 @@
   <div [class]="chipRowClass">
     <app-home-sub-filter-chip
       chipId="tour-filter-add-personal-category"
+      [addIcon]="true"
+      chipAriaLabel="Add personal category"
       [active]="false"
       [stretch]="false"
       [activeClass]="personalCategoryActiveClass"
       [inactiveClass]="namedChipInactiveClass"
+      [addIconInactiveClass]="addChipGhostInactiveClass"
       (chipClick)="addCategory.emit()"
-    >
-      Add
-    </app-home-sub-filter-chip>
+    />
 
     <app-home-sub-filter-chip
       [active]="filterMode === 'current'"

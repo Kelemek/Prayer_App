@@ -46,7 +46,7 @@ import { map } from "rxjs/operators";
             >
               Help & Guidance
             </h2>
-            <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
+            <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1 text-pretty">
               Learn how to use the Prayer App
             </p>
           </div>
@@ -90,7 +90,7 @@ import { map } from "rxjs/operators";
               (input)="onSearchChange()"
               placeholder="Search help topics..."
               aria-label="Search help topics"
-              class="w-full pl-10 pr-4 py-2 sm:py-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 hover:border-blue-300 dark:hover:border-blue-600 focus:border-blue-500 focus:outline-none transition-all"
+              class="w-full pl-10 pr-4 py-2 sm:py-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 hover:border-blue-300 dark:hover:border-blue-600 focus:border-blue-500 focus:outline-none ui-field-border"
             />
           </div>
 
@@ -107,7 +107,7 @@ import { map } from "rxjs/operators";
           <div
             class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4"
           >
-            <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+            <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 text-pretty">
               {{ error }}
             </p>
           </div>
@@ -118,7 +118,7 @@ import { map } from "rxjs/operators";
           <div class="flex flex-col gap-1.5 sm:gap-2">
             @for (section of filteredSections; track section.id) {
             <div
-              class="rounded-lg border-2 transition-all overflow-hidden"
+              class="rounded-lg border-2 overflow-hidden transition-colors duration-150 ease-out"
               [ngClass]="{
                 'border-blue-500 bg-blue-50 dark:bg-blue-900/20':
                   isSectionExpanded(section.id),
@@ -128,7 +128,7 @@ import { map } from "rxjs/operators";
             >
               <button
                 (click)="toggleSection(section.id)"
-                class="w-full p-2 sm:p-3 flex items-start justify-between gap-2 text-left cursor-pointer transition-all"
+                class="w-full p-2 sm:p-3 flex items-start justify-between gap-2 text-left cursor-pointer transition-colors duration-150 ease-out"
                 [attr.aria-expanded]="isSectionExpanded(section.id)"
                 [attr.aria-controls]="'section-content-' + section.id"
               >
@@ -215,7 +215,7 @@ import { map } from "rxjs/operators";
                 <circle cx="11" cy="11" r="8" />
                 <path d="m21 21-4.35-4.35" />
               </svg>
-              <p class="text-sm text-gray-600 dark:text-gray-400">
+              <p class="text-sm text-gray-600 dark:text-gray-400 text-pretty">
                 No help topics match your search.
               </p>
               <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-500 mt-1">
@@ -228,7 +228,7 @@ import { map } from "rxjs/operators";
           <button
             type="button"
             (click)="onClose()"
-            class="w-full flex flex-col items-center justify-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer"
+            class="w-full flex flex-col items-center justify-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 ui-motion-interactive ui-press cursor-pointer"
           >
             <span
               class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"

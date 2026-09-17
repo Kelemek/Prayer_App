@@ -16,20 +16,15 @@
         <!-- Print Prayer List -->
         <div class="relative flex-1 min-w-0">
           <div
-            [ngClass]="{
-              'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
-                showPrintDropdown || printRange !== 'week',
-              'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-                !showPrintDropdown && printRange === 'week'
-            }"
-            class="flex w-full min-w-0 rounded-lg border-2 transition-all overflow-hidden"
+            [ngClass]="choiceState(showPrintDropdown || printRange !== 'week')"
+            [class]="choiceShellClass"
           >
             <button
               id="tour-settings-print-prayers"
               (click)="handlePrint()"
               title="Print prayers for the selected time period"
               [disabled]="isPrinting"
-              class="flex-1 flex flex-col items-center justify-center gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              [class]="choiceSplitTileClass"
             >
               @if (!isPrinting) {
               <svg
@@ -39,7 +34,7 @@
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                stroke-width="2"
+                stroke-width="1.5"
                 stroke-linecap="round"
                 stroke-linejoin="round"
               >
@@ -57,7 +52,7 @@
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                stroke-width="2"
+                stroke-width="1.5"
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 style="transform-origin: center"
@@ -68,13 +63,13 @@
                   r="9"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="1.5"
                   opacity="0.3"
                 ></circle>
                 <path
                   d="M12 3a9 9 0 0 1 9 9"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="1.5"
                   fill="none"
                 ></path>
               </svg>
@@ -90,7 +85,7 @@
               (click)="showPrintDropdown = !showPrintDropdown"
               [disabled]="isPrinting"
               title="Select time period for prayers to print"
-              class="flex items-center justify-center px-2 border-l border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-blue-100/60 dark:hover:bg-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+              [class]="choiceSideBtnClass"
             >
               <svg
                 width="18"
@@ -98,7 +93,7 @@
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                stroke-width="2"
+                stroke-width="1.5"
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 [class.rotate-180]="showPrintDropdown"
@@ -141,20 +136,19 @@
         <!-- Print Prompts -->
         <div class="relative flex-1 min-w-0">
           <div
-            [ngClass]="{
-              'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
-                showPromptTypesDropdown || selectedPromptTypes.length > 0,
-              'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-                !showPromptTypesDropdown && selectedPromptTypes.length === 0
-            }"
-            class="flex w-full min-w-0 rounded-lg border-2 transition-all overflow-hidden"
+            [ngClass]="
+              choiceState(
+                showPromptTypesDropdown || selectedPromptTypes.length > 0
+              )
+            "
+            [class]="choiceShellClass"
           >
             <button
               id="tour-settings-print-prompts"
               (click)="handlePrintPrompts()"
               [disabled]="isPrintingPrompts"
               title="Print prayer prompts for the selected time period"
-              class="flex-1 flex flex-col items-center justify-center gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              [class]="choiceSplitTileClass"
             >
               @if (!isPrintingPrompts) {
               <svg
@@ -164,7 +158,7 @@
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                stroke-width="2"
+                stroke-width="1.5"
                 stroke-linecap="round"
                 stroke-linejoin="round"
               >
@@ -182,7 +176,7 @@
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                stroke-width="2"
+                stroke-width="1.5"
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 style="transform-origin: center"
@@ -193,13 +187,13 @@
                   r="9"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="1.5"
                   opacity="0.3"
                 ></circle>
                 <path
                   d="M12 3a9 9 0 0 1 9 9"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="1.5"
                   fill="none"
                 ></path>
               </svg>
@@ -215,7 +209,7 @@
               (click)="showPromptTypesDropdown = !showPromptTypesDropdown"
               [disabled]="isPrintingPrompts"
               title="Select which types of prompts to print"
-              class="flex items-center justify-center px-2 border-l border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-blue-100/60 dark:hover:bg-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+              [class]="choiceSideBtnClass"
             >
               <svg
                 width="18"
@@ -223,7 +217,7 @@
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                stroke-width="2"
+                stroke-width="1.5"
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 [class.rotate-180]="showPromptTypesDropdown"
@@ -276,22 +270,20 @@
         <!-- Print Personal Prayers -->
         <div class="relative flex-1 min-w-0">
           <div
-            [ngClass]="{
-              'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
+            [ngClass]="
+              choiceState(
                 showPrintPersonalDropdown ||
-                selectedPersonalCategories.length > 0,
-              'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-                !showPrintPersonalDropdown &&
-                selectedPersonalCategories.length === 0
-            }"
-            class="flex w-full min-w-0 rounded-lg border-2 transition-all overflow-hidden"
+                  selectedPersonalCategories.length > 0
+              )
+            "
+            [class]="choiceShellClass"
           >
             <button
               id="tour-settings-print-personal"
               (click)="handlePrintPersonalPrayers()"
               title="Print personal prayers for the selected categories"
               [disabled]="isPrintingPersonal"
-              class="flex-1 flex flex-col items-center justify-center gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              [class]="choiceSplitTileClass"
             >
               @if (!isPrintingPersonal) {
               <svg
@@ -301,7 +293,7 @@
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                stroke-width="2"
+                stroke-width="1.5"
                 stroke-linecap="round"
                 stroke-linejoin="round"
               >
@@ -319,7 +311,7 @@
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                stroke-width="2"
+                stroke-width="1.5"
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 style="transform-origin: center"
@@ -330,13 +322,13 @@
                   r="9"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="1.5"
                   opacity="0.3"
                 ></circle>
                 <path
                   d="M12 3a9 9 0 0 1 9 9"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="1.5"
                   fill="none"
                 ></path>
               </svg>
@@ -354,7 +346,7 @@
               "
               [disabled]="isPrintingPersonal"
               title="Select which personal prayer categories to print"
-              class="flex items-center justify-center px-2 border-l border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-blue-100/60 dark:hover:bg-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+              [class]="choiceSideBtnClass"
             >
               <svg
                 width="18"
@@ -362,7 +354,7 @@
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                stroke-width="2"
+                stroke-width="1.5"
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 [class.rotate-180]="showPrintPersonalDropdown"
@@ -414,7 +406,7 @@
         </div>
             </div>
             <p
-              class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-2"
+              class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-2 text-pretty"
             >
               Export prayers, prompts, or personal prayers as a PDF
             </p>

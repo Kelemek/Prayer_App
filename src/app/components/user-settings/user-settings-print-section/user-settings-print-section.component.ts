@@ -11,6 +11,12 @@ import { PrintService } from '../../../services/print.service';
 import { PrayerService } from '../../../services/prayer.service';
 import { SupabaseService } from '../../../services/supabase.service';
 import { USER_SETTINGS_SECTION_HOST_STYLES } from '../user-settings-section-host';
+import {
+  SETTINGS_CHOICE_DROPDOWN_SHELL_CLASS,
+  SETTINGS_CHOICE_SIDE_CHEVRON_BTN_CLASS,
+  SETTINGS_CHOICE_SPLIT_TILE_BTN_CLASS,
+  settingsChoiceNgClass,
+} from '../../../lib/settings-choice-ui';
 
 export type PrintRange = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
 
@@ -23,6 +29,11 @@ export type PrintRange = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
   styles: [...USER_SETTINGS_SECTION_HOST_STYLES],
 })
 export class UserSettingsPrintSectionComponent implements OnChanges {
+  readonly choiceShellClass = SETTINGS_CHOICE_DROPDOWN_SHELL_CLASS;
+  readonly choiceSplitTileClass = SETTINGS_CHOICE_SPLIT_TILE_BTN_CLASS;
+  readonly choiceSideBtnClass = SETTINGS_CHOICE_SIDE_CHEVRON_BTN_CLASS;
+  readonly choiceState = settingsChoiceNgClass;
+
   @Input() isOpen = false;
 
   isPrinting = false;

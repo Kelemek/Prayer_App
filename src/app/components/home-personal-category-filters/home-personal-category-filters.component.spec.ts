@@ -111,7 +111,8 @@ describe("HomePersonalCategoryFiltersComponent", () => {
     const addChip = fixture.nativeElement.querySelector(
       "#tour-filter-add-personal-category"
     ) as HTMLButtonElement;
-    expect(addChip.textContent?.replace(/\s+/g, " ").trim()).toBe("Add");
+    expect(addChip.querySelector("svg")).toBeTruthy();
+    expect(addChip.getAttribute("aria-label")).toBe("Add personal category");
 
     const emitted: number[] = [];
     fixture.componentInstance.addCategory.subscribe(() => emitted.push(1));

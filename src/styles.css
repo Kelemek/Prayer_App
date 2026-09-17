@@ -134,6 +134,86 @@
   ::file-selector-button {
     border-color: var(--color-gray-200, currentcolor);
   }
+
+  html {
+    @apply antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply text-balance;
+  }
+
+  img {
+    outline: 1px solid oklch(0 0 0 / 0.1);
+    outline-offset: -1px;
+  }
+
+  html.dark img {
+    outline-color: oklch(1 0 0 / 0.1);
+  }
+}
+
+:root {
+  --shadow-border:
+    0px 0px 0px 1px oklch(0 0 0 / 0.06),
+    0px 1px 2px -1px oklch(0 0 0 / 0.06),
+    0px 2px 4px 0px oklch(0 0 0 / 0.04);
+  --shadow-border-hover:
+    0px 0px 0px 1px oklch(0 0 0 / 0.08),
+    0px 1px 2px -1px oklch(0 0 0 / 0.08),
+    0px 2px 4px 0px oklch(0 0 0 / 0.06);
+}
+
+html.dark {
+  --shadow-border: 0 0 0 1px oklch(1 0 0 / 0.08);
+  --shadow-border-hover: 0 0 0 1px oklch(1 0 0 / 0.13);
+}
+
+@utility shadow-border {
+  box-shadow: var(--shadow-border);
+}
+@utility shadow-border-hover {
+  box-shadow: var(--shadow-border-hover);
+}
+
+@utility ui-motion-interactive {
+  @apply transition-colors transition-transform duration-150 ease-out;
+}
+@utility ui-press {
+  @apply active:scale-[0.96] active:disabled:scale-100;
+}
+@utility ui-field-border {
+  @apply transition-[border-color,box-shadow] duration-150 ease-out;
+}
+
+/** Theme toggle + similar icon cross-fades (pair with reduced-motion rules below). */
+@utility ui-theme-icon-layer {
+  @apply absolute inset-0 flex items-center justify-center transition-[opacity,filter,scale] duration-300 ease-[cubic-bezier(0.2,0,0,1)];
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.ui-press, .btn-chip):active {
+    scale: 1;
+    transform: none;
+  }
+
+  :where(.ui-motion-interactive) {
+    transition-property: color, background-color, border-color, box-shadow,
+      opacity;
+  }
+
+  :where(.ui-field-border) {
+    transition-property: border-color, box-shadow;
+  }
+
+  :where(.ui-theme-icon-layer) {
+    transition-property: opacity;
+    transition-duration: 150ms;
+    filter: none !important;
+    transform: none !important;
+  }
 }
 
 @utility bg-gray-50 {
@@ -210,7 +290,7 @@
 }
 /* Outlined chip action buttons (shared hover/focus fills). Pair .btn-chip with a color variant. */
 .btn-chip {
-  @apply rounded-md transition-colors cursor-pointer font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800;
+  @apply rounded-md transition-colors transition-transform duration-150 ease-out active:scale-[0.96] active:disabled:scale-100 cursor-pointer font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800;
 }
 .btn-chip-blue {
   @apply bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-600 dark:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30 focus:ring-blue-500;

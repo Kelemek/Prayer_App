@@ -11,6 +11,10 @@ import { UserSessionService } from "../../services/user-session.service";
 import { TenantContextService } from "../../services/tenant-context.service";
 import { CapacitorService } from "../../services/capacitor.service";
 import { normalizeFeedbackPlatform } from "../../lib/feedback-notion-mapping";
+import {
+  SETTINGS_CHOICE_BTN_CLASS,
+  settingsChoiceNgClass,
+} from "../../lib/settings-choice-ui";
 import { Subject } from "rxjs";
 
 type FeedbackType = "suggestion" | "feature" | "bug";
@@ -61,7 +65,7 @@ type FeedbackType = "suggestion" | "feature" | "bug";
                 [disabled]="isLoading"
                 (click)="selectFeedbackType(option.value)"
                 [ngClass]="feedbackTypeTileClasses(feedbackType === option.value)"
-                class="flex items-center justify-center p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                [class]="feedbackChoiceBtnClass + ' flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800'"
               >
                 <span
                   class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 text-center"
@@ -249,6 +253,9 @@ type FeedbackType = "suggestion" | "feature" | "bug";
   styles: [],
 })
 export class FeedbackFormComponent implements OnDestroy {
+  readonly feedbackChoiceBtnClass = SETTINGS_CHOICE_BTN_CLASS;
+  feedbackTypeTileClasses = settingsChoiceNgClass;
+
   readonly feedbackTypeOptions: ReadonlyArray<{
     value: FeedbackType;
     label: string;
@@ -285,15 +292,6 @@ export class FeedbackFormComponent implements OnDestroy {
       return;
     }
     this.feedbackType = type;
-  }
-
-  feedbackTypeTileClasses(selected: boolean): Record<string, boolean> {
-    return {
-      "border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30":
-        selected,
-      "border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20":
-        !selected,
-    };
   }
 
   feedbackTypeOptionId(type: FeedbackType): string {

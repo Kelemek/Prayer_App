@@ -81,7 +81,7 @@ describe('ThemeToggleComponent', () => {
       fixture.detectChanges();
       const button = fixture.nativeElement.querySelector('button');
       expect(button).toBeTruthy();
-      expect(button.className).toContain('p-2');
+      expect(button.className).toContain('size-11');
       expect(button.className).toContain('rounded-lg');
     });
 
@@ -156,22 +156,34 @@ describe('ThemeToggleComponent', () => {
   });
 
   describe('icon visibility', () => {
-    it('should only show sun icon when not dark', () => {
+    it('should keep both icons mounted for cross-fade', () => {
       component.themeService.setTheme('light');
       fixture.detectChanges();
-      
+
       const svgs = fixture.nativeElement.querySelectorAll('svg');
-      // Should only have one visible icon
-      expect(svgs.length).toBe(1);
+      expect(svgs.length).toBe(2);
     });
 
-    it('should only show moon icon when dark', () => {
+    it('should emphasize sun layer when light', () => {
+      component.themeService.setTheme('light');
+      fixture.detectChanges();
+
+      const layers = fixture.nativeElement.querySelectorAll(
+        'button span[aria-hidden] > span'
+      );
+      expect(layers[0].className).toContain('opacity-100');
+      expect(layers[1].className).toContain('opacity-0');
+    });
+
+    it('should emphasize moon layer when dark', () => {
       component.themeService.setTheme('dark');
       fixture.detectChanges();
-      
-      const svgs = fixture.nativeElement.querySelectorAll('svg');
-      // Should only have one visible icon
-      expect(svgs.length).toBe(1);
+
+      const layers = fixture.nativeElement.querySelectorAll(
+        'button span[aria-hidden] > span'
+      );
+      expect(layers[0].className).toContain('opacity-0');
+      expect(layers[1].className).toContain('opacity-100');
     });
   });
 

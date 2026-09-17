@@ -12,6 +12,10 @@ import {
   homeDefaultPrayerViewDescription,
   type HomeDefaultPrayerView,
 } from '../../../lib/home-default-view-preference';
+import {
+  SETTINGS_CHOICE_BTN_CLASS,
+  settingsChoiceNgClass,
+} from '../../../lib/settings-choice-ui';
 
 @Component({
   selector: 'app-user-settings-default-view-section',
@@ -22,6 +26,8 @@ import {
   styles: [...USER_SETTINGS_SECTION_HOST_STYLES],
 })
 export class UserSettingsDefaultViewSectionComponent {
+  readonly choiceBtnClass = SETTINGS_CHOICE_BTN_CLASS;
+  readonly choiceState = settingsChoiceNgClass;
   readonly defaultViewOptions = HOME_DEFAULT_PRAYER_VIEW_OPTIONS;
 
   @Input() defaultViewPreferencesLoaded = false;

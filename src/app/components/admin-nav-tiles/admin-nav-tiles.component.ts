@@ -17,13 +17,13 @@ import type { AdminTab } from '../../lib/admin-pending-queues';
           type="button"
           (click)="tabSelect.emit(tile.tab)"
           [class]="
-            'bg-white dark:bg-gray-800 rounded-lg shadow-md p-1 sm:p-4 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-200 flex flex-col justify-between cursor-pointer ' +
+            'bg-white dark:bg-gray-800 rounded-lg shadow-border p-1 sm:p-4 hover:shadow-border-hover transition-[box-shadow,transform] duration-150 ease-out active:scale-[0.96] flex flex-col justify-between cursor-pointer ' +
             (activeTab === tile.tab ? 'ring-2 ring-blue-500' : '')
           "
         >
           <div class="text-center self-start w-full">
             @if (tile.kind === 'count') {
-              <div class="text-lg sm:text-2xl font-bold {{ tile.countColorClass }}">
+              <div class="text-lg sm:text-2xl font-bold tabular-nums {{ tile.countColorClass }}">
                 {{ countFor(tile.tab) }}
               </div>
             } @else {

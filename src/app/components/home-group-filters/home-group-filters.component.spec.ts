@@ -215,10 +215,23 @@ describe("HomeGroupFiltersComponent", () => {
       "#tour-filter-add-group"
     ) as HTMLButtonElement;
     expect(addChip).toBeTruthy();
-    expect(addChip.textContent?.replace(/\s+/g, " ").trim()).toBe("Add");
+    expect(addChip.querySelector("svg")).toBeTruthy();
+    expect(addChip.getAttribute("aria-label")).toBe(
+      "Upgrade to add more groups"
+    );
     expect(
       fixture.nativeElement.querySelector("#tour-filter-upgrade-pro")
     ).toBeNull();
+  });
+
+  it("labels add chip for create when canCreateGroups wins over showProUpgrade", () => {
+    fixture.componentRef.setInput("canCreateGroups", true);
+    fixture.componentRef.setInput("showProUpgrade", true);
+    fixture.detectChanges();
+    const addChip = fixture.nativeElement.querySelector(
+      "#tour-filter-add-group"
+    ) as HTMLButtonElement;
+    expect(addChip.getAttribute("aria-label")).toBe("Add prayer group");
   });
 
   it("emits upgradePro when Add is clicked at the free group cap", () => {
@@ -246,7 +259,8 @@ describe("HomeGroupFiltersComponent", () => {
       "#tour-filter-add-group"
     ) as HTMLButtonElement;
     expect(addChip).toBeTruthy();
-    expect(addChip.textContent?.replace(/\s+/g, " ").trim()).toBe("Add");
+    expect(addChip.querySelector("svg")).toBeTruthy();
+    expect(addChip.getAttribute("aria-label")).toBeTruthy();
   });
 
   it("shows Add for creators once a group exists", () => {
@@ -255,7 +269,8 @@ describe("HomeGroupFiltersComponent", () => {
     const addChip = fixture.nativeElement.querySelector(
       "#tour-filter-add-group"
     ) as HTMLButtonElement;
-    expect(addChip.textContent?.replace(/\s+/g, " ").trim()).toBe("Add");
+    expect(addChip.querySelector("svg")).toBeTruthy();
+    expect(addChip.getAttribute("aria-label")).toBeTruthy();
   });
 
   it("emits addGroup when the add chip is clicked", () => {

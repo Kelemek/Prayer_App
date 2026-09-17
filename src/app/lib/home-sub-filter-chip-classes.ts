@@ -1,6 +1,6 @@
 /** Folder-tab chrome shared by Home and the Info filter mock (label typography included). */
 export const HOME_FILTER_TAB_BASE_CLASS =
-  "flex-1 min-w-0 px-3 py-2 text-center text-base font-semibold leading-tight text-gray-700 dark:text-gray-300 transition-all duration-200 cursor-pointer relative flex flex-col items-center justify-center";
+  "flex-1 min-w-0 px-3 py-2 text-center text-base font-semibold leading-tight text-gray-700 dark:text-gray-300 transition-colors duration-150 ease-out cursor-pointer relative flex flex-col items-center justify-center";
 
 /** Slightly tinted off-white for inactive tabs/chips (not pure white on cream canvas). */
 export const HOME_INACTIVE_SURFACE_BG_CLASS =
@@ -96,30 +96,66 @@ export function homeFilterTabClass(options: {
 
 /** Shared sizing for Home secondary filter chips (Public status, Personal, Prompt types). */
 export const HOME_SUB_FILTER_CHIP_SIZE_CLASS =
-  "min-h-9 px-3 py-2 rounded-lg text-xs font-medium";
+  "min-h-9 px-3 py-2 rounded-lg text-xs font-medium tabular-nums";
+
+/** Square add chip — large plus icon instead of “Add” label. */
+export const HOME_SUB_FILTER_ADD_CHIP_LAYOUT_CLASS = [
+  "inline-flex items-center justify-center ui-motion-interactive ui-press",
+  "min-h-9 min-w-9 px-0 py-0 rounded-lg text-xs font-medium shrink-0",
+].join(" ");
+
+/** Resting add control: icon only; chip chrome appears on hover / focus-visible. */
+const HOME_SUB_FILTER_ADD_CHIP_GHOST_REST_CLASS = [
+  "border border-church-surface-inactive-border/70 dark:border-gray-600/80 shadow-none",
+  "bg-church-surface-inactive/40 dark:bg-gray-800/45",
+  "text-gray-800 dark:text-gray-200",
+  "hover:bg-church-surface-inactive dark:hover:bg-gray-800",
+  "hover:border-church-surface-inactive-border dark:hover:border-gray-600",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800",
+  "focus-visible:bg-church-surface-inactive dark:focus-visible:bg-gray-800",
+  "focus-visible:border-church-surface-inactive-border dark:focus-visible:border-gray-600",
+].join(" ");
+
+const HOME_SUB_FILTER_ADD_CHIP_GHOST_BLUE_ACCENT =
+  "hover:border-[#0047AB] dark:hover:border-[#0047AB] focus-visible:border-[#0047AB] dark:focus-visible:border-[#0047AB]";
+
+const HOME_SUB_FILTER_ADD_CHIP_GHOST_GREEN_ACCENT =
+  "hover:border-[#2F5F54] dark:hover:border-[#2F5F54] focus-visible:border-[#2F5F54] dark:focus-visible:border-[#2F5F54]";
+
+/** Public + Groups filter rows (church blue accent). */
+export const HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS = [
+  HOME_SUB_FILTER_ADD_CHIP_GHOST_REST_CLASS,
+  HOME_SUB_FILTER_ADD_CHIP_GHOST_BLUE_ACCENT,
+].join(" ");
+
+/** Personal category filter row (sage accent). */
+export const HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_GREEN_CLASS = [
+  HOME_SUB_FILTER_ADD_CHIP_GHOST_REST_CLASS,
+  HOME_SUB_FILTER_ADD_CHIP_GHOST_GREEN_ACCENT,
+].join(" ");
 
 /** Button styles for equal-width chips; host uses flex-1 via HomeSubFilterChipComponent.stretch. */
 export const HOME_SUB_FILTER_CHIP_BASE_CLASS = [
-  "whitespace-nowrap inline-flex items-center justify-center transition-all",
+  "whitespace-nowrap inline-flex items-center justify-center transition-colors duration-150 ease-out",
   HOME_SUB_FILTER_CHIP_SIZE_CLASS,
 ].join(" ");
 
 /** Content-sized chip for wrapping sub-filter rows (e.g. prompt types). */
 export const HOME_SUB_FILTER_CHIP_WRAP_CLASS = [
-  "inline-flex items-center justify-center whitespace-nowrap transition-all",
+  "inline-flex items-center justify-center whitespace-nowrap transition-colors duration-150 ease-out",
   HOME_SUB_FILTER_CHIP_SIZE_CLASS,
 ].join(" ");
 
 /** Full-width chip button inside a shared wrap row (no drag handle). */
 export const HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS = [
-  "relative flex h-9 w-full min-w-max items-center justify-center gap-1 text-center transition-all",
+  "relative flex h-9 w-full min-w-max items-center justify-center gap-1 text-center transition-colors duration-150 ease-out",
   HOME_SUB_FILTER_CHIP_SIZE_CLASS,
   "whitespace-nowrap",
 ].join(" ");
 
 /** Content-sized chip with left padding for a drag handle (personal categories). */
 export const HOME_SUB_FILTER_CHIP_DRAG_WRAP_CLASS = [
-  "relative inline-flex items-center justify-center whitespace-nowrap transition-all pl-7 pr-3",
+  "relative inline-flex items-center justify-center whitespace-nowrap transition-colors duration-150 ease-out pl-7 pr-3",
   "min-h-9 py-2 rounded-lg text-xs font-medium",
 ].join(" ");
 
@@ -156,13 +192,13 @@ export const HOME_PERSONAL_CATEGORY_CHIP_SOLO_FLEX_CLASS =
 
 /** Chip shell with left padding for a drag handle and room for the overflow menu. */
 export const HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS = [
-  "relative flex h-9 w-full min-w-max items-center gap-0.5 text-center transition-all pl-7 pr-0.5",
+  "relative flex h-9 w-full min-w-max items-center gap-0.5 text-center transition-colors duration-150 ease-out pl-7 pr-0.5",
   "py-2 rounded-lg text-xs font-medium whitespace-nowrap",
 ].join(" ");
 
 /** Full-width solo-row chip button; label may truncate when constrained. */
 export const HOME_SUB_FILTER_CHIP_DRAG_SOLO_STRETCH_CLASS = [
-  "relative flex w-full min-w-0 items-center gap-1 overflow-hidden text-center transition-all pl-7 pr-3",
+  "relative flex w-full min-w-0 items-center gap-1 overflow-hidden text-center transition-colors duration-150 ease-out pl-7 pr-3",
   "min-h-9 py-2 rounded-lg text-xs font-medium whitespace-nowrap",
 ].join(" ");
 

@@ -10,6 +10,7 @@ import {
   HOME_PUBLIC_SUB_FILTER_GROUP_CLASS,
   HOME_SUB_FILTER_CHIP_ROW_CLASS,
   HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS,
+  HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS,
 } from "../../lib/home-sub-filter-chip-classes";
 import { HOME_SHELL_SECTION_GAP_CLASSES } from "../../lib/home-shell-spacing";
 import { HomeFilterBadgeButtonComponent } from "../home-filter-badge-button/home-filter-badge-button.component";
@@ -48,6 +49,8 @@ export class HomePublicStatusFiltersComponent {
   @Output() addChurch = new EventEmitter<void>();
 
   readonly chipThemes = HOME_PUBLIC_STATUS_CHIP_THEMES;
+  readonly addChipGhostInactiveClass =
+    HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS;
   readonly chipHostClass = HOME_PUBLIC_STATUS_CHIP_HOST_CLASS;
   readonly chipButtonClass = HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS;
   readonly chipRowClass = HOME_PUBLIC_STATUS_CHIP_ROW_CLASS;

@@ -48,7 +48,7 @@ const translationMenuCssMaxHeightPx = (
       </p>
       <div class="relative">
         <div
-          class="overflow-hidden rounded-lg border bg-white dark:bg-gray-800 transition-all"
+          class="overflow-hidden rounded-lg border bg-white dark:bg-gray-800 transition-colors duration-150 ease-out"
           [class.border-blue-500]="showDropdown"
           [class.ring-1]="showDropdown"
           [class.ring-blue-500/30]="showDropdown"
@@ -64,7 +64,7 @@ const translationMenuCssMaxHeightPx = (
             [attr.aria-expanded]="showDropdown"
             aria-haspopup="listbox"
             [attr.aria-label]="triggerAriaLabel"
-            class="flex w-full min-h-[44px] cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-all touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800"
+            class="flex w-full min-h-[44px] cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors duration-150 ease-out touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800"
           >
             <span class="font-medium text-gray-800 dark:text-gray-100">
               {{ selectedTranslationLabel }}

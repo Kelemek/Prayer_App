@@ -25,7 +25,7 @@ export interface AdminFilterSelectOption {
           'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-600':
             !showDropdown
         }"
-        class="flex w-full rounded-lg border-2 transition-all overflow-hidden"
+        class="flex w-full rounded-lg border-2 overflow-hidden transition-colors duration-150 ease-out"
       >
         <button
           type="button"
@@ -34,7 +34,7 @@ export interface AdminFilterSelectOption {
           [attr.aria-expanded]="showDropdown"
           aria-haspopup="listbox"
           [attr.aria-label]="ariaLabel"
-          class="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm transition-all cursor-pointer text-left focus:outline-none"
+          class="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm ui-motion-interactive cursor-pointer text-left focus:outline-none"
         >
           <span
             class="font-medium truncate"

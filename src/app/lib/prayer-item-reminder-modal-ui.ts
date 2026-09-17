@@ -1,4 +1,8 @@
 import { formatTime12, parseReminderTimeOptionValue } from './hour-reminders/hour-reminder-format';
+import {
+  SETTINGS_CHOICE_SELECTED_CLASS,
+  SETTINGS_CHOICE_UNSELECTED_CLASS,
+} from './settings-choice-ui';
 import type {
   PrayerItemReminder,
   PrayerItemReminderMode,
@@ -65,9 +69,7 @@ export function refreshPrayerItemReminderLocalDate(
 }
 
 export function prayerItemReminderDropdownShellClass(open: boolean): string {
-  return open
-    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30'
-    : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20';
+  return open ? SETTINGS_CHOICE_SELECTED_CLASS : SETTINGS_CHOICE_UNSELECTED_CLASS;
 }
 
 /** Close dropdowns on outside pointer down without a full-screen layer above the modal (that blocked Add reminder). */

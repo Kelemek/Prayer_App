@@ -28,7 +28,7 @@ export class HomeFilterBadgeButtonComponent {
     const size = this.compact
       ? "min-w-6 h-6 px-1"
       : "w-6 h-6";
-    return `absolute -top-2 -right-2 z-10 inline-flex items-center justify-center ${size} bg-[#39704D] dark:bg-[#39704D] text-white rounded-full text-xs font-bold hover:bg-[#2d5a3f] dark:hover:bg-[#2d5a3f] focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors`;
+    return `absolute -top-2 -right-2 z-10 inline-flex items-center justify-center tabular-nums ${size} bg-[#39704D] dark:bg-[#39704D] text-white rounded-full text-xs font-bold hover:bg-[#2d5a3f] dark:hover:bg-[#2d5a3f] focus:outline-none focus:ring-2 focus:ring-[#39704D] focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors`;
   }
 
   onMarkRead(event: Event): void {

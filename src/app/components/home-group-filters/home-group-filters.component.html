@@ -4,14 +4,15 @@
       @if (canCreateGroups || showProUpgrade) {
       <app-home-sub-filter-chip
         chipId="tour-filter-add-group"
+        [addIcon]="true"
+        [chipAriaLabel]="addGroupChipAriaLabel"
         [active]="false"
         [stretch]="false"
         [activeClass]="chipThemes.members.active"
         [inactiveClass]="chipThemes.members.inactive"
+        [addIconInactiveClass]="addChipGhostInactiveClass"
         (chipClick)="onAddChipClick()"
-      >
-        Add
-      </app-home-sub-filter-chip>
+      />
       }
 
       <app-home-sub-filter-chip

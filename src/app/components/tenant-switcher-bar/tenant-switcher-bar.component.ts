@@ -44,7 +44,7 @@ import type { Tenant } from '../../types/tenant';
             data-tenant-switcher-dropdown
           >
             <div
-              class="overflow-hidden rounded-lg border-2 border-gray-300 bg-white transition-all dark:border-gray-600 dark:bg-gray-800"
+              class="overflow-hidden rounded-lg border-2 border-gray-300 bg-white transition-colors duration-150 ease-out dark:border-gray-600 dark:bg-gray-800"
               [ngClass]="{
                 'border-blue-500 ring-1 ring-blue-500/30 dark:border-blue-400':
                   showTenantDropdown,
@@ -58,7 +58,7 @@ import type { Tenant } from '../../types/tenant';
                 aria-haspopup="listbox"
                 aria-label="Switch organization"
                 title="Switch organization"
-                class="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 px-2 py-1.5 text-left transition-all"
+                class="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 px-2 py-1.5 text-left transition-colors duration-150 ease-out"
               >
                 <span
                   class="truncate text-xs font-medium text-gray-700 dark:text-gray-200"

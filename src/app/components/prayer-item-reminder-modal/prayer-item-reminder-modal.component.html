@@ -16,9 +16,7 @@
           @if (reminders.length > 0) {
             <ul class="flex flex-col gap-1.5 sm:gap-2" role="list">
               @for (r of reminders; track r.id) {
-                <li
-                  class="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all overflow-hidden"
-                >
+                <li [class]="choiceListRowClass">
                   <span
                     class="flex-1 p-2 sm:p-3 text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
                     >{{ formatReminder(r) }}</span
@@ -27,7 +25,7 @@
                     type="button"
                     (click)="remove(r.id)"
                     [disabled]="saving"
-                    class="self-stretch flex items-center justify-center px-3 border-l border-gray-200 dark:border-gray-700 text-xs sm:text-sm font-medium text-red-600 dark:text-red-400 hover:bg-blue-100/60 dark:hover:bg-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                    [class]="choiceRemoveBtnClass"
                     [attr.aria-label]="'Remove reminder ' + formatReminder(r)"
                   >
                     Remove
@@ -43,12 +41,8 @@
                 <button
                   type="button"
                   (click)="setMode(m.value)"
-                  class="px-3 py-1.5 rounded-lg border-2 text-xs sm:text-sm font-medium transition-all cursor-pointer"
-                  [ngClass]="
-                    mode === m.value
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-gray-800 dark:text-gray-100'
-                      : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
-                  "
+                  [class]="choiceSegmentBtnClass"
+                  [ngClass]="choiceSegmentState(mode === m.value)"
                 >
                   {{ m.label }}
                 </button>
@@ -59,7 +53,7 @@
               <div class="relative min-w-0">
                 <div
                   [ngClass]="dropdownShellClass(showDateDropdown)"
-                  class="flex w-full min-w-0 rounded-lg border-2 transition-all overflow-hidden"
+                  [class]="choiceDropdownShellClass"
                 >
                   <button
                     type="button"
@@ -68,7 +62,7 @@
                     [attr.aria-expanded]="showDateDropdown"
                     aria-haspopup="listbox"
                     aria-label="Reminder date"
-                    class="w-full flex items-center justify-between gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    [class]="choiceDropdownTriggerClass"
                   >
                     <span class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100">{{
                       selectedDateLabel
@@ -97,7 +91,7 @@
               <div class="relative min-w-0">
                 <div
                   [ngClass]="dropdownShellClass(showWeekdayDropdown)"
-                  class="flex w-full min-w-0 rounded-lg border-2 transition-all overflow-hidden"
+                  [class]="choiceDropdownShellClass"
                 >
                   <button
                     type="button"
@@ -106,7 +100,7 @@
                     [attr.aria-expanded]="showWeekdayDropdown"
                     aria-haspopup="listbox"
                     aria-label="Reminder weekday"
-                    class="w-full flex items-center justify-between gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    [class]="choiceDropdownTriggerClass"
                   >
                     <span class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100">{{
                       selectedWeekdayLabel
@@ -135,7 +129,7 @@
               <div class="relative min-w-0">
                 <div
                   [ngClass]="dropdownShellClass(showTimeDropdown)"
-                  class="flex w-full min-w-0 rounded-lg border-2 transition-all overflow-hidden"
+                  [class]="choiceDropdownShellClass"
                 >
                   <button
                     type="button"
@@ -144,7 +138,7 @@
                     [attr.aria-expanded]="showTimeDropdown"
                     aria-haspopup="listbox"
                     aria-label="Reminder time"
-                    class="w-full flex items-center justify-between gap-2 p-2 sm:p-3 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    [class]="choiceDropdownTriggerClass"
                   >
                     <span class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100">{{
                       selectedTimeLabel
@@ -173,7 +167,7 @@
                 (click)="add()"
                 [disabled]="saving || !email.trim()"
                 title="Add a reminder for the selected options"
-                class="w-full min-w-0 flex flex-row items-center justify-center gap-2 p-2 sm:p-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                [class]="choiceActionRowClass"
               >
                 @if (!saving) {
                   <svg

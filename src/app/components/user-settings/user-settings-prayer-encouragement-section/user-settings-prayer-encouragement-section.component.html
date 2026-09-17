@@ -57,14 +57,9 @@
               [disabled]="
                 savingShowPrayForButton || savingShowPrayingCount
               "
-              [ngClass]="{
-                'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
-                  showPrayForButton === true,
-                'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-                  showPrayForButton !== true
-              }"
+              [ngClass]="choiceState(showPrayForButton === true)"
               title="Show Pray For button on prayer cards"
-              class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              [class]="choiceBtnClass"
             >
               <span
                 class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
@@ -77,14 +72,9 @@
               [disabled]="
                 savingShowPrayForButton || savingShowPrayingCount
               "
-              [ngClass]="{
-                'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
-                  showPrayForButton === false,
-                'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-                  showPrayForButton !== false
-              }"
+              [ngClass]="choiceState(showPrayForButton === false)"
               title="Hide Pray For button on prayer cards"
-              class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              [class]="choiceBtnClass"
             >
               <span
                 class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
@@ -102,7 +92,7 @@
             ></div>
           </div>
           }
-          <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+          <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 text-pretty">
             @if (prayerEncouragementUiLoaded && showPrayForButton !== null)
             {
             {{
@@ -163,14 +153,9 @@
               [disabled]="
                 savingShowPrayForButton || savingShowPrayingCount
               "
-              [ngClass]="{
-                'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
-                  showPrayingCount === true,
-                'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-                  showPrayingCount !== true
-              }"
+              [ngClass]="choiceState(showPrayingCount === true)"
               title="Show Praying # button on prayer cards"
-              class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              [class]="choiceBtnClass"
             >
               <span
                 class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
@@ -183,14 +168,9 @@
               [disabled]="
                 savingShowPrayForButton || savingShowPrayingCount
               "
-              [ngClass]="{
-                'border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30':
-                  showPrayingCount === false,
-                'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-                  showPrayingCount !== false
-              }"
+              [ngClass]="choiceState(showPrayingCount === false)"
               title="Hide Praying # button on prayer cards"
-              class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              [class]="choiceBtnClass"
             >
               <span
                 class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
@@ -208,7 +188,7 @@
             ></div>
           </div>
           }
-          <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+          <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 text-pretty">
             @if (prayerEncouragementUiLoaded && showPrayingCount !== null) {
             {{
               savingShowPrayingCount
@@ -239,7 +219,7 @@
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              stroke-width="2"
+              stroke-width="1.5"
               stroke-linecap="round"
               stroke-linejoin="round"
             >
@@ -309,7 +289,7 @@
                 savingShowPrayForButton ||
                 savingShowPrayingCount
               "
-              class="h-12 w-24 px-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              class="h-12 w-24 px-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm tabular-nums ui-field-border focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
           } @else {
@@ -317,7 +297,7 @@
             class="h-12 w-24 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
           ></div>
           }
-          <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+          <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 text-pretty">
             @if (prayerEncouragementUiLoaded) {
             {{
               savingPersonalPrayerCooldown

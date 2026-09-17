@@ -13,14 +13,9 @@
             <div class="grid grid-cols-3 gap-1.5 sm:gap-2">
               <button
                 (click)="themeChange.emit('light')"
-                [ngClass]="{
-                  'border-blue-500 bg-blue-50 dark:bg-blue-900/20':
-                    theme === 'light',
-                  'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600':
-                    theme !== 'light'
-                }"
+                [ngClass]="choiceState(theme === 'light')"
                 title="Use light theme for the application"
-                class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer"
+                [class]="choiceBtnClass"
               >
                 <svg
                   width="18"
@@ -29,7 +24,7 @@
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="1.5"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
@@ -50,14 +45,9 @@
               </button>
               <button
                 (click)="themeChange.emit('dark')"
-                [ngClass]="{
-                  'border-blue-500 bg-blue-50 dark:bg-blue-900/20':
-                    theme === 'dark',
-                  'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600':
-                    theme !== 'dark'
-                }"
+                [ngClass]="choiceState(theme === 'dark')"
                 title="Use dark theme for the application"
-                class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer"
+                [class]="choiceBtnClass"
               >
                 <svg
                   width="18"
@@ -66,7 +56,7 @@
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="1.5"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
@@ -81,14 +71,9 @@
               </button>
               <button
                 (click)="themeChange.emit('system')"
-                [ngClass]="{
-                  'border-blue-500 bg-blue-50 dark:bg-blue-900/20':
-                    theme === 'system',
-                  'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600':
-                    theme !== 'system'
-                }"
+                [ngClass]="choiceState(theme === 'system')"
                 title="Use your operating system's theme preference"
-                class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer"
+                [class]="choiceBtnClass"
               >
                 <svg
                   width="18"
@@ -97,7 +82,7 @@
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="1.5"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
@@ -119,7 +104,7 @@
               </button>
             </div>
             <p
-              class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-2"
+              class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-2 text-pretty"
             >
               Choose your preferred color theme or use your system settings
             </p>
@@ -142,14 +127,9 @@
             <div class="grid grid-cols-3 gap-1.5 sm:gap-2">
               <button
                 (click)="textSizeChange.emit('normal')"
-                [ngClass]="{
-                  'border-blue-500 bg-blue-50 dark:bg-blue-900/20':
-                    textSize === 'normal',
-                  'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600':
-                    textSize !== 'normal'
-                }"
+                [ngClass]="choiceState(textSize === 'normal')"
                 title="Default text size"
-                class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer"
+                [class]="choiceBtnClass"
               >
                 <span
                   class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
@@ -158,14 +138,9 @@
               </button>
               <button
                 (click)="textSizeChange.emit('large')"
-                [ngClass]="{
-                  'border-blue-500 bg-blue-50 dark:bg-blue-900/20':
-                    textSize === 'large',
-                  'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600':
-                    textSize !== 'large'
-                }"
+                [ngClass]="choiceState(textSize === 'large')"
                 title="Larger text"
-                class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer"
+                [class]="choiceBtnClass"
               >
                 <span
                   class="text-sm sm:text-base font-medium text-gray-800 dark:text-gray-100"
@@ -174,14 +149,9 @@
               </button>
               <button
                 (click)="textSizeChange.emit('largest')"
-                [ngClass]="{
-                  'border-blue-500 bg-blue-50 dark:bg-blue-900/20':
-                    textSize === 'largest',
-                  'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600':
-                    textSize !== 'largest'
-                }"
+                [ngClass]="choiceState(textSize === 'largest')"
                 title="Largest text"
-                class="flex flex-col items-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-lg border-2 transition-all cursor-pointer"
+                [class]="choiceBtnClass"
               >
                 <span
                   class="text-base font-medium text-gray-800 dark:text-gray-100"
@@ -190,7 +160,7 @@
               </button>
             </div>
             <p
-              class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-2"
+              class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-2 text-pretty"
             >
               Make on-screen text larger for easier reading
             </p>
