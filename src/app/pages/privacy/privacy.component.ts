@@ -29,9 +29,12 @@ import { RouterModule } from "@angular/router";
             <p>
               This Privacy Policy describes how the Prayer App ("we," "our," or
               "the app") collects, uses, and protects your information when you
-              use our mobile and web application. The app is used by faith
-              communities to manage prayer requests and stay connected. By using
-              the app, you agree to this policy.
+              use our multi-tenant prayer software on the web and in our native
+              mobile app (bundle ID <code>com.churchprayer.app</code>). The
+              service is used by churches, ministries, and individuals to manage
+              prayer requests, groups, memorization, and related features. The
+              legal name of the operating entity will be stated here before
+              public paid launch. By using the app, you agree to this policy.
             </p>
           </section>
 
@@ -43,27 +46,66 @@ import { RouterModule } from "@angular/router";
             <ul class="list-disc pl-6 space-y-1">
               <li>
                 <strong>Account and identity:</strong> Email address, name (or
-                display name), and verification codes sent to your email for
-                sign-in.
+                display name), and short-lived verification codes sent to your
+                email for sign-in.
               </li>
               <li>
-                <strong>Prayer content:</strong> Prayer requests (who or what
-                the prayer is for, details), updates you add, and whether you
-                chose to make a request anonymous.
+                <strong>Organization membership and roles:</strong> Which
+                communities (tenants) you belong to and your role (for example
+                member, leader, or organization administrator). Platform operators
+                may also assign a super-admin role for support and operations.
+              </li>
+              <li>
+                <strong>Prayer content:</strong> Church prayer requests (who or
+                what the prayer is for, details, updates), personal prayers,
+                group prayers, anonymity choices, and related metadata such as
+                approval status.
               </li>
               <li>
                 <strong>Preferences:</strong> Notification settings (email and
-                push), theme preference, and default prayer view.
+                push), theme, default views, memorization practice settings, and
+                similar in-app choices.
               </li>
               <li>
                 <strong>Push notifications (mobile app):</strong> If you enable
-                push notifications, we store a device token and your email so we
-                can send you notifications. You can turn this off in Settings.
+                push notifications, we store a device token and associate it with
+                your account so we can deliver notifications. You can turn this
+                off in Settings.
               </li>
               <li>
-                <strong>Usage:</strong> We record page views and last activity
-                date (for logged-in users) to support basic analytics and
-                activity tracking within the app.
+                <strong>Billing metadata:</strong> When you subscribe to paid
+                plans on the web, Stripe processes payment. We store identifiers
+                such as Stripe customer and subscription IDs and plan status—not
+                your full payment card number.
+              </li>
+              <li>
+                <strong>Product analytics:</strong> When enabled, PostHog may set
+                cookies and collect usage data (including session replay when
+                enabled). We also store some first-party usage events (for
+                example page views and last activity) in our database for
+                logged-in users.
+              </li>
+              <li>
+                <strong>Feedback:</strong> If you submit in-app feedback, we store
+                your contact details and message in our database and create a
+                related task in Notion using a submission ID (not your email or
+                name on the Notion page).
+              </li>
+              <li>
+                <strong>Memorization recite (when used):</strong> If your
+                organization enables recite mode with server-side speech
+                recognition, audio you record may be sent to OpenAI (Whisper or
+                a similar transcription model) for transcription. We log usage
+                metrics (such as duration and estimated cost) but do not retain
+                the audio file after transcription. If the app uses your
+                browser’s built-in speech recognition instead, that processing
+                stays on your device and does not go through OpenAI.
+              </li>
+              <li>
+                <strong>Scripture lookups:</strong> When you use memorization or
+                scripture features, we send passage requests to third-party Bible
+                providers (API.Bible and/or ESV). Passage text may be cached on
+                our servers without tying the cache to your identity.
               </li>
             </ul>
           </section>
@@ -75,32 +117,48 @@ import { RouterModule } from "@angular/router";
             <p>We use the information to:</p>
             <ul class="list-disc pl-6 space-y-1 mt-2">
               <li>
-                Provide the prayer app (display prayers, manage requests, send
-                notifications).
+                Provide and operate the prayer app (display prayers, groups,
+                memorization, notifications, and billing features you use).
               </li>
-              <li>Authenticate you and manage your account and preferences.</li>
+              <li>Authenticate you and manage your account, roles, and preferences.</li>
               <li>
-                Send email and push notifications you have opted into (e.g., new
-                prayers, approvals, admin messages).
+                Send email and push notifications you have opted into (for
+                example new prayers, approvals, reminders, or admin messages).
               </li>
               <li>
-                Improve the app (e.g., error reporting and usage analytics—see
-                Third-Party Services below).
+                Support organization administrators with moderation and admin
+                tools (approvals, member management, and tenant settings).
+              </li>
+              <li>
+                Process subscriptions and billing through Stripe on the web.
+              </li>
+              <li>
+                Improve the product, troubleshoot issues, and protect security
+                (including analytics described below).
               </li>
               <li>Comply with legal obligations where required.</li>
             </ul>
+            <p class="mt-2">
+              We do not sell your personal information.
+            </p>
           </section>
 
           <section>
-            <h2 class="text-xl font-semibold mt-6 mb-2">4. Who Has Access</h2>
+            <h2 class="text-xl font-semibold mt-6 mb-2">
+              4. Who Has Access / Multi-Tenant
+            </h2>
             <p>
-              Your prayer content and account information are stored in our
-              database. Administrators of your organization (e.g., church staff)
-              can access the data needed to run the app (approve prayers, manage
-              subscribers, send notifications). Church prayers you submit (after
-              approval) are visible to other logged-in users in your community.
-              Personal prayers are visible only to you. We do not sell your
-              personal information.
+              Your data is stored in our database and scoped by organization
+              (tenant). Organization administrators and leaders can access the
+              data they need to run the app for their community (for example
+              approving prayers, managing members, and sending notifications).
+              Church prayers you submit (after approval) are visible to other
+              logged-in users in that community according to app settings. Group
+              prayers are visible to members of that group. Personal prayers are
+              visible only to you unless you share them through the app’s
+              features. Platform operators may access data as needed for support,
+              abuse response, billing operations, and keeping the service secure.
+              We do not sell your personal information.
             </p>
           </section>
 
@@ -109,89 +167,166 @@ import { RouterModule } from "@angular/router";
               5. Third-Party Services
             </h2>
             <p class="mb-2">
-              The app uses the following third-party services that may process
-              data:
+              The app relies on third-party providers that process data according
+              to their own policies, including:
             </p>
             <ul class="list-disc pl-6 space-y-1">
               <li>
-                <strong>Hosting and database:</strong> Data is stored and
-                processed by our hosting and database provider (e.g., Supabase)
-                in accordance with their privacy and security practices.
+                <strong>Supabase:</strong> Database, authentication, and backend
+                functions.
               </li>
               <li>
-                <strong>Email:</strong> Email notifications are sent via a
-                transactional email provider (e.g., Resend).
+                <strong>Vercel:</strong> Web hosting and a first-party geo cookie
+                used to decide whether to show analytics consent in your region.
               </li>
               <li>
-                <strong>Push notifications:</strong> Delivered via Apple (APNs)
-                and Google (FCM) when you use the mobile app.
+                <strong>Stripe:</strong> Web checkout, subscriptions, and the
+                customer portal for Church and Pro plans.
               </li>
               <li>
-                <strong>Product analytics (PostHog):</strong> In the European
-                Union, the United Kingdom, and the EEA (Iceland, Liechtenstein,
-                and Norway), we ask for your
-                consent before analytics cookies run. When you accept, we use
-                PostHog, which may set cookies and collect usage data (and
-                session replay when enabled) to help us understand how the app
-                is used and improve it. You can accept or reject analytics via
-                the in-app banner or in Settings when those controls are shown
-                for your region. Elsewhere, we may use PostHog for similar
-                product analytics without a prior consent banner. California
-                residents may have additional privacy rights regarding this
-                data—contact us as described below. See PostHog’s privacy policy
-                for how they process data.
+                <strong>Resend:</strong> Transactional email (for example
+                verification codes and notifications).
+              </li>
+              <li>
+                <strong>PostHog:</strong> Product analytics and session replay
+                when enabled (see Analytics / cookies below).
+              </li>
+              <li>
+                <strong>Apple (APNs) and Google (FCM):</strong> Push notification
+                delivery on mobile devices.
+              </li>
+              <li>
+                <strong>OpenAI:</strong> Speech-to-text for memorization recite
+                when that feature is configured to use Whisper on the server.
+              </li>
+              <li>
+                <strong>API.Bible and ESV:</strong> Scripture text and passage
+                audio for memorization and reference features.
+              </li>
+              <li>
+                <strong>Notion:</strong> In-app feedback tasks (linked by
+                submission ID; submitter email and name are not stored on the
+                Notion page).
               </li>
             </ul>
             <p class="mt-2">
-              Each of these providers has its own privacy policy. We choose
-              providers that are committed to protecting user data.
+              Each provider has its own privacy policy. We choose providers that
+              are committed to protecting user data.
             </p>
           </section>
 
           <section>
             <h2 class="text-xl font-semibold mt-6 mb-2">
-              6. Data Retention and Security
+              6. Analytics / Cookies
             </h2>
+            <p class="mb-2">
+              In the European Union, the United Kingdom, and the EEA (Iceland,
+              Liechtenstein, and Norway), we ask for your consent before
+              analytics cookies run. When you accept, we use PostHog, which may
+              set cookies and collect usage data (and session replay when
+              enabled). You can accept or reject analytics via the in-app banner
+              or in Settings under <strong>Analytics cookies</strong> when those
+              controls are shown for your region. Elsewhere, we may use PostHog
+              for similar product analytics without a prior consent banner.
+              California residents may have additional privacy rights regarding
+              this data—contact us as described below.
+            </p>
+            <p class="mb-2">
+              We use an approximate country or region (for example from your IP
+              address or a first-party cookie set by our host) to decide whether
+              consent controls apply. A VPN or proxy may report a different
+              country than where you are physically located.
+            </p>
             <p>
-              We retain your data for as long as your account is active or as
-              needed to provide the service and comply with legal obligations.
-              You can ask your organization’s administrators to delete your
-              account and associated data. We use industry-standard security
-              measures (e.g., encryption in transit and at rest, access
-              controls) to protect your data.
+              Separately from PostHog, we store some first-party usage events in
+              our <strong>analytics</strong> table (for example logged-in page
+              views and activity timestamps) to support basic product metrics
+              within the app.
             </p>
           </section>
 
           <section>
-            <h2 class="text-xl font-semibold mt-6 mb-2">7. Your Choices</h2>
+            <h2 class="text-xl font-semibold mt-6 mb-2">
+              7. Data Retention and Security
+            </h2>
+            <p class="mb-2">
+              While your account is active, we retain the data needed to provide
+              the service. Examples of routine retention and cleanup:
+            </p>
+            <ul class="list-disc pl-6 space-y-1 mb-2">
+              <li>
+                Sign-in verification codes are short-lived (about 15 minutes).
+              </li>
+              <li>
+                Outbound email queue rows are removed after successful delivery
+                or after maximum send retries.
+              </li>
+              <li>
+                Unused push device tokens (about 30 days without use) and old push
+                log entries (about 7 days) are cleaned up on a schedule.
+              </li>
+              <li>
+                PostHog data is retained according to our PostHog project
+                settings.
+              </li>
+            </ul>
+            <p class="mb-2">
+              You can permanently delete your account yourself in Settings using
+              <strong>Delete your account</strong>. You choose whether to keep
+              your prayers (they stay in the community with anonymized author
+              information) or delete your account and all prayers you authored.
+              Deletion removes your login and most personal data we hold; it does
+              not delete your church’s organization, other people’s prayers, or
+              church billing records in Stripe. Some information may remain in
+              third-party systems (for example typed text in old Notion feedback
+              descriptions or historical GitHub issues if any were created
+              outside the current in-app flow).
+            </p>
+            <p>
+              We use industry-standard security measures (for example encryption
+              in transit and at rest and access controls) to protect your data.
+            </p>
+          </section>
+
+          <section>
+            <h2 class="text-xl font-semibold mt-6 mb-2">
+              8. Your Choices and Rights
+            </h2>
             <ul class="list-disc pl-6 space-y-1">
               <li>
                 You can turn off <strong>email notifications</strong> and
-                <strong>push notifications</strong> in the app Settings.
+                <strong>push notifications</strong> in Settings.
               </li>
               <li>
-                Where required for your region, you can change
-                <strong>analytics cookies</strong> (PostHog) in Settings under
-                Analytics cookies, or via the banner when it is shown. Rejecting
-                analytics does not block core prayer features.
+                Where shown for your region, you can change
+                <strong>Analytics cookies</strong> (PostHog) in Settings or via
+                the banner. Rejecting analytics does not block core prayer
+                features.
               </li>
               <li>
-                You can choose to make a prayer request
-                <strong>anonymous</strong> so your name is not shown publicly.
+                You can make church prayer requests <strong>anonymous</strong> or
+                use <strong>personal prayers</strong> for private requests.
               </li>
               <li>
-                You can use <strong>personal prayers</strong> for private
-                requests that are not shared with the community.
+                You can <strong>delete your account</strong> in Settings (keep
+                prayers anonymized or wipe prayers you authored). This is
+                permanent and signs you out.
               </li>
               <li>
-                For access, correction, or deletion of your data, contact your
-                organization’s administrators or the contact below.
+                There is no self-serve data export in the app today. For access,
+                correction, export, or other privacy requests, contact us through
+                <a
+                  routerLink="/support"
+                  class="text-blue-600 dark:text-blue-400 hover:underline"
+                  >Support</a
+                >
+                or your organization’s administrators.
               </li>
             </ul>
           </section>
 
           <section>
-            <h2 class="text-xl font-semibold mt-6 mb-2">8. Children</h2>
+            <h2 class="text-xl font-semibold mt-6 mb-2">9. Children</h2>
             <p>
               The app is not directed at children under 13. We do not knowingly
               collect personal information from children under 13. If you
@@ -202,7 +337,7 @@ import { RouterModule } from "@angular/router";
 
           <section>
             <h2 class="text-xl font-semibold mt-6 mb-2">
-              9. Changes to This Policy
+              10. Changes to This Policy
             </h2>
             <p>
               We may update this Privacy Policy from time to time. We will post
@@ -213,12 +348,25 @@ import { RouterModule } from "@angular/router";
           </section>
 
           <section>
-            <h2 class="text-xl font-semibold mt-6 mb-2">10. Contact</h2>
+            <h2 class="text-xl font-semibold mt-6 mb-2">11. Contact</h2>
             <p>
-              For privacy-related questions or requests, contact the
-              organization that operates this Prayer App (e.g., your church or
-              ministry). You can also reach out through the contact information
-              provided in the app or on your organization’s website.
+              For privacy-related questions or requests, visit our
+              <a
+                routerLink="/support"
+                class="text-blue-600 dark:text-blue-400 hover:underline"
+                >Support</a
+              >
+              page. You can also contact the organization that operates this
+              Prayer App (for example your church or ministry) through the
+              contact information provided in the app or on your organization’s
+              website.
+            </p>
+          </section>
+
+          <section>
+            <p class="text-sm text-gray-600 dark:text-gray-400 italic">
+              This document is a product draft and is not legal advice. Have
+              counsel review before public paid launch.
             </p>
           </section>
         </div>
