@@ -10,6 +10,7 @@ import {
 import { Router, RouterOutlet, NavigationEnd } from "@angular/router";
 import { CommonModule } from "@angular/common";
 import { Capacitor } from "@capacitor/core";
+import { AnalyticsConsentBannerComponent } from "./components/analytics-consent-banner/analytics-consent-banner.component";
 import { ToastContainerComponent } from "./components/toast-container/toast-container.component";
 import { TenantSwitcherBarComponent } from "./components/tenant-switcher-bar/tenant-switcher-bar.component";
 import { AdminDataService } from "./services/admin-data.service";
@@ -19,7 +20,13 @@ import { Subject, filter } from "rxjs";
 @Component({
   selector: "app-root",
   standalone: true,
-  imports: [CommonModule, RouterOutlet, ToastContainerComponent, TenantSwitcherBarComponent],
+  imports: [
+    CommonModule,
+    RouterOutlet,
+    ToastContainerComponent,
+    TenantSwitcherBarComponent,
+    AnalyticsConsentBannerComponent,
+  ],
   template: `
     <ng-container>
       <div
@@ -28,6 +35,7 @@ import { Subject, filter } from "rxjs";
         <app-tenant-switcher-bar />
         <router-outlet></router-outlet>
         <app-toast-container></app-toast-container>
+        <app-analytics-consent-banner />
       </div>
     </ng-container>
   `,

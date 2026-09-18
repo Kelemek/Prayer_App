@@ -25,6 +25,8 @@
     (badgeFunctionalityEnabledChange)="host.setBadgeFunctionalityEnabled($event)"
   />
 
+  <app-user-settings-analytics-consent-section />
+
   @if (host.prayerEncouragementEnabled$ | async) {
   <app-user-settings-prayer-encouragement-section
     [prayerEncouragementUiLoaded]="host.prayerEncouragementUiLoaded"

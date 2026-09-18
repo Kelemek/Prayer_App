@@ -1,6 +1,11 @@
 import posthog from 'posthog-js';
 import { environment } from '../environments/environment';
 import {
+  getAnalyticsConsent,
+  isAnalyticsConsentAccepted,
+  type AnalyticsConsentValue,
+} from './analytics-consent';
+import {
   getAppAnalyticsContext,
   type AppAnalyticsContext,
 } from './app-analytics-context';
@@ -57,7 +62,7 @@ export function applyPostHogTenantGroup(
 }
 
 export function identifyPostHogUser(userId: string): void {
-  if (!initialized || !isPostHogConfigured()) {
+  if (!initialized || !isPostHogConfigured() || !isAnalyticsConsentAccepted()) {
     return;
   }
   try {
@@ -88,6 +93,29 @@ export function isPostHogConfigured(): boolean {
   return !!key && key !== 'undefined';
 }
 
+/** Applies first-party analytics consent to PostHog capture and session recording. */
+export function applyAnalyticsConsent(
+  consent: AnalyticsConsentValue | null
+): void {
+  if (!initialized || !isPostHogConfigured()) {
+    return;
+  }
+  try {
+    if (consent === 'accepted') {
+      posthog.opt_in_capturing();
+      posthog.set_config({ disable_session_recording: false });
+      posthog.startSessionRecording();
+      return;
+    }
+    posthog.stopSessionRecording();
+    posthog.set_config({ disable_session_recording: true });
+    posthog.opt_out_capturing();
+    posthog.reset();
+  } catch (error) {
+    console.error('Failed to apply analytics consent:', error);
+  }
+}
+
 export function initializePostHog(): void {
   if (typeof window === 'undefined') {
     return;
@@ -107,14 +135,17 @@ export function initializePostHog(): void {
       person_profiles: 'identified_only',
       capture_pageview: false,
       autocapture: true,
+      opt_out_capturing_by_default: true,
+      disable_session_recording: true,
       loaded: (ph) => {
-        ph.opt_in_capturing();
         applyPostHogAppContext(ph);
+        applyAnalyticsConsent(getAnalyticsConsent());
       },
     });
     initialized = true;
     (window as Window & { posthog?: typeof posthog }).posthog = posthog;
     applyPostHogAppContext(posthog, null, false);
+    applyAnalyticsConsent(getAnalyticsConsent());
   } catch (error) {
     console.error('Failed to initialize PostHog:', error);
   }
@@ -124,7 +155,7 @@ export function capturePostHogException(
   error: unknown,
   additionalProperties?: Record<string, unknown>
 ): void {
-  if (!initialized || !isPostHogConfigured()) {
+  if (!initialized || !isPostHogConfigured() || !isAnalyticsConsentAccepted()) {
     return;
   }
   try {
@@ -135,7 +166,7 @@ export function capturePostHogException(
 }
 
 export function capturePostHogPageview(path: string): void {
-  if (!initialized || !isPostHogConfigured()) {
+  if (!initialized || !isPostHogConfigured() || !isAnalyticsConsentAccepted()) {
     return;
   }
   try {
@@ -149,7 +180,7 @@ export function capturePostHogEvent(
   event: string,
   properties?: Record<string, unknown>
 ): void {
-  if (!initialized || !isPostHogConfigured()) {
+  if (!initialized || !isPostHogConfigured() || !isAnalyticsConsentAccepted()) {
     return;
   }
   try {

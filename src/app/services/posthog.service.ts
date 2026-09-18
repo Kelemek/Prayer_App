@@ -1,13 +1,20 @@
-import { DestroyRef, Injectable, NgZone, inject } from '@angular/core';
+import { DestroyRef, Injectable, NgZone, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter } from 'rxjs';
 import {
+  getAnalyticsConsent,
+  setAnalyticsConsent,
+  type AnalyticsConsentValue,
+} from '../../lib/analytics-consent';
+import {
+  applyAnalyticsConsent,
   applyPostHogAppContext,
   applyPostHogTenantGroup,
   capturePostHogPageview,
   identifyPostHogUser,
   initializePostHog,
+  isPostHogConfigured,
   posthog,
   resetPostHogUser,
 } from '../../lib/posthog';
@@ -22,6 +29,14 @@ export class PosthogService {
   private readonly supabase = inject(SupabaseService);
   private readonly tenantContext = inject(TenantContextService);
 
+  private lastUserId: string | null = null;
+
+  readonly analyticsConsent = signal<AnalyticsConsentValue | null>(
+    getAnalyticsConsent()
+  );
+
+  readonly posthogConfigured = isPostHogConfigured();
+
   constructor() {
     this.ngZone.runOutsideAngular(() => {
       initializePostHog();
@@ -30,6 +45,26 @@ export class PosthogService {
     this.setupPageviewCapture();
     this.setupTenantContextSync();
     this.setupAuthIdentitySync();
+  }
+
+  setUserAnalyticsConsent(consent: AnalyticsConsentValue): void {
+    setAnalyticsConsent(consent);
+    this.analyticsConsent.set(consent);
+    this.ngZone.runOutsideAngular(() => {
+      applyAnalyticsConsent(consent);
+      if (consent === 'accepted') {
+        if (this.lastUserId) {
+          identifyPostHogUser(this.lastUserId);
+        }
+        const tenant = this.tenantContext.getActiveTenant();
+        const tenantProps = tenant
+          ? { id: tenant.id, slug: tenant.slug, name: tenant.name }
+          : null;
+        applyPostHogAppContext(posthog, tenantProps);
+        applyPostHogTenantGroup(posthog, tenantProps);
+        capturePostHogPageview(this.router.url);
+      }
+    });
   }
 
   private setupPageviewCapture(): void {
@@ -49,6 +84,9 @@ export class PosthogService {
     this.tenantContext.activeTenant$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((tenant) => {
+        if (this.analyticsConsent() !== 'accepted') {
+          return;
+        }
         this.ngZone.runOutsideAngular(() => {
           const tenantProps = tenant
             ? { id: tenant.id, slug: tenant.slug, name: tenant.name }
@@ -63,8 +101,12 @@ export class PosthogService {
     this.supabase.client.auth.onAuthStateChange((_event, session) => {
       this.ngZone.runOutsideAngular(() => {
         const userId = session?.user?.id;
+        this.lastUserId = userId ?? null;
         if (userId) {
           identifyPostHogUser(userId);
+          if (this.analyticsConsent() !== 'accepted') {
+            return;
+          }
           const tenant = this.tenantContext.getActiveTenant();
           if (tenant) {
             applyPostHogAppContext(posthog, {

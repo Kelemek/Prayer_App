@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import posthog from 'posthog-js';
 import { environment } from '../environments/environment';
 import { APP_BUNDLE_VERSION } from './app-analytics-context';
+import { setAnalyticsConsent } from './analytics-consent';
 import {
+  applyAnalyticsConsent,
   applyPostHogAppContext,
   capturePostHogEvent,
   capturePostHogException,
@@ -24,6 +26,9 @@ vi.mock('posthog-js', () => ({
     captureException: vi.fn(),
     opt_in_capturing: vi.fn(),
     opt_out_capturing: vi.fn(),
+    set_config: vi.fn(),
+    startSessionRecording: vi.fn(),
+    stopSessionRecording: vi.fn(),
     register: vi.fn(),
     setPersonProperties: vi.fn(),
     setPersonPropertiesForFlags: vi.fn(),
@@ -55,6 +60,7 @@ describe('posthog', () => {
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    localStorage.clear();
     resetPostHogForTesting();
     vi.mocked(posthog.init).mockClear();
     vi.mocked(posthog.capture).mockClear();
@@ -62,6 +68,12 @@ describe('posthog', () => {
     vi.mocked(posthog.register).mockClear();
     vi.mocked(posthog.setPersonProperties).mockClear();
     vi.mocked(posthog.setPersonPropertiesForFlags).mockClear();
+    vi.mocked(posthog.opt_in_capturing).mockClear();
+    vi.mocked(posthog.opt_out_capturing).mockClear();
+    vi.mocked(posthog.set_config).mockClear();
+    vi.mocked(posthog.startSessionRecording).mockClear();
+    vi.mocked(posthog.stopSessionRecording).mockClear();
+    vi.mocked(posthog.reset).mockClear();
     vi.mocked(posthog.init).mockReturnValue(posthog);
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   });
@@ -81,6 +93,8 @@ describe('posthog', () => {
           api_host: 'https://us.i.posthog.com',
           ui_host: 'https://us.posthog.com',
           capture_pageview: false,
+          opt_out_capturing_by_default: true,
+          disable_session_recording: true,
         })
       );
       expect((window as Window & { posthog?: typeof posthog }).posthog).toBe(posthog);
@@ -97,25 +111,49 @@ describe('posthog', () => {
       );
     });
 
-    it('should opt in and apply app context for surveys in loaded callback', () => {
+    it('should not opt in without consent in loaded callback', () => {
       initializePostHog();
 
       const initOptions = vi.mocked(posthog.init).mock.calls[0]?.[1];
       const ph = {
-        opt_in_capturing: vi.fn(),
         register: vi.fn(),
         setPersonProperties: vi.fn(),
         setPersonPropertiesForFlags: vi.fn(),
       };
       initOptions?.loaded?.(ph as never);
 
-      expect(ph.opt_in_capturing).toHaveBeenCalled();
+      expect(posthog.opt_in_capturing).not.toHaveBeenCalled();
       expect(ph.register).toHaveBeenCalledWith(expectedAppContext);
-      expect(ph.setPersonProperties).toHaveBeenCalledWith(expectedAppContext);
-      expect(ph.setPersonPropertiesForFlags).toHaveBeenCalledWith(
-        expectedAppContext,
-        true
-      );
+    });
+
+    it('opts in and starts recording when consent is accepted', () => {
+      setAnalyticsConsent('accepted');
+      initializePostHog();
+
+      expect(posthog.opt_in_capturing).toHaveBeenCalled();
+      expect(posthog.set_config).toHaveBeenCalledWith({
+        disable_session_recording: false,
+      });
+      expect(posthog.startSessionRecording).toHaveBeenCalled();
+    });
+
+    it('opts out and resets when consent is missing', () => {
+      initializePostHog();
+
+      expect(posthog.opt_out_capturing).toHaveBeenCalled();
+      expect(posthog.stopSessionRecording).toHaveBeenCalled();
+      expect(posthog.reset).toHaveBeenCalled();
+      expect(posthog.opt_in_capturing).not.toHaveBeenCalled();
+    });
+
+    it('applyAnalyticsConsent rejects with reset', () => {
+      initializePostHog();
+      vi.mocked(posthog.reset).mockClear();
+
+      applyAnalyticsConsent('rejected');
+
+      expect(posthog.opt_out_capturing).toHaveBeenCalled();
+      expect(posthog.reset).toHaveBeenCalled();
     });
 
     it('applyPostHogAppContext reloads feature flags by default', () => {
@@ -176,27 +214,43 @@ describe('posthog', () => {
   });
 
   describe('capturePostHogException', () => {
-    it('should capture exceptions after initialization', () => {
+    it('should capture exceptions after initialization when consent accepted', () => {
+      setAnalyticsConsent('accepted');
       initializePostHog();
       const err = new Error('test');
       capturePostHogException(err, { source: 'test' });
 
       expect(posthog.captureException).toHaveBeenCalledWith(err, { source: 'test' });
     });
+
+    it('should not capture exceptions without consent', () => {
+      initializePostHog();
+      capturePostHogException(new Error('test'));
+
+      expect(posthog.captureException).not.toHaveBeenCalled();
+    });
   });
 
   describe('capturePostHogPageview', () => {
-    it('should capture pageviews after initialization', () => {
+    it('should capture pageviews when consent accepted', () => {
+      setAnalyticsConsent('accepted');
       initializePostHog();
 
       capturePostHogPageview('/dashboard');
 
       expect(posthog.capture).toHaveBeenCalledWith('$pageview', { $current_url: '/dashboard' });
     });
+
+    it('should not capture pageviews without consent', () => {
+      initializePostHog();
+      capturePostHogPageview('/dashboard');
+      expect(posthog.capture).not.toHaveBeenCalled();
+    });
   });
 
   describe('capturePostHogEvent', () => {
-    it('should capture custom events after initialization', () => {
+    it('should capture custom events when consent accepted', () => {
+      setAnalyticsConsent('accepted');
       initializePostHog();
 
       capturePostHogEvent('memorization_practice_started', { mode: 'type' });

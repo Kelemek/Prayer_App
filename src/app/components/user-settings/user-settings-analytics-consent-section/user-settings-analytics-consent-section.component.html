@@ -1,0 +1,46 @@
+@if (showSection()) {
+  <div
+    id="tour-settings-analytics-cookies"
+    class="settings-modal-section-card rounded-lg p-3 sm:p-4 space-y-2"
+  >
+    <div class="flex items-start gap-2 sm:gap-3">
+      <div class="flex-1">
+        <div class="flex items-center gap-2 mb-3">
+          <div
+            class="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base"
+          >
+            Analytics cookies
+          </div>
+        </div>
+        <app-enabled-disabled-toggle
+          [loaded]="true"
+          [saving]="false"
+          [value]="toggleValue()"
+          enabledLabel="Accept"
+          disabledLabel="Reject"
+          enabledTitle="Allow analytics cookies (PostHog)"
+          disabledTitle="Reject analytics cookies"
+          (valueChange)="onConsentChange($event)"
+        />
+      </div>
+    </div>
+    <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 text-pretty">
+      @if (toggleValue() === true) {
+        Analytics cookies are on. We use PostHog to understand usage and improve
+        the app (including session replay when enabled). You can change this
+        anytime.
+      } @else if (toggleValue() === false) {
+        Analytics cookies are off. Core prayer features still work.
+      } @else {
+        Choose whether to allow analytics cookies. Rejecting does not block
+        prayer features.
+      }
+      See our
+      <a
+        routerLink="/privacy"
+        class="text-blue-600 dark:text-blue-400 hover:underline"
+        >Privacy Policy</a
+      >.
+    </p>
+  </div>
+}

@@ -3,6 +3,7 @@ import { AsyncPipe } from '@angular/common';
 import { HourReminderSettingsSectionComponent } from '../../hour-reminder-settings-section/hour-reminder-settings-section.component';
 import { UserSettingsPrintSectionComponent } from '../user-settings-print-section/user-settings-print-section.component';
 import { UserSettingsAppearanceSectionComponent } from '../user-settings-appearance-section/user-settings-appearance-section.component';
+import { UserSettingsAnalyticsConsentSectionComponent } from '../user-settings-analytics-consent-section/user-settings-analytics-consent-section.component';
 import { UserSettingsNotificationPreferencesSectionComponent } from '../user-settings-notification-preferences-section/user-settings-notification-preferences-section.component';
 import { UserSettingsPrayerEncouragementSectionComponent } from '../user-settings-prayer-encouragement-section/user-settings-prayer-encouragement-section.component';
 import { UserSettingsDefaultViewSectionComponent } from '../user-settings-default-view-section/user-settings-default-view-section.component';
@@ -21,6 +22,7 @@ import type { UserSettingsFacade } from '../../../lib/user-settings-facade';
     UserSettingsPrintSectionComponent,
     UserSettingsAppearanceSectionComponent,
     UserSettingsNotificationPreferencesSectionComponent,
+    UserSettingsAnalyticsConsentSectionComponent,
     UserSettingsPrayerEncouragementSectionComponent,
     UserSettingsDefaultViewSectionComponent,
     UserSettingsMemorizationPracticeSectionComponent,

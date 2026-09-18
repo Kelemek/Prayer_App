@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { NgZone } from '@angular/core';
 import { NavigationEnd, Router, Event } from '@angular/router';
 import { Subject, of } from 'rxjs';
+import { setAnalyticsConsent } from '../../lib/analytics-consent';
 import { PosthogService } from './posthog.service';
 import { SupabaseService } from './supabase.service';
 import { TenantContextService } from './tenant-context.service';
@@ -11,13 +12,17 @@ const initializePostHogMock = vi.fn();
 const capturePostHogPageviewMock = vi.fn();
 const applyPostHogAppContextMock = vi.fn();
 const applyPostHogTenantGroupMock = vi.fn();
+const applyAnalyticsConsentMock = vi.fn();
+const identifyPostHogUserMock = vi.fn();
 
 vi.mock('../../lib/posthog', () => ({
   initializePostHog: (...args: unknown[]) => initializePostHogMock(...args),
   capturePostHogPageview: (...args: unknown[]) => capturePostHogPageviewMock(...args),
   applyPostHogAppContext: (...args: unknown[]) => applyPostHogAppContextMock(...args),
   applyPostHogTenantGroup: (...args: unknown[]) => applyPostHogTenantGroupMock(...args),
-  identifyPostHogUser: vi.fn(),
+  applyAnalyticsConsent: (...args: unknown[]) => applyAnalyticsConsentMock(...args),
+  isPostHogConfigured: vi.fn(() => true),
+  identifyPostHogUser: (...args: unknown[]) => identifyPostHogUserMock(...args),
   resetPostHogUser: vi.fn(),
   posthog: {},
 }));
@@ -28,6 +33,7 @@ describe('PosthogService', () => {
   let activeTenant$: Subject<{ id: string; slug: string; name: string } | null>;
 
   beforeEach(() => {
+    localStorage.clear();
     events$ = new Subject<Event>();
     activeTenant$ = new Subject<{ id: string; slug: string; name: string } | null>();
     initializePostHogMock.mockClear();
@@ -91,7 +97,8 @@ describe('PosthogService', () => {
     expect(capturePostHogPageviewMock).toHaveBeenCalledWith('/prayers?tab=active');
   });
 
-  it('applies tenant context when active tenant changes', () => {
+  it('applies tenant context when active tenant changes and consent accepted', () => {
+    setAnalyticsConsent('accepted');
     TestBed.inject(PosthogService);
     applyPostHogAppContextMock.mockClear();
     applyPostHogTenantGroupMock.mockClear();
@@ -106,5 +113,17 @@ describe('PosthogService', () => {
       {},
       { id: 'tenant-1', slug: 'acme', name: 'Acme Church' }
     );
+  });
+
+  it('setUserAnalyticsConsent persists and applies consent', () => {
+    const service = TestBed.inject(PosthogService);
+    applyAnalyticsConsentMock.mockClear();
+    identifyPostHogUserMock.mockClear();
+
+    service.setUserAnalyticsConsent('accepted');
+
+    expect(service.analyticsConsent()).toBe('accepted');
+    expect(applyAnalyticsConsentMock).toHaveBeenCalledWith('accepted');
+    expect(capturePostHogPageviewMock).toHaveBeenCalledWith('/home');
   });
 });

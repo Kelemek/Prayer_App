@@ -20,7 +20,7 @@ import { RouterModule } from "@angular/router";
 
         <h1 class="text-3xl font-bold mb-2">Privacy Policy</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">
-          Last updated: February 2026
+          Last updated: September 2026
         </p>
 
         <div class="prose prose-gray dark:prose-invert max-w-none space-y-8">
@@ -127,11 +127,12 @@ import { RouterModule } from "@angular/router";
                 and Google (FCM) when you use the mobile app.
               </li>
               <li>
-                <strong>Analytics:</strong> We may use our hosting provider’s
-                analytics and performance tools (e.g., page views, Web Vitals)
-                to understand usage and improve the app. Those services may
-                collect limited technical or usage data according to their
-                policies.
+                <strong>Product analytics (PostHog):</strong> When you accept
+                analytics cookies, we use PostHog, which may set cookies and
+                collect usage data (and session replay when enabled) to help us
+                understand how the app is used and improve it. You can accept
+                or reject analytics via the in-app banner or in Settings. See
+                PostHog’s privacy policy for how they process data.
               </li>
             </ul>
             <p class="mt-2">
@@ -160,6 +161,12 @@ import { RouterModule } from "@angular/router";
               <li>
                 You can turn off <strong>email notifications</strong> and
                 <strong>push notifications</strong> in the app Settings.
+              </li>
+              <li>
+                You can change <strong>analytics cookies</strong> (PostHog) in
+                Settings under Analytics cookies, or via the banner when you
+                first use the app. Rejecting analytics does not block core
+                prayer features.
               </li>
               <li>
                 You can choose to make a prayer request

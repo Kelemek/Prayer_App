@@ -106,6 +106,8 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 
 **Analytics:** Tenant admins use **Site Analytics** in the admin portal (first-party Supabase `page_view` data). **PostHog** is for platform operators only (product analytics, replay, exceptions). Leave `VITE_POSTHOG_KEY` empty to disable PostHog. Vercel Analytics / Speed Insights are not used.
 
+**PostHog consent:** The client defaults to **opt-out** until the user accepts analytics cookies (`prayerapp.analytics_consent` in localStorage). Session recording in the PostHog project UI is separate ops (enable/disable replay there); the app still gates recording behind Accept.
+
 **Hostname strategy:** Platform hosts (`prayer.romans8.net`, `www`, preview aliases) do **not** force a tenant. Church tenants load at `{slug}.{VITE_TENANT_HOST_SUFFIX}` (e.g. `cross-pointe.prayer.romans8.net`). `VITE_COOKIE_PARENT_DOMAIN` shares Supabase auth across those subdomains. Local dev leaves suffix/cookie empty (in-place tenant switcher on `localhost`).
 
 ### Supabase secret key (server-side)
