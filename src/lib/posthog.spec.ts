@@ -83,9 +83,9 @@ describe('posthog', () => {
     resetPostHogForTesting();
   });
 
-  describe('initializePostHog', () => {
+  describe('initializePostHog (consent_required)', () => {
     it('should initialize PostHog with project key and host', () => {
-      initializePostHog();
+      initializePostHog('consent_required');
 
       expect(posthog.init).toHaveBeenCalledWith(
         'phc_test_key',
@@ -101,7 +101,7 @@ describe('posthog', () => {
     });
 
     it('should tag events with app version and platform before the first pageview', () => {
-      initializePostHog();
+      initializePostHog('consent_required');
 
       expect(posthog.register).toHaveBeenCalledWith(expectedAppContext);
       expect(posthog.setPersonProperties).toHaveBeenCalledWith(expectedAppContext);
@@ -112,7 +112,7 @@ describe('posthog', () => {
     });
 
     it('should not opt in without consent in loaded callback', () => {
-      initializePostHog();
+      initializePostHog('consent_required');
 
       const initOptions = vi.mocked(posthog.init).mock.calls[0]?.[1];
       const ph = {
@@ -128,7 +128,7 @@ describe('posthog', () => {
 
     it('opts in and starts recording when consent is accepted', () => {
       setAnalyticsConsent('accepted');
-      initializePostHog();
+      initializePostHog('consent_required');
 
       expect(posthog.opt_in_capturing).toHaveBeenCalled();
       expect(posthog.set_config).toHaveBeenCalledWith({
@@ -138,7 +138,7 @@ describe('posthog', () => {
     });
 
     it('opts out and resets when consent is missing', () => {
-      initializePostHog();
+      initializePostHog('consent_required');
 
       expect(posthog.opt_out_capturing).toHaveBeenCalled();
       expect(posthog.stopSessionRecording).toHaveBeenCalled();
@@ -147,7 +147,7 @@ describe('posthog', () => {
     });
 
     it('applyAnalyticsConsent rejects with reset', () => {
-      initializePostHog();
+      initializePostHog('consent_required');
       vi.mocked(posthog.reset).mockClear();
 
       applyAnalyticsConsent('rejected');
@@ -155,7 +155,44 @@ describe('posthog', () => {
       expect(posthog.opt_out_capturing).toHaveBeenCalled();
       expect(posthog.reset).toHaveBeenCalled();
     });
+  });
 
+  describe('initializePostHog (open)', () => {
+    it('opts in without stored consent', () => {
+      initializePostHog('open');
+
+      expect(posthog.init).toHaveBeenCalledWith(
+        'phc_test_key',
+        expect.objectContaining({
+          opt_out_capturing_by_default: false,
+          disable_session_recording: false,
+        })
+      );
+      expect(posthog.opt_in_capturing).toHaveBeenCalled();
+      expect(posthog.startSessionRecording).toHaveBeenCalled();
+      expect(posthog.opt_out_capturing).not.toHaveBeenCalled();
+    });
+
+    it('captures pageviews without localStorage consent', () => {
+      initializePostHog('open');
+      capturePostHogPageview('/dashboard');
+
+      expect(posthog.capture).toHaveBeenCalledWith('$pageview', {
+        $current_url: '/dashboard',
+      });
+    });
+
+    it('applyAnalyticsConsent is a no-op in open region', () => {
+      initializePostHog('open');
+      vi.mocked(posthog.opt_out_capturing).mockClear();
+
+      applyAnalyticsConsent('rejected');
+
+      expect(posthog.opt_out_capturing).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('applyPostHogAppContext', () => {
     it('applyPostHogAppContext reloads feature flags by default', () => {
       const ph = {
         register: vi.fn(),
@@ -186,12 +223,14 @@ describe('posthog', () => {
         tenant_slug: 'acme',
       });
     });
+  });
 
+  describe('initializePostHog edge cases', () => {
     it('should return early when window is undefined', () => {
       vi.stubGlobal('window', undefined);
       resetPostHogForTesting();
 
-      initializePostHog();
+      initializePostHog('open');
 
       expect(posthog.init).not.toHaveBeenCalled();
       vi.unstubAllGlobals();
@@ -203,7 +242,7 @@ describe('posthog', () => {
       environment.posthogKey = '';
       resetPostHogForTesting();
 
-      initializePostHog();
+      initializePostHog('open');
 
       expect(posthog.init).not.toHaveBeenCalled();
       expect(debugSpy).toHaveBeenCalledWith('PostHog project key not configured');
@@ -216,15 +255,15 @@ describe('posthog', () => {
   describe('capturePostHogException', () => {
     it('should capture exceptions after initialization when consent accepted', () => {
       setAnalyticsConsent('accepted');
-      initializePostHog();
+      initializePostHog('consent_required');
       const err = new Error('test');
       capturePostHogException(err, { source: 'test' });
 
       expect(posthog.captureException).toHaveBeenCalledWith(err, { source: 'test' });
     });
 
-    it('should not capture exceptions without consent', () => {
-      initializePostHog();
+    it('should not capture exceptions without consent in consent_required', () => {
+      initializePostHog('consent_required');
       capturePostHogException(new Error('test'));
 
       expect(posthog.captureException).not.toHaveBeenCalled();
@@ -234,15 +273,15 @@ describe('posthog', () => {
   describe('capturePostHogPageview', () => {
     it('should capture pageviews when consent accepted', () => {
       setAnalyticsConsent('accepted');
-      initializePostHog();
+      initializePostHog('consent_required');
 
       capturePostHogPageview('/dashboard');
 
       expect(posthog.capture).toHaveBeenCalledWith('$pageview', { $current_url: '/dashboard' });
     });
 
-    it('should not capture pageviews without consent', () => {
-      initializePostHog();
+    it('should not capture pageviews without consent in consent_required', () => {
+      initializePostHog('consent_required');
       capturePostHogPageview('/dashboard');
       expect(posthog.capture).not.toHaveBeenCalled();
     });
@@ -251,7 +290,7 @@ describe('posthog', () => {
   describe('capturePostHogEvent', () => {
     it('should capture custom events when consent accepted', () => {
       setAnalyticsConsent('accepted');
-      initializePostHog();
+      initializePostHog('consent_required');
 
       capturePostHogEvent('memorization_practice_started', { mode: 'type' });
 

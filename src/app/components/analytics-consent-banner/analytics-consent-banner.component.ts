@@ -12,7 +12,11 @@ import { PosthogService } from '../../services/posthog.service';
   imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (posthog.posthogConfigured && posthog.analyticsConsent() === null) {
+    @if (
+      posthog.posthogConfigured &&
+      posthog.analyticsRegion() === 'consent_required' &&
+      posthog.analyticsConsent() === null
+    ) {
       <div
         class="fixed bottom-0 left-0 right-0 z-[200] border-t border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-md dark:border-gray-700 dark:bg-gray-900/95"
         style="padding-bottom: max(1rem, env(safe-area-inset-bottom))"

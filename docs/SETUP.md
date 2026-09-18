@@ -106,7 +106,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 
 **Analytics:** Tenant admins use **Site Analytics** in the admin portal (first-party Supabase `page_view` data). **PostHog** is for platform operators only (product analytics, replay, exceptions). Leave `VITE_POSTHOG_KEY` empty to disable PostHog. Vercel Analytics / Speed Insights are not used.
 
-**PostHog consent:** The client defaults to **opt-out** until the user accepts analytics cookies (`prayerapp.analytics_consent` in localStorage). Session recording in the PostHog project UI is separate ops (enable/disable replay there); the app still gates recording behind Accept.
+**PostHog consent (geo-gated):** Vercel sets a first-party cookie via `GET /api/geo` (`prayerapp.analytics_geo`, from `x-vercel-ip-country`). Visitors in the **EU, UK, or EEA (IS/LI/NO)** get the consent banner and default **opt-out** until Accept (`prayerapp.analytics_consent` in localStorage). All other regions load with analytics and session recording on (no banner). VPN/proxy may report a different country. Capacitor native apps call `https://prayerapp.romans8.net/api/geo` (or `VITE_APP_URL` when set). Local `ng serve` has no geo API—fail-open unless you set the cookie manually for EU testing. Session recording in the PostHog project UI is separate ops; the app still gates recording behind Accept in consent regions.
 
 **Hostname strategy:** Platform hosts (`prayer.romans8.net`, `www`, preview aliases) do **not** force a tenant. Church tenants load at `{slug}.{VITE_TENANT_HOST_SUFFIX}` (e.g. `cross-pointe.prayer.romans8.net`). `VITE_COOKIE_PARENT_DOMAIN` shares Supabase auth across those subdomains. Local dev leaves suffix/cookie empty (in-place tenant switcher on `localhost`).
 

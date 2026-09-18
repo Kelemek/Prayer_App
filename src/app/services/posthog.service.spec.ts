@@ -8,12 +8,21 @@ import { PosthogService } from './posthog.service';
 import { SupabaseService } from './supabase.service';
 import { TenantContextService } from './tenant-context.service';
 
+const resolveAnalyticsGeoRegionMock = vi.fn(() =>
+  Promise.resolve({ region: 'consent_required' as const, country: 'DE' })
+);
+
+vi.mock('../../lib/analytics-geo', () => ({
+  resolveAnalyticsGeoRegion: () => resolveAnalyticsGeoRegionMock(),
+}));
+
 const initializePostHogMock = vi.fn();
 const capturePostHogPageviewMock = vi.fn();
 const applyPostHogAppContextMock = vi.fn();
 const applyPostHogTenantGroupMock = vi.fn();
 const applyAnalyticsConsentMock = vi.fn();
 const identifyPostHogUserMock = vi.fn();
+const isAnalyticsCaptureAllowedMock = vi.fn(() => false);
 
 vi.mock('../../lib/posthog', () => ({
   initializePostHog: (...args: unknown[]) => initializePostHogMock(...args),
@@ -22,6 +31,7 @@ vi.mock('../../lib/posthog', () => ({
   applyPostHogTenantGroup: (...args: unknown[]) => applyPostHogTenantGroupMock(...args),
   applyAnalyticsConsent: (...args: unknown[]) => applyAnalyticsConsentMock(...args),
   isPostHogConfigured: vi.fn(() => true),
+  isAnalyticsCaptureAllowed: () => isAnalyticsCaptureAllowedMock(),
   identifyPostHogUser: (...args: unknown[]) => identifyPostHogUserMock(...args),
   resetPostHogUser: vi.fn(),
   posthog: {},
@@ -36,6 +46,11 @@ describe('PosthogService', () => {
     localStorage.clear();
     events$ = new Subject<Event>();
     activeTenant$ = new Subject<{ id: string; slug: string; name: string } | null>();
+    resolveAnalyticsGeoRegionMock.mockClear();
+    resolveAnalyticsGeoRegionMock.mockResolvedValue({
+      region: 'consent_required',
+      country: 'DE',
+    });
     initializePostHogMock.mockClear();
     capturePostHogPageviewMock.mockClear();
     applyPostHogAppContextMock.mockClear();
@@ -78,12 +93,15 @@ describe('PosthogService', () => {
     });
   });
 
-  it('initializes PostHog and captures the initial pageview outside Angular zone', () => {
-    TestBed.inject(PosthogService);
+  it('initializes PostHog and captures the initial pageview outside Angular zone', async () => {
+    const service = TestBed.inject(PosthogService);
 
     expect(runOutsideAngularMock).toHaveBeenCalled();
-    expect(initializePostHogMock).toHaveBeenCalled();
-    expect(capturePostHogPageviewMock).toHaveBeenCalledWith('/home');
+    await vi.waitFor(() => expect(initializePostHogMock).toHaveBeenCalledWith('consent_required'));
+    await vi.waitFor(() =>
+      expect(capturePostHogPageviewMock).toHaveBeenCalledWith('/home')
+    );
+    expect(service.analyticsRegion()).toBe('consent_required');
   });
 
   it('captures pageviews on NavigationEnd outside Angular zone', () => {
@@ -99,6 +117,7 @@ describe('PosthogService', () => {
 
   it('applies tenant context when active tenant changes and consent accepted', () => {
     setAnalyticsConsent('accepted');
+    isAnalyticsCaptureAllowedMock.mockReturnValue(true);
     TestBed.inject(PosthogService);
     applyPostHogAppContextMock.mockClear();
     applyPostHogTenantGroupMock.mockClear();
@@ -119,6 +138,8 @@ describe('PosthogService', () => {
     const service = TestBed.inject(PosthogService);
     applyAnalyticsConsentMock.mockClear();
     identifyPostHogUserMock.mockClear();
+    isAnalyticsCaptureAllowedMock.mockReset();
+    isAnalyticsCaptureAllowedMock.mockReturnValue(false);
 
     service.setUserAnalyticsConsent('accepted');
 

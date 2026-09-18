@@ -7,6 +7,8 @@ import {
   setAnalyticsConsent,
   type AnalyticsConsentValue,
 } from '../../lib/analytics-consent';
+import { resolveAnalyticsGeoRegion } from '../../lib/analytics-geo';
+import type { AnalyticsGeoRegion } from '../../lib/analytics-geo-region';
 import {
   applyAnalyticsConsent,
   applyPostHogAppContext,
@@ -14,6 +16,7 @@ import {
   capturePostHogPageview,
   identifyPostHogUser,
   initializePostHog,
+  isAnalyticsCaptureAllowed,
   isPostHogConfigured,
   posthog,
   resetPostHogUser,
@@ -35,16 +38,32 @@ export class PosthogService {
     getAnalyticsConsent()
   );
 
+  /** `null` while geo is resolving (banner must not flash). */
+  readonly analyticsRegion = signal<AnalyticsGeoRegion | null>(null);
+
   readonly posthogConfigured = isPostHogConfigured();
 
   constructor() {
     this.ngZone.runOutsideAngular(() => {
-      initializePostHog();
-      capturePostHogPageview(this.router.url);
+      void this.bootstrapPostHog();
     });
     this.setupPageviewCapture();
     this.setupTenantContextSync();
     this.setupAuthIdentitySync();
+  }
+
+  private async bootstrapPostHog(): Promise<void> {
+    if (!this.posthogConfigured) {
+      return;
+    }
+    const geo = await resolveAnalyticsGeoRegion();
+    this.analyticsRegion.set(geo.region);
+    initializePostHog(geo.region);
+    capturePostHogPageview(this.router.url);
+  }
+
+  private isTenantAndIdentitySyncAllowed(): boolean {
+    return isAnalyticsCaptureAllowed();
   }
 
   setUserAnalyticsConsent(consent: AnalyticsConsentValue): void {
@@ -84,7 +103,7 @@ export class PosthogService {
     this.tenantContext.activeTenant$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((tenant) => {
-        if (this.analyticsConsent() !== 'accepted') {
+        if (!this.isTenantAndIdentitySyncAllowed()) {
           return;
         }
         this.ngZone.runOutsideAngular(() => {
@@ -104,7 +123,7 @@ export class PosthogService {
         this.lastUserId = userId ?? null;
         if (userId) {
           identifyPostHogUser(userId);
-          if (this.analyticsConsent() !== 'accepted') {
+          if (!this.isTenantAndIdentitySyncAllowed()) {
             return;
           }
           const tenant = this.tenantContext.getActiveTenant();

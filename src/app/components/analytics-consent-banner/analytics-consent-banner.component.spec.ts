@@ -8,10 +8,14 @@ import { signal } from '@angular/core';
 describe('AnalyticsConsentBannerComponent', () => {
   let fixture: ComponentFixture<AnalyticsConsentBannerComponent>;
   let analyticsConsent: ReturnType<typeof signal<null | 'accepted' | 'rejected'>>;
+  let analyticsRegion: ReturnType<
+    typeof signal<null | 'consent_required' | 'open'>
+  >;
   let setUserAnalyticsConsent: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     analyticsConsent = signal(null);
+    analyticsRegion = signal('consent_required');
     setUserAnalyticsConsent = vi.fn((value: 'accepted' | 'rejected') => {
       analyticsConsent.set(value);
     });
@@ -25,6 +29,7 @@ describe('AnalyticsConsentBannerComponent', () => {
           useValue: {
             posthogConfigured: true,
             analyticsConsent,
+            analyticsRegion,
             setUserAnalyticsConsent,
           },
         },
@@ -39,6 +44,14 @@ describe('AnalyticsConsentBannerComponent', () => {
     expect(
       fixture.nativeElement.querySelector('[data-testid="analytics-consent-banner"]')
     ).toBeTruthy();
+  });
+
+  it('hides banner when region is open', () => {
+    analyticsRegion.set('open');
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="analytics-consent-banner"]')
+    ).toBeNull();
   });
 
   it('hides banner after consent is set', () => {

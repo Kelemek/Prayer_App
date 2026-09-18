@@ -907,7 +907,7 @@ The BrandingService implements a multi-tier caching strategy to eliminate logo f
 
 ### Monitoring
 
-- **PostHog** (`posthog-js`): product analytics, session replay, and client error tracking when `VITE_POSTHOG_KEY` is set and the user has **accepted** analytics cookies. Init uses `opt_out_capturing_by_default` and disables session recording until Accept. Events include `app_environment`, `tenant_id`, and `tenant_slug` when an organization is active. Filter Live events by `app_environment` in development. See [`src/lib/posthog.ts`](../src/lib/posthog.ts) and [`src/lib/analytics-consent.ts`](../src/lib/analytics-consent.ts).
+- **PostHog** (`posthog-js`): product analytics, session replay, and client error tracking when `VITE_POSTHOG_KEY` is set. Geo (`/api/geo`, [`src/lib/analytics-geo.ts`](../src/lib/analytics-geo.ts)): EU/UK/EEA visitors default opt-out until Accept; other regions capture without a banner. Init uses `opt_out_capturing_by_default` only in consent regions. Events include `app_environment`, `tenant_id`, and `tenant_slug` when an organization is active. Filter Live events by `app_environment` in development. See [`src/lib/posthog.ts`](../src/lib/posthog.ts) and [`src/lib/analytics-consent.ts`](../src/lib/analytics-consent.ts).
 - **Site Analytics** (admin portal): first-party Supabase `analytics` table — separate from PostHog; do not merge the two.
 - Check Vercel deployment logs
 - Supabase query performance

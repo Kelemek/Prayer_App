@@ -12,6 +12,9 @@ import {
 describe('UserSettingsAnalyticsConsentSectionComponent', () => {
   let fixture: ComponentFixture<UserSettingsAnalyticsConsentSectionComponent>;
   let analyticsConsent: ReturnType<typeof signal<null | 'accepted' | 'rejected'>>;
+  let analyticsRegion: ReturnType<
+    typeof signal<null | 'consent_required' | 'open'>
+  >;
   let setUserAnalyticsConsent: ReturnType<typeof vi.fn>;
 
   beforeAll(async () => {
@@ -20,6 +23,7 @@ describe('UserSettingsAnalyticsConsentSectionComponent', () => {
 
   beforeEach(async () => {
     analyticsConsent = signal(null);
+    analyticsRegion = signal('consent_required');
     setUserAnalyticsConsent = vi.fn();
 
     await TestBed.configureTestingModule({
@@ -31,6 +35,7 @@ describe('UserSettingsAnalyticsConsentSectionComponent', () => {
           useValue: {
             posthogConfigured: true,
             analyticsConsent,
+            analyticsRegion,
             setUserAnalyticsConsent,
           },
         },
@@ -43,6 +48,12 @@ describe('UserSettingsAnalyticsConsentSectionComponent', () => {
   it('renders when PostHog is configured', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Analytics cookies');
+  });
+
+  it('hides section when region is open', () => {
+    analyticsRegion.set('open');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain('Analytics cookies');
   });
 
   it('forwards Accept to PosthogService', () => {

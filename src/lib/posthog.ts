@@ -5,12 +5,14 @@ import {
   isAnalyticsConsentAccepted,
   type AnalyticsConsentValue,
 } from './analytics-consent';
+import type { AnalyticsGeoRegion } from './analytics-geo-region';
 import {
   getAppAnalyticsContext,
   type AppAnalyticsContext,
 } from './app-analytics-context';
 
 let initialized = false;
+let analyticsGeoRegion: AnalyticsGeoRegion | null = null;
 
 type PostHogAppContextClient = {
   register: (properties: AppAnalyticsContext) => void;
@@ -27,6 +29,12 @@ type PostHogAppContextClient = {
   identify: (distinctId: string, properties?: Record<string, string>) => void;
   reset: () => void;
 };
+
+function applyOpenRegionCapture(): void {
+  posthog.opt_in_capturing();
+  posthog.set_config({ disable_session_recording: false });
+  posthog.startSessionRecording();
+}
 
 /** Super properties, person properties, and flag/survey targeting for the running build. */
 export function applyPostHogAppContext(
@@ -61,8 +69,25 @@ export function applyPostHogTenantGroup(
   }
 }
 
+export function getPostHogAnalyticsGeoRegion(): AnalyticsGeoRegion | null {
+  return analyticsGeoRegion;
+}
+
+export function isAnalyticsCaptureAllowed(): boolean {
+  if (!initialized || !isPostHogConfigured()) {
+    return false;
+  }
+  if (analyticsGeoRegion === 'open') {
+    return true;
+  }
+  if (analyticsGeoRegion === 'consent_required') {
+    return isAnalyticsConsentAccepted();
+  }
+  return false;
+}
+
 export function identifyPostHogUser(userId: string): void {
-  if (!initialized || !isPostHogConfigured() || !isAnalyticsConsentAccepted()) {
+  if (!isAnalyticsCaptureAllowed()) {
     return;
   }
   try {
@@ -86,6 +111,7 @@ export function resetPostHogUser(): void {
 /** Resets init state for unit tests only. */
 export function resetPostHogForTesting(): void {
   initialized = false;
+  analyticsGeoRegion = null;
 }
 
 export function isPostHogConfigured(): boolean {
@@ -97,7 +123,11 @@ export function isPostHogConfigured(): boolean {
 export function applyAnalyticsConsent(
   consent: AnalyticsConsentValue | null
 ): void {
-  if (!initialized || !isPostHogConfigured()) {
+  if (
+    !initialized ||
+    !isPostHogConfigured() ||
+    analyticsGeoRegion !== 'consent_required'
+  ) {
     return;
   }
   try {
@@ -116,7 +146,7 @@ export function applyAnalyticsConsent(
   }
 }
 
-export function initializePostHog(): void {
+export function initializePostHog(region: AnalyticsGeoRegion): void {
   if (typeof window === 'undefined') {
     return;
   }
@@ -128,6 +158,9 @@ export function initializePostHog(): void {
     return;
   }
 
+  analyticsGeoRegion = region;
+  const consentRequired = region === 'consent_required';
+
   try {
     posthog.init(environment.posthogKey.trim(), {
       api_host: environment.posthogHost,
@@ -135,17 +168,25 @@ export function initializePostHog(): void {
       person_profiles: 'identified_only',
       capture_pageview: false,
       autocapture: true,
-      opt_out_capturing_by_default: true,
-      disable_session_recording: true,
+      opt_out_capturing_by_default: consentRequired,
+      disable_session_recording: consentRequired,
       loaded: (ph) => {
         applyPostHogAppContext(ph);
-        applyAnalyticsConsent(getAnalyticsConsent());
+        if (consentRequired) {
+          applyAnalyticsConsent(getAnalyticsConsent());
+        } else {
+          applyOpenRegionCapture();
+        }
       },
     });
     initialized = true;
     (window as Window & { posthog?: typeof posthog }).posthog = posthog;
     applyPostHogAppContext(posthog, null, false);
-    applyAnalyticsConsent(getAnalyticsConsent());
+    if (consentRequired) {
+      applyAnalyticsConsent(getAnalyticsConsent());
+    } else {
+      applyOpenRegionCapture();
+    }
   } catch (error) {
     console.error('Failed to initialize PostHog:', error);
   }
@@ -155,7 +196,7 @@ export function capturePostHogException(
   error: unknown,
   additionalProperties?: Record<string, unknown>
 ): void {
-  if (!initialized || !isPostHogConfigured() || !isAnalyticsConsentAccepted()) {
+  if (!isAnalyticsCaptureAllowed()) {
     return;
   }
   try {
@@ -166,7 +207,7 @@ export function capturePostHogException(
 }
 
 export function capturePostHogPageview(path: string): void {
-  if (!initialized || !isPostHogConfigured() || !isAnalyticsConsentAccepted()) {
+  if (!isAnalyticsCaptureAllowed()) {
     return;
   }
   try {
@@ -180,7 +221,7 @@ export function capturePostHogEvent(
   event: string,
   properties?: Record<string, unknown>
 ): void {
-  if (!initialized || !isPostHogConfigured() || !isAnalyticsConsentAccepted()) {
+  if (!isAnalyticsCaptureAllowed()) {
     return;
   }
   try {

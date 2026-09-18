@@ -127,12 +127,19 @@ import { RouterModule } from "@angular/router";
                 and Google (FCM) when you use the mobile app.
               </li>
               <li>
-                <strong>Product analytics (PostHog):</strong> When you accept
-                analytics cookies, we use PostHog, which may set cookies and
-                collect usage data (and session replay when enabled) to help us
-                understand how the app is used and improve it. You can accept
-                or reject analytics via the in-app banner or in Settings. See
-                PostHog’s privacy policy for how they process data.
+                <strong>Product analytics (PostHog):</strong> In the European
+                Union, the United Kingdom, and the EEA (Iceland, Liechtenstein,
+                and Norway), we ask for your
+                consent before analytics cookies run. When you accept, we use
+                PostHog, which may set cookies and collect usage data (and
+                session replay when enabled) to help us understand how the app
+                is used and improve it. You can accept or reject analytics via
+                the in-app banner or in Settings when those controls are shown
+                for your region. Elsewhere, we may use PostHog for similar
+                product analytics without a prior consent banner. California
+                residents may have additional privacy rights regarding this
+                data—contact us as described below. See PostHog’s privacy policy
+                for how they process data.
               </li>
             </ul>
             <p class="mt-2">
@@ -163,10 +170,10 @@ import { RouterModule } from "@angular/router";
                 <strong>push notifications</strong> in the app Settings.
               </li>
               <li>
-                You can change <strong>analytics cookies</strong> (PostHog) in
-                Settings under Analytics cookies, or via the banner when you
-                first use the app. Rejecting analytics does not block core
-                prayer features.
+                Where required for your region, you can change
+                <strong>analytics cookies</strong> (PostHog) in Settings under
+                Analytics cookies, or via the banner when it is shown. Rejecting
+                analytics does not block core prayer features.
               </li>
               <li>
                 You can choose to make a prayer request

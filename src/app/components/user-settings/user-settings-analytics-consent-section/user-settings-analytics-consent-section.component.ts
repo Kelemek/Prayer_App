@@ -20,7 +20,11 @@ import { USER_SETTINGS_SECTION_HOST_STYLES } from '../user-settings-section-host
 export class UserSettingsAnalyticsConsentSectionComponent {
   readonly posthog = inject(PosthogService);
 
-  readonly showSection = computed(() => this.posthog.posthogConfigured);
+  readonly showSection = computed(
+    () =>
+      this.posthog.posthogConfigured &&
+      this.posthog.analyticsRegion() === 'consent_required'
+  );
 
   readonly toggleValue = computed(() => {
     const consent = this.posthog.analyticsConsent();
