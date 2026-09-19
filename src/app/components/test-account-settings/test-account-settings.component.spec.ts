@@ -58,6 +58,7 @@ describe('TestAccountSettingsComponent', () => {
       expect(component.sectionExpanded).toBe(false);
       expect(component.testAccountEmail).toBe('');
       expect(component.testAccountCode6).toBe('');
+      expect(component.testAccountLoginNotify).toBe(true);
       expect(component.loading).toBe(false);
       expect(component.saving).toBe(false);
       expect(component.error).toBe(null);
@@ -106,14 +107,15 @@ describe('TestAccountSettingsComponent', () => {
 
       expect(mockSupabaseService.client.from).toHaveBeenCalledWith('admin_settings');
       expect(selectMock).toHaveBeenCalledWith(
-        'test_account_email, test_account_code_6'
+        'test_account_email, test_account_code_6, test_account_login_notify'
       );
     });
 
     it('should load settings successfully and populate all fields', async () => {
       const mockData = {
         test_account_email: 'app-test@example.com',
-        test_account_code_6: '111777'
+        test_account_code_6: '111777',
+        test_account_login_notify: false
       };
 
       mockSupabaseService.client.from = vi.fn(() => ({
@@ -128,14 +130,38 @@ describe('TestAccountSettingsComponent', () => {
 
       expect(component.testAccountEmail).toBe('app-test@example.com');
       expect(component.testAccountCode6).toBe('111777');
+      expect(component.testAccountLoginNotify).toBe(false);
       expect(component.loading).toBe(false);
       expect(mockChangeDetectorRef.markForCheck).toHaveBeenCalled();
+    });
+
+    it('should populate test_account_login_notify when true', async () => {
+      component.testAccountLoginNotify = false;
+
+      const mockData = {
+        test_account_email: 'app-test@example.com',
+        test_account_code_6: '111777',
+        test_account_login_notify: true
+      };
+
+      mockSupabaseService.client.from = vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: vi.fn(() => Promise.resolve({ data: mockData, error: null }))
+          }))
+        }))
+      }));
+
+      await component.loadSettings();
+
+      expect(component.testAccountLoginNotify).toBe(true);
     });
 
     it('should treat null data fields as empty string', async () => {
       const mockData = {
         test_account_email: null,
-        test_account_code_6: null
+        test_account_code_6: null,
+        test_account_login_notify: null
       };
 
       mockSupabaseService.client.from = vi.fn(() => ({
@@ -150,6 +176,7 @@ describe('TestAccountSettingsComponent', () => {
 
       expect(component.testAccountEmail).toBe('');
       expect(component.testAccountCode6).toBe('');
+      expect(component.testAccountLoginNotify).toBe(true);
     });
 
     it('should handle errors when loading settings', async () => {
@@ -218,7 +245,8 @@ describe('TestAccountSettingsComponent', () => {
       expect(updateMock).toHaveBeenCalledWith(
         expect.objectContaining({
           test_account_email: 'test@example.com',
-          test_account_code_6: '111777'
+          test_account_code_6: '111777',
+          test_account_login_notify: true
         })
       );
     });
@@ -234,13 +262,15 @@ describe('TestAccountSettingsComponent', () => {
 
       component.testAccountEmail = '   ';
       component.testAccountCode6 = '';
+      component.testAccountLoginNotify = false;
 
       await component.save();
 
       expect(updateMock).toHaveBeenCalledWith(
         expect.objectContaining({
           test_account_email: null,
-          test_account_code_6: null
+          test_account_code_6: null,
+          test_account_login_notify: false
         })
       );
     });

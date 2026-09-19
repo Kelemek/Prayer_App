@@ -45,7 +45,7 @@ serve(async (req) => {
 
     const { data: settings, error: settingsError } = await supabase
       .from('admin_settings')
-      .select('test_account_email, test_account_code_6')
+      .select('test_account_email, test_account_code_6, test_account_login_notify')
       .eq('id', 1)
       .maybeSingle();
 
@@ -92,8 +92,9 @@ serve(async (req) => {
       });
     }
 
-    // Notify admins (fire-and-forget)
-    void notifyAdminsTestLogin(supabase, testEmail);
+    if (settings?.test_account_login_notify !== false) {
+      void notifyAdminsTestLogin(supabase, testEmail);
+    }
 
     return new Response(JSON.stringify({
       success: true,
