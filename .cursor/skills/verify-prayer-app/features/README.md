@@ -52,3 +52,4 @@ Keep implementation details out of the map. Name only user paths, stable handles
 - [Send feedback](./feedback.md) covers Settings feedback and the configured-check skip.
 - [Settings data export](./settings-data-export.md) covers Settings → **Download my data** (JSON account / prayers / prefs / memberships).
 - [Client force upgrade](./client-force-upgrade.md) covers the boot min-version wall (absent by default; local `?force_upgrade=1` preview).
+- [Help and tutorials](./help-tutorials.md) covers the header Help modal, `Take the guided tour`, `Show me` section tours, the `Your first week` topic, the public `/support` page, and Admin Settings Security `Invite members`.
