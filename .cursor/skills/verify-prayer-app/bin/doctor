@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+# Read-only check: is this checkout / instance worth driving?
+# Usage: bin/doctor [--instance] [--unit]
+#   --instance  require a launched ng serve owned by this run
+#   --unit      also run Vitest once (npx vitest --run)
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
+CHECK_INSTANCE=0
+CHECK_UNIT=0
+for arg in "$@"; do
+  case "$arg" in
+    --instance) CHECK_INSTANCE=1 ;;
+    --unit) CHECK_UNIT=1 ;;
+    *)
+      echo "Unknown argument: $arg" >&2
+      exit 2
+      ;;
+  esac
+done
+
+fail=0
+note() { echo "doctor: $*"; }
+bad() { echo "doctor FAIL: $*" >&2; fail=1; }
+ok() { echo "doctor OK: $*"; }
+
+note "repo=${REPO_ROOT}"
+note "base_url=${BASE_URL}"
+note "run_id=${PRAYER_APP_VERIFY_RUN_ID}"
+
+if is_production_host; then
+  bad "BASE_URL points at production ($(base_host)). Use local ng serve."
+else
+  ok "not a production host ($(base_host || echo local))"
+fi
+
+if command -v node >/dev/null 2>&1; then
+  node_ver="$(node -v)"
+  ok "node ${node_ver}"
+  node_major="${node_ver#v}"
+  node_major="${node_major%%.*}"
+  # Angular 22 CLI rejects < 22.22.3 (this VM's /usr/bin/node 22.14.0 fails ng serve).
+  if ! node -e 'const [maj,min,pat]=process.versions.node.split(".").map(Number); process.exit((maj>22||(maj===22&&min>22)||(maj===22&&min===22&&pat>=3)||maj>=24)?0:1)'; then
+    bad "Angular 22 needs Node ^22.22.3 or ^24.15 or >=26 (found ${node_ver}). Use nvm: nvm use 22.22.3"
+  fi
+else
+  bad "node is not on PATH"
+fi
+
+if command -v npm >/dev/null 2>&1; then
+  ok "npm $(npm -v)"
+else
+  bad "npm is not on PATH"
+fi
+
+if [[ ! -f "$REPO_ROOT/package.json" ]]; then
+  bad "package.json missing"
+elif grep -q '"start": "ng serve"' "$REPO_ROOT/package.json"; then
+  ok "package.json start script is ng serve (port default 4200)"
+else
+  bad "package.json start script is not ng serve"
+fi
+
+# README mentions 4200; docs/SETUP.md still says npm run dev / 5173 — that script does not exist.
+if grep -q '"dev":' "$REPO_ROOT/package.json"; then
+  note "package.json has a dev script"
+else
+  ok "no npm run dev script (ignore stale docs/SETUP.md :5173 / npm run dev)"
+fi
+
+env_ts="$REPO_ROOT/src/environments/environment.ts"
+if [[ -f "$env_ts" ]]; then
+  if grep -q "supabaseUrl:" "$env_ts" && grep -vq "your-project.supabase.co" "$env_ts"; then
+    url="$(python3 - <<'PY' "$env_ts"
+import re, sys
+text = open(sys.argv[1]).read()
+m = re.search(r"supabaseUrl:\s*'([^']+)'", text)
+print(m.group(1) if m else "")
+PY
+)"
+    ok "environment.ts has supabaseUrl=${url}"
+    if [[ "$url" == *".supabase.co" ]]; then
+      note "local serve uses the baked-in URL, not .env.local (VITE_* is for production write-prod-environment.mjs)"
+    fi
+  else
+    bad "environment.ts is missing a real supabaseUrl"
+  fi
+else
+  bad "src/environments/environment.ts missing"
+fi
+
+if [[ -d "$REPO_ROOT/node_modules/@angular/cli" ]]; then
+  ok "node_modules present"
+else
+  bad "node_modules missing — run npm ci before launch"
+fi
+
+if [[ -f "$REPO_ROOT/.env.local" ]]; then
+  note ".env.local exists (not required for ng serve; used by some scripts / prod env writer)"
+else
+  note "no .env.local — expected for local ng serve when environment.ts is filled in"
+fi
+
+if [[ -n "${PRAYER_APP_VERIFY_EMAIL:-}" ]]; then
+  ok "PRAYER_APP_VERIFY_EMAIL is set"
+else
+  note "PRAYER_APP_VERIFY_EMAIL unset — authenticated Drive will skip (public /info /login still work)"
+fi
+if [[ -n "${PRAYER_APP_VERIFY_OTP:-}" ]]; then
+  ok "PRAYER_APP_VERIFY_OTP is set"
+else
+  note "PRAYER_APP_VERIFY_OTP unset — login completion requires Mark's test-account code or a mailbox"
+fi
+
+if [[ "$CHECK_INSTANCE" -eq 1 ]]; then
+  if [[ ! -f "$PID_FILE" ]]; then
+    bad "no pid file at ${PID_FILE} — run bin/launch first"
+  else
+    pid="$(cat "$PID_FILE")"
+    if kill -0 "$pid" 2>/dev/null; then
+      ok "ng serve pid ${pid} is alive"
+    else
+      bad "pid ${pid} from ${PID_FILE} is not running"
+    fi
+  fi
+
+  if ! curl -fsS --max-time 5 "${BASE_URL}/info" -o /tmp/prayer-app-doctor-info.html; then
+    bad "${BASE_URL}/info did not return HTTP 200"
+  else
+    if grep -q "app-root\|Prayer" /tmp/prayer-app-doctor-info.html; then
+      ok "${BASE_URL}/info returned the Angular index"
+    else
+      bad "${BASE_URL}/info body does not look like the Prayer App index"
+    fi
+  fi
+
+  if ! curl -fsS --max-time 5 "${BASE_URL}/login" -o /tmp/prayer-app-doctor-login.html; then
+    bad "${BASE_URL}/login did not return HTTP 200"
+  else
+    ok "${BASE_URL}/login returned HTTP 200 (SPA; login form is client-rendered)"
+  fi
+
+  if command -v lsof >/dev/null 2>&1 && [[ -f "$PID_FILE" ]]; then
+    pid="$(cat "$PID_FILE")"
+    if lsof -nP -iTCP:"$PRAYER_APP_VERIFY_PORT" -sTCP:LISTEN -t 2>/dev/null | grep -qx "$pid"; then
+      ok "port ${PRAYER_APP_VERIFY_PORT} is owned by pid ${pid}"
+    else
+      # ng serve parent vs child: accept if any descendant listens
+      listeners="$(lsof -nP -iTCP:"$PRAYER_APP_VERIFY_PORT" -sTCP:LISTEN -t 2>/dev/null || true)"
+      if [[ -n "${listeners}" ]]; then
+        note "port ${PRAYER_APP_VERIFY_PORT} listeners: ${listeners} (recorded pid ${pid})"
+        ok "port ${PRAYER_APP_VERIFY_PORT} is listening"
+      else
+        bad "port ${PRAYER_APP_VERIFY_PORT} is not listening"
+      fi
+    fi
+  fi
+else
+  note "skipping instance checks (pass --instance after bin/launch)"
+fi
+
+if [[ "$CHECK_UNIT" -eq 1 ]]; then
+  note "running npx vitest --run (npm test is watch mode — do not use it here)"
+  if (cd "$REPO_ROOT" && npx vitest --run); then
+    ok "vitest --run passed"
+  else
+    bad "vitest --run failed"
+  fi
+fi
+
+echo
+print_instance
+if [[ "$fail" -ne 0 ]]; then
+  echo "doctor: NOT READY"
+  exit 1
+fi
+echo "doctor: READY"

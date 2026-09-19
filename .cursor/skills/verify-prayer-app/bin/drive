@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Drive the launched Prayer App instance.
+# Usage:
+#   bin/drive public
+#   bin/drive login
+#   bin/drive snapshot --route /info --name info
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
+require_non_production
+ensure_evidence_dir
+export PRAYER_APP_VERIFY_BASE_URL="$BASE_URL"
+export PRAYER_APP_VERIFY_EVIDENCE_DIR="$EVIDENCE_DIR"
+
+cmd="${1:-public}"
+shift || true
+
+echo "Driving ${cmd} against ${BASE_URL}"
+echo "Evidence -> ${EVIDENCE_DIR}"
+node "$SCRIPT_DIR/drive.mjs" "$cmd" "$@"
