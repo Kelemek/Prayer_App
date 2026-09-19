@@ -887,11 +887,15 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       this.pcoIntegrationEnabled = false;
       return;
     }
-    const { status } = await fetchPlanningCenterCredentialsStatus(
-      this.supabase.client,
-      tenantId
-    );
-    this.pcoIntegrationEnabled = Boolean(status?.enabled && status?.configured);
+    try {
+      const { status } = await fetchPlanningCenterCredentialsStatus(
+        this.supabase.client,
+        tenantId
+      );
+      this.pcoIntegrationEnabled = Boolean(status?.enabled && status?.configured);
+    } catch {
+      this.pcoIntegrationEnabled = false;
+    }
     this.cdr.markForCheck();
   }
 

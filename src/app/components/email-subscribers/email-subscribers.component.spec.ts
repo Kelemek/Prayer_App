@@ -68,6 +68,12 @@ describe('EmailSubscribersComponent', () => {
       client: {
         from: vi.fn(() => fromChain),
         rpc: vi.fn().mockResolvedValue({ data: false, error: null }),
+        functions: {
+          invoke: vi.fn().mockResolvedValue({
+            data: { enabled: false, configured: false, app_id_last4: null },
+            error: null,
+          }),
+        },
       },
     };
 
@@ -139,8 +145,13 @@ describe('EmailSubscribersComponent', () => {
   it('lazy-loads on expand and cleans up on destroy', async () => {
     const searchSpy = vi.spyOn(component, 'handleSearch').mockResolvedValue(undefined);
     component.onExpandedChange(true);
-    await Promise.resolve();
-    expect(searchSpy).toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(searchSpy).toHaveBeenCalled();
+    });
+    expect(mockSupabaseService.client.functions.invoke).toHaveBeenCalledWith(
+      'planning-center-credentials',
+      { body: { action: 'status', tenant_id: 'tenant-1' } }
+    );
 
     component.ngOnInit();
     component.onListSearchQueryChange('ab');
@@ -182,6 +193,12 @@ describe('EmailSubscribersComponent', () => {
 
   it('toggle forms and edit modal', async () => {
     component.toggleAddForm();
+    await vi.waitFor(() => {
+      expect(mockSupabaseService.client.functions.invoke).toHaveBeenCalledWith(
+        'planning-center-credentials',
+        { body: { action: 'status', tenant_id: 'tenant-1' } }
+      );
+    });
     expect(component.showAddForm).toBe(true);
     expect(component.showCSVUpload).toBe(false);
     component.toggleCSVUpload();
@@ -204,6 +221,21 @@ describe('EmailSubscribersComponent', () => {
 
     component.closeEditSubscriberModal();
     expect(component.editSubscriberId).toBeNull();
+  });
+
+  it('refreshPcoIntegrationStatus enables PCO when credentials are configured', async () => {
+    mockSupabaseService.client.functions.invoke.mockResolvedValue({
+      data: { enabled: true, configured: true, app_id_last4: '1234' },
+      error: null,
+    });
+    await component.refreshPcoIntegrationStatus();
+    expect(component.pcoIntegrationEnabled).toBe(true);
+  });
+
+  it('refreshPcoIntegrationStatus stays disabled when invoke throws', async () => {
+    mockSupabaseService.client.functions.invoke.mockRejectedValue(new Error('offline'));
+    await component.refreshPcoIntegrationStatus();
+    expect(component.pcoIntegrationEnabled).toBe(false);
   });
 
   it('handleSearch maps rows and filters super admins', async () => {
