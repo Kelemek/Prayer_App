@@ -2342,5 +2342,15 @@ describe('BadgeService all-tenant app icon count', () => {
     ).badgeFunctionalityEnabled$.next(false);
     expect(service.getAllTenantDisplayedBadgeCount()).toBe(0);
   });
+
+  it('counts a never-visited tenant from badge-owned snapshots, not list caches', () => {
+    localStorage.removeItem(`tenant_${otherTenantId}_prayers`);
+    localStorage.setItem(
+      `in_app_badge_items:${otherTenantId}:prayers`,
+      JSON.stringify([{ id: 'p-snap', status: 'current' }])
+    );
+    expect(service.getAllTenantDisplayedBadgeCount()).toBe(5);
+    expect(localStorage.getItem(`tenant_${otherTenantId}_prayers`)).toBeNull();
+  });
 });
 

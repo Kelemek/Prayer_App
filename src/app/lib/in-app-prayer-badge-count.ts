@@ -54,6 +54,62 @@ export function promptsCacheKeyForTenant(tenantId: string): string {
   return `prompts:${tenantId}`;
 }
 
+/** Badge-owned item snapshot; never written into list-page caches. */
+export function inAppBadgeItemSnapshotKey(
+  tenantId: string,
+  kind: 'prayers' | 'prompts'
+): string {
+  return `in_app_badge_items:${tenantId}:${kind}`;
+}
+
+export function storageHasKey(
+  storage: Pick<Storage, 'getItem'>,
+  key: string
+): boolean {
+  const raw = storage.getItem(key);
+  return raw != null && raw !== '';
+}
+
+export type InAppBadgeReceiptKind =
+  | 'prayer'
+  | 'prayer_update'
+  | 'prompt'
+  | 'prompt_update';
+
+export interface InAppBadgeReceiptRow {
+  item_kind: InAppBadgeReceiptKind;
+  item_id: string;
+}
+
+export function receiptsToReadState(
+  rows: InAppBadgeReceiptRow[]
+): InAppBadgeReadState {
+  const next = emptyInAppBadgeReadState();
+  for (const row of rows) {
+    const id = String(row.item_id);
+    switch (row.item_kind) {
+      case 'prayer':
+        next.prayers.push(id);
+        break;
+      case 'prayer_update':
+        next.prayerUpdates.push(id);
+        break;
+      case 'prompt':
+        next.prompts.push(id);
+        break;
+      case 'prompt_update':
+        next.promptUpdates.push(id);
+        break;
+      default: {
+        const _exhaustive: never = row.item_kind;
+        void _exhaustive;
+        break;
+      }
+    }
+  }
+  return next;
+}
+
 export function parseCachedBadgeItems(raw: unknown): InAppBadgeCachedItem[] {
   let parsed = raw;
   if (typeof raw === 'string') {
@@ -282,10 +338,6 @@ export function shouldClearAppIconBadgeOnAppOpen(): boolean {
   return false;
 }
 
-export function appIconBadgeCountAfterAppOpen(currentCount: number): number {
-  return currentCount;
-}
-
 export function resolveAppIconBadgeCount(options: {
   badgesEnabled: boolean;
   allTenantDisplayedCount: number;
@@ -322,18 +374,31 @@ export function listMemberTenantIds(input: {
   return Array.from(new Set(ids));
 }
 
+function readItemsPreferringListCache(
+  storage: Pick<Storage, 'getItem'>,
+  tenantId: string,
+  kind: 'prayers' | 'prompts'
+): InAppBadgeCachedItem[] {
+  const listKey =
+    kind === 'prayers'
+      ? sharedPrayersCacheKey(tenantId)
+      : promptsCacheKeyForTenant(tenantId);
+  if (storageHasKey(storage, listKey)) {
+    return parseCachedBadgeItems(storage.getItem(listKey));
+  }
+  return parseCachedBadgeItems(
+    storage.getItem(inAppBadgeItemSnapshotKey(tenantId, kind))
+  );
+}
+
 export function readTenantInAppBadgeSnapshot(
   storage: Pick<Storage, 'getItem'>,
   tenantId: string,
   email: string,
   activeReadState?: InAppBadgeReadState | null
 ): TenantInAppBadgeSnapshot {
-  const prayers = parseCachedBadgeItems(
-    storage.getItem(sharedPrayersCacheKey(tenantId))
-  );
-  const prompts = parseCachedBadgeItems(
-    storage.getItem(promptsCacheKeyForTenant(tenantId))
-  );
+  const prayers = readItemsPreferringListCache(storage, tenantId, 'prayers');
+  const prompts = readItemsPreferringListCache(storage, tenantId, 'prompts');
   const stored = parseInAppBadgeReadState(
     storage.getItem(scopedInAppBadgeReadCacheKey(tenantId, email))
   );

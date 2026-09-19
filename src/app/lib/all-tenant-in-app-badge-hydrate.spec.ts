@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { emptyInAppBadgeReadState } from './in-app-prayer-badge-count';
 import {
+  emptyInAppBadgeReadState,
+  inAppBadgeItemSnapshotKey,
+} from './in-app-prayer-badge-count';
+import {
+  createLocalStorageAllTenantInAppBadgeHydrateDeps,
   hydrateMissingTenantInAppBadgeCaches,
   mergeReceiptsIntoReadState,
   receiptsToReadState,
@@ -101,5 +105,45 @@ describe('all-tenant in-app badge hydrate', () => {
       loadPrompts: async () => [],
     });
     expect(hydrated).toEqual(['good']);
+  });
+
+  it('writes badge-owned snapshots instead of list-page caches', async () => {
+    const storage = new Map<string, string>();
+    const deps = createLocalStorageAllTenantInAppBadgeHydrateDeps({
+      storage: {
+        getItem: (key) => storage.get(key) ?? null,
+        setItem: (key, value) => {
+          storage.set(key, value);
+        },
+      },
+      client: {
+        rpc: async () => ({
+          data: [{ item_kind: 'prayer', item_id: 'p-snap' }],
+          error: null,
+        }),
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              eq: async () => ({ data: [{ name: 'daily' }], error: null }),
+            }),
+          }),
+        }),
+      } as never,
+      email: 'member@example.com',
+      tenantIds: ['other'],
+    });
+    deps.loadPrayers = async () => [{ id: 'p-snap', status: 'current' }];
+    deps.loadPrompts = async () => [{ id: 'pr-snap' }];
+
+    await hydrateMissingTenantInAppBadgeCaches(deps);
+
+    expect(storage.has('tenant_other_prayers')).toBe(false);
+    expect(storage.has('prompts:other')).toBe(false);
+    expect(
+      storage.get(inAppBadgeItemSnapshotKey('other', 'prayers'))
+    ).toContain('p-snap');
+    expect(
+      storage.get(inAppBadgeItemSnapshotKey('other', 'prompts'))
+    ).toContain('pr-snap');
   });
 });

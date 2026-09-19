@@ -2,10 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BehaviorSubject, Subject } from 'rxjs';
 import { AppIconBadgeService, type AppIconBadgeNativeApi } from './app-icon-badge.service';
 import { BadgeService } from './badge.service';
-import { TenantContextService } from './tenant-context.service';
-import { UserSessionService } from './user-session.service';
-import { SupabaseService } from './supabase.service';
-import { CacheService } from './cache.service';
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
@@ -30,16 +26,6 @@ describe('AppIconBadgeService', () => {
     getUpdateBadgesChanged$: ReturnType<typeof vi.fn>;
     getBadgeFunctionalityEnabled$: ReturnType<typeof vi.fn>;
   };
-  let tenantContext: {
-    memberships$: BehaviorSubject<unknown[]>;
-    getMemberTenants: ReturnType<typeof vi.fn>;
-    getMemberships: ReturnType<typeof vi.fn>;
-    getActiveTenant: ReturnType<typeof vi.fn>;
-  };
-  let userSession: {
-    userSession$: BehaviorSubject<unknown>;
-    getUserEmail: ReturnType<typeof vi.fn>;
-  };
   let updateBadgesChanged$: Subject<void>;
   let badgesEnabled$: BehaviorSubject<boolean>;
 
@@ -52,27 +38,8 @@ describe('AppIconBadgeService', () => {
       getUpdateBadgesChanged$: vi.fn(() => updateBadgesChanged$.asObservable()),
       getBadgeFunctionalityEnabled$: vi.fn(() => badgesEnabled$.asObservable()),
     };
-    tenantContext = {
-      memberships$: new BehaviorSubject([]),
-      getMemberTenants: vi.fn(() => []),
-      getMemberships: vi.fn(() => []),
-      getActiveTenant: vi.fn(() => ({ id: 'tenant-a' })),
-    };
-    userSession = {
-      userSession$: new BehaviorSubject({ email: 'member@example.com' }),
-      getUserEmail: vi.fn(() => 'member@example.com'),
-    };
 
-    service = new AppIconBadgeService(
-      badgeService as unknown as BadgeService,
-      tenantContext as unknown as TenantContextService,
-      userSession as unknown as UserSessionService,
-      { client: { rpc: vi.fn(), from: vi.fn() } } as unknown as SupabaseService,
-      {
-        hasData: vi.fn(() => true),
-        set: vi.fn(),
-      } as unknown as CacheService
-    );
+    service = new AppIconBadgeService(badgeService as unknown as BadgeService);
   });
 
   afterEach(() => {
@@ -118,7 +85,6 @@ describe('AppIconBadgeService', () => {
     document.dispatchEvent(new Event('visibilitychange'));
     await Promise.resolve();
     await Promise.resolve();
-    // App open / resume may re-apply the same count; it must never write 0 as a clear.
     expect(native.set).not.toHaveBeenCalledWith(0);
     expect('clear' in native).toBe(false);
   });

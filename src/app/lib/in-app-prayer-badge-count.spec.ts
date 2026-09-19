@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
-  appIconBadgeCountAfterAppOpen,
   countDisplayedInAppPrayerBadges,
   countDisplayedInAppPrayerBadgesAfterOpeningSurface,
   countDisplayedInAppPrayerBadgesAcrossTenants,
   countInAppPrayerBadgesForItems,
   emptyInAppBadgeReadState,
+  inAppBadgeItemSnapshotKey,
   listMemberTenantIds,
   markInAppBadgeSurfaceRead,
   parseCachedBadgeItems,
   parseInAppBadgeReadState,
   readAllTenantInAppBadgeSnapshots,
+  receiptsToReadState,
   resolveAppIconBadgeCount,
   scopedInAppBadgeReadCacheKey,
   shouldClearAppIconBadgeOnAppOpen,
@@ -146,8 +147,22 @@ describe('in-app prayer badge count', () => {
 
   it('does not clear the icon badge on app open', () => {
     expect(shouldClearAppIconBadgeOnAppOpen()).toBe(false);
-    expect(appIconBadgeCountAfterAppOpen(7)).toBe(7);
-    expect(appIconBadgeCountAfterAppOpen(0)).toBe(0);
+  });
+
+  it('maps receipt rows into the same read-state buckets as pills', () => {
+    expect(
+      receiptsToReadState([
+        { item_kind: 'prayer', item_id: 'p1' },
+        { item_kind: 'prayer_update', item_id: 'u1' },
+        { item_kind: 'prompt', item_id: 'pr1' },
+        { item_kind: 'prompt_update', item_id: 'pu1' },
+      ])
+    ).toEqual({
+      prayers: ['p1'],
+      prayerUpdates: ['u1'],
+      prompts: ['pr1'],
+      promptUpdates: ['pu1'],
+    });
   });
 
   it('resolves icon count to 0 when badges are disabled', () => {
@@ -212,5 +227,26 @@ describe('in-app prayer badge count', () => {
       { ...emptyInAppBadgeReadState(), prompts: ['pr1'] }
     );
     expect(countDisplayedInAppPrayerBadgesAcrossTenants(snapshots)).toBe(1);
+  });
+
+  it('falls back to badge-owned snapshots when list caches are absent', () => {
+    const email = 'member@example.com';
+    const storage = {
+      getItem(key: string): string | null {
+        if (key === inAppBadgeItemSnapshotKey('ccc', 'prayers')) {
+          return JSON.stringify([{ id: 'snap-p', status: 'current' }]);
+        }
+        if (key === inAppBadgeItemSnapshotKey('ccc', 'prompts')) {
+          return JSON.stringify([{ id: 'snap-pr' }]);
+        }
+        return null;
+      },
+    };
+    const snapshots = readAllTenantInAppBadgeSnapshots(
+      storage,
+      ['ccc'],
+      email
+    );
+    expect(countDisplayedInAppPrayerBadgesAcrossTenants(snapshots)).toBe(2);
   });
 });
