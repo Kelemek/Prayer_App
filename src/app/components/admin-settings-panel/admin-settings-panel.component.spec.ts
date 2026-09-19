@@ -74,6 +74,24 @@ describe('AdminSettingsPanelComponent', () => {
     expect(html).not.toContain('github-settings');
   });
 
+  it('security tab mounts Invite members above Admin User Management for every admin', () => {
+    const htmlPath = join(
+      dirname(fileURLToPath(import.meta.url)),
+      'admin-settings-panel.component.html'
+    );
+    const html = readFileSync(htmlPath, 'utf-8');
+    // The tab header switch also has a security case; the content switch is the last one.
+    const security = html.slice(
+      html.lastIndexOf("@case ('security')"),
+      html.lastIndexOf("@case ('tenant_manager')")
+    );
+    const inviteAt = security.indexOf('<app-church-member-invite>');
+    const adminUsersAt = security.indexOf('<app-admin-user-management>');
+    expect(inviteAt).toBeGreaterThan(-1);
+    expect(inviteAt).toBeLessThan(adminUsersAt);
+    expect(security).not.toContain('isSuperAdmin');
+  });
+
   it('security tab includes church wipe danger zone', () => {
     const htmlPath = join(
       dirname(fileURLToPath(import.meta.url)),
