@@ -65,8 +65,6 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
   @Input() totalCount = 0;
   @Input() canCreateGroups = false;
   @Input() showProUpgrade = false;
-  @Input() maxGroupsOwned = 1;
-  @Input() groupsOwned = 0;
   @Input() maxMembersPerGroup = 25;
   @Input() showMemberProUpgrade = false;
   @Input() currentUserEmail = "";

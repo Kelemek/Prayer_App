@@ -19,6 +19,8 @@ import { FormsModule } from "@angular/forms";
 export class HomeGroupEditorModalComponent implements OnChanges {
   @Input() isOpen = false;
   @Input() submitting = false;
+  @Input() groupsOwned = 0;
+  @Input() maxGroupsOwned = 1;
 
   @Output() close = new EventEmitter<void>();
   @Output() createGroup = new EventEmitter<string>();

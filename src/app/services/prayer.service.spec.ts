@@ -5906,6 +5906,15 @@ describe('PrayerService - Integration Tests', () => {
         const result = await service.createPersonalCategory('Work', '#2563EB');
 
         expect(result).toEqual({ ok: true, name: 'Work' });
+        expect(service.getPersonalCategoriesSnapshot()).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: 'new-id',
+              name: 'Work',
+              color: '#2563EB',
+            }),
+          ])
+        );
         expect(mockSupabaseService.client.rpc).toHaveBeenCalledWith(
           'ensure_personal_category',
           {
@@ -5915,6 +5924,26 @@ describe('PrayerService - Integration Tests', () => {
         );
         expect(update).toHaveBeenCalledWith({ color: '#2563EB' });
         expect(updateEq).toHaveBeenCalledWith('id', 'new-id');
+      });
+
+      it('returns before a hanging category reload', async () => {
+        const updateEq = vi.fn().mockResolvedValue({ error: null });
+        mockSupabaseService.client.from.mockReturnValue({
+          update: vi.fn().mockReturnValue({ eq: updateEq }),
+        });
+        vi.spyOn(
+          (service as any).personal,
+          'loadPersonalCategories'
+        ).mockReturnValue(new Promise(() => {}));
+
+        const result = await service.createPersonalCategory('Work', '#2563EB');
+
+        expect(result).toEqual({ ok: true, name: 'Work' });
+        expect(service.getPersonalCategoriesSnapshot()).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ name: 'Work', color: '#2563EB' }),
+          ])
+        );
       });
     });
 

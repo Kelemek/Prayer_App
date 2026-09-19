@@ -227,10 +227,29 @@ export class PrayerPersonalService {
 
   private upsertLocalPersonalCategory(
     categoryId: string,
-    name: string
+    name: string,
+    color?: string | null
   ): void {
     const existing = this.personalCategoriesSubject.value;
-    if (existing.some((category) => category.id === categoryId)) {
+    const index = existing.findIndex(
+      (category) =>
+        category.id === categoryId ||
+        category.name.toLowerCase() === name.toLowerCase()
+    );
+    if (index >= 0) {
+      const current = existing[index]!;
+      this.setPersonalCategoriesState(
+        existing.map((category, i) =>
+          i === index
+            ? {
+                ...current,
+                id: categoryId,
+                name,
+                color: color !== undefined ? color : current.color,
+              }
+            : category
+        )
+      );
       return;
     }
     const nextOrder =
@@ -239,7 +258,12 @@ export class PrayerPersonalService {
         : Math.max(...existing.map((category) => category.display_order)) + 1;
     this.setPersonalCategoriesState([
       ...existing,
-      { id: categoryId, name, display_order: nextOrder, color: null },
+      {
+        id: categoryId,
+        name,
+        display_order: nextOrder,
+        color: color ?? null,
+      },
     ]);
   }
 
@@ -392,7 +416,8 @@ export class PrayerPersonalService {
 
   async loadPersonalCategories(forceRefresh = false): Promise<PersonalCategory[]> {
     const tenantId = this.getActiveTenantId();
-    const userEmail = await this.getUserEmail();
+    const sessionEmail = this.userSessionService.getUserEmail?.() ?? null;
+    const userEmail = sessionEmail ?? (await this.getUserEmail());
     if (!tenantId || !userEmail) {
       return this.personalCategoriesSubject.value;
     }
@@ -823,7 +848,12 @@ export class PrayerPersonalService {
       if (error) {
         throw error;
       }
-      await this.loadPersonalCategories(true);
+      this.upsertLocalPersonalCategory(
+        categoryId,
+        sanitizedName,
+        normalizedColor
+      );
+      void this.loadPersonalCategories(true);
       return { ok: true, name: sanitizedName };
     } catch (error) {
       console.error("[PrayerService] createPersonalCategory failed:", error);

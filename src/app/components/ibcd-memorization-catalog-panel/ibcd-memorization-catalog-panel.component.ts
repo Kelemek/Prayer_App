@@ -29,8 +29,10 @@ import type { IbcdCatalogStatus } from '../../types/memorization';
           IBCD counseling catalog (optional)
         </h3>
         <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
-          The IBCD catalog is a curated set of about 30 biblical-counseling topic categories
-          and roughly 100 verse references from Jim Newheiser / IBCD
+          IBCD (Institute for Biblical Counseling &amp; Discipleship) is a ministry that
+          trains churches in one-another, Scripture-based counseling. This catalog is a
+          curated set of about 30 biblical-counseling topic categories and roughly 100
+          verse references from Jim Newheiser / IBCD
           <em>Approximately 100 Go-to Texts for Biblical Counseling</em>. It is
           translation-agnostic and fully editable after you apply it.
         </p>

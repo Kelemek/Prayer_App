@@ -237,7 +237,6 @@ describe("HomeGroupFiltersComponent", () => {
   it("emits upgradePro when Add is clicked at the free group cap", () => {
     fixture.componentRef.setInput("canCreateGroups", false);
     fixture.componentRef.setInput("showProUpgrade", true);
-    fixture.componentRef.setInput("maxGroupsOwned", 1);
     fixture.detectChanges();
     const emitted: number[] = [];
     fixture.componentInstance.upgradePro.subscribe(() => emitted.push(1));

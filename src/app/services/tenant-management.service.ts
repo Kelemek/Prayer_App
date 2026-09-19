@@ -230,8 +230,6 @@ export class TenantManagementService {
     if (error) {
       throw new Error(error.message);
     }
-
-    await this.tenantContext.refresh();
   }
 
   async removeSuperAdmin(email: string): Promise<void> {

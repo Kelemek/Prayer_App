@@ -89,6 +89,7 @@ const VIEW_BTN_INACTIVE =
         </button>
       </div>
 
+      @if (hasListItems) {
       <div
         class="flex items-center gap-2 self-end"
         data-testid="memorize-list-layout-row"
@@ -135,6 +136,7 @@ const VIEW_BTN_INACTIVE =
           </button>
         </div>
       </div>
+      }
     </div>
   `,
 })
@@ -143,6 +145,7 @@ export class MemorizationActionBarComponent {
   @Input() bibleBooksActive = false;
   @Input() recommendedActive = false;
   @Input() listView: MemorizeListView = 'cards';
+  @Input() hasListItems = false;
 
   @Output() addVerses = new EventEmitter<void>();
   @Output() addBibleBooks = new EventEmitter<void>();

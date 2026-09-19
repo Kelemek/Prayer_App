@@ -287,9 +287,6 @@ export class HomePersonalCategoryController {
   }
 
   closeCreatePersonalCategoryModal(): void {
-    if (this.isCreatingPersonalCategory) {
-      return;
-    }
     this.showCreatePersonalCategory = false;
     this.requireHost().markForCheck();
   }
@@ -323,12 +320,12 @@ export class HomePersonalCategoryController {
         return;
       }
 
-      await colorService.loadColors(true);
       this.showCreatePersonalCategory = false;
       this.personalCategoryFilterMode = "named";
       this.selectedPersonalCategories = [result.name];
       toastService.success("Category created.");
       this.requireHost().onFilterStateChanged();
+      void colorService.loadColors(true);
     } finally {
       this.isCreatingPersonalCategory = false;
       this.requireHost().markForCheck();

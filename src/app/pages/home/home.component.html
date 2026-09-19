@@ -150,6 +150,8 @@
       <app-home-group-editor-modal
         [isOpen]="showGroupEditor"
         [submitting]="groupEditorSubmitting"
+        [groupsOwned]="groupsOwned"
+        [maxGroupsOwned]="maxGroupsOwned"
         (close)="closeGroupEditor()"
         (createGroup)="onCreateGroup($event)"
       ></app-home-group-editor-modal>
@@ -309,8 +311,6 @@
         [totalCount]="groupTotalCount"
         [canCreateGroups]="canCreatePrayerGroups"
         [showProUpgrade]="showGroupProUpgrade"
-        [maxGroupsOwned]="maxGroupsOwned"
-        [groupsOwned]="groupsOwned"
         [maxMembersPerGroup]="maxMembersPerGroup"
         [showMemberProUpgrade]="showMemberProUpgrade"
         [currentUserEmail]="currentUserEmail"

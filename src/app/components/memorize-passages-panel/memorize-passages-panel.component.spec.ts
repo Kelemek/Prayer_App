@@ -117,5 +117,11 @@ describe('MemorizePassagesPanelComponent', () => {
   it('shows empty onboarding when there are no items', async () => {
     await renderPanel({ items: [] });
     expect(screen.getByTestId('memorize-empty-state')).toBeTruthy();
+    expect(screen.queryByTestId('memorize-list-layout-row')).toBeNull();
+  });
+
+  it('shows the Cards/Table toggle when there are verses', async () => {
+    await renderPanel();
+    expect(screen.getByTestId('memorize-list-layout-row')).toBeTruthy();
   });
 });

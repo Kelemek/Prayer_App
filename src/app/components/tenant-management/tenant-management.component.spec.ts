@@ -218,8 +218,30 @@ describe('TenantManagementComponent', () => {
     component.superAdminEmail = 'new-admin@test.com';
     await component.assignSuperAdmin();
     expect(assignSuperAdmin).toHaveBeenCalledWith('new-admin@test.com');
-    expect(toastSuccess).toHaveBeenCalledWith('Super admin granted');
+    expect(toastSuccess).toHaveBeenCalledWith('Super admin invited');
     expect(component.superAdminEmail).toBe('');
+    expect(component.grantingSuperAdmin).toBe(false);
+    expect(listSuperAdmins).toHaveBeenCalled();
+  });
+
+  it('clears Inviting before a slow super-admin list reload', async () => {
+    component.isSuperAdmin = true;
+    component.superAdminEmail = 'new-admin@test.com';
+    let resolveList: (value: { user_email: string }[]) => void = () => undefined;
+    listSuperAdmins.mockReturnValue(
+      new Promise<{ user_email: string }[]>((resolve) => {
+        resolveList = resolve;
+      })
+    );
+
+    const grantPromise = component.assignSuperAdmin();
+    await vi.waitFor(() => {
+      expect(component.grantingSuperAdmin).toBe(false);
+      expect(toastSuccess).toHaveBeenCalledWith('Super admin invited');
+    });
+
+    resolveList([]);
+    await grantPromise;
   });
 
   it('filteredSuperAdmins filters by email', () => {

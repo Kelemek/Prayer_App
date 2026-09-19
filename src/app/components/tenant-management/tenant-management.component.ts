@@ -47,10 +47,13 @@ import type {
         stroke-width="2"
         stroke-linecap="round"
         stroke-linejoin="round"
+        aria-hidden="true"
       >
-        <path d="M3 21h18"></path>
-        <path d="M5 21V7l7-4 7 4v14"></path>
-        <path d="M9 21v-4h6v4"></path>
+        <path d="M4 21h16"></path>
+        <path d="M6 21V10l6-4 6 4v11"></path>
+        <path d="M10 21v-5h4v5"></path>
+        <path d="M12 6V2"></path>
+        <path d="M10.5 3.5h3"></path>
       </svg>
 
       @if (contextLoading) {
@@ -343,19 +346,9 @@ import type {
       </div>
 
       <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-            Super Admin Controls
-          </h4>
-          <button
-            type="button"
-            (click)="loadSuperAdmins()"
-            [disabled]="superAdminsLoading"
-            class="text-xs px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
-          >
-            {{ superAdminsLoading ? "Loading…" : "Refresh list" }}
-          </button>
-        </div>
+        <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
+          Super Admin Controls
+        </h4>
 
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
           Super admins can access all tenants and grant or revoke this role
@@ -429,7 +422,7 @@ import type {
         <div class="mb-2">
           <label
             class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1"
-            >Grant super admin</label
+            >Invite super admin</label
           >
           <div class="flex flex-wrap gap-2">
             <input
@@ -442,9 +435,9 @@ import type {
               type="button"
               (click)="assignSuperAdmin()"
               [disabled]="grantingSuperAdmin || !superAdminEmail.trim()"
-              class="px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60"
+              class="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-60"
             >
-              {{ grantingSuperAdmin ? "Granting…" : "Grant" }}
+              {{ grantingSuperAdmin ? "Inviting…" : "Invite" }}
             </button>
           </div>
         </div>
@@ -744,17 +737,21 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
   async assignSuperAdmin(): Promise<void> {
     if (!this.superAdminEmail.trim()) return;
     this.grantingSuperAdmin = true;
+    let granted = false;
     try {
       await this.tenantManagement.assignSuperAdmin(this.superAdminEmail);
-      this.toast.success("Super admin granted");
+      this.toast.success("Super admin invited");
       this.superAdminEmail = "";
-      await this.loadSuperAdmins();
+      granted = true;
     } catch (error) {
       this.toast.error(
-        error instanceof Error ? error.message : "Failed to grant super admin"
+        error instanceof Error ? error.message : "Failed to invite super admin"
       );
     } finally {
       this.grantingSuperAdmin = false;
+    }
+    if (granted) {
+      await this.loadSuperAdmins();
     }
   }
 

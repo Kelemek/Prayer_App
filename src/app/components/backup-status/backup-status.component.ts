@@ -82,7 +82,7 @@ interface BackupLog {
           <button
             (click)="handleManualBackup()"
             [disabled]="backingUp"
-            class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer"
+            class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer"
           >
             @if (backingUp) {
             <div
@@ -109,7 +109,7 @@ interface BackupLog {
           <button
             (click)="showRestoreDialog = true"
             [disabled]="restoring"
-            class="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer"
+            class="inline-flex items-center gap-2 px-4 py-2 bg-church-green hover:opacity-90 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer"
           >
             @if (restoring) {
             <div
@@ -233,7 +233,7 @@ interface BackupLog {
                     >{{ backup.total_records.toLocaleString() }} records</span
                   >
                   <span>{{ formatDuration(backup.duration_seconds) }}</span>
-                  <span class="text-indigo-600 dark:text-indigo-400">
+                  <span>
                     {{ expandedBackupId === backup.id ? "▼" : "▶" }}
                   </span>
                 </div>
@@ -351,7 +351,7 @@ interface BackupLog {
                         {{ entry[0] }}
                       </span>
                       <span
-                        class="font-semibold text-indigo-600 dark:text-indigo-400 flex-shrink-0"
+                        class="font-semibold text-blue-600 dark:text-blue-400 flex-shrink-0"
                       >
                         {{ entry[1] }}
                       </span>
@@ -371,7 +371,7 @@ interface BackupLog {
           <div class="mt-4 text-center">
             <button
               (click)="toggleShowFullLog()"
-              class="px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors cursor-pointer"
+              class="px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors cursor-pointer"
             >
               Show More ({{ allBackups.length - 5 }} older backups)
             </button>
@@ -383,7 +383,7 @@ interface BackupLog {
           <div class="mt-4 text-center">
             <button
               (click)="toggleShowFullLog()"
-              class="px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors cursor-pointer"
+              class="px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors cursor-pointer"
             >
               Show Less
             </button>

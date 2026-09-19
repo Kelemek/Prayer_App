@@ -66,7 +66,7 @@ describe('MemorizationActionBarComponent', () => {
     const user = userEvent.setup();
     const listViewChange = vi.fn();
     const { fixture } = await render(MemorizationActionBarComponent, {
-      componentInputs: { listView: 'cards' },
+      componentInputs: { listView: 'cards', hasListItems: true },
     });
     fixture.componentInstance.listViewChange.subscribe(listViewChange);
 
@@ -76,7 +76,7 @@ describe('MemorizationActionBarComponent', () => {
 
   it('marks Cards as pressed when listView is cards', async () => {
     await render(MemorizationActionBarComponent, {
-      componentInputs: { listView: 'cards' },
+      componentInputs: { listView: 'cards', hasListItems: true },
     });
     expect(screen.getByTestId('memorize-view-cards').getAttribute('aria-pressed')).toBe(
       'true'
@@ -104,7 +104,9 @@ describe('MemorizationActionBarComponent', () => {
   });
 
   it('places a compact Cards/Table toggle under the actions, right-aligned with a View label', async () => {
-    const { container } = await render(MemorizationActionBarComponent);
+    const { container } = await render(MemorizationActionBarComponent, {
+      componentInputs: { hasListItems: true },
+    });
     const bar = container.querySelector('#tour-memorize-action-bar');
     expect(bar?.className).toContain('flex-col');
     expect(bar?.className).toContain('gap-2');
@@ -127,12 +129,17 @@ describe('MemorizationActionBarComponent', () => {
 
   it('does not use hover/active ring styles on the layout toggle (avoids size jump)', async () => {
     await render(MemorizationActionBarComponent, {
-      componentInputs: { listView: 'table' },
+      componentInputs: { listView: 'table', hasListItems: true },
     });
     const cards = screen.getByTestId('memorize-view-cards');
     const table = screen.getByTestId('memorize-view-table');
     expect(cards.className).not.toMatch(/(?:^|\s)hover:ring(?:\s|$)/);
     expect(table.className).not.toMatch(/(?:^|\s)ring(?:\s|$)/);
     expect(table.className).not.toContain('hover:ring');
+  });
+
+  it('hides the Cards/Table toggle when the list has no verses', async () => {
+    await render(MemorizationActionBarComponent);
+    expect(screen.queryByTestId('memorize-list-layout-row')).toBeNull();
   });
 });

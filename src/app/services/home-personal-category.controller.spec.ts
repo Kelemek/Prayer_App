@@ -293,6 +293,15 @@ describe("HomePersonalCategoryController", () => {
       expect(controller.selectedPersonalCategories).toEqual([]);
       expect(personalCategoryColorService.loadColors).not.toHaveBeenCalled();
     });
+
+    it("lets the user dismiss the modal while create is in flight", () => {
+      controller.showCreatePersonalCategory = true;
+      controller.isCreatingPersonalCategory = true;
+
+      controller.closeCreatePersonalCategoryModal();
+
+      expect(controller.showCreatePersonalCategory).toBe(false);
+    });
   });
 
   describe("category drag scroll lock", () => {

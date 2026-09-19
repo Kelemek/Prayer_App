@@ -32,6 +32,8 @@ describe("HomeGroupEditorModalComponent", () => {
 
     fixture = TestBed.createComponent(HomeGroupEditorModalComponent);
     fixture.componentRef.setInput("isOpen", true);
+    fixture.componentRef.setInput("groupsOwned", 1);
+    fixture.componentRef.setInput("maxGroupsOwned", 25);
     fixture.detectChanges();
   });
 
@@ -43,6 +45,9 @@ describe("HomeGroupEditorModalComponent", () => {
     expect(fixture.nativeElement.textContent).toContain("Create a group");
     expect(fixture.nativeElement.textContent).toContain("Group name");
     expect(fixture.nativeElement.textContent).toContain("Create group");
+    expect(fixture.nativeElement.textContent).toContain(
+      "You're using 1 of 25 groups."
+    );
   });
 
   it("clears the name draft when reopened", () => {

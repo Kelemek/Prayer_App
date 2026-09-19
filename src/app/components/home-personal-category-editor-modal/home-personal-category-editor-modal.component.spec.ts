@@ -82,4 +82,13 @@ describe("HomePersonalCategoryEditorModalComponent", () => {
     closeButton.click();
     expect(closeSpy).toHaveBeenCalled();
   });
+
+  it("keeps the close button enabled while submitting", () => {
+    fixture.componentRef.setInput("submitting", true);
+    fixture.detectChanges();
+    const closeButton = fixture.nativeElement.querySelector(
+      'button[aria-label="Close"]'
+    ) as HTMLButtonElement;
+    expect(closeButton.disabled).toBe(false);
+  });
 });

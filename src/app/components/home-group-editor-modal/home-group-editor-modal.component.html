@@ -47,6 +47,12 @@
           (keydown.enter)="submitCreate()"
         />
       </label>
+      <p
+        class="text-sm text-gray-500 dark:text-gray-400"
+        data-testid="groups-owned-usage-hint"
+      >
+        You're using {{ groupsOwned }} of {{ maxGroupsOwned }} groups.
+      </p>
       <p class="text-sm text-gray-500 dark:text-gray-400">
         After you name the group you can invite people by email.
       </p>

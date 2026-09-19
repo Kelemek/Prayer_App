@@ -38,6 +38,7 @@ import { MemorizedVersesTableComponent } from '../memorized-verses-table/memoriz
       [bibleBooksActive]="bibleBooksActive"
       [recommendedActive]="recommendedActive"
       [listView]="listView"
+      [hasListItems]="items.length > 0"
       (addVerses)="addVerses.emit()"
       (addBibleBooks)="addBibleBooks.emit()"
       (openRecommended)="openRecommended.emit()"
