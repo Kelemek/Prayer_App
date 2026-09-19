@@ -5,10 +5,6 @@ import { HelpSection, HelpSectionInput } from '../types/help-content';
 
 type HelpSectionRow = Pick<HelpSection, 'id' | 'title' | 'description' | 'icon' | 'content'>;
 
-/**
- * Help registry. Array position is the display order and the full guided tour order.
- * IDs in HOME_HELP_TOUR_SECTION_IDS (home-help-tour-dispatch) get a "Show me" tour.
- */
 const HELP_SECTION_ROWS: readonly HelpSectionRow[] = [
   {
     id: 'help_first_week',

@@ -18,7 +18,6 @@ import {
 
 export const HELP_SECTION_ID_PRESENTATION = 'help_presentation';
 
-/** Help sections that have a "Show me" tour on Home. Shared by the dispatcher and the Help modal. */
 export const HOME_HELP_TOUR_SECTION_IDS = [
   'help_prayers',
   'help_filtering',

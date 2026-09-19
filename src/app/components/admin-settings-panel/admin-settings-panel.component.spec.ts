@@ -80,7 +80,6 @@ describe('AdminSettingsPanelComponent', () => {
       'admin-settings-panel.component.html'
     );
     const html = readFileSync(htmlPath, 'utf-8');
-    // The tab header switch also has a security case; the content switch is the last one.
     const security = html.slice(
       html.lastIndexOf("@case ('security')"),
       html.lastIndexOf("@case ('tenant_manager')")
