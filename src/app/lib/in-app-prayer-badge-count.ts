@@ -1,3 +1,5 @@
+import { sharedPrayersCacheKey } from './prayer-tenant';
+
 /**
  * In-app prayer badge counts (Current + Answered + Prompts) and the
  * all-tenant sum used by the native app icon badge.
@@ -327,7 +329,7 @@ export function readTenantInAppBadgeSnapshot(
   activeReadState?: InAppBadgeReadState | null
 ): TenantInAppBadgeSnapshot {
   const prayers = parseCachedBadgeItems(
-    storage.getItem(`tenant_${tenantId}_prayers`)
+    storage.getItem(sharedPrayersCacheKey(tenantId))
   );
   const prompts = parseCachedBadgeItems(
     storage.getItem(promptsCacheKeyForTenant(tenantId))

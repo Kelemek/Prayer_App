@@ -7,6 +7,7 @@ import { UserSessionService } from './user-session.service';
 import { SupabaseService } from './supabase.service';
 import { CacheService } from './cache.service';
 import {
+  listMemberTenantIds,
   parseInAppBadgeReadState,
   promptsCacheKeyForTenant,
   scopedInAppBadgeReadCacheKey,
@@ -116,11 +117,18 @@ export class AppIconBadgeService {
 
     merge(
       this.badgeService.getUpdateBadgesChanged$(),
-      this.badgeService.getBadgeFunctionalityEnabled$(),
+      this.badgeService.getBadgeFunctionalityEnabled$()
+    ).subscribe(() => {
+      void this.sync();
+    });
+
+    merge(
       this.tenantContext.memberships$,
       this.userSession.userSession$
     ).subscribe(() => {
-      void this.sync();
+      // Session/memberships can arrive after boot; hydrate then sync so the
+      // all-tenant sum is not limited to caches present at first start().
+      void this.hydrateOtherTenantsAndSync();
     });
 
     document.addEventListener('visibilitychange', () => {
@@ -130,6 +138,7 @@ export class AppIconBadgeService {
       }
     });
 
+    // Apply whatever is already cached, then fill other-tenant caches if session is ready.
     void this.sync();
     void this.hydrateOtherTenantsAndSync();
   }
@@ -174,11 +183,12 @@ export class AppIconBadgeService {
       return;
     }
 
-    const tenantIds = this.tenantContext
-      .getMemberTenants()
-      .map((tenant) => tenant.id)
-      .filter(Boolean);
     const activeTenantId = this.tenantContext.getActiveTenant()?.id ?? null;
+    const tenantIds = listMemberTenantIds({
+      memberTenants: this.tenantContext.getMemberTenants(),
+      memberships: this.tenantContext.getMemberships(),
+      activeTenantId,
+    });
 
     await hydrateMissingTenantInAppBadgeCaches({
       tenantIds,

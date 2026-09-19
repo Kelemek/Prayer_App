@@ -1,5 +1,6 @@
 import {
   emptyInAppBadgeReadState,
+  unionInAppBadgeReadState,
   type InAppBadgeCachedItem,
   type InAppBadgeReadState,
 } from './in-app-prayer-badge-count';
@@ -63,17 +64,7 @@ export function mergeReceiptsIntoReadState(
   stored: InAppBadgeReadState,
   rows: InAppBadgeReceiptRow[]
 ): InAppBadgeReadState {
-  const fromRows = receiptsToReadState(rows);
-  return {
-    prayers: Array.from(new Set([...stored.prayers, ...fromRows.prayers])),
-    prayerUpdates: Array.from(
-      new Set([...stored.prayerUpdates, ...fromRows.prayerUpdates])
-    ),
-    prompts: Array.from(new Set([...stored.prompts, ...fromRows.prompts])),
-    promptUpdates: Array.from(
-      new Set([...stored.promptUpdates, ...fromRows.promptUpdates])
-    ),
-  };
+  return unionInAppBadgeReadState(stored, receiptsToReadState(rows));
 }
 
 /**

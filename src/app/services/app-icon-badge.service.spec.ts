@@ -33,6 +33,7 @@ describe('AppIconBadgeService', () => {
   let tenantContext: {
     memberships$: BehaviorSubject<unknown[]>;
     getMemberTenants: ReturnType<typeof vi.fn>;
+    getMemberships: ReturnType<typeof vi.fn>;
     getActiveTenant: ReturnType<typeof vi.fn>;
   };
   let userSession: {
@@ -54,6 +55,7 @@ describe('AppIconBadgeService', () => {
     tenantContext = {
       memberships$: new BehaviorSubject([]),
       getMemberTenants: vi.fn(() => []),
+      getMemberships: vi.fn(() => []),
       getActiveTenant: vi.fn(() => ({ id: 'tenant-a' })),
     };
     userSession = {
