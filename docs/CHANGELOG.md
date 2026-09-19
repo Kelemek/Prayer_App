@@ -4,6 +4,11 @@ Major features and milestones for the Prayer App.
 
 ## [Current] - September 2026
 
+### Privacy: GDPR-style data export
+- Settings **Download my data** saves a JSON package of the signed-in user’s account, authored prayers, preferences, and memberships across every church they belong to.
+- RPC `export_user_account()` is argument-less and bound to `auth.uid()` (no cross-user / cross-tenant leakage). Inventory mirrors `erase_user_account`.
+- Ops/user note: [account-export.md](account-export.md). Migration: `20260923120000_export_user_account.sql`. Not legal advice.
+
 ### Force client-side upgrades
 - Platform `admin_settings.min_web_build` / `min_native_version` (via `get_public_client_min_versions`) block outdated web and Capacitor shells after a breaking deploy.
 - Unset mins fail open. Web shows refresh / hard-refresh; native opens the store. Ops: [client-version-gate.md](client-version-gate.md). Migration: `20260922120000_client_min_versions.sql`.

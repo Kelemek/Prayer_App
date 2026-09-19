@@ -327,8 +327,12 @@ import { RouterModule } from "@angular/router";
                 permanent and signs you out.
               </li>
               <li>
-                There is no self-serve data export in the app today. For access,
-                correction, export, or other privacy requests, contact us through
+                You can <strong>download your data</strong> in Settings
+                (<strong>Download my data</strong>). The file is JSON and
+                includes your account, prayers you authored, preferences, and
+                memberships across every church you belong to. Printable
+                personal prayers alone are not a full export. For correction
+                or other privacy requests, contact us through
                 <a
                   routerLink="/support"
                   class="text-blue-600 dark:text-blue-400 hover:underline"

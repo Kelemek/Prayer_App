@@ -797,6 +797,15 @@ The application provides two ways for users to log out:
    - Logs out immediately without confirmation
    - Implemented in: `user-settings.component.ts`
 
+#### Download my data (Settings)
+
+Users can download a machine-readable copy of their data from the main site settings modal:
+
+- **Location**: Bottom of the settings panel (above delete account), **Download my data**.
+- **Behavior**: Calls RPC `export_user_account()` (no arguments; scoped to `auth.uid()`). Downloads `prayer-app-data-export-YYYY-MM-DD.json` covering account, authored prayers, preferences, and memberships across every church the user belongs to.
+- **Not this:** Settings Print → Personal (HTML/PDF of personal prayers only).
+- **Deploy**: Apply migration `20260923120000_export_user_account.sql`. No Edge Function. See [account-export.md](account-export.md).
+
 #### Delete Account (Settings)
 
 Users can delete their account from the main site settings modal:

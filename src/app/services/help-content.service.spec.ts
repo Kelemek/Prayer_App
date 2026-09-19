@@ -112,6 +112,21 @@ describe('HelpContentService', () => {
       expect(loadedSections.some(s => s.id === 'help_prayers')).toBe(true);
     });
 
+    it('should include download my data help in App Settings section', () => {
+      let sections: HelpSection[] = [];
+      service.getSections().subscribe((data) => {
+        sections = data;
+      });
+
+      const settingsSection = sections.find((s) => s.id === 'help_settings');
+      expect(settingsSection).toBeDefined();
+      expect(settingsSection!.content).toBeDefined();
+      const downloadItem = settingsSection!.content?.some(
+        (item) => item.subtitle === 'Download my data'
+      );
+      expect(downloadItem).toBe(true);
+    });
+
     it('should include delete your account help in App Settings section', () => {
       let sections: HelpSection[] = [];
       service.getSections().subscribe((data) => {

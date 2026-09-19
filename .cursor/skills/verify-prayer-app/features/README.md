@@ -50,4 +50,5 @@ Keep implementation details out of the map. Name only user paths, stable handles
 - [Prayer list and request](./prayer-list-request.md) covers home tabs, new request, personal vs church visibility, and list persistence.
 - [Billing and Stripe](./billing-stripe.md) covers Church checkout, Pro upgrade, and billing portal — stop before a live charge unless Stripe test mode is confirmed.
 - [Send feedback](./feedback.md) covers Settings feedback and the configured-check skip.
+- [Settings data export](./settings-data-export.md) covers Settings → **Download my data** (JSON account / prayers / prefs / memberships).
 - [Client force upgrade](./client-force-upgrade.md) covers the boot min-version wall (absent by default; local `?force_upgrade=1` preview).

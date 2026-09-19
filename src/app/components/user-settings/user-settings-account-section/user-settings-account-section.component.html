@@ -1,3 +1,26 @@
+<!-- Download my data -->
+<div
+  id="tour-settings-download-data-section"
+  class="settings-modal-section-card border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4"
+>
+  <p class="text-sm text-gray-700 dark:text-gray-300 mb-2">
+    Download a machine-readable copy of your account, prayers, preferences,
+    and church memberships (including every church you belong to).
+    Printable personal prayers alone are not a full export.
+  </p>
+  <button
+    type="button"
+    id="tour-settings-download-data"
+    (click)="host.downloadMyData()"
+    [disabled]="host.exportingAccount"
+    title="Download your data as JSON"
+    class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+    aria-label="Download my data"
+  >
+    {{ host.exportingAccount ? 'Preparing download…' : 'Download my data' }}
+  </button>
+</div>
+
 <!-- Delete account -->
 <div
   class="settings-modal-section-card border border-red-200 dark:border-red-800 rounded-lg p-3 sm:p-4"

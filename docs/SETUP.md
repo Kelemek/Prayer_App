@@ -369,6 +369,10 @@ Apply `supabase/migrations/20260913160000_restrict_github_feedback_columns.sql` 
 
 ---
 
+## Account data export (`export_user_account`)
+
+Settings **Download my data** calls RPC **`export_user_account()`** (JWT / authenticated role). Apply migration **`20260923120000_export_user_account.sql`**. No Edge Function. See [account-export.md](account-export.md).
+
 ## Account erasure (`delete-account`)
 
 Settings **Delete account** calls Edge Function **`delete-account`** (JWT required). Apply migration **`20260914090000_erase_user_account.sql`** before deploy.
