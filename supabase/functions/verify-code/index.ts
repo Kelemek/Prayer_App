@@ -203,10 +203,9 @@ serve(async (req) => {
       );
       if (settingsRes.ok) {
         const settingsRows = await settingsRes.json();
-        testAccountEmail = (settingsRows?.[0]?.test_account_email || '').trim().toLowerCase();
-        if (settingsRows?.[0]?.test_account_login_notify === false) {
-          testAccountLoginNotify = false;
-        }
+        const settings = settingsRows?.[0];
+        testAccountEmail = (settings?.test_account_email || '').trim().toLowerCase();
+        testAccountLoginNotify = settings?.test_account_login_notify !== false;
       }
     } catch (_) {
       // non-critical
