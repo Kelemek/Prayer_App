@@ -10,7 +10,11 @@ import {
   usesPrayerCardPersonalCooldown,
   type PrayerCardActiveFilter,
 } from './prayer-card-display';
-import { isCommunityPrayerCard, isVerseMemorizationPrayer } from './prayer-card-kind';
+import {
+  isCommunityPrayerCard,
+  isMemberPrayerId,
+  isVerseMemorizationPrayer,
+} from './prayer-card-kind';
 import type { PrayerCardVariant } from './prayer-card-layout';
 import {
   getPrayerCardBorderClass,
@@ -36,6 +40,7 @@ export interface PrayerCardViewStateInput {
 }
 
 export interface PrayerCardViewState {
+  isMember: boolean;
   displayRequester: string;
   showDescription: boolean;
   showsCommunityUnreadBadges: boolean;
@@ -58,6 +63,7 @@ export function computePrayerCardViewState(
   input: PrayerCardViewStateInput
 ): PrayerCardViewState {
   const { prayer, isPersonal, isAdmin, variant } = input;
+  const isMember = isMemberPrayerId(prayer?.id);
   const permissionContext: PrayerCardPermissionContext = {
     prayerId: prayer.id,
     prayerEmail: prayer.email,
@@ -71,11 +77,12 @@ export function computePrayerCardViewState(
   const isVersePrayer = isVerseMemorizationPrayer(prayer);
 
   return {
+    isMember,
     displayRequester: displayPrayerCardRequester(
       prayer.requester,
       prayer.is_anonymous
     ),
-    showDescription: showPrayerCardDescription(prayer.description),
+    showDescription: showPrayerCardDescription(prayer.id, prayer.description),
     showsCommunityUnreadBadges: showsCommunityPrayerCardUnreadBadges(
       input.activeFilter
     ),
@@ -96,15 +103,17 @@ export function computePrayerCardViewState(
     showPrayedForBadge: showPrayerCardPrayedForBadge(
       prayer.prayed_for_count,
       isPersonal,
+      isMember,
       isAdmin,
       input.currentUserEmail,
       prayer.email
     ),
     prayedForCountLabel: prayedForCountLabelForPrayerCard(
       prayer.prayed_for_count,
-      isPersonal
+      isPersonal,
+      isMember
     ),
-    usesPersonalCooldown: usesPrayerCardPersonalCooldown(isPersonal),
+    usesPersonalCooldown: usesPrayerCardPersonalCooldown(isPersonal, prayer.id),
     isCommunityPrayer: isCommunityPrayerCard(prayer, isPersonal),
     shellClasses: getPrayerCardShellClasses(variant, borderClass),
     borderClass,

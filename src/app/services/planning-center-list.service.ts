@@ -19,7 +19,7 @@ interface StoredPlanningCenterListCache {
 }
 
 const CACHE_TTL_MS = 30 * 60 * 1000;
-const CACHE_KEY_PREFIX = 'prayerapp_planning_center_list_';
+const CACHE_KEY_PREFIX = 'prayerapp_planning_center_list_v2_';
 
 @Injectable({ providedIn: 'root' })
 export class PlanningCenterListService {

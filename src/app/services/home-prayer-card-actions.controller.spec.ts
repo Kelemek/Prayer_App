@@ -30,6 +30,14 @@ describe("HomePrayerCardActionsController", () => {
       fullName: "User",
     })),
   };
+  const prayerCardActions = {
+    addUpdateForCard: vi.fn().mockResolvedValue(true),
+    deleteUpdateForCard: vi.fn().mockResolvedValue(true),
+    toggleMemberUpdateAnswered: vi.fn().mockResolvedValue(true),
+  };
+  const planningCenter = {
+    reloadMemberPrayerUpdates: vi.fn().mockResolvedValue(undefined),
+  };
   let controller: HomePrayerCardActionsController;
 
   beforeEach(() => {
@@ -39,7 +47,9 @@ describe("HomePrayerCardActionsController", () => {
       prayerGroupService as any,
       promptService as any,
       toastService as any,
-      userSessionService as any
+      userSessionService as any,
+      prayerCardActions as any,
+      planningCenter as any
     );
   });
 

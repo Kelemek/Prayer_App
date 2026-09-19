@@ -80,6 +80,20 @@ async function loadPcoAuthHeader(
   return { authHeader: 'Basic ' + btoa(`${creds.app_id}:${creds.secret}`) };
 }
 
+function resolveMemberAvatarUrl(
+  attributes: { avatar?: string; demographic_avatar_url?: string } | undefined
+): string | null {
+  const demographic = attributes?.demographic_avatar_url?.trim();
+  if (demographic && /^https?:\/\//i.test(demographic)) {
+    return demographic;
+  }
+  const avatar = attributes?.avatar?.trim();
+  if (avatar && /^https?:\/\//i.test(avatar)) {
+    return avatar;
+  }
+  return null;
+}
+
 async function fetchLists(authHeader: string): Promise<Response> {
   const response = await fetch(
     'https://api.planningcenteronline.com/people/v2/lists?per_page=100',
@@ -135,11 +149,20 @@ async function fetchListMembers(listId: string, authHeader: string): Promise<Res
 
     const data = await response.json();
     const pageMembers = (data.data || [])
-      .map((person: { id: string; attributes?: { name?: string; avatar?: string } }) => ({
-        id: person.id,
-        name: person.attributes?.name || '',
-        avatar: person.attributes?.avatar || null,
-      }))
+      .map(
+        (person: {
+          id: string;
+          attributes?: {
+            name?: string;
+            avatar?: string;
+            demographic_avatar_url?: string;
+          };
+        }) => ({
+          id: person.id,
+          name: person.attributes?.name || '',
+          avatar: resolveMemberAvatarUrl(person.attributes),
+        })
+      )
       .filter((member: { name: string }) => member.name.trim() !== '');
 
     members.push(...pageMembers);

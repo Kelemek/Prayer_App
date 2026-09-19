@@ -29,8 +29,8 @@ export function showPrayerCardDeleteButton(
 export function showPrayerCardAddUpdateButton(
   ctx: PrayerCardPermissionContext
 ): boolean {
-  if (isMemberPrayerId(ctx.prayerId)) return false;
   if (ctx.isPersonal) return true;
+  if (isMemberPrayerId(ctx.prayerId)) return true;
   if (ctx.isAdmin) return true;
   if (ctx.updatesAllowed === 'admin-only') return false;
   if (ctx.updatesAllowed === 'original-requestor') {

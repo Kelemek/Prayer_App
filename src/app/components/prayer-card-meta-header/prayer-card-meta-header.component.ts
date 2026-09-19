@@ -69,6 +69,12 @@ import { personalCategoryHeaderBandStyles } from '../../../utils/personalCategor
         >
           {{ statusLabel }}
         </span>
+        } @else if (isMember) {
+        <span
+          [class]="'block min-w-0 max-w-full truncate font-bold ' + layoutClasses.textSmClasses + ' ' + headerInsetClasses + ' ' + memberHeaderTextClasses"
+        >
+          Member
+        </span>
         }
       </div>
       <div cardMetaRight class="flex items-center justify-end">
@@ -81,6 +87,9 @@ import { personalCategoryHeaderBandStyles } from '../../../utils/personalCategor
   `,
 })
 export class PrayerCardMetaHeaderComponent {
+  /** Matches Planning Center member card border (`#0047AB`). */
+  readonly memberHeaderTextClasses = 'text-[#0047AB] dark:text-[#4A90E2]';
+
   /** Override when the card shell uses non-standard horizontal padding (e.g. presentation p-8). */
   @Input() bleedClasses = PRAYER_CARD_HEADER_BLEED_CLASSES;
   @Input() roundedClasses = PRAYER_CARD_HEADER_BAND_ROUNDED_CLASSES;
@@ -90,6 +99,7 @@ export class PrayerCardMetaHeaderComponent {
 
   @Input({ required: true }) prayerCreatedAt!: string;
   @Input() isPersonal = false;
+  @Input() isMember = false;
   @Input() category: string | null = null;
   /** When set (group prayers), shown in the left header like a personal category name. */
   @Input() groupName: string | null = null;

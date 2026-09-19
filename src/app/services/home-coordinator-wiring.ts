@@ -43,6 +43,7 @@ import { HomeModalController } from "./home-modal.controller";
 import { HomeRefreshCoordinator } from "./home-refresh.coordinator";
 import { HomePresentationNavigationController } from "./home-presentation-navigation.controller";
 import { HomePrayerCardActionsController } from "./home-prayer-card-actions.controller";
+import { HomePlanningCenterController } from "./home-planning-center.controller";
 import { createHomeDeepLinkPageState } from "./home-deep-link-page.adapter";
 import {
   readFilteredPersonalPrayers,
@@ -107,6 +108,7 @@ export interface HomeCoordinatorWiringDeps {
   filterCoordinator: HomeFilterCoordinator;
   personalCategory: HomePersonalCategoryController;
   memorizationPanel: HomeMemorizationPanelController;
+  planningCenter: HomePlanningCenterController;
   lifecycleCoordinator: HomeLifecycleCoordinator;
   modals: HomeModalController;
   refreshCoordinator: HomeRefreshCoordinator;
@@ -248,7 +250,9 @@ export function wireHomeCoordinators(
     { markForCheck: () => cdr.markForCheck() },
     {
       adminAuthService: deps.adminAuthService,
-      reloadMemberPrayerUpdates: () => {},
+      reloadMemberPrayerUpdates: (personId) => {
+        void deps.planningCenter.reloadMemberPrayerUpdates(personId);
+      },
     }
   );
 

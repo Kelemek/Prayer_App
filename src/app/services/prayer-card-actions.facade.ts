@@ -4,16 +4,20 @@ import { PromptService } from "./prompt.service";
 import { ToastService } from "./toast.service";
 import { UserSessionService } from "./user-session.service";
 import { AdminAuthService } from "./admin-auth.service";
+import { PlanningCenterListService } from "./planning-center-list.service";
 import {
   getPrayerCardMutationKind,
+  memberPersonIdFromPrayerId,
   type PrayerCardIdentity,
 } from "../lib/prayer-card-kind";
 import type {
   PrayerCardAddUpdateEvent,
   PrayerCardDeleteUpdateEvent,
   PrayerCardDeletionRequest,
+  PrayerCardToggleAnsweredEvent,
   PrayerCardUpdateDeletionRequest,
 } from "../lib/prayer-card-events";
+import type { PrayerUpdate } from "../lib/prayer-types";
 
 @Injectable({
   providedIn: "root",
@@ -24,7 +28,8 @@ export class PrayerCardActionsFacade {
     private promptService: PromptService,
     private toastService: ToastService,
     private userSessionService: UserSessionService,
-    private adminAuthService: AdminAuthService
+    private adminAuthService: AdminAuthService,
+    private planningCenterListService: PlanningCenterListService
   ) {}
 
   get isAdmin(): boolean {
@@ -43,6 +48,8 @@ export class PrayerCardActionsFacade {
           return await this.prayerService.deletePersonalPrayer(prayer.id);
         case "community":
           return await this.prayerService.deletePrayer(prayer.id);
+        case "member":
+          return false;
         default: {
           const _exhaustive: never = kind;
           return _exhaustive;
@@ -62,6 +69,8 @@ export class PrayerCardActionsFacade {
     try {
       const kind = getPrayerCardMutationKind(prayer);
       switch (kind) {
+        case "member":
+          return await this.addMemberUpdate(prayer.id, updateData);
         case "personal":
           return await this.addPersonalUpdate(updateData);
         case "community":
@@ -86,6 +95,8 @@ export class PrayerCardActionsFacade {
     try {
       const kind = getPrayerCardMutationKind(prayer);
       switch (kind) {
+        case "member":
+          return await this.deleteMemberUpdate(event);
         case "personal": {
           const success =
             await this.prayerService.deletePersonalPrayerUpdate(event.updateId);
@@ -126,8 +137,57 @@ export class PrayerCardActionsFacade {
     }
   }
 
+  async toggleMemberUpdateAnswered(
+    event: PrayerCardToggleAnsweredEvent
+  ): Promise<boolean> {
+    try {
+      const personId = memberPersonIdFromPrayerId(event.prayerId);
+      const patch: Partial<PrayerUpdate> = { is_answered: event.isAnswered };
+      return await this.prayerService.updateMemberPrayerUpdate(
+        event.updateId,
+        personId,
+        patch,
+        this.planningCenterListService.getCurrentListId() ?? undefined
+      );
+    } catch (error) {
+      console.error("Error toggling update answered status:", error);
+      this.toastService.error("Failed to update answered status");
+      return false;
+    }
+  }
+
   async deletePrompt(id: string): Promise<boolean> {
     return this.promptService.deletePrompt(id);
+  }
+
+  private async addMemberUpdate(
+    prayerId: string,
+    updateData: PrayerCardAddUpdateEvent
+  ): Promise<boolean> {
+    const personId = memberPersonIdFromPrayerId(prayerId);
+    const member = this.planningCenterListService
+      .getCurrentMembers()
+      .find((m) => m.id === personId);
+
+    if (!member) {
+      console.error("Member not found for person_id:", personId);
+      this.toastService.error("Member not found");
+      return false;
+    }
+
+    const userSession = this.userSessionService.getCurrentSession();
+    const author = userSession?.fullName || "Anonymous";
+    const authorEmail = userSession?.email || "";
+
+    return this.prayerService.addMemberPrayerUpdate(
+      personId,
+      member.name,
+      updateData.content,
+      author,
+      authorEmail,
+      updateData.mark_as_answered,
+      this.planningCenterListService.getCurrentListId() ?? undefined
+    );
   }
 
   private async addPersonalUpdate(
@@ -151,5 +211,16 @@ export class PrayerCardActionsFacade {
       });
     }
     return success;
+  }
+
+  private async deleteMemberUpdate(
+    event: PrayerCardDeleteUpdateEvent
+  ): Promise<boolean> {
+    const personId = memberPersonIdFromPrayerId(event.prayerId);
+    return this.prayerService.deleteMemberPrayerUpdate(
+      event.updateId,
+      personId,
+      this.planningCenterListService.getCurrentListId() ?? undefined
+    );
   }
 }

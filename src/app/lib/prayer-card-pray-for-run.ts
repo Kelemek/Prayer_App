@@ -3,6 +3,7 @@ import type { PrayerEncouragementService } from '../services/prayer-encouragemen
 
 export interface PrayerCardPrayForRunInput {
   prayerId: string;
+  isMember: boolean;
   isPersonal: boolean;
   usePersonalCooldown: boolean;
 }
@@ -20,7 +21,7 @@ export async function runPrayerCardPrayFor(
   deps: PrayerCardPrayForRunDeps,
   input: PrayerCardPrayForRunInput
 ): Promise<number | null> {
-  const { prayerId, isPersonal, usePersonalCooldown } = input;
+  const { prayerId, isMember, isPersonal, usePersonalCooldown } = input;
 
   if (
     !deps.prayerEncouragementService.canPrayFor(prayerId, usePersonalCooldown)
@@ -30,9 +31,15 @@ export async function runPrayerCardPrayFor(
 
   deps.prayerEncouragementService.recordPrayedFor(prayerId, usePersonalCooldown);
 
-  const newCount = isPersonal
-    ? await deps.prayerService.incrementPersonalPrayedFor(prayerId)
-    : await deps.prayerService.incrementPrayedFor(prayerId);
+  let newCount: number | null;
+  if (isMember) {
+    const personId = prayerId.slice('pc-member-'.length);
+    newCount = await deps.prayerService.incrementMemberPrayedFor(personId);
+  } else if (isPersonal) {
+    newCount = await deps.prayerService.incrementPersonalPrayedFor(prayerId);
+  } else {
+    newCount = await deps.prayerService.incrementPrayedFor(prayerId);
+  }
 
   if (newCount === null) {
     deps.prayerEncouragementService.clearPrayedForCooldown(

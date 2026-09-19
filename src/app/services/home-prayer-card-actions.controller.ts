@@ -5,6 +5,10 @@ import type {
   PrayerCardToggleAnsweredEvent,
 } from "../lib/prayer-card-events";
 import {
+  isMemberPrayerId,
+  memberPersonIdFromPrayerId,
+} from "../lib/prayer-card-kind";
+import {
   PrayerService,
   type PrayerRequest,
 } from "./prayer.service";
@@ -16,6 +20,8 @@ import type {
 import { PromptService } from "./prompt.service";
 import { ToastService } from "./toast.service";
 import { UserSessionService } from "./user-session.service";
+import { PrayerCardActionsFacade } from "./prayer-card-actions.facade";
+import { HomePlanningCenterController } from "./home-planning-center.controller";
 
 @Injectable()
 export class HomePrayerCardActionsController {
@@ -24,10 +30,15 @@ export class HomePrayerCardActionsController {
     private readonly prayerGroupService: PrayerGroupService,
     private readonly promptService: PromptService,
     private readonly toastService: ToastService,
-    private readonly userSessionService: UserSessionService
+    private readonly userSessionService: UserSessionService,
+    private readonly prayerCardActions: PrayerCardActionsFacade,
+    private readonly planningCenter: HomePlanningCenterController
   ) {}
 
   deleteCard(prayer: PrayerRequest): void {
+    if (isMemberPrayerId(prayer.id)) {
+      return;
+    }
     if (prayer.group_id) {
       void this.prayerGroupService.deleteGroupPrayer(prayer.id);
       return;
@@ -81,6 +92,15 @@ export class HomePrayerCardActionsController {
     prayer: PrayerRequest,
     event: PrayerCardAddUpdateEvent
   ): Promise<void> {
+    if (isMemberPrayerId(prayer.id)) {
+      const ok = await this.prayerCardActions.addUpdateForCard(prayer, event);
+      if (ok) {
+        await this.planningCenter.reloadMemberPrayerUpdates(
+          memberPersonIdFromPrayerId(prayer.id)
+        );
+      }
+      return;
+    }
     if (prayer.group_id) {
       const userSession = this.userSessionService.getCurrentSession();
       await this.prayerGroupService.addGroupPrayerUpdate(
@@ -121,6 +141,15 @@ export class HomePrayerCardActionsController {
     prayer: PrayerRequest,
     event: PrayerCardDeleteUpdateEvent
   ): Promise<void> {
+    if (isMemberPrayerId(prayer.id)) {
+      const ok = await this.prayerCardActions.deleteUpdateForCard(prayer, event);
+      if (ok) {
+        await this.planningCenter.reloadMemberPrayerUpdates(
+          memberPersonIdFromPrayerId(prayer.id)
+        );
+      }
+      return;
+    }
     if (prayer.group_id) {
       await this.prayerGroupService.deleteGroupPrayerUpdate(
         event.updateId,
@@ -160,8 +189,13 @@ export class HomePrayerCardActionsController {
   }
 
   async toggleMemberUpdateAnswered(
-    _event: PrayerCardToggleAnsweredEvent
+    event: PrayerCardToggleAnsweredEvent
   ): Promise<void> {
-    // Prayer_App has no Planning Center member prayers; kept for modals host compatibility.
+    const ok = await this.prayerCardActions.toggleMemberUpdateAnswered(event);
+    if (ok) {
+      await this.planningCenter.reloadMemberPrayerUpdates(
+        memberPersonIdFromPrayerId(event.prayerId)
+      );
+    }
   }
 }

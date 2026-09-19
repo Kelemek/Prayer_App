@@ -37,6 +37,25 @@ export interface PlanningCenterListMember {
   avatar?: string | null;
 }
 
+/** PCO `avatar` is often a file UUID; prefer `demographic_avatar_url` for `<img src>`. */
+export function resolvePlanningCenterMemberAvatarUrl(
+  attributes: {
+    avatar?: string | null;
+    demographic_avatar_url?: string | null;
+  } | null
+  | undefined
+): string | null {
+  const demographic = attributes?.demographic_avatar_url?.trim();
+  if (demographic && /^https?:\/\//i.test(demographic)) {
+    return demographic;
+  }
+  const avatar = attributes?.avatar?.trim();
+  if (avatar && /^https?:\/\//i.test(avatar)) {
+    return avatar;
+  }
+  return null;
+}
+
 export interface PlanningCenterCredentialsStatus {
   enabled: boolean;
   configured: boolean;

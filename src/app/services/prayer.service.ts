@@ -409,6 +409,68 @@ export class PrayerService {
     return this.personal.incrementPersonalPrayedFor(prayerId);
   }
 
+  async getMemberPrayedForCountsBatch(
+    personIds: string[]
+  ): Promise<Record<string, number>> {
+    return this.community.getMemberPrayedForCountsBatch(personIds);
+  }
+
+  async getMemberPrayerUpdatesBatch(
+    personIds: string[]
+  ): Promise<Record<string, any[]>> {
+    return this.community.getMemberPrayerUpdatesBatch(personIds);
+  }
+
+  async getMemberPrayerUpdates(personId: string): Promise<any[]> {
+    return this.community.getMemberPrayerUpdates(personId);
+  }
+
+  async incrementMemberPrayedFor(personId: string): Promise<number | null> {
+    return this.community.incrementMemberPrayedFor(personId);
+  }
+
+  async addMemberPrayerUpdate(
+    personId: string,
+    memberName: string,
+    content: string,
+    author: string,
+    authorEmail: string = '',
+    isAnswered: boolean = false,
+    listId?: string
+  ): Promise<boolean> {
+    return this.community.addMemberPrayerUpdate(
+      personId,
+      memberName,
+      content,
+      author,
+      authorEmail,
+      isAnswered,
+      listId
+    );
+  }
+
+  async deleteMemberPrayerUpdate(
+    updateId: string,
+    personId: string,
+    listId?: string
+  ): Promise<boolean> {
+    return this.community.deleteMemberPrayerUpdate(updateId, personId, listId);
+  }
+
+  async updateMemberPrayerUpdate(
+    updateId: string,
+    personId: string,
+    updates: Partial<PrayerUpdate>,
+    listId?: string
+  ): Promise<boolean> {
+    return this.community.updateMemberPrayerUpdate(
+      updateId,
+      personId,
+      updates,
+      listId
+    );
+  }
+
   async addPrayerUpdate(
     prayerId: string,
     content: string,

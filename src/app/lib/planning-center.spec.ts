@@ -1,6 +1,36 @@
 import { describe, it, expect, vi } from 'vitest';
-import { formatPersonName } from './planning-center';
+import { formatPersonName, resolvePlanningCenterMemberAvatarUrl } from './planning-center';
 import type { PlanningCenterPerson } from './planning-center';
+
+describe('resolvePlanningCenterMemberAvatarUrl', () => {
+  it('prefers demographic_avatar_url over avatar UUID', () => {
+    expect(
+      resolvePlanningCenterMemberAvatarUrl({
+        avatar: 'us1-deadbeef-dead-beef-dead-beefdeadbeef',
+        demographic_avatar_url:
+          'https://avatars.planningcenteronline.com/uploads/person/1-abc/avatar.2.jpg',
+      })
+    ).toBe(
+      'https://avatars.planningcenteronline.com/uploads/person/1-abc/avatar.2.jpg'
+    );
+  });
+
+  it('uses http avatar when demographic is missing', () => {
+    expect(
+      resolvePlanningCenterMemberAvatarUrl({
+        avatar: 'https://cdn.example.com/photo.jpg',
+      })
+    ).toBe('https://cdn.example.com/photo.jpg');
+  });
+
+  it('returns null for file UUID only', () => {
+    expect(
+      resolvePlanningCenterMemberAvatarUrl({
+        avatar: 'us1-deadbeef-dead-beef-dead-beefdeadbeef',
+      })
+    ).toBeNull();
+  });
+});
 
 describe('formatPersonName', () => {
   it('uses attributes.name when present', () => {

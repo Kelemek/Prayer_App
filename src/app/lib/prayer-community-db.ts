@@ -12,6 +12,12 @@ import {
   type UpdateDeletionRequestInput,
 } from './prayer-community-deletion-requests';
 import { maybeEq, maybeEqTenantId } from './prayer-tenant';
+import {
+  buildMemberPrayerUpdateInsertRow,
+  buildMemberPrayerUpdatePatch,
+  type MemberPrayerUpdateRow,
+} from './prayer-member-updates';
+import type { PrayerUpdate } from './prayer-types';
 
 export async function fetchApprovedSharedPrayers(
   client: SupabaseClient,
@@ -320,4 +326,87 @@ export async function fetchPrayerUpdateRowForDeletionNotify(
     } | null,
     error: result.error,
   };
+}
+
+export async function rpcIncrementMemberPrayedFor(
+  client: SupabaseClient,
+  personId: string
+): Promise<{ data: unknown; error: unknown }> {
+  const result = await client.rpc('increment_member_prayed_for_count', {
+    p_person_id: personId,
+  });
+  return { data: result.data, error: result.error };
+}
+
+export async function insertMemberPrayerUpdateRow(
+  client: SupabaseClient,
+  personId: string,
+  content: string,
+  isAnswered: boolean
+): Promise<{ error: unknown }> {
+  const result = await client
+    .from('member_prayer_updates')
+    .insert(buildMemberPrayerUpdateInsertRow(personId, content, isAnswered))
+    .select()
+    .single();
+  return { error: result.error };
+}
+
+export async function deleteMemberPrayerUpdateRow(
+  client: SupabaseClient,
+  updateId: string
+): Promise<{ error: unknown }> {
+  const result = await client.from('member_prayer_updates').delete().eq('id', updateId);
+  return { error: result.error };
+}
+
+export async function updateMemberPrayerUpdateRow(
+  client: SupabaseClient,
+  updateId: string,
+  updates: Partial<PrayerUpdate>
+): Promise<{ error: unknown }> {
+  const result = await client
+    .from('member_prayer_updates')
+    .update(buildMemberPrayerUpdatePatch(updates))
+    .eq('id', updateId)
+    .select();
+  return { error: result.error };
+}
+
+export async function fetchMemberPrayerUpdatesBatch(
+  client: SupabaseClient,
+  personIds: string[]
+): Promise<{ data: MemberPrayerUpdateRow[] | null; error: unknown }> {
+  const result = await client
+    .from('member_prayer_updates')
+    .select('id, person_id, content, created_at, updated_at, is_answered')
+    .in('person_id', personIds)
+    .order('created_at', { ascending: true });
+  return { data: result.data as MemberPrayerUpdateRow[] | null, error: result.error };
+}
+
+export async function fetchMemberPrayerUpdatesForPerson(
+  client: SupabaseClient,
+  personId: string
+): Promise<{ data: MemberPrayerUpdateRow[] | null; error: unknown }> {
+  const result = await client
+    .from('member_prayer_updates')
+    .select('id, person_id, content, created_at, updated_at, is_answered')
+    .eq('person_id', personId)
+    .order('created_at', { ascending: true });
+  return { data: result.data as MemberPrayerUpdateRow[] | null, error: result.error };
+}
+
+export async function fetchMemberPrayedForCountsBatch(
+  client: SupabaseClient,
+  personIds: string[]
+): Promise<{
+  data: Array<{ person_id: string; prayed_for_count: number }> | null;
+  error: unknown;
+}> {
+  const result = await client
+    .from('member_prayed_for_counts')
+    .select('person_id, prayed_for_count')
+    .in('person_id', personIds);
+  return { data: result.data, error: result.error };
 }

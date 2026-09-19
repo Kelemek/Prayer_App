@@ -158,8 +158,11 @@
       [prayer]="prayer"
       [isAdmin]="false"
       [activeFilter]="'planning_center_list'"
-      [deletionsAllowed]="'admin-only'"
-      [updatesAllowed]="'admin-only'"
+      [deletionsAllowed]="deletionsAllowed"
+      [updatesAllowed]="updatesAllowed"
+      (addUpdate)="handlers.onCardAddUpdate(prayer, $event)"
+      (deleteUpdate)="handlers.onCardDeleteUpdate(prayer, $event)"
+      (toggleUpdateAnswered)="handlers.toggleMemberUpdateAnswered($event)"
     ></app-prayer-card>
     }
   </div>

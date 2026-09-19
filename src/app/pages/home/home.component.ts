@@ -377,6 +377,7 @@ export class HomeComponent
       filterCoordinator: this.filter,
       personalCategory: this.personalCategory,
       memorizationPanel: this.memorizationPanel,
+      planningCenter: this.planningCenter,
       lifecycleCoordinator: this.lifecycleCoordinator,
       modals: this.modals,
       refreshCoordinator: this.refresh,
@@ -413,6 +414,7 @@ export class HomeComponent
     this.subscribeDestTenantPageFields();
     this.planningCenter.bindHost(this, {
       planningCenterListService: this.planningCenterListService,
+      prayerService: this.prayerService,
     });
     this.planningCenter.subscribe(this.destroy$);
     this.planningCenter.loadForCurrentUser();
@@ -465,8 +467,24 @@ export class HomeComponent
     this.cdr.markForCheck();
   }
 
+  detectChanges(): void {
+    this.cdr.detectChanges();
+  }
+
   onListStateChanged(): void {
+    this.refreshHomeCatalog();
+    this.retryPendingPrayerDeepLink();
     this.cdr.markForCheck();
+  }
+
+  onMemberPrayersLoaded(): void {
+    this.refreshHomeCatalog();
+    this.retryPendingPrayerDeepLink();
+    this.cdr.markForCheck();
+  }
+
+  retryPendingPrayerDeepLink(): void {
+    this.deepLinkCoordinator.retryPendingPrayerDeepLinkIfNeeded();
   }
 
   private subscribeDestTenantPageFields(): void {

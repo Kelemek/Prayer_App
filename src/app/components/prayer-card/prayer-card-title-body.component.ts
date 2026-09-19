@@ -10,6 +10,7 @@ import type { Observable } from 'rxjs';
 import { RichTextViewComponent } from '../rich-text-view/rich-text-view.component';
 import type { BadgeService } from '../../services/badge.service';
 import type { PrayerRequest } from '../../services/prayer.service';
+import { isMemberPrayerId } from '../../lib/prayer-card-kind';
 import { verseMemorizationTextForDisplay } from '../../lib/verse-memorization-description';
 import type { PrayerCardVariantLayout } from '../../lib/prayer-card-layout';
 
@@ -36,6 +37,10 @@ export class PrayerCardTitleBodyComponent {
   @Input({ required: true }) badgeService!: BadgeService;
 
   @Output() markPrayerRead = new EventEmitter<void>();
+
+  isMemberPrayer(): boolean {
+    return isMemberPrayerId(this.prayer?.id);
+  }
 
   verseTextForDisplay(): string {
     return verseMemorizationTextForDisplay(
