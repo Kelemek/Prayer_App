@@ -74,6 +74,7 @@ import {
   HOME_RETURN_CONTEXT_STATE_KEY,
   type HomeReturnContext,
 } from "../../types/presentation";
+import { isNearQuota } from "../../lib/plan-quota";
 
 import { HomeDeepLinkCoordinator } from "../../services/home-deep-link.coordinator";
 import type { HomeDeepLinkHostAdapter } from "../../services/home-deep-link-host.adapter";
@@ -125,6 +126,8 @@ import {
   createHomePageShell,
   type HomePageShell,
 } from "../../lib/home-page-shell";
+import { PlanningCenterListService } from "../../services/planning-center-list.service";
+import { HomePlanningCenterController } from "../../services/home-planning-center.controller";
 
 @Component({
   selector: "app-home",
@@ -166,6 +169,7 @@ import {
     HomeAdminNavigationController,
     HomePrayerCardActionsController,
     HomePresentationNavigationController,
+    HomePlanningCenterController,
   ],
 })
 export class HomeComponent
@@ -324,7 +328,9 @@ export class HomeComponent
     readonly refresh: HomeRefreshCoordinator,
     readonly presentationNav: HomePresentationNavigationController,
     readonly adminNav: HomeAdminNavigationController,
-    readonly prayerCardActions: HomePrayerCardActionsController
+    readonly prayerCardActions: HomePrayerCardActionsController,
+    readonly planningCenterListService: PlanningCenterListService,
+    readonly planningCenter: HomePlanningCenterController
   ) {
     this.memberCardActions = this.prayerCardActions;
 
@@ -389,7 +395,7 @@ export class HomeComponent
       adminNav: this.adminNav,
       presentationNav: this.presentationNav,
       memorizationRecommendationsService: this.memorizationRecommendationsService,
-      planningCenterListId: () => null,
+      planningCenterListId: () => this.planningCenter.planningCenterListId,
       catalog: this.catalog,
       getActiveFilter: () => this.activeFilter,
       getPersonalPrayers: () => this.personalPrayers,
@@ -405,6 +411,11 @@ export class HomeComponent
         this.cdr.markForCheck();
       });
     this.subscribeDestTenantPageFields();
+    this.planningCenter.bindHost(this, {
+      planningCenterListService: this.planningCenterListService,
+    });
+    this.planningCenter.subscribe(this.destroy$);
+    this.planningCenter.loadForCurrentUser();
     this.lifecycleCoordinator.initialize(this.destroy$);
     void this.userSubscriptionService.refreshCapabilities();
     void this.loadPrayerGroups();
@@ -448,6 +459,14 @@ export class HomeComponent
     this.personalCategory.dispose();
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  markForCheck(): void {
+    this.cdr.markForCheck();
+  }
+
+  onListStateChanged(): void {
+    this.cdr.markForCheck();
   }
 
   private subscribeDestTenantPageFields(): void {
@@ -896,6 +915,29 @@ export class HomeComponent
 
   get maxGroupsOwned(): number {
     return this.userSubscriptionService.getGroupLimits().max_groups_owned;
+  }
+
+  get groupsOwned(): number {
+    return this.userSubscriptionService.getGroupLimits().groups_owned;
+  }
+
+  get showGroupsNearQuotaBanner(): boolean {
+    const limits = this.userSubscriptionService.getGroupLimits();
+    return isNearQuota(limits.groups_owned, limits.max_groups_owned);
+  }
+
+  get groupsNearQuotaShowProCta(): boolean {
+    const limits = this.userSubscriptionService.getGroupLimits();
+    return limits.individual_plan_tier === "free" && !limits.is_church_member;
+  }
+
+  get groupsNearQuotaShowChurchCta(): boolean {
+    const limits = this.userSubscriptionService.getGroupLimits();
+    return limits.individual_plan_tier === "pro" && !limits.is_church_member;
+  }
+
+  get showMemberProUpgrade(): boolean {
+    return this.userSubscriptionService.getGroupLimits().individual_plan_tier === "free";
   }
 
   get maxMembersPerGroup(): number {

@@ -55,6 +55,10 @@ describe("isPublicAreaFilter", () => {
     expect(isPublicAreaFilter("memorize")).toBe(false);
     expect(isPublicAreaFilter("groups")).toBe(false);
   });
+
+  it("returns true for planning_center_list", () => {
+    expect(isPublicAreaFilter("planning_center_list")).toBe(true);
+  });
 });
 
 describe("isGroupsAreaFilter", () => {
@@ -104,5 +108,6 @@ describe("homeHasSubFilterRowBelowTabs", () => {
     expect(homeHasSubFilterRowBelowTabs("personal")).toBe(true);
     expect(homeHasSubFilterRowBelowTabs("memorize")).toBe(true);
     expect(homeHasSubFilterRowBelowTabs("groups")).toBe(true);
+    expect(homeHasSubFilterRowBelowTabs("planning_center_list")).toBe(true);
   });
 });

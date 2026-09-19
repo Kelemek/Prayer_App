@@ -15,7 +15,8 @@ export type HomeActiveFilter =
   | "prompts"
   | "personal"
   | "memorize"
-  | "groups";
+  | "groups"
+  | "planning_center_list";
 
 export type HomeDeepLinkQueryParamKey =
   | "filter"

@@ -208,6 +208,11 @@ import { RouterModule } from "@angular/router";
                 submission ID; submitter email and name are not stored on the
                 Notion page).
               </li>
+              <li>
+                <strong>Planning Center (optional):</strong> When a church
+                enables this integration, member lookup may send names and email
+                addresses to Planning Center under that church&apos;s own account.
+              </li>
             </ul>
             <p class="mt-2">
               Each provider has its own privacy policy. We choose providers that

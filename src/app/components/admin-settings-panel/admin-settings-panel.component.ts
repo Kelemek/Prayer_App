@@ -31,9 +31,12 @@ import { VerseMemorizationPrayerManagerComponent } from '../verse-memorization-p
 import { MemorizationReciteSettingsComponent } from '../memorization-recite-settings/memorization-recite-settings.component';
 import { TenantManagementComponent } from '../tenant-management/tenant-management.component';
 import { AdminWipeChurchComponent } from '../admin-wipe-church/admin-wipe-church.component';
+import { PlanningCenterConnectComponent } from '../planning-center-connect/planning-center-connect.component';
+import { PlanningCenterListMapperComponent } from '../planning-center-list-mapper/planning-center-list-mapper.component';
 import type { Tenant } from '../../types/tenant';
 import { TenantUsersComponent } from '../tenant-users/tenant-users.component';
 import { AdminPlatformPlanSettingsComponent } from '../admin-platform-plan-settings/admin-platform-plan-settings.component';
+import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
 import { AdminSiteAnalyticsPanelComponent } from '../admin-site-analytics-panel/admin-site-analytics-panel.component';
 import { ADMIN_SETTINGS_TABS, type AdminSettingsTab, type AdminSettingsTabDef } from '../../lib/admin-settings-tabs';
 import type { AnalyticsStats } from '../../services/analytics.service';
@@ -68,6 +71,9 @@ import type { AnalyticsStats } from '../../services/analytics.service';
     TenantUsersComponent,
     AdminPlatformPlanSettingsComponent,
     AdminWipeChurchComponent,
+    PlanningCenterConnectComponent,
+    PlanningCenterListMapperComponent,
+    AdminCollapsibleSectionComponent,
   ],
   templateUrl: './admin-settings-panel.component.html',
 })
@@ -80,6 +86,8 @@ export class AdminSettingsPanelComponent implements OnInit {
   @Input() canWipeChurch = false;
   @Input() activeTenant: Tenant | null = null;
   showFeedbackForm = false;
+  pcoCredentialsConfigured = false;
+  feedbackSectionExpanded = false;
 
   @Output() settingsTabChange = new EventEmitter<AdminSettingsTab>();
 
@@ -118,6 +126,8 @@ export class AdminSettingsPanelComponent implements OnInit {
         return this.showAnalyticsTab;
       case 'tenant_manager':
         return this.isSuperAdmin;
+      case 'integrations':
+        return this.isChurchTenant;
       case 'content':
       case 'email':
       case 'tools':

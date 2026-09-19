@@ -96,6 +96,7 @@ export class HomePrayerContentComponent implements OnChanges {
   @Input({ required: true }) showMemorizationRecommendations!: boolean;
   @Input({ required: true }) handlers!: HomePrayerContentHandlers;
   @Input() canAccessShared = true;
+  @Input() filteredPlanningCenterPrayers: PrayerRequest[] = [];
 
   @Output() personalCategoryPickerOpenChange =
     new EventEmitter<HomePersonalCategoryPickerOpenChange>();

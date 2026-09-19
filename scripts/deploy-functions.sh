@@ -87,6 +87,18 @@ case $FUNCTION_NAME in
         echo "💡 JWT required (verify_jwt=true). Admin church wipe; requires migration wipe_church_tenant applied."
         echo "📋 Optional: STRIPE_SECRET_KEY (church customer cancel/delete only; never Pro)"
         ;;
+    "planning-center-credentials")
+        deploy_function "planning-center-credentials" ""
+        echo "💡 JWT required. Per-tenant PCO Vault credentials (church plan + tenant_admin)."
+        ;;
+    "planning-center-lookup")
+        deploy_function "planning-center-lookup" ""
+        echo "💡 JWT required. PCO people search (tenant_admin; requires migration planning_center_vault)."
+        ;;
+    "planning-center-lists")
+        deploy_function "planning-center-lists" ""
+        echo "💡 JWT required. PCO lists/members (lists=admin; members=mapped list only)."
+        ;;
     "get-openai-org-usage")
         deploy_function "get-openai-org-usage" ""
         echo "📋 Optional secret: OPENAI_ADMIN_KEY (org-wide spend in admin UI)"
@@ -166,6 +178,9 @@ case $FUNCTION_NAME in
         deploy_function "submit-feedback" ""
         deploy_function "delete-account" ""
         deploy_function "wipe-church-tenant" ""
+        deploy_function "planning-center-credentials" ""
+        deploy_function "planning-center-lookup" ""
+        deploy_function "planning-center-lists" ""
         deploy_function "get-openai-org-usage" ""
         deploy_function "cleanup-device-tokens" ""
         deploy_function "stripe-church-checkout" ""
@@ -196,6 +211,9 @@ case $FUNCTION_NAME in
         echo "  submit-feedback               - In-app feedback to Notion (JWT; NOTION_TOKEN)"
         echo "  delete-account                - Settings account erasure (JWT; service role RPC)"
         echo "  wipe-church-tenant            - Admin church tenant wipe (JWT; service role RPC)"
+        echo "  planning-center-credentials   - Per-tenant PCO Vault connect (JWT)"
+        echo "  planning-center-lookup        - PCO people lookup (JWT)"
+        echo "  planning-center-lists         - PCO lists and list members (JWT)"
         echo "  get-openai-org-usage          - OpenAI org spend for admin UI"
         echo "  cleanup-device-tokens    - Stale device tokens + push log cleanup (cron)"
         echo "  stripe-church-checkout   - Church Stripe Checkout (JWT)"

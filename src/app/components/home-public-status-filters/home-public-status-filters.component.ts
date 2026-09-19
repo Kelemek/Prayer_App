@@ -41,10 +41,13 @@ export class HomePublicStatusFiltersComponent {
   @Input() promptsPanelExpanded = false;
   /** When false, hide Archived / Prompts (Church preview for non-members). */
   @Input() canAccessShared = false;
+  @Input() showPlanningCenterMembersFilter = false;
+  @Input() planningCenterMembersDisplayCount: string | number = 0;
+  @Input() planningCenterMembersLoading = false;
   @Input() sectionGapClass = HOME_SHELL_SECTION_GAP_CLASSES;
 
   @Output() selectFilter = new EventEmitter<
-    "current" | "answered" | "archived" | "total" | "prompts"
+    "current" | "answered" | "archived" | "total" | "prompts" | "planning_center_list"
   >();
   @Output() addChurch = new EventEmitter<void>();
 

@@ -83,6 +83,9 @@ export class HomeFilterCoordinator {
       host.setFilters({ searchTerm: page.filters.searchTerm });
       host.applyPrayerFilters({ search: page.filters.searchTerm });
       host.loadGroupPrayers();
+    } else if (filter === "planning_center_list") {
+      host.setFilters({ searchTerm: page.filters.searchTerm });
+      host.applyPrayerFilters({ search: "" });
     } else if (filter === "total") {
       host.setFilters({ searchTerm: page.filters.searchTerm });
       host.applyPrayerFilters({ search: page.filters.searchTerm });

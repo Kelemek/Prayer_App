@@ -29,6 +29,7 @@ export class HomeChurchDemoPanelComponent {
       case "personal":
       case "memorize":
       case "groups":
+      case "planning_center_list":
         return "Church preview";
       default: {
         const _exhaustive: never = this.activeFilter;
@@ -52,6 +53,7 @@ export class HomeChurchDemoPanelComponent {
       case "personal":
       case "memorize":
       case "groups":
+      case "planning_center_list":
         return "Join a church or take a feature tour to share prayer requests with your congregation.";
       default: {
         const _exhaustive: never = this.activeFilter;

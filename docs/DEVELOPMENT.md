@@ -643,7 +643,7 @@ prayers$ = this.prayersSubject.asObservable();
 
 ### Removed/Deprecated Features
 
-- **Planning Center integration** (removed Jul 2026): Contact lookup, list mapping, `planning-center-*` Edge Functions, `member_prayer_updates` table, and Planning Center columns on `tenant_memberships`. Migration: `20260419120000_drop_planning_center.sql`.
+- **Planning Center integration** (optional, Church plan): Per-tenant OAuth App ID + Secret in Supabase Vault (`pco_<tenant_id>` JSON via service-role RPCs); metadata on `tenant_integrations`; admin **Integrations** tab; Edge Functions `planning-center-credentials`, `planning-center-lookup`, `planning-center-lists`; list mapping on `tenant_memberships.planning_center_list_id`; Home **Members** roster (display-only in v1). Migration: `20260920120000_planning_center_vault.sql`. Legacy removal: `20260419120000_drop_planning_center.sql`.
 - **Approval Codes System** (removed Jan 2026): One-time approval links via `approval_codes` table and `validate-approval-code` Edge Function
   - Replaced with direct `/admin` portal links requiring standard authentication
   - Account approval codes still use simple base64 encoding (no database)

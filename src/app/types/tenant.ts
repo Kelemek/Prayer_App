@@ -35,6 +35,16 @@ export interface TenantMembership {
   updated_at?: string;
   auth_user_id?: string | null;
   created_at?: string;
+  in_planning_center?: boolean | null;
+  planning_center_checked_at?: string | null;
+  planning_center_list_id?: string | null;
+}
+
+export interface TenantIntegrations {
+  tenant_id: string;
+  pco_enabled: boolean;
+  pco_configured_at?: string | null;
+  pco_app_id_last4?: string | null;
 }
 
 export interface TenantUserDirectoryTenant {

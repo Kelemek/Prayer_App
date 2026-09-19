@@ -28,7 +28,11 @@ export function isPublicTabFilter(
 
 /** True when the Public top tab or its sub-tabs (including Prompts) are active. */
 export function isPublicAreaFilter(filter: HomeActiveFilter): boolean {
-  return isPublicTabFilter(filter) || filter === "prompts";
+  return (
+    isPublicTabFilter(filter) ||
+    filter === "prompts" ||
+    filter === "planning_center_list"
+  );
 }
 
 /** True when the Groups top tab is selected. */
@@ -61,6 +65,7 @@ export function homeHasSubFilterRowBelowTabs(
     isPublicAreaFilter(filter) ||
     filter === "personal" ||
     filter === "memorize" ||
-    filter === "groups"
+    filter === "groups" ||
+    filter === "planning_center_list"
   );
 }

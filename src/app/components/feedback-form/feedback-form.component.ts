@@ -1,5 +1,6 @@
 import {
   Component,
+  Input,
   OnDestroy,
   ChangeDetectorRef,
   ChangeDetectionStrategy,
@@ -25,18 +26,18 @@ type FeedbackType = "suggestion" | "feature" | "bug";
   imports: [CommonModule, NgClass, FormsModule],
   template: `
     <div class="space-y-4">
-      <!-- Header -->
-      <div class="pb-0 pt-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Send Feedback
-        </h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-          Have a suggestion, bug report, or feature request? Let us know!
-        </p>
-      </div>
+      @if (!hideHeader) {
+        <div class="pb-0 pt-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            Send Feedback
+          </h3>
+          <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            Have a suggestion, bug report, or feature request? Let us know!
+          </p>
+        </div>
 
-      <!-- Divider -->
-      <div class="border-t border-gray-200 dark:border-gray-700"></div>
+        <div class="border-t border-gray-200 dark:border-gray-700"></div>
+      }
 
       <!-- Form -->
       <form (ngSubmit)="onSubmit()" class="space-y-4">
@@ -253,6 +254,9 @@ type FeedbackType = "suggestion" | "feature" | "bug";
   styles: [],
 })
 export class FeedbackFormComponent implements OnDestroy {
+  /** Hide title and intro when embedded in admin collapsible section. */
+  @Input() hideHeader = false;
+
   readonly feedbackChoiceBtnClass = SETTINGS_CHOICE_BTN_CLASS;
   feedbackTypeTileClasses = settingsChoiceNgClass;
 

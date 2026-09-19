@@ -2,6 +2,7 @@ export type AdminSettingsTab =
   | 'analytics'
   | 'email'
   | 'content'
+  | 'integrations'
   | 'tools'
   | 'security'
   | 'tenant_manager';
@@ -19,5 +20,6 @@ export const ADMIN_SETTINGS_TABS: readonly AdminSettingsTabDef[] = [
   { id: 'email', label: 'Email', domId: 'admin-settings-tab-email' },
   { id: 'tools', label: 'Tools', domId: 'admin-settings-tab-tools' },
   { id: 'security', label: 'Security' },
+  { id: 'integrations', label: 'Integrations', domId: 'admin-settings-tab-integrations' },
   { id: 'tenant_manager', label: 'Tenant Manager' },
 ];

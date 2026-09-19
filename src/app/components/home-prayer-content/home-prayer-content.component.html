@@ -9,7 +9,7 @@
   } @else {
   <!-- Empty State for Prayers -->
   @if (activeFilter !== 'prompts' && activeFilter !== 'personal' &&
-  activeFilter !== 'memorize' && activeFilter !== 'groups' && (prayers$ | async)?.length === 0) {
+  activeFilter !== 'memorize' && activeFilter !== 'groups' && activeFilter !== 'planning_center_list' && (prayers$ | async)?.length === 0) {
   <div
     class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center border border-gray-200 dark:border-gray-700"
   >
@@ -102,7 +102,7 @@
 
   <!-- Prayer Cards (only show when not on prompts, personal, or memorize filter) -->
   @if (activeFilter !== 'prompts' && activeFilter !== 'personal' &&
-  activeFilter !== 'memorize' && activeFilter !== 'groups') {
+  activeFilter !== 'memorize' && activeFilter !== 'groups' && activeFilter !== 'planning_center_list') {
   @if (isCommunityPrayerFilter(activeFilter) &&
   displayedPublicPrayers.length > 0) {
   <cdk-virtual-scroll-viewport
@@ -137,6 +137,34 @@
     ></app-prayer-card>
   </cdk-virtual-scroll-viewport>
   } }
+
+  @if (activeFilter === 'planning_center_list') {
+  @if (filteredPlanningCenterPrayers.length === 0) {
+  <div
+    class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center border border-gray-200 dark:border-gray-700"
+  >
+    <h3 class="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2">
+      No list members to show
+    </h3>
+    <p class="text-gray-500 dark:text-gray-400">
+      Ask a church admin to map your account to a Planning Center list.
+    </p>
+  </div>
+  } @else {
+  <div [class]="stackGapClass">
+    @for (prayer of filteredPlanningCenterPrayers; track prayer.id) {
+    <app-prayer-card
+      [attr.id]="'prayer-card-' + prayer.id"
+      [prayer]="prayer"
+      [isAdmin]="false"
+      [activeFilter]="'planning_center_list'"
+      [deletionsAllowed]="'admin-only'"
+      [updatesAllowed]="'admin-only'"
+    ></app-prayer-card>
+    }
+  </div>
+  }
+  }
 
   @if (activeFilter === 'groups') {
   @if (groupPrayers.length === 0) {

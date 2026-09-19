@@ -102,6 +102,22 @@
       }
     </app-home-sub-filter-chip>
     </div>
+
+    @if (showPlanningCenterMembersFilter) {
+    <div [class]="chipHostClass">
+    <app-home-sub-filter-chip
+      chipId="tour-filter-members"
+      [layoutClass]="chipButtonClass"
+      [active]="activeFilter === 'planning_center_list'"
+      [busy]="planningCenterMembersLoading"
+      [activeClass]="chipThemes.prompts.active"
+      [inactiveClass]="chipThemes.prompts.inactive"
+      (chipClick)="selectFilter.emit('planning_center_list')"
+    >
+      Members ({{ planningCenterMembersDisplayCount }})
+    </app-home-sub-filter-chip>
+    </div>
+    }
   </div>
   </div>
 </div>

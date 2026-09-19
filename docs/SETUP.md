@@ -276,6 +276,16 @@ Key tables created by migrations:
 - `tenant_settings` - Per-church configuration (branding, prayer policies, reminders, outbound mail identity)
 - `admin_settings` - Platform-only singleton (app test account); super-admin writes only. Legacy GitHub PAT columns are dropped by `20260913160000_restrict_github_feedback_columns.sql`. In-app feedback uses Edge Function `submit-feedback` + `NOTION_TOKEN`.
 - `email_templates` - Email HTML templates
+- `tenant_integrations` - Per-church integration flags (Planning Center metadata only; secrets are not stored here)
+
+### Planning Center (optional, Church plan)
+
+Apply migration `supabase/migrations/20260920120000_planning_center_vault.sql` before enabling the feature.
+
+1. **Church admin** — Admin → Settings → **Integrations**: paste the church’s Planning Center OAuth **App ID** and **Secret** (write-only), test, then enable.
+2. **Storage** — Credentials live in Supabase **Vault** as `pco_<tenant_uuid>` (JSON). Only Edge Functions call service-role RPCs (`pco_vault_put` / `pco_vault_get` / `pco_vault_delete`). Do **not** put PCO secrets in `tenant_settings`, `VITE_*` env vars, or client code.
+3. **Edge Functions** — Deploy `planning-center-credentials`, `planning-center-lookup`, and `planning-center-lists` (`./scripts/deploy-functions.sh` or per-function deploy). JWT required; church `plan_tier` must be `churches`.
+4. **Wipe** — `wipe_church_tenant` deletes the Vault secret `pco_<tenant_id>` before removing the tenant row.
 
 ---
 
@@ -395,7 +405,9 @@ See [church-tenant-wipe.md](church-tenant-wipe.md) for matrix vs member erase, D
 
 ## Stripe (Church + Pro billing)
 
-Web-only Stripe Checkout and Customer Portal. Native apps do not show buy/manage UI in-app; church admins may open the system browser for billing. Church and Pro acquisition on native is **tour → email a web link**; web tours start Checkout. Church tenants are created only after payment, on `/church-setup`.
+Web-only Stripe Checkout and Customer Portal. Native apps do not show buy/manage UI in-app; church admins and Pro subscribers may open the system browser for **Billing & invoices** (Stripe Customer Portal: invoices, payment method, cancel). Church and Pro acquisition on native is **tour → email a web link**; web tours start Checkout. Church tenants are created only after payment, on `/church-setup`.
+
+**Quotas vs billing:** Group and member caps are **hard-enforced** in Postgres RPCs (`create_prayer_group`, `invite_prayer_group_member`). The app may show **soft warnings** near ~80% usage; those are client-only. Super-admin **Platform usage** (Tenant Manager) reads `list_platform_quota_usage_for_super_admin` from migration `20260919120000_platform_quota_usage.sql` — apply on prayer-test before verifying numbers. Pro portal calls `stripe-billing-portal` with JSON body `kind: "pro"`; deploy that function after changing it.
 
 `stripe-church-checkout` is **dual-mode**: omit `tenant_id` for the pay-first user-scoped path (success/cancel `/church-setup?church_checkout=`). Pass `tenant_id` only for **legacy incomplete** church tenants (success/cancel `/admin?church_checkout=`).
 

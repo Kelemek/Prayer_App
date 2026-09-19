@@ -1,3 +1,4 @@
+import { isMemberPrayerId } from './prayer-card-kind';
 import { isCurrentUserPrayerRequester } from './prayer-card-user-context';
 
 export type PrayerCardPolicy = 'everyone' | 'original-requestor' | 'admin-only';
@@ -15,6 +16,7 @@ export interface PrayerCardPermissionContext {
 export function showPrayerCardDeleteButton(
   ctx: PrayerCardPermissionContext
 ): boolean {
+  if (isMemberPrayerId(ctx.prayerId)) return false;
   if (ctx.isPersonal) return true;
   if (ctx.isAdmin) return true;
   if (ctx.deletionsAllowed === 'admin-only') return false;
@@ -27,6 +29,7 @@ export function showPrayerCardDeleteButton(
 export function showPrayerCardAddUpdateButton(
   ctx: PrayerCardPermissionContext
 ): boolean {
+  if (isMemberPrayerId(ctx.prayerId)) return false;
   if (ctx.isPersonal) return true;
   if (ctx.isAdmin) return true;
   if (ctx.updatesAllowed === 'admin-only') return false;

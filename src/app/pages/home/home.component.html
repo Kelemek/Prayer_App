@@ -194,6 +194,9 @@
             canAccessShared && activeFilter === 'prompts' && promptsCount > 0
           "
           [canAccessShared]="canAccessShared"
+          [showPlanningCenterMembersFilter]="planningCenter.showPlanningCenterMembersFilter"
+          [planningCenterMembersDisplayCount]="planningCenter.planningCenterMembersDisplayCount"
+          [planningCenterMembersLoading]="planningCenter.loadingPlanningCenterList"
           [sectionGapClass]="''"
           (selectFilter)="filter.setFilter($event)"
           (addChurch)="openChurchOnboardingModal()"
@@ -252,7 +255,9 @@
             personalPrayersCount > 0)) ||
         (activeFilter === 'groups' &&
           (groupPrayers.length > 0 || prayerGroups.length > 0)) ||
-        (isPublicTabFilter(activeFilter) && displayedPublicPrayers.length > 0);
+        (isPublicTabFilter(activeFilter) && displayedPublicPrayers.length > 0) ||
+        (activeFilter === 'planning_center_list' &&
+          planningCenter.filteredPlanningCenterPrayers.length > 0);
       @let hidePrayerContentForLoading = contentLoading && !hasCachedContentForTab;
       @if (hidePrayerContentForLoading) {
       <app-skeleton-loader [count]="5" type="card"></app-skeleton-loader>
@@ -267,6 +272,34 @@
       }
 
       @if (activeFilter === 'groups' && canAccessGroupsTab) {
+      @if (showGroupsNearQuotaBanner) {
+      <div
+        class="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-100"
+        role="status"
+        data-testid="groups-near-quota-banner"
+      >
+        <p class="mb-2">
+          You're using {{ groupsOwned }} of {{ maxGroupsOwned }} groups.
+        </p>
+        @if (groupsNearQuotaShowProCta) {
+        <button
+          type="button"
+          class="px-3 py-1.5 rounded-md btn-chip btn-chip-blue cursor-pointer text-xs"
+          (click)="onUpgradeToPro()"
+        >
+          See Pro
+        </button>
+        } @else if (groupsNearQuotaShowChurchCta) {
+        <button
+          type="button"
+          class="px-3 py-1.5 rounded-md btn-chip btn-chip-blue cursor-pointer text-xs"
+          (click)="onStartChurchTour()"
+        >
+          See Church
+        </button>
+        }
+      </div>
+      }
       <app-home-group-filters
         [groups]="prayerGroups"
         [selectedGroupId]="selectedGroupId"
@@ -277,7 +310,9 @@
         [canCreateGroups]="canCreatePrayerGroups"
         [showProUpgrade]="showGroupProUpgrade"
         [maxGroupsOwned]="maxGroupsOwned"
+        [groupsOwned]="groupsOwned"
         [maxMembersPerGroup]="maxMembersPerGroup"
+        [showMemberProUpgrade]="showMemberProUpgrade"
         [currentUserEmail]="currentUserEmail"
         [membersGroupIdToOpen]="membersGroupIdToOpen"
         (addGroup)="openCreateGroup()"
@@ -341,6 +376,7 @@
         [showMemorizationRecommendations]="shell.modals.showMemorizationRecommendations"
         [handlers]="shell.handlers.prayerContent"
         [canAccessShared]="canAccessShared"
+        [filteredPlanningCenterPrayers]="planningCenter.filteredPlanningCenterPrayers"
         (openChurchOnboarding)="openChurchOnboardingModal()"
         (personalCategoryPickerOpenChange)="
           onPersonalCategoryPickerOpenChange($event.prayerId, $event.open)

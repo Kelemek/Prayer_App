@@ -15,6 +15,12 @@ import {
   AdminFilterSelectComponent,
   type AdminFilterSelectOption,
 } from '../admin-filter-select/admin-filter-select.component';
+import {
+  fetchPlanningCenterCredentialsStatus,
+  formatPersonName,
+  lookupPersonByEmail,
+  type PlanningCenterPerson,
+} from '../../lib/planning-center';
 
 interface EmailSubscriber {
   id: string;
@@ -223,6 +229,44 @@ interface CSVRow {
       @if (showAddForm) {
       <div class="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 mb-4 border border-gray-200 dark:border-gray-700">
         <form novalidate class="space-y-3">
+          @if (pcoIntegrationEnabled) {
+          <div class="mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search Planning Center</label>
+            <input
+              type="text"
+              [(ngModel)]="pcSearchQuery"
+              name="pcSearchQuery"
+              placeholder="Name or email"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 mb-2"
+            />
+            <button
+              type="button"
+              class="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 rounded-lg cursor-pointer disabled:opacity-50"
+              [disabled]="pcSearching || !pcSearchQuery.trim()"
+              (click)="searchPlanningCenter()"
+            >
+              {{ pcSearching ? 'Searching…' : 'Search' }}
+            </button>
+            @if (pcSearchResults.length > 0) {
+              <ul class="mt-2 max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg">
+                @for (person of pcSearchResults; track person.id) {
+                  <li>
+                    <button
+                      type="button"
+                      class="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm cursor-pointer"
+                      (click)="selectPlanningCenterPerson(person)"
+                    >
+                      {{ formatPersonName(person) }}
+                      @if (person.attributes.primary_email_address) {
+                        <span class="text-gray-500"> — {{ person.attributes.primary_email_address }}</span>
+                      }
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+          }
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
@@ -702,6 +746,12 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
   uploadingCSV = false;
   newName = '';
   newEmail = '';
+  pcoIntegrationEnabled = false;
+  pcSearchQuery = '';
+  pcSearching = false;
+  pcSearchResults: PlanningCenterPerson[] = [];
+  pendingInPlanningCenter: boolean | null = null;
+  readonly formatPersonName = formatPersonName;
   submitting = false;
   error: string | null = null;
   csvSuccess: string | null = null;
@@ -824,11 +874,56 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
 
     try {
-      await this.handleSearch();
+      await Promise.all([this.handleSearch(), this.refreshPcoIntegrationStatus()]);
     } finally {
       this.isLoading = false;
       this.cdr.markForCheck();
     }
+  }
+
+  async refreshPcoIntegrationStatus(): Promise<void> {
+    const tenantId = this.activeTenantId;
+    if (!tenantId) {
+      this.pcoIntegrationEnabled = false;
+      return;
+    }
+    const { status } = await fetchPlanningCenterCredentialsStatus(
+      this.supabase.client,
+      tenantId
+    );
+    this.pcoIntegrationEnabled = Boolean(status?.enabled && status?.configured);
+    this.cdr.markForCheck();
+  }
+
+  async searchPlanningCenter(): Promise<void> {
+    const tenantId = this.activeTenantId;
+    const query = this.pcSearchQuery.trim();
+    if (!tenantId || !query) {
+      return;
+    }
+    this.pcSearching = true;
+    this.pcSearchResults = [];
+    this.cdr.markForCheck();
+    const result = await lookupPersonByEmail(this.supabase.client, tenantId, query);
+    this.pcSearching = false;
+    if (result.error) {
+      this.error = result.error;
+    } else {
+      this.pcSearchResults = result.people;
+    }
+    this.cdr.markForCheck();
+  }
+
+  selectPlanningCenterPerson(person: PlanningCenterPerson): void {
+    this.newName = formatPersonName(person);
+    const email = person.attributes.primary_email_address?.trim();
+    if (email) {
+      this.newEmail = email;
+    }
+    this.pendingInPlanningCenter = true;
+    this.pcSearchResults = [];
+    this.pcSearchQuery = '';
+    this.cdr.markForCheck();
   }
 
   ngOnDestroy() {
@@ -971,6 +1066,12 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
     this.csvSuccess = null;
     this.newName = '';
     this.newEmail = '';
+    this.pendingInPlanningCenter = null;
+    this.pcSearchResults = [];
+    this.pcSearchQuery = '';
+    if (this.showAddForm) {
+      void this.refreshPcoIntegrationStatus();
+    }
     this.cdr.markForCheck();
   }
 
@@ -1311,6 +1412,19 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
         return;
       }
 
+      let inPlanningCenter = this.pendingInPlanningCenter;
+      let checkedAt: string | null =
+        this.pendingInPlanningCenter !== null ? new Date().toISOString() : null;
+      if (inPlanningCenter === null && this.pcoIntegrationEnabled) {
+        const lookup = await lookupPersonByEmail(
+          this.supabase.client,
+          tid,
+          normalizedEmail
+        );
+        inPlanningCenter = lookup.count > 0;
+        checkedAt = new Date().toISOString();
+      }
+
       const { error } = await this.supabase.client
         .from('tenant_memberships')
         .insert({
@@ -1319,7 +1433,9 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
           is_active: true,
           role: 'member',
           receive_admin_emails: false,
-          tenant_id: tid
+          tenant_id: tid,
+          in_planning_center: inPlanningCenter,
+          planning_center_checked_at: checkedAt,
         });
 
       if (error) throw error;
@@ -1328,6 +1444,9 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       this.pendingSubscriberEmail = normalizedEmail;
       this.newName = '';
       this.newEmail = '';
+      this.pendingInPlanningCenter = null;
+      this.pcSearchResults = [];
+      this.pcSearchQuery = '';
       this.showSendWelcomeEmailDialog = true;
       this.cdr.markForCheck();
       this.cdr.detectChanges();

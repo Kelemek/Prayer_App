@@ -10,7 +10,8 @@ export type PrayerCardActiveFilter =
   | 'prompts'
   | 'personal'
   | 'memorize'
-  | 'groups';
+  | 'groups'
+  | 'planning_center_list';
 
 export function displayPrayerCardRequester(
   requester: string,

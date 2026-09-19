@@ -400,6 +400,10 @@ export class PrayerCardComponent
   }
 
   private refreshCanPrayFor$(): void {
+    if (this.prayer?.id?.startsWith('pc-member-')) {
+      this.canPrayFor$ = of(false);
+      return;
+    }
     if (!this.prayer?.id || !this.prayerEncouragementService?.getCanPrayFor$) {
       this.canPrayFor$ = of(true);
       return;

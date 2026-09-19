@@ -38,3 +38,14 @@ export function getPrayerCardMutationKind(
   }
   return 'community';
 }
+
+export function isMemberPrayerId(prayerId: string | null | undefined): boolean {
+  return !!prayerId?.startsWith('pc-member-');
+}
+
+export function memberPrayerPersonId(prayerId: string): string | null {
+  if (!isMemberPrayerId(prayerId)) {
+    return null;
+  }
+  return prayerId.slice('pc-member-'.length);
+}

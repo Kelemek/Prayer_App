@@ -48,6 +48,24 @@
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
             </svg>
           }
+          @case ('integrations') {
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 22v-5"></path>
+              <path d="M9 8V2"></path>
+              <path d="M15 8V2"></path>
+              <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"></path>
+            </svg>
+          }
           @case ('email') {
             <svg
               width="18"
@@ -155,6 +173,21 @@
         </div>
       </div>
     }
+    @case ('integrations') {
+      <div class="space-y-6">
+        <div class="mb-4">
+          <app-planning-center-connect
+            [activeTenantId]="activeTenant?.id ?? null"
+            (credentialsConfiguredChange)="pcoCredentialsConfigured = $event"
+          />
+        </div>
+        @if (pcoCredentialsConfigured) {
+          <div class="mb-4">
+            <app-planning-center-list-mapper [activeTenantId]="activeTenant?.id ?? null" />
+          </div>
+        }
+      </div>
+    }
     @case ('email') {
       <div class="space-y-6">
         <div class="mb-4">
@@ -214,9 +247,33 @@
       <div class="space-y-6">
         @if (showFeedbackForm) {
           <div class="mb-4">
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-              <app-feedback-form></app-feedback-form>
-            </div>
+            <app-admin-collapsible-section
+              title="Send Feedback"
+              triggerId="admin-feedback-trigger"
+              panelId="admin-feedback-panel"
+              [expanded]="feedbackSectionExpanded"
+              (expandedChange)="feedbackSectionExpanded = $event"
+            >
+              <svg
+                sectionIcon
+                class="text-blue-600 dark:text-blue-400 shrink-0"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Have a suggestion, bug report, or feature request? Let us know!
+              </p>
+              <app-feedback-form [hideHeader]="true" />
+            </app-admin-collapsible-section>
           </div>
         }
         <div class="mb-4">

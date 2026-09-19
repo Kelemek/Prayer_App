@@ -334,6 +334,23 @@ const createHomeComponent = (
     toastService,
     userSessionService
   );
+  const planningCenterListService: any = {
+    listId$: of(null),
+    members$: of([]),
+    loading$: of(false),
+    loadForCurrentUser: vi.fn().mockResolvedValue(undefined),
+    invalidateForUser: vi.fn(),
+  };
+  const planningCenter: any = {
+    planningCenterListId: null,
+    filteredPlanningCenterPrayers: [],
+    showPlanningCenterMembersFilter: false,
+    planningCenterMembersDisplayCount: '0',
+    loadingPlanningCenterList: false,
+    bindHost: vi.fn(),
+    subscribe: vi.fn(),
+    loadForCurrentUser: vi.fn(),
+  };
   const homeHandoffCoordinator = new PresentationHomeHandoffCoordinator();
   const presentationNav = new HomePresentationNavigationController(
     router,
@@ -392,7 +409,9 @@ const createHomeComponent = (
       tenantCtx,
       connect
     ),
-    prayerCardActions
+    prayerCardActions,
+    planningCenterListService,
+    planningCenter
   );
   comp.canAccessShared = permissions.canAccessShared();
   return comp;
@@ -3970,6 +3989,34 @@ describe('HomeComponent', () => {
         mocks.supabaseService
       );
       expect(comp.showGroupProUpgrade).toBe(true);
+      expect(comp.showGroupsNearQuotaBanner).toBe(false);
+    });
+
+    it('shows near-quota banner at 80% of group cap', () => {
+      mocks = makeMocks();
+      mocks.userSubscriptionService.getGroupLimits.mockReturnValue({
+        can_create_group: true,
+        max_groups_owned: 10,
+        groups_owned: 8,
+        max_members_per_group: 25,
+        individual_plan_tier: 'pro',
+        is_church_member: false,
+      });
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      expect(comp.showGroupsNearQuotaBanner).toBe(true);
+      expect(comp.groupsNearQuotaShowChurchCta).toBe(true);
     });
 
     it('launches church tour instead of creating a tenant', () => {
