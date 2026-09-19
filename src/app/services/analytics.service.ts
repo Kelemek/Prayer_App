@@ -17,7 +17,7 @@ export interface AnalyticsStats {
   archivedPrayers: number;
   /** All memberships for the active tenant */
   totalTenantMembers: number;
-  /** Members with leader or tenant_admin role */
+  /** Members with tenant_admin role */
   tenantLeadersAndAdmins: number;
   memorizationTotal: number;
   memorizationLearning: number;
@@ -257,7 +257,7 @@ export class AnalyticsService {
           .from('tenant_memberships')
           .select('*', { count: 'exact', head: true })
           .eq('tenant_id', tenantId)
-          .in('role', ['leader', 'tenant_admin']),
+          .eq('role', 'tenant_admin'),
         this.supabase.client
           .from('memorized_items')
           .select('practice_sessions')
@@ -325,7 +325,7 @@ export class AnalyticsService {
       }
 
       if (leadersResult.error) {
-        console.error('Error fetching leaders/admins count:', leadersResult.error);
+        console.error('Error fetching tenant admins count:', leadersResult.error);
       } else {
         stats.tenantLeadersAndAdmins = leadersResult.count || 0;
       }

@@ -58,8 +58,8 @@ export const ADMIN_SITE_ANALYTICS_TILES: readonly AdminAnalyticsTileDef[] = [
   },
   {
     statKey: 'tenantLeadersAndAdmins',
-    label: 'Leaders and admins',
-    subtitle: 'leader or tenant_admin roles',
+    label: 'Admins',
+    subtitle: 'tenant_admin role',
     accent: 'gold',
     icon: 'leaders',
   },

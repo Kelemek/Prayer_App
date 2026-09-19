@@ -32,5 +32,9 @@ describe('admin-analytics-tiles', () => {
     expect(views.at(-1)?.value).toBe(15);
     expect(views.some((tile) => tile.statKey === 'totalTenantMembers')).toBe(true);
     expect(views.some((tile) => tile.statKey === 'tenantLeadersAndAdmins')).toBe(true);
+    expect(views.find((tile) => tile.statKey === 'tenantLeadersAndAdmins')).toMatchObject({
+      label: 'Admins',
+      subtitle: 'tenant_admin role',
+    });
   });
 });
