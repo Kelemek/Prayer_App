@@ -28,6 +28,8 @@ Coverage matches **`erase_user_account`** / [account-erasure.md](account-erasure
 
 **Omitted secrets:** verification codes, push device tokens, invite/lead tokens, unsubscribe tokens.
 
+**Omitted because the table is gone or unused on current paid schema:** `personal_prayer_category_colors` (colors live on `personal_categories`), `status_change_requests`. Named here so the erase inventory stays explicit.
+
 **Never included:** other users’ prayers or memberships, church Stripe customers, other group members.
 
 ## Scoping

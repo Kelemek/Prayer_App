@@ -1,7 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import {
   downloadJsonFile,
   exportUserAccountFilename,
+  isExportUserAccountPayload,
   runUserSettingsDownloadMyData,
 } from './user-settings-export-run';
 
@@ -27,6 +31,23 @@ const validPayload = {
   preferences: {},
   prayers: {},
 };
+
+describe('isExportUserAccountPayload', () => {
+  it('accepts a version-1 package with the required sections', () => {
+    expect(isExportUserAccountPayload(validPayload)).toBe(true);
+  });
+
+  it('rejects null section objects and incomplete bodies', () => {
+    expect(isExportUserAccountPayload(null)).toBe(false);
+    expect(isExportUserAccountPayload({ schema_version: 1 })).toBe(false);
+    expect(
+      isExportUserAccountPayload({
+        ...validPayload,
+        memberships: null,
+      })
+    ).toBe(false);
+  });
+});
 
 describe('user-settings-export-run', () => {
   beforeEach(() => {
@@ -111,5 +132,77 @@ describe('user-settings-export-run', () => {
     expect(createObjectURL).toHaveBeenCalled();
     expect(click).toHaveBeenCalled();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:export');
+  });
+});
+
+describe('export_user_account migration contract', () => {
+  const sql = readFileSync(
+    join(
+      dirname(fileURLToPath(import.meta.url)),
+      '../../../supabase/migrations/20260923120000_export_user_account.sql'
+    ),
+    'utf8'
+  );
+
+  it('exposes a no-argument RPC bound to auth.uid()', () => {
+    expect(sql).toMatch(/create or replace function public\.export_user_account\(\)/);
+    expect(sql).toContain('v_user_id uuid := auth.uid()');
+    expect(sql).toContain("raise exception 'not authenticated'");
+    expect(sql).not.toMatch(/p_user_id/);
+    expect(sql).not.toMatch(/p_email/);
+  });
+
+  it('is not executable by anonymous clients', () => {
+    expect(sql).toMatch(/revoke all on function public\.export_user_account\(\) from public, anon/);
+    expect(sql).toMatch(/grant execute on function public\.export_user_account\(\) to authenticated/);
+  });
+
+  it('scopes memberships and authored prayers to the caller across tenants', () => {
+    expect(sql).toContain('m.auth_user_id = v_user_id');
+    expect(sql).toContain('lower(trim(m.user_email)) = v_email');
+    expect(sql).toContain('lower(trim(p.email::text)) = v_email');
+    expect(sql).toContain('lower(trim(p.user_email)) = v_email');
+  });
+
+  it('names every erase_user_account target table as exported or omitted', () => {
+    const eraseTargets = [
+      'tenant_memberships',
+      'prayers',
+      'prayer_updates',
+      'personal_prayers',
+      'personal_prayer_updates',
+      'group_prayers',
+      'group_prayer_updates',
+      'prayer_group_members',
+      'prayer_groups',
+      'personal_categories',
+      'device_tokens',
+      'push_notification_log',
+      'billing_signup_leads',
+      'user_subscriptions',
+      'account_approval_requests',
+      'tenant_invites',
+      'email_queue',
+      'global_roles',
+      'memorized_items',
+      'memorization_recite_usage',
+      'user_memorization_hour_reminders',
+      'user_prayer_hour_reminders',
+      'user_prayer_item_reminders',
+      'prompt_prayed_for_counts',
+      'badge_read_receipts',
+      'analytics',
+      'tenants',
+      'feedback_submissions',
+      'deletion_requests',
+      'update_deletion_requests',
+      'verification_codes',
+      'personal_prayer_category_colors',
+      'status_change_requests',
+    ];
+
+    for (const table of eraseTargets) {
+      expect(sql, table).toContain(table);
+    }
   });
 });

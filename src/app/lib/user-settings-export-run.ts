@@ -1,7 +1,32 @@
 import type { UserSettingsFacade } from './user-settings-facade';
-import {
-  isExportUserAccountPayload,
-} from './export-user-account-scope';
+
+export interface ExportUserAccountPayload {
+  schema_version: 1;
+  account: Record<string, unknown>;
+  memberships: unknown;
+  preferences: Record<string, unknown>;
+  prayers: Record<string, unknown>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/** Rejects garbage RPC bodies. Not a full schema validator. */
+export function isExportUserAccountPayload(
+  value: unknown
+): value is ExportUserAccountPayload {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    value['schema_version'] === 1 &&
+    isRecord(value['account']) &&
+    isRecord(value['memberships']) &&
+    isRecord(value['preferences']) &&
+    isRecord(value['prayers'])
+  );
+}
 
 export function downloadJsonFile(filename: string, data: unknown): void {
   const blob = new Blob([JSON.stringify(data, null, 2)], {

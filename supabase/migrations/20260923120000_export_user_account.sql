@@ -585,7 +585,9 @@ begin
       'device_tokens.token',
       'billing_signup_leads.token',
       'tenant_invites.token',
-      'tenant_memberships.unsubscribe_token'
+      'tenant_memberships.unsubscribe_token',
+      'personal_prayer_category_colors',
+      'status_change_requests'
     )
   );
 

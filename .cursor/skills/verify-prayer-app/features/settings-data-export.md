@@ -28,7 +28,7 @@ Preconditions:
 - **Open Settings.** Choose Settings. Run `page.locator('#tour-btn-settings-desktop').click()`. Heading `Settings` is visible.
 - **Find export.** Scroll to the download control. Run `page.locator('#tour-settings-download-data').scrollIntoViewIfNeeded()`. Button name `Download my data` is visible. Copy explains account, prayers, preferences, and memberships.
 - **Download.** Choose `Download my data`. Run `const downloadPromise = page.waitForEvent('download'); await page.locator('#tour-settings-download-data').click(); const download = await downloadPromise;`. Suggested filename matches `prayer-app-data-export-*.json`.
-- **Proof.** Save the downloaded JSON (or a text dump of `schema_version`, `scope.email`, and `memberships.length`) as `settings-data-export.txt`. Screenshot Settings with the button visible (`settings-data-export.png`). Unit stand-in: `npx vitest --run src/app/lib/export-user-account-scope.spec.ts src/app/lib/user-settings-export-run.spec.ts`.
+- **Proof.** Save the downloaded JSON (or a text dump of `schema_version`, `scope.email`, and `memberships.length`) as `settings-data-export.txt`. Screenshot Settings with the button visible (`settings-data-export.png`). Unit stand-in: `npx vitest --run src/app/lib/user-settings-export-run.spec.ts`.
 - **Print is not export.** Settings Print → Personal still exists (`#tour-settings-print-personal`). Do not treat a printed HTML list as this feature.
 
 ## Gotchas
