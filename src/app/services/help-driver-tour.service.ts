@@ -2214,7 +2214,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Send Feedback',
           description:
-            'Use this form to send **Suggestion**, **Feature request**, or **Bug report** feedback to the development team.',
+            'Use this form to send <strong>Suggestion</strong>, <strong>Feature request</strong>, or <strong>Bug report</strong> feedback to the development team.',
           side: 'bottom',
           align: 'start',
         },
@@ -2224,7 +2224,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Feedback type',
           description:
-            'Choose **Suggestion** for improvements, **Feature request** for new ideas, or **Bug report** if something broke.',
+            'Choose <strong>Suggestion</strong> for improvements, <strong>Feature request</strong> for new ideas, or <strong>Bug report</strong> if something broke.',
           side: 'bottom',
           align: 'start',
         },
@@ -2234,7 +2234,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Title & description',
           description:
-            'Give a clear **title** and enough **description** that the team can act on it. When the fields look good, tap <strong>Send Feedback</strong>.',
+            'Give a clear <strong>title</strong> and enough <strong>description</strong> that the team can act on it. When the fields look good, tap <strong>Send Feedback</strong>.',
           side: 'top',
           align: 'start',
         },
