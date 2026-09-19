@@ -831,7 +831,7 @@ export class HelpDriverTourService {
           element: () => getNewPrayerRequestButtonEl()!,
           popover: {
             title: title0,
-            description: `${body0}<br><br>Tap <strong>Open form</strong> to continue (or tap <strong>Request</strong> yourself). The article refers to this as “Add Request”.`,
+            description: `${body0}<br><br>Tap <strong>Open form</strong> to continue (or tap <strong>Request</strong> yourself).`,
             side: 'bottom',
             align: 'start',
             nextBtnText: 'Open form &rarr;',
@@ -945,9 +945,9 @@ export class HelpDriverTourService {
         {
           element: () => getNewPrayerRequestButtonEl()!,
           popover: {
-            title: 'Add Request',
+            title: 'Request',
             description:
-              'With <strong>Personal</strong> selected, tap <strong>Request</strong> (same as “Add Request” in Help). The form opens ready for a <strong>personal</strong> prayer—no admin approval.',
+              'With <strong>Personal</strong> selected, tap <strong>Request</strong>. The form opens ready for a <strong>personal</strong> prayer. No admin approval is needed.',
             side: 'bottom',
             align: 'start',
             nextBtnText: 'Open form &rarr;',
@@ -1221,7 +1221,7 @@ export class HelpDriverTourService {
         element: () => getNewPrayerRequestButtonEl()!,
         popover: {
           title: title0,
-          description: `${desc0}<br><br>This tour covers a <strong>community</strong> request and <strong>updates</strong> on cards. Use <strong>Help → Filtering Prayers</strong> for filter tiles, and <strong>Help → Personal Prayers</strong> for private prayers. Tap <strong>Open form &rarr;</strong> to begin (or tap <strong>Request</strong> yourself). Help calls this “Add Request”.`,
+          description: `${desc0}<br><br>This tour covers a <strong>community</strong> request and <strong>updates</strong> on cards. Use <strong>Help → Filtering Prayers</strong> for filter tiles, and <strong>Help → Personal Prayers</strong> for private prayers. Tap <strong>Open form &rarr;</strong> to begin (or tap <strong>Request</strong> yourself).`,
           side: 'bottom',
           align: 'start',
           nextBtnText: 'Open form &rarr;',
