@@ -30,13 +30,8 @@ import { ClientVersionGateService } from '../../services/client-version-gate.ser
           Update required
         </h1>
         <p class="mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-          @if (isNative) {
-            This version of Prayer App is no longer supported. Please update
-            from the App Store or Google Play to keep using the app.
-          } @else {
-            This page is out of date. Refresh to load the latest version. A
-            hard refresh clears a stuck cached copy.
-          }
+          This version of Prayer App is no longer supported. Please update
+          from the App Store or Google Play to keep using the app.
         </p>
         <button
           type="button"
@@ -46,16 +41,6 @@ import { ClientVersionGateService } from '../../services/client-version-gate.ser
         >
           {{ isNative ? 'Update the app' : 'Refresh this page' }}
         </button>
-        @if (!isNative) {
-          <button
-            type="button"
-            class="mt-3 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm font-semibold text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700"
-            data-testid="force-upgrade-hard-reload"
-            (click)="onHardReload()"
-          >
-            Hard refresh
-          </button>
-        }
       </div>
     </main>
   `,
@@ -81,21 +66,5 @@ export class ForceUpgradeComponent implements OnInit {
       return;
     }
     window.location.reload();
-  }
-
-  async onHardReload(): Promise<void> {
-    try {
-      if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(
-          registrations.map((registration) => registration.unregister())
-        );
-      }
-    } catch (error) {
-      console.warn('[ForceUpgrade] Service worker unregister failed:', error);
-    }
-    const url = new URL(window.location.href);
-    url.searchParams.set('_refresh', String(Date.now()));
-    window.location.replace(url.toString());
   }
 }

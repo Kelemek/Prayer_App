@@ -42,8 +42,8 @@ Super-admins can also `update public.admin_settings` through the SQL editor. The
 
 ## What users see
 
-- **Web:** full-screen “Update required” with **Refresh this page** (optional one-time auto-reload per tab) and **Hard refresh** (unregisters the service worker, then reloads).
-- **Native:** same block with **Update the app** — App Store search or Play listing for `com.churchprayer.app`. No dismiss / “remind me later”.
+- **Web:** full-screen **Update required** with the same body as native and one **Refresh this page** button (`window.location.reload()`). The boot path may auto-reload a stale web shell once per tab via `maybeAutoReloadWebOnce`. There is no Hard refresh or service-worker unregister control.
+- **Native:** same title and body with **Update the app**, which opens the App Store search or Play listing for `com.churchprayer.app`. No dismiss or "remind me later".
 
 PostHog event (when capture is allowed): `client_upgrade_required` with `surface`, `platform`, `client_version`, `min_version`.
 

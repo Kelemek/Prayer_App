@@ -9,6 +9,9 @@ import { ANDROID_PLAY_STORE_URL } from '../../../lib/client-version-gate';
 
 const capturePostHogEvent = vi.fn();
 
+const UPGRADE_BODY =
+  'This version of Prayer App is no longer supported. Please update from the App Store or Google Play to keep using the app.';
+
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
     getPlatform: vi.fn(() => 'web'),
@@ -48,12 +51,12 @@ describe('ForceUpgradeComponent', () => {
       providers: [{ provide: ClientVersionGateService, useValue: gate }],
     });
 
-    expect(screen.getByTestId('force-upgrade-gate')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Update required' })).toBeTruthy();
-    expect(screen.getByTestId('force-upgrade-cta').textContent).toContain(
-      'Refresh this page'
-    );
-    expect(screen.getByTestId('force-upgrade-hard-reload')).toBeTruthy();
+    expect(screen.getByText(UPGRADE_BODY)).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Refresh this page' })
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Hard refresh' })).toBeNull();
     expect(capturePostHogEvent).toHaveBeenCalledWith(
       'client_upgrade_required',
       expect.objectContaining({
@@ -64,7 +67,7 @@ describe('ForceUpgradeComponent', () => {
     );
   });
 
-  it('opens the store on native and hides hard refresh', async () => {
+  it('opens the store on native', async () => {
     vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
 
     await render(ForceUpgradeComponent, {
@@ -83,12 +86,11 @@ describe('ForceUpgradeComponent', () => {
       ],
     });
 
-    expect(screen.getByTestId('force-upgrade-cta').textContent).toContain(
-      'Update the app'
-    );
-    expect(screen.queryByTestId('force-upgrade-hard-reload')).toBeNull();
+    expect(screen.getByText(UPGRADE_BODY)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Update the app' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Hard refresh' })).toBeNull();
 
-    await userEvent.click(screen.getByTestId('force-upgrade-cta'));
+    await userEvent.click(screen.getByRole('button', { name: 'Update the app' }));
     expect(Browser.open).toHaveBeenCalledWith({ url: ANDROID_PLAY_STORE_URL });
   });
 });
