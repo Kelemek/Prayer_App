@@ -90,6 +90,25 @@ import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/a
                 Used when the tester email signs in (no email is sent).
               </p>
             </div>
+
+            <label class="flex items-start cursor-pointer">
+              <input
+                type="checkbox"
+                id="testAccountLoginNotify"
+                [(ngModel)]="testAccountLoginNotify"
+                name="testAccountLoginNotify"
+                aria-describedby="testAccountLoginNotifyHelp"
+                class="mt-0.5 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+              />
+              <span class="ml-2">
+                <span class="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                  Email admins when the test account signs in
+                </span>
+                <span id="testAccountLoginNotifyHelp" class="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Login alerts only. Does not change the verification code or the fixed-code path.
+                </span>
+              </span>
+            </label>
           </div>
         </div>
         <div class="flex justify-end mt-6">
@@ -127,6 +146,7 @@ export class TestAccountSettingsComponent {
 
   testAccountEmail = '';
   testAccountCode6 = '';
+  testAccountLoginNotify = true;
   loading = false;
   saving = false;
   error: string | null = null;
@@ -154,7 +174,7 @@ export class TestAccountSettingsComponent {
 
       const { data, error } = await this.supabase.client
         .from('admin_settings')
-        .select('test_account_email, test_account_code_6')
+        .select('test_account_email, test_account_code_6, test_account_login_notify')
         .eq('id', 1)
         .maybeSingle();
 
@@ -163,6 +183,7 @@ export class TestAccountSettingsComponent {
       if (data) {
         this.testAccountEmail = data.test_account_email ?? '';
         this.testAccountCode6 = data.test_account_code_6 ?? '';
+        this.testAccountLoginNotify = data.test_account_login_notify !== false;
       }
 
       this.cdr.markForCheck();
@@ -187,6 +208,7 @@ export class TestAccountSettingsComponent {
         .update({
           test_account_email: this.testAccountEmail.trim() || null,
           test_account_code_6: this.testAccountCode6.trim() || null,
+          test_account_login_notify: this.testAccountLoginNotify,
           updated_at: new Date().toISOString()
         })
         .eq('id', 1);

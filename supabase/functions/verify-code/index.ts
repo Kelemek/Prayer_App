@@ -189,9 +189,10 @@ serve(async (req) => {
     // If test account completed admin login, notify admins (fire-and-forget)
     const emailNormalized = (verificationRecord.email || '').toLowerCase().trim();
     let testAccountEmail = '';
+    let testAccountLoginNotify = true;
     try {
       const settingsRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/admin_settings?id=eq.1&select=test_account_email`,
+        `${SUPABASE_URL}/rest/v1/admin_settings?id=eq.1&select=test_account_email,test_account_login_notify`,
         {
           headers: {
             'apikey': SUPABASE_SERVICE_ROLE_KEY,
@@ -202,12 +203,14 @@ serve(async (req) => {
       );
       if (settingsRes.ok) {
         const settingsRows = await settingsRes.json();
-        testAccountEmail = (settingsRows?.[0]?.test_account_email || '').trim().toLowerCase();
+        const settings = settingsRows?.[0];
+        testAccountEmail = (settings?.test_account_email || '').trim().toLowerCase();
+        testAccountLoginNotify = settings?.test_account_login_notify !== false;
       }
     } catch (_) {
       // non-critical
     }
-    if (testAccountEmail !== '' && verificationRecord.action_type === 'admin_login' && emailNormalized === testAccountEmail) {
+    if (testAccountLoginNotify && testAccountEmail !== '' && verificationRecord.action_type === 'admin_login' && emailNormalized === testAccountEmail) {
       try {
         const adminsRes = await fetch(
           `${SUPABASE_URL}/rest/v1/tenant_memberships?role=eq.tenant_admin&receive_admin_emails=eq.true&select=user_email`,
