@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Start an isolated Angular ng serve for verification.
+# Usage: bin/launch
+# Optional: PRAYER_APP_VERIFY_PORT=4300 PRAYER_APP_VERIFY_RUN_ID=abc bin/launch
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
+require_non_production
+ensure_state_dir
+ensure_evidence_dir
+
+if [[ -f "$PID_FILE" ]]; then
+  existing="$(cat "$PID_FILE" 2>/dev/null || true)"
+  if [[ -n "${existing}" ]] && kill -0 "$existing" 2>/dev/null; then
+    echo "REFUSE: instance already running (pid ${existing}). Reuse it after bin/doctor, or bin/cleanup first." >&2
+    print_instance
+    exit 3
+  fi
+  rm -f "$PID_FILE"
+fi
+
+if command -v lsof >/dev/null 2>&1; then
+  if lsof -nP -iTCP:"$PRAYER_APP_VERIFY_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "REFUSE: port ${PRAYER_APP_VERIFY_PORT} is already listening. Set PRAYER_APP_VERIFY_PORT to a free port or stop the other process." >&2
+    exit 4
+  fi
+fi
+
+if [[ ! -d "$REPO_ROOT/node_modules" ]]; then
+  echo "Installing dependencies with npm ci (first launch)..."
+  (cd "$REPO_ROOT" && npm ci)
+fi
+
+echo "Launching ng serve at ${BASE_URL} (run ${PRAYER_APP_VERIFY_RUN_ID})"
+(
+  cd "$REPO_ROOT"
+  # --host 127.0.0.1 keeps the instance off the LAN. --port matches Doctor/Drive.
+  npx ng serve --host "$PRAYER_APP_VERIFY_HOST" --port "$PRAYER_APP_VERIFY_PORT"
+) >"$LOG_FILE" 2>&1 &
+echo $! >"$PID_FILE"
+
+ready=0
+for _ in $(seq 1 90); do
+  if curl -fsS --max-time 2 "${BASE_URL}/info" >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
+  if [[ -f "$PID_FILE" ]]; then
+    pid="$(cat "$PID_FILE")"
+    if ! kill -0 "$pid" 2>/dev/null; then
+      echo "Launch failed: ng serve exited. Last log lines:" >&2
+      tail -n 40 "$LOG_FILE" >&2 || true
+      rm -f "$PID_FILE"
+      exit 1
+    fi
+  fi
+  sleep 2
+done
+
+if [[ "$ready" -ne 1 ]]; then
+  echo "Launch timed out waiting for ${BASE_URL}/info. Log: ${LOG_FILE}" >&2
+  tail -n 40 "$LOG_FILE" >&2 || true
+  exit 1
+fi
+
+python3 - <<PY
+import json
+from pathlib import Path
+Path("$META_FILE").write_text(json.dumps({
+  "run_id": "$PRAYER_APP_VERIFY_RUN_ID",
+  "base_url": "$BASE_URL",
+  "host": "$PRAYER_APP_VERIFY_HOST",
+  "port": int("$PRAYER_APP_VERIFY_PORT"),
+  "pid": int(Path("$PID_FILE").read_text().strip()),
+  "log_file": "$LOG_FILE",
+  "evidence_dir": "$EVIDENCE_DIR",
+}, indent=2) + "\n")
+PY
+
+echo "Ready. Angular is serving ${BASE_URL} (log ${LOG_FILE})."
+print_instance
+echo "Teardown: PRAYER_APP_VERIFY_RUN_ID=${PRAYER_APP_VERIFY_RUN_ID} ${SCRIPT_DIR}/cleanup"
