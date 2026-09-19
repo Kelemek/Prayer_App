@@ -22,11 +22,7 @@ describe('VerificationDialogComponent', () => {
       markForCheck: vi.fn()
     };
 
-    // Mock document.body.style
-    Object.defineProperty(document.body.style, 'overflow', {
-      writable: true,
-      value: ''
-    });
+    document.body.style.overflow = '';
 
     component = new VerificationDialogComponent(
       mockVerificationService,

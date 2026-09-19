@@ -1738,7 +1738,10 @@ describe('PrayerArchiveTimelineComponent - Angular Component Tests', () => {
     });
 
     it('should preserve scroll position', () => {
-      window.scrollY = 100;
+      Object.defineProperty(window, 'scrollY', {
+        configurable: true,
+        value: 100,
+      });
       component.currentMonth = new Date(2026, 2, 15); // March 2026
       (component as any).minMonth = new Date(2026, 0, 1); // January 2026
       
@@ -1780,7 +1783,10 @@ describe('PrayerArchiveTimelineComponent - Angular Component Tests', () => {
     });
 
     it('should preserve scroll position', () => {
-      window.scrollY = 100;
+      Object.defineProperty(window, 'scrollY', {
+        configurable: true,
+        value: 100,
+      });
       component.currentMonth = new Date(2026, 0, 15); // January 2026
       (component as any).maxMonth = new Date(2026, 2, 1); // March 2026
       
