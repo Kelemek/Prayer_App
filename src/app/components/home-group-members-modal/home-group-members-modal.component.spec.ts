@@ -96,6 +96,19 @@ describe("HomeGroupMembersModalComponent", () => {
     expect(fixture.componentInstance.canRemoveMember(memberRow)).toBe(true);
   });
 
+  it("shows near-cap copy when at 80% of member limit", async () => {
+    fixture.componentRef.setInput("maxMembersPerGroup", 5);
+    fixture.componentInstance.members = [
+      memberRow,
+      { ...memberRow, id: "m2", user_email: "a@example.com" },
+      { ...memberRow, id: "m3", user_email: "b@example.com" },
+      { ...memberRow, id: "m4", user_email: "c@example.com" },
+    ];
+    fixture.detectChanges();
+    expect(fixture.componentInstance.memberNearCap()).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain("near the member limit");
+  });
+
   it("blocks invites when the member cap is reached", async () => {
     fixture.componentRef.setInput("maxMembersPerGroup", 1);
     fixture.componentInstance.members = [memberRow];

@@ -78,9 +78,9 @@ Deno.serve(async (req: Request) => {
     appUrl,
     typeof body.return_origin === 'string' ? body.return_origin : null
   );
-  const tenantId = String(body.tenant_id ?? '').trim();
-  if (!tenantId) {
-    return new Response(JSON.stringify({ error: 'tenant_id is required' }), {
+  const kind = String(body.kind ?? 'church').trim().toLowerCase();
+  if (kind !== 'church' && kind !== 'pro') {
+    return new Response(JSON.stringify({ error: 'Invalid kind' }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -101,37 +101,68 @@ Deno.serve(async (req: Request) => {
 
   const email = userData.user.email.toLowerCase().trim();
 
-  const { data: tenant, error: tenantError } = await adminClient
-    .from('tenants')
-    .select('id, stripe_customer_id')
-    .eq('id', tenantId)
-    .maybeSingle();
+  let stripeCustomerId: string;
+  let returnUrl: string;
 
-  if (tenantError || !tenant?.stripe_customer_id) {
-    return new Response(JSON.stringify({ error: 'No billing account for this church' }), {
-      status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  if (kind === 'pro') {
+    const { data: subscription, error: subError } = await adminClient
+      .from('user_subscriptions')
+      .select('stripe_customer_id')
+      .eq('user_email', email)
+      .maybeSingle();
+
+    if (subError || !subscription?.stripe_customer_id) {
+      return new Response(JSON.stringify({ error: 'No billing account for Pro' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    stripeCustomerId = subscription.stripe_customer_id as string;
+    returnUrl = `${returnOrigin}/`;
+  } else {
+    const tenantId = String(body.tenant_id ?? '').trim();
+    if (!tenantId) {
+      return new Response(JSON.stringify({ error: 'tenant_id is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { data: tenant, error: tenantError } = await adminClient
+      .from('tenants')
+      .select('id, stripe_customer_id')
+      .eq('id', tenantId)
+      .maybeSingle();
+
+    if (tenantError || !tenant?.stripe_customer_id) {
+      return new Response(JSON.stringify({ error: 'No billing account for this church' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { data: isAdmin } = await adminClient.rpc('is_tenant_admin', {
+      tenant_to_check: tenantId,
+      email_to_check: email,
     });
-  }
-
-  const { data: isAdmin } = await adminClient.rpc('is_tenant_admin', {
-    tenant_to_check: tenantId,
-    email_to_check: email,
-  });
-  const { data: isSuperAdmin } = await adminClient.rpc('is_super_admin', {
-    email_to_check: email,
-  });
-
-  if (!isAdmin && !isSuperAdmin) {
-    return new Response(JSON.stringify({ error: 'Forbidden' }), {
-      status: 403,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    const { data: isSuperAdmin } = await adminClient.rpc('is_super_admin', {
+      email_to_check: email,
     });
+
+    if (!isAdmin && !isSuperAdmin) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    stripeCustomerId = tenant.stripe_customer_id as string;
+    returnUrl = `${returnOrigin}/admin`;
   }
 
   const params = new URLSearchParams({
-    customer: tenant.stripe_customer_id,
-    return_url: `${returnOrigin}/admin`,
+    customer: stripeCustomerId,
+    return_url: returnUrl,
   });
   if (portalConfigId) {
     params.set('configuration', portalConfigId);

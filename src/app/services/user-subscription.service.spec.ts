@@ -6,12 +6,24 @@ import { AuthIdentityService } from './auth-identity.service';
 describe('UserSubscriptionService', () => {
   let service: UserSubscriptionService;
   const rpc = vi.fn();
+  const from = vi.fn();
 
   beforeEach(() => {
     rpc.mockReset();
+    from.mockReset();
+    from.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: { stripe_customer_id: 'cus_123' },
+            error: null,
+          }),
+        }),
+      }),
+    });
     service = new UserSubscriptionService(
       {
-        client: { rpc },
+        client: { rpc, from },
       } as unknown as SupabaseService,
       {
         getEmail: vi.fn().mockResolvedValue('user@example.com'),
@@ -52,5 +64,6 @@ describe('UserSubscriptionService', () => {
     expect(service.getGroupLimits().can_create_group).toBe(true);
     expect(service.isPracticeModeAllowed('type')).toBe(true);
     expect(service.isPracticeModeAllowed('recite')).toBe(false);
+    expect(service.hasProBillingPortal()).toBe(true);
   });
 });

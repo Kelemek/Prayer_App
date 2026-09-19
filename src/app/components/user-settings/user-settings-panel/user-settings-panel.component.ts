@@ -11,6 +11,7 @@ import { UserSettingsMemorizationPracticeSectionComponent } from '../user-settin
 import { UserSettingsErrorBannerComponent } from '../user-settings-error-banner/user-settings-error-banner.component';
 import { UserSettingsFeedbackSectionComponent } from '../user-settings-feedback-section/user-settings-feedback-section.component';
 import { UserSettingsAccountSectionComponent } from '../user-settings-account-section/user-settings-account-section.component';
+import { UserSettingsBillingSectionComponent } from '../user-settings-billing-section/user-settings-billing-section.component';
 import type { UserSettingsFacade } from '../../../lib/user-settings-facade';
 
 @Component({
@@ -28,6 +29,7 @@ import type { UserSettingsFacade } from '../../../lib/user-settings-facade';
     UserSettingsMemorizationPracticeSectionComponent,
     UserSettingsErrorBannerComponent,
     UserSettingsFeedbackSectionComponent,
+    UserSettingsBillingSectionComponent,
     UserSettingsAccountSectionComponent,
   ],
   templateUrl: './user-settings-panel.component.html',

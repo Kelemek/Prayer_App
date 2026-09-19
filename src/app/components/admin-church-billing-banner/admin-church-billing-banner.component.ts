@@ -40,7 +40,7 @@ import { ToastService } from '../../services/toast.service';
               [disabled]="busy"
               class="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs hover:bg-blue-700 disabled:opacity-60"
             >
-              {{ busy ? 'Opening…' : 'Manage billing' }}
+              {{ busy ? 'Opening…' : 'Billing & invoices' }}
             </button>
           }
           @if (showCheckout) {

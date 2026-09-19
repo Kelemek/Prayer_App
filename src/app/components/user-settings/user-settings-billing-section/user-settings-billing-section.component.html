@@ -1,0 +1,16 @@
+@if (showSection) {
+<div class="settings-modal-section-card border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4">
+  <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Billing</h3>
+  <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+    View invoices, update your payment method, or manage your Pro subscription in Stripe.
+  </p>
+  <button
+    type="button"
+    class="px-4 py-2 rounded-md btn-chip btn-chip-blue cursor-pointer text-sm disabled:opacity-60"
+    [disabled]="busy"
+    (click)="onBillingPortal()"
+  >
+    {{ busy ? 'Opening…' : 'Billing & invoices' }}
+  </button>
+</div>
+}

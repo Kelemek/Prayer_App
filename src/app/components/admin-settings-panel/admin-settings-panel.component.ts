@@ -36,6 +36,7 @@ import { PlanningCenterListMapperComponent } from '../planning-center-list-mappe
 import type { Tenant } from '../../types/tenant';
 import { TenantUsersComponent } from '../tenant-users/tenant-users.component';
 import { AdminPlatformPlanSettingsComponent } from '../admin-platform-plan-settings/admin-platform-plan-settings.component';
+import { AdminPlatformQuotaUsageComponent } from '../admin-platform-quota-usage/admin-platform-quota-usage.component';
 import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
 import { AdminSiteAnalyticsPanelComponent } from '../admin-site-analytics-panel/admin-site-analytics-panel.component';
 import { ADMIN_SETTINGS_TABS, type AdminSettingsTab, type AdminSettingsTabDef } from '../../lib/admin-settings-tabs';
@@ -70,6 +71,7 @@ import type { AnalyticsStats } from '../../services/analytics.service';
     TenantManagementComponent,
     TenantUsersComponent,
     AdminPlatformPlanSettingsComponent,
+    AdminPlatformQuotaUsageComponent,
     AdminWipeChurchComponent,
     PlanningCenterConnectComponent,
     PlanningCenterListMapperComponent,

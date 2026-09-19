@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
-import { Browser } from '@capacitor/browser';
 import { getAuthRedirectOrigin, getTenantOrigin } from '../lib/app-origin';
+import { openBillingUrl } from '../lib/open-billing-url';
 import { SupabaseService } from './supabase.service';
 
 @Injectable({
@@ -105,10 +105,6 @@ export class ChurchCheckoutService {
   }
 
   async openBillingUrl(url: string): Promise<void> {
-    if (Capacitor.isNativePlatform()) {
-      await Browser.open({ url });
-      return;
-    }
-    window.location.assign(url);
+    await openBillingUrl(url);
   }
 }

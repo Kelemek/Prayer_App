@@ -14,6 +14,7 @@ import { parseInviteEmails } from "../../lib/prayer-group-invite-emails";
 import type { PrayerGroup, PrayerGroupMember } from "../../types/prayer-group";
 import { PrayerGroupService } from "../../services/prayer-group.service";
 import { ConfirmationDialogComponent } from "../confirmation-dialog/confirmation-dialog.component";
+import { isNearQuota } from "../../lib/plan-quota";
 
 type MembersConfirmAction =
   | { type: "leave"; groupId: string; groupName: string }
@@ -31,10 +32,12 @@ export class HomeGroupMembersModalComponent implements OnChanges {
   @Input() group: PrayerGroup | null = null;
   @Input() currentUserEmail = "";
   @Input() maxMembersPerGroup: number | null = null;
+  @Input() showProUpgrade = false;
   @Input() submitting = false;
 
   @Output() close = new EventEmitter<void>();
   @Output() groupsChanged = new EventEmitter<void>();
+  @Output() upgradePro = new EventEmitter<void>();
 
   private readonly prayerGroupService = inject(PrayerGroupService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -113,6 +116,13 @@ export class HomeGroupMembersModalComponent implements OnChanges {
       return false;
     }
     return this.members.length >= this.maxMembersPerGroup;
+  }
+
+  memberNearCap(): boolean {
+    if (this.maxMembersPerGroup == null) {
+      return false;
+    }
+    return isNearQuota(this.members.length, this.maxMembersPerGroup);
   }
 
   remainingInviteSlots(): number {

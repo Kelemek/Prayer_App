@@ -355,8 +355,8 @@ async function sendPastDueNotifications(
 
   const subject = `Church billing past due: ${tenantName}`;
   const htmlBody = `<p>The Church subscription for <strong>${tenantName}</strong> is past due.</p>
-<p>Please sign in to Admin and use <strong>Manage billing</strong> to update payment before access is removed after the grace period.</p>`;
-  const textBody = `The Church subscription for ${tenantName} is past due. Sign in to Admin and use Manage billing to update payment before access is removed after the grace period.`;
+<p>Please sign in to Admin and use <strong>Billing &amp; invoices</strong> to update payment before access is removed after the grace period.</p>`;
+  const textBody = `The Church subscription for ${tenantName} is past due. Sign in to Admin and use Billing & invoices to update payment before access is removed after the grace period.`;
 
   for (const to of recipients) {
     try {

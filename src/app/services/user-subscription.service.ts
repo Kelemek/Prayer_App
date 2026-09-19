@@ -32,9 +32,11 @@ export class UserSubscriptionService {
   private practiceModesSubject = new BehaviorSubject<MemorizationPracticeMode[]>(
     DEFAULT_PRACTICE_MODES
   );
+  private proBillingPortalSubject = new BehaviorSubject(false);
 
   readonly groupLimits$ = this.groupLimitsSubject.asObservable();
   readonly practiceModes$ = this.practiceModesSubject.asObservable();
+  readonly hasProBillingPortal$ = this.proBillingPortalSubject.asObservable();
 
   constructor(
     private supabase: SupabaseService,
@@ -53,17 +55,29 @@ export class UserSubscriptionService {
     return this.practiceModesSubject.value.includes(mode);
   }
 
+  hasProBillingPortal(): boolean {
+    return this.proBillingPortalSubject.value;
+  }
+
   async refreshCapabilities(): Promise<void> {
     const email = await this.authIdentity.getEmail();
     if (!email) {
       this.groupLimitsSubject.next(DEFAULT_GROUP_LIMITS);
       this.practiceModesSubject.next(DEFAULT_PRACTICE_MODES);
+      this.proBillingPortalSubject.next(false);
       return;
     }
 
-    const [limitsResult, modesResult] = await Promise.all([
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const [limitsResult, modesResult, subResult] = await Promise.all([
       this.supabase.client.rpc('get_user_group_limits', { p_email: email }),
       this.supabase.client.rpc('get_user_memorization_practice_modes', { p_email: email }),
+      this.supabase.client
+        .from('user_subscriptions')
+        .select('plan_tier, plan_status, stripe_customer_id')
+        .eq('user_email', normalizedEmail)
+        .maybeSingle(),
     ]);
 
     if (!limitsResult.error && limitsResult.data) {
@@ -79,6 +93,16 @@ export class UserSubscriptionService {
       console.error(
         '[UserSubscription] get_user_memorization_practice_modes failed:',
         modesResult.error
+      );
+    }
+
+    if (subResult.error) {
+      console.error('[UserSubscription] user_subscriptions select failed:', subResult.error);
+      this.proBillingPortalSubject.next(false);
+    } else {
+      const customerId = subResult.data?.stripe_customer_id;
+      this.proBillingPortalSubject.next(
+        typeof customerId === 'string' && customerId.trim().length > 0
       );
     }
   }

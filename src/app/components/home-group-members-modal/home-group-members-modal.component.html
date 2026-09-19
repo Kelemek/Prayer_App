@@ -88,6 +88,22 @@
         <p class="mt-2 text-sm text-amber-700 dark:text-amber-300">
           This group has reached the member limit for your plan.
         </p>
+        } @else if (memberNearCap()) {
+        <p class="mt-2 text-sm text-amber-700 dark:text-amber-300">
+          This group is near the member limit for your plan ({{
+            members.length
+          }}
+          of {{ maxMembersPerGroup }}).
+        </p>
+        @if (showProUpgrade) {
+        <button
+          type="button"
+          class="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+          (click)="upgradePro.emit()"
+        >
+          See Pro
+        </button>
+        }
         } @else if (maxMembersPerGroup != null) {
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
           {{ remainingInviteSlots() }} invite slot(s) remaining.

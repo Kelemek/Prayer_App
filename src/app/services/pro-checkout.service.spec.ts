@@ -41,4 +41,21 @@ describe('ProCheckoutService', () => {
     expect(await service().startProCheckout()).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('starts pro billing portal with kind pro on web and native', async () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ url: 'https://billing.stripe.com/session' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await service().startBillingPortal()).toBe('https://billing.stripe.com/session');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.supabase.co/functions/v1/stripe-billing-portal',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('"kind":"pro"'),
+      })
+    );
+  });
 });
