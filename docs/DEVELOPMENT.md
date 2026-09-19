@@ -454,9 +454,12 @@ it('handleSharePrayer should share personal prayer', async () => {
 - markAllCachedItemsAsRead()         // Seed all cached items as read (enable badges)
 - isPromptUnread()                   // Check if prompt unread
 - getBadgeCount$()                   // Observable of badge counts
+- getAllTenantDisplayedBadgeCount()  // Current+Answered+Prompts summed across every membership
 - getUpdateBadgesChanged$()          // Observable of changes
 - refreshBadgeCounts()               // Refresh badge data
 ```
+
+Native **app icon badges** (Capacitor iOS/Android via `@capawesome/capacitor-badge`) show that all-tenant in-app count. They decrement when the same badged prayer surfaces are marked read (Current / Answered / Prompts pills, Church aggregate, or opening a badged card). App open / resume does **not** clear the icon. Web is a no-op. Android launcher support varies (stock Pixel often shows no number).
 
 Read receipts are stored in Supabase `badge_read_receipts` per tenant membership (`tenant_id` + `user_email`) so unread badges sync across devices. A write-through localStorage mirror (`badge_read:{tenantId}:{email}`) keeps the UI snappy offline; legacy `read_prayers_data` / `read_prompts_data` keys are migrated once.
 

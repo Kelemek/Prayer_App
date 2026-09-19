@@ -4,6 +4,21 @@ import { distinctUntilChanged, startWith } from 'rxjs/operators';
 import { SupabaseService } from './supabase.service';
 import { UserSessionService } from './user-session.service';
 import { TenantContextService } from './tenant-context.service';
+import {
+  countDisplayedInAppPrayerBadgesAcrossTenants,
+  countInAppPrayerBadgesForItems,
+  listMemberTenantIds,
+  parseCachedBadgeItems,
+  readAllTenantInAppBadgeSnapshots,
+  receiptsToReadState,
+  resolveAppIconBadgeCount,
+  unionInAppBadgeReadState,
+  type InAppBadgeReceiptRow,
+} from '../lib/in-app-prayer-badge-count';
+import {
+  createLocalStorageAllTenantInAppBadgeHydrateDeps,
+  hydrateMissingTenantInAppBadgeCaches,
+} from '../lib/all-tenant-in-app-badge-hydrate';
 
 /**
  * Prayer or Prompt object structure
@@ -68,6 +83,8 @@ export class BadgeService {
   private readState: BadgeReadState = emptyReadState();
   private loadGeneration = 0;
   private syncInFlight: Promise<void> | null = null;
+  private otherTenantHydrateInFlight: Promise<void> | null = null;
+  private otherTenantHydrateRequested = false;
   private currentUserEmail: string | null = null;
   /** When true, mark all cached items read once prayer/prompt caches are available. */
   private pendingSeedAllAsRead = false;
@@ -148,11 +165,15 @@ export class BadgeService {
   private attachTenantChangeListener(): void {
     setTimeout(() => {
       try {
-        this.getTenantContext()
-          .activeTenant$.pipe(distinctUntilChanged((a, b) => a?.id === b?.id))
+        const ctx = this.getTenantContext();
+        ctx.activeTenant$
+          .pipe(distinctUntilChanged((a, b) => a?.id === b?.id))
           .subscribe(() => {
             void this.reloadReadStateFromSources();
           });
+        ctx.memberships$?.subscribe(() => {
+          void this.ensureAllTenantInAppBadgeCaches();
+        });
       } catch {
         // ignore
       }
@@ -253,6 +274,7 @@ export class BadgeService {
       return;
     }
     this.refreshBadgeCounts();
+    void this.ensureAllTenantInAppBadgeCaches();
 
     if (options?.preferNetwork) {
       // already loaded from DB above
@@ -603,6 +625,96 @@ export class BadgeService {
     return this.getBadgeCountInternal$(type, status);
   }
 
+  /**
+   * All-tenant sum of in-app prayer badges currently displayed
+   * (Current + Answered + Prompts across every church membership).
+   * Returns 0 when badge functionality is disabled.
+   */
+  getAllTenantDisplayedBadgeCount(): number {
+    return resolveAppIconBadgeCount({
+      badgesEnabled: this.badgeFunctionalityEnabled$.value,
+      allTenantDisplayedCount: this.sumAllTenantDisplayedBadgeCount(),
+    });
+  }
+
+  private sumAllTenantDisplayedBadgeCount(): number {
+    const email = this.getActiveUserEmail();
+    if (!email || typeof localStorage === 'undefined') {
+      return 0;
+    }
+    const tenantIds = this.getAllMemberTenantIds();
+    if (tenantIds.length === 0) {
+      return 0;
+    }
+    return countDisplayedInAppPrayerBadgesAcrossTenants(
+      readAllTenantInAppBadgeSnapshots(
+        localStorage,
+        tenantIds,
+        email,
+        this.getActiveTenantId(),
+        this.readState
+      )
+    );
+  }
+
+  private getAllMemberTenantIds(): string[] {
+    try {
+      const ctx = this.getTenantContext();
+      return listMemberTenantIds({
+        memberTenants: ctx.getMemberTenants?.() ?? [],
+        memberships: ctx.getMemberships?.() ?? [],
+        activeTenantId: this.getActiveTenantId(),
+      });
+    } catch {
+      return listMemberTenantIds({
+        activeTenantId: this.getActiveTenantId(),
+      });
+    }
+  }
+
+  /**
+   * Load other-tenant receipts + badge-owned item snapshots so the icon
+   * sum is not limited to churches the member has already opened.
+   */
+  async ensureAllTenantInAppBadgeCaches(): Promise<void> {
+    this.otherTenantHydrateRequested = true;
+    if (this.otherTenantHydrateInFlight) {
+      return this.otherTenantHydrateInFlight;
+    }
+    this.otherTenantHydrateInFlight = this.runOtherTenantHydrateLoop().finally(
+      () => {
+        this.otherTenantHydrateInFlight = null;
+      }
+    );
+    return this.otherTenantHydrateInFlight;
+  }
+
+  private async runOtherTenantHydrateLoop(): Promise<void> {
+    while (this.otherTenantHydrateRequested) {
+      this.otherTenantHydrateRequested = false;
+      const email = this.getActiveUserEmail();
+      const tenantIds = this.getAllMemberTenantIds();
+      const skipTenantId = this.getActiveTenantId();
+      if (
+        !email ||
+        typeof localStorage === 'undefined' ||
+        tenantIds.every((id) => !id || id === skipTenantId)
+      ) {
+        continue;
+      }
+      await hydrateMissingTenantInAppBadgeCaches(
+        createLocalStorageAllTenantInAppBadgeHydrateDeps({
+          storage: localStorage,
+          client: this.supabase.client,
+          email,
+          tenantIds,
+          skipTenantId,
+        })
+      );
+      this.updateBadgesChanged$.next();
+    }
+  }
+
   hasIndividualBadge$(
     type: 'prayers' | 'prompts',
     id: string
@@ -802,52 +914,23 @@ export class BadgeService {
     type: 'prayers' | 'prompts',
     status?: 'current' | 'answered'
   ): number {
-    const cacheKey =
-      type === 'prayers'
-        ? this.getPrayersCacheStorageKey()
-        : this.getPromptsCacheStorageKey();
-
     try {
-      const cached = localStorage.getItem(cacheKey);
+      const cached = localStorage.getItem(
+        type === 'prayers'
+          ? this.getPrayersCacheStorageKey()
+          : this.getPromptsCacheStorageKey()
+      );
       if (!cached) {
         return 0;
       }
-
-      const parsedCache = JSON.parse(cached);
-      const items = parsedCache?.data || parsedCache || [];
-
-      if (!Array.isArray(items)) {
-        return 0;
-      }
-
-      const readIds =
-        type === 'prayers' ? this.readState.prayers : this.readState.prompts;
-      const readUpdateIds =
+      return countInAppPrayerBadgesForItems(
+        parseCachedBadgeItems(cached),
+        type === 'prayers' ? this.readState.prayers : this.readState.prompts,
         type === 'prayers'
           ? this.readState.prayerUpdates
-          : this.readState.promptUpdates;
-
-      let count = 0;
-
-      items.forEach((item: CachedItem) => {
-        if (status && item.status !== status) {
-          return;
-        }
-
-        if (!readIds.includes(item.id)) {
-          count++;
-        }
-
-        if (item.updates && Array.isArray(item.updates)) {
-          item.updates.forEach((update: { id: string }) => {
-            if (!readUpdateIds.includes(update.id)) {
-              count++;
-            }
-          });
-        }
-      });
-
-      return count;
+          : this.readState.promptUpdates,
+        status
+      );
     } catch (error) {
       console.warn(`Failed to calculate badge count for ${type}:`, error);
       return 0;
@@ -1248,42 +1331,11 @@ export class BadgeService {
         return;
       }
 
-      const rows = (data || []) as BadgeReceiptRow[];
-      const next = emptyReadState();
-      for (const row of rows) {
-        const id = String(row.item_id);
-        switch (row.item_kind) {
-          case 'prayer':
-            next.prayers.push(id);
-            break;
-          case 'prayer_update':
-            next.prayerUpdates.push(id);
-            break;
-          case 'prompt':
-            next.prompts.push(id);
-            break;
-          case 'prompt_update':
-            next.promptUpdates.push(id);
-            break;
-          default: {
-            const _exhaustive: never = row.item_kind;
-            void _exhaustive;
-            break;
-          }
-        }
-      }
-
-      // Union DB with any optimistic local marks not yet visible remotely.
-      this.readState = {
-        prayers: Array.from(new Set([...next.prayers, ...this.readState.prayers])),
-        prayerUpdates: Array.from(
-          new Set([...next.prayerUpdates, ...this.readState.prayerUpdates])
-        ),
-        prompts: Array.from(new Set([...next.prompts, ...this.readState.prompts])),
-        promptUpdates: Array.from(
-          new Set([...next.promptUpdates, ...this.readState.promptUpdates])
-        ),
-      };
+      const rows = (data || []) as InAppBadgeReceiptRow[];
+      this.readState = unionInAppBadgeReadState(
+        this.readState,
+        receiptsToReadState(rows)
+      );
       this.persistReadStateLocally();
     } catch (error) {
       console.warn('[Badge] Failed to load read receipts:', error);

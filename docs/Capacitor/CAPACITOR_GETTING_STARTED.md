@@ -10,6 +10,7 @@ Your Angular Prayer App is now ready to run on iOS and Android as native apps.
 - `@capacitor/ios` - iOS native wrapper
 - `@capacitor/android` - Android native wrapper
 - `@capacitor/push-notifications` - Push notification support
+- `@capawesome/capacitor-badge` - Native app icon badge (all-tenant in-app prayer count; `autoClear: false`)
 
 ### Native Projects Created
 - `ios/` - Full Xcode project ready to build
@@ -18,6 +19,7 @@ Your Angular Prayer App is now ready to run on iOS and Android as native apps.
 ### Angular Services
 - `src/app/services/capacitor.service.ts` - Handles Capacitor initialization and push notifications
 - `src/app/services/push-notification.service.ts` - Manages device tokens and backend integration
+- `src/app/services/app-icon-badge.service.ts` - Syncs the native icon badge to in-app prayer badge counts
 
 ### Backend Infrastructure
 - `supabase/functions/send-push-notification/` - Edge function for sending push notifications

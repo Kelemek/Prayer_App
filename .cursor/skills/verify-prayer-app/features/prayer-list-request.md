@@ -44,3 +44,4 @@ Preconditions:
 - Header `Request` on small viewports is `#tour-btn-new-prayer-request-mobile`. Resize or use that id.
 - `npm run test` watch mode is not a list proof. Closest unit stand-in: `npx vitest --run src/app/components/prayer-form/prayer-form.component.spec.ts src/app/pages/home/home.component.spec.ts`.
 - The memorize keyboard bridge (`data-testid="memorize-keyboard-bridge"`) is hidden. Do not tab into it.
+- Native app icon badges (Capacitor iOS/Android) mirror the in-app Current + Answered + Prompts counts, summed across every church membership. Web Drive cannot prove the home-screen number. Opening the app must not clear it; clearing happens only when those badged prayer surfaces are marked read.

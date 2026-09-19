@@ -67,7 +67,8 @@ export class AppShellComponent implements OnInit {
 
   /**
    * Initialize Capacitor service for mobile app features.
-   * Also inject PushNotificationService so it subscribes to pushToken$ and stores device tokens in the backend.
+   * Also inject PushNotificationService (device tokens) and AppIconBadgeService
+   * (native icon badge = all-tenant in-app prayer count).
    */
   private async initializeCapacitor(): Promise<void> {
     try {
@@ -79,8 +80,12 @@ export class AppShellComponent implements OnInit {
       const { PushNotificationService } = await import(
         "./services/push-notification.service"
       );
+      const { AppIconBadgeService } = await import(
+        "./services/app-icon-badge.service"
+      );
       this.injector.get(CapacitorService);
       this.injector.get(PushNotificationService);
+      this.injector.get(AppIconBadgeService);
     } catch (error) {
       console.debug("Capacitor service not available (running on web)", error);
     }
