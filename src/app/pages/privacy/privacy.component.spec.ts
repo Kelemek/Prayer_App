@@ -31,7 +31,15 @@ describe('PrivacyComponent', () => {
     expect(text).toContain('Whisper');
     expect(text).toContain('Notion');
     expect(text).toContain('Delete your account');
+    expect(text).toContain('Download my data');
     expect(text).toContain('Settings');
+  });
+
+  it('describes self-serve JSON export in Settings', async () => {
+    const { fixture } = await renderPrivacy();
+    const text = fixture.nativeElement.textContent ?? '';
+    expect(text).toMatch(/download your data/i);
+    expect(text).not.toMatch(/no self-serve data export/i);
   });
 
   it('does not say deletion is admin-only', async () => {

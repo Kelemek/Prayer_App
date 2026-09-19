@@ -101,6 +101,18 @@ describe('UserSettingsComponent', () => {
             })
           ),
         },
+        rpc: vi.fn(() =>
+          Promise.resolve({
+            data: {
+              schema_version: 1,
+              account: { email: 'test@example.com' },
+              memberships: [],
+              preferences: {},
+              prayers: {},
+            },
+            error: null,
+          })
+        ),
       }
     };
 
@@ -925,6 +937,19 @@ describe('UserSettingsComponent', () => {
       expect(mockAdminAuthService.logout).toHaveBeenCalled();
       expect(component.showDeleteAccountVerification).toBe(false);
       expect(component.deletingAccount).toBe(false);
+    });
+
+    it('downloadMyData should invoke export_user_account', async () => {
+      const downloadSpy = vi
+        .spyOn(await import('../../lib/user-settings-export-run'), 'downloadJsonFile')
+        .mockImplementation(() => undefined);
+
+      await component.downloadMyData();
+
+      expect(mockSupabaseService.client.rpc).toHaveBeenCalledWith('export_user_account');
+      expect(downloadSpy).toHaveBeenCalled();
+      expect(component.exportingAccount).toBe(false);
+      downloadSpy.mockRestore();
     });
 
     it('deleteAccountAndPrayers on failure should set error and not call logout', async () => {

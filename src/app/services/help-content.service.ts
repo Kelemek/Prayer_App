@@ -711,6 +711,10 @@ export class HelpContentService {
             text: 'Open Settings (gear icon in the header), then tap **Logout** at the bottom of the panel to sign out of your account. This ends your session and returns you to the login screen. If you have admin access, an **Admin** button appears next to Logout in that footer.',
           },
           {
+            subtitle: 'Download my data',
+            text: 'Near the bottom of Settings, tap **Download my data** to save a JSON file of your account, church and personal prayers you authored, preferences, and memberships across every church you belong to. This is a machine-readable export, not the printable personal-prayer list. Sign-in codes and device push tokens are omitted.',
+          },
+          {
             subtitle: 'Delete your account',
             text: 'At the bottom of the settings panel you can delete your account. A verification dialog will ask you to choose: "Delete account but keep my prayers" so your church prayers can still be lifted up by others (your name and email are removed from those requests), or "Delete my account and all my prayers" to remove your account and prayers you submitted. Either choice permanently deletes your login; you cannot sign back in with the same account.',
           },

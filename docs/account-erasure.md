@@ -2,6 +2,8 @@
 
 Engineering path for self-serve account deletion. Not legal advice.
 
+For the matching **download** inventory, see [account-export.md](account-export.md).
+
 ## App flow
 
 1. User chooses **keep prayers** or **wipe prayers** in Settings.

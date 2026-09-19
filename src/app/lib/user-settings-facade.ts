@@ -8,6 +8,7 @@ import {
   runUserSettingsDeleteAccountKeepPrayers,
   runUserSettingsLogout,
 } from './user-settings-account-run';
+import { runUserSettingsDownloadMyData } from './user-settings-export-run';
 import { runUserSettingsOpenChange } from './user-settings-facade-open';
 import {
   runUserSettingsHandlePrint,
@@ -97,6 +98,7 @@ export class UserSettingsFacade {
   selectedPersonalCategories: string[] = [];
   showDeleteAccountVerification = false;
   deletingAccount = false;
+  exportingAccount = false;
 
   readonly destroy$ = new Subject<void>();
   readonly emailChange$ = new Subject<string>();
@@ -445,5 +447,9 @@ export class UserSettingsFacade {
 
   deleteAccountAndPrayers(): Promise<void> {
     return runUserSettingsDeleteAccountAndPrayers(this);
+  }
+
+  downloadMyData(): Promise<void> {
+    return runUserSettingsDownloadMyData(this);
   }
 }
