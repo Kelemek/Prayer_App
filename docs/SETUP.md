@@ -274,7 +274,7 @@ Key tables created by migrations:
 - `email_queue` - Email processing queue
 - `admin_users` - Admin access list
 - `tenant_settings` - Per-church configuration (branding, prayer policies, reminders, outbound mail identity)
-- `admin_settings` - Platform-only singleton (app test account); super-admin writes only. Legacy GitHub PAT columns are dropped by `20260913160000_restrict_github_feedback_columns.sql`. In-app feedback uses Edge Function `submit-feedback` + `NOTION_TOKEN`.
+- `admin_settings` - Platform-only singleton (app test account + optional `min_web_build` / `min_native_version`); super-admin writes only. Legacy GitHub PAT columns are dropped by `20260913160000_restrict_github_feedback_columns.sql`. In-app feedback uses Edge Function `submit-feedback` + `NOTION_TOKEN`. Force-upgrade ops: [client-version-gate.md](client-version-gate.md).
 - `email_templates` - Email HTML templates
 - `tenant_integrations` - Per-church integration flags (Planning Center metadata only; secrets are not stored here)
 

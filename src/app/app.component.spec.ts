@@ -178,6 +178,15 @@ describe('AppComponent', () => {
     it('should subscribe to router events on construction', () => {
       expect(routerEventsSubject.observers.length).toBeGreaterThan(0);
     });
+
+    it('does not require a client upgrade when the gate is missing', () => {
+      expect(component.isClientUpgradeRequired()).toBe(false);
+    });
+
+    it('requires a client upgrade when the gate reports blocked', () => {
+      mockInjector.get.mockReturnValue({ isBlocked: () => true });
+      expect(component.isClientUpgradeRequired()).toBe(true);
+    });
   });
 
   describe('setupGlobalErrorHandler', () => {

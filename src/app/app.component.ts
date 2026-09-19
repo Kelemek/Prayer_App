@@ -11,9 +11,11 @@ import { Router, RouterOutlet, NavigationEnd } from "@angular/router";
 import { CommonModule } from "@angular/common";
 import { Capacitor } from "@capacitor/core";
 import { AnalyticsConsentBannerComponent } from "./components/analytics-consent-banner/analytics-consent-banner.component";
+import { ForceUpgradeComponent } from "./components/force-upgrade/force-upgrade.component";
 import { ToastContainerComponent } from "./components/toast-container/toast-container.component";
 import { TenantSwitcherBarComponent } from "./components/tenant-switcher-bar/tenant-switcher-bar.component";
 import { AdminDataService } from "./services/admin-data.service";
+import { ClientVersionGateService } from "./services/client-version-gate.service";
 import { PosthogService } from "./services/posthog.service";
 import { Subject, filter } from "rxjs";
 
@@ -26,17 +28,22 @@ import { Subject, filter } from "rxjs";
     ToastContainerComponent,
     TenantSwitcherBarComponent,
     AnalyticsConsentBannerComponent,
+    ForceUpgradeComponent,
   ],
   template: `
     <ng-container>
-      <div
-        class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-      >
-        <app-tenant-switcher-bar />
-        <router-outlet></router-outlet>
-        <app-toast-container></app-toast-container>
-        <app-analytics-consent-banner />
-      </div>
+      @if (isClientUpgradeRequired()) {
+        <app-force-upgrade />
+      } @else {
+        <div
+          class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+        >
+          <app-tenant-switcher-bar />
+          <router-outlet></router-outlet>
+          <app-toast-container></app-toast-container>
+          <app-analytics-consent-banner />
+        </div>
+      }
     </ng-container>
   `,
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -201,6 +208,15 @@ export class AppComponent implements OnInit {
       }
     } catch (err) {
       console.debug("[AppComponent] DOM recovery check failed:", err);
+    }
+  }
+
+  isClientUpgradeRequired(): boolean {
+    try {
+      const gate = this.injector.get(ClientVersionGateService, null);
+      return gate?.isBlocked?.() === true;
+    } catch {
+      return false;
     }
   }
 
