@@ -20,19 +20,7 @@
       <app-help-modal
         [isOpen]="showHelp"
         (closeModal)="handlers.closeHelp()"
-        (startCreatingPrayersHelpSectionUiTour)="handlers.startHelpSectionTour($event)"
-        (startFilteringHelpSectionUiTour)="handlers.startHelpSectionTour($event)"
-        (startPrayerPromptsUiTour)="handlers.startHelpSectionTour($event)"
-        (startPrayerEncouragementUiTour)="handlers.startHelpSectionTour($event)"
-        (startSearchPrayersUiTour)="handlers.startHelpSectionTour($event)"
-        (startPersonalPrayersHelpSectionUiTour)="handlers.startHelpSectionTour($event)"
-        (startMemorizeHelpSectionUiTour)="handlers.startHelpSectionTour($event)"
-        (startPresentationModeHelpSectionUiTour)="handlers.startHelpSectionTour($event)"
-        (startPrintingHelpSectionUiTour)="handlers.startHelpSectionTour($event)"
-        (startEmailSubscriptionHelpSectionUiTour)="handlers.startHelpSectionTour($event)"
-        (startPrayerRemindersHelpSectionUiTour)="handlers.startHelpSectionTour($event)"
-        (startFeedbackHelpSectionUiTour)="handlers.startHelpSectionTour($event)"
-        (startAppSettingsHelpSectionUiTour)="handlers.startHelpSectionTour($event)"
+        (startSectionTour)="handlers.startHelpSectionTour($event)"
         (fullGuidedTourRequested)="handlers.startFullGuidedTour($event)"
       ></app-help-modal>
 

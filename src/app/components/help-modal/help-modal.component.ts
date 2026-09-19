@@ -7,14 +7,17 @@ import {
   ViewChild,
   ElementRef,
   ChangeDetectionStrategy,
+  DestroyRef,
+  inject,
 } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { CommonModule, NgClass } from "@angular/common";
 import { DomSanitizer, SafeHtml } from "@angular/platform-browser";
 import { FormsModule } from "@angular/forms";
+import { Observable } from "rxjs";
 import { HelpContentService } from "../../services/help-content.service";
 import { HelpSection } from "../../types/help-content";
-import { Observable, BehaviorSubject } from "rxjs";
-import { map } from "rxjs/operators";
+import { isHomeHelpTourSectionId } from "../../lib/home-help-tour-dispatch";
 
 @Component({
   selector: "app-help-modal",
@@ -37,9 +40,9 @@ import { map } from "rxjs/operators";
         (click)="$event.stopPropagation()"
       >
         <div
-          class="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700"
+          class="flex items-start justify-between gap-3 p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700"
         >
-          <div>
+          <div class="min-w-0">
             <h2
               id="help-modal-title"
               class="text-xl font-semibold text-gray-800 dark:text-gray-100"
@@ -49,12 +52,34 @@ import { map } from "rxjs/operators";
             <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1 text-pretty">
               Learn how to use the Prayer App
             </p>
+            <button
+              type="button"
+              id="help-modal-guided-tour"
+              (click)="onTakeGuidedTour()"
+              [disabled]="filteredSections.length === 0"
+              class="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <svg
+                class="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              Take the guided tour
+            </button>
           </div>
           <button
+            type="button"
             (click)="onClose()"
             title="Close help"
             aria-label="Close help modal"
-            class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-pointer"
+            class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-pointer flex-shrink-0"
           >
             <svg
               width="24"
@@ -113,8 +138,7 @@ import { map } from "rxjs/operators";
           </div>
           } }
 
-          @if (helpSections$ | async; as sections) { @if ((filteredSections$ |
-          async); as filteredSections) { @if (filteredSections.length > 0) {
+          @if (filteredSections.length > 0) {
           <div class="flex flex-col gap-1.5 sm:gap-2">
             @for (section of filteredSections; track section.id) {
             <div
@@ -127,6 +151,7 @@ import { map } from "rxjs/operators";
               }"
             >
               <button
+                type="button"
                 (click)="toggleSection(section.id)"
                 class="w-full p-2 sm:p-3 flex items-start justify-between gap-2 text-left cursor-pointer transition-colors duration-150 ease-out"
                 [attr.aria-expanded]="isSectionExpanded(section.id)"
@@ -167,6 +192,32 @@ import { map } from "rxjs/operators";
                 [id]="'section-content-' + section.id"
                 class="px-3 sm:px-4 pb-3 sm:pb-4 border-t border-gray-200 dark:border-gray-700"
               >
+                @if (hasTour(section)) {
+                <div class="pt-3 flex items-center justify-between gap-3">
+                  <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                    Walk through this on the real screen.
+                  </p>
+                  <button
+                    type="button"
+                    (click)="onShowMe(section)"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-600 text-blue-700 dark:text-blue-300 dark:border-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-xs sm:text-sm font-medium transition-colors cursor-pointer flex-shrink-0"
+                  >
+                    <svg
+                      class="w-4 h-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    Show me
+                  </button>
+                </div>
+                }
                 <div class="flex flex-col gap-3 pt-3">
                   @for (content of section.content; track $index) {
                   <div>
@@ -223,7 +274,7 @@ import { map } from "rxjs/operators";
               </p>
             </div>
           </div>
-          } } }
+          }
         </div>
       </div>
     </div>
@@ -249,51 +300,52 @@ import { map } from "rxjs/operators";
 export class HelpModalComponent implements OnInit {
   @Input() isOpen = false;
   @Output() closeModal = new EventEmitter<void>();
+  @Output() startSectionTour = new EventEmitter<HelpSection>();
+  @Output() fullGuidedTourRequested = new EventEmitter<HelpSection[]>();
   @ViewChild("contentArea") contentArea!: ElementRef;
 
-  helpSections$!: Observable<HelpSection[]>;
-  filteredSections$!: Observable<HelpSection[]>;
   isLoading$!: Observable<boolean>;
   error$!: Observable<string | null>;
 
+  sections: HelpSection[] = [];
+  filteredSections: HelpSection[] = [];
   expandedSection: string | null = null;
   searchQuery = "";
 
-  private searchQuerySubject = new BehaviorSubject<string>("");
-
-  constructor(
-    private helpContentService: HelpContentService,
-    private sanitizer: DomSanitizer
-  ) {}
+  private readonly helpContentService = inject(HelpContentService);
+  private readonly sanitizer = inject(DomSanitizer);
+  private readonly destroyRef = inject(DestroyRef);
 
   ngOnInit(): void {
-    this.helpSections$ = this.helpContentService.getSections();
     this.isLoading$ = this.helpContentService.isLoading$;
     this.error$ = this.helpContentService.error$;
-
-    // Initialize filtered sections with search query
-    this.filteredSections$ = this.searchQuerySubject.asObservable().pipe(
-      map((query) => {
-        // This will be updated when helpSections$ is combined
-        return [];
-      })
-    );
-
-    // Combine helpSections$ and search query for filtering
-    this.filteredSections$ = this.helpContentService
+    this.helpContentService
       .getSections()
-      .pipe(map((sections) => this.filterSections(sections, this.searchQuery)));
-
-    // Update filtered sections when search query changes
-    this.searchQuerySubject.subscribe((query) => {
-      this.filteredSections$ = this.helpContentService
-        .getSections()
-        .pipe(map((sections) => this.filterSections(sections, query)));
-    });
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((sections) => {
+        this.sections = sections;
+        this.applyFilter();
+      });
   }
 
   onSearchChange(): void {
-    this.searchQuerySubject.next(this.searchQuery);
+    this.applyFilter();
+  }
+
+  onTakeGuidedTour(): void {
+    this.fullGuidedTourRequested.emit(this.filteredSections);
+  }
+
+  onShowMe(section: HelpSection): void {
+    this.startSectionTour.emit(section);
+  }
+
+  hasTour(section: HelpSection): boolean {
+    return isHomeHelpTourSectionId(section.id);
+  }
+
+  private applyFilter(): void {
+    this.filteredSections = this.filterSections(this.sections, this.searchQuery);
   }
 
   private filterSections(
@@ -307,7 +359,6 @@ export class HelpModalComponent implements OnInit {
     const lowerQuery = query.toLowerCase();
 
     return sections.filter((section) => {
-      // Search in section title and description
       if (
         section.title.toLowerCase().includes(lowerQuery) ||
         section.description.toLowerCase().includes(lowerQuery)
@@ -315,7 +366,6 @@ export class HelpModalComponent implements OnInit {
         return true;
       }
 
-      // Search in section content (subtitles and text)
       return section.content.some(
         (content) =>
           content.subtitle.toLowerCase().includes(lowerQuery) ||
