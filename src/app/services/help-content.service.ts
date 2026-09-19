@@ -2,10 +2,11 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { SupabaseService } from './supabase.service';
 import { HelpSection, HelpSectionInput } from '../types/help-content';
+import type { HomeHelpTourSectionId } from '../lib/home-help-tour-dispatch';
 
 type HelpSectionRow = Pick<HelpSection, 'id' | 'title' | 'description' | 'icon' | 'content'>;
 
-const HELP_SECTION_ROWS: readonly HelpSectionRow[] = [
+const HELP_SECTIONS_IN_DISPLAY_ORDER = [
   {
     id: 'help_first_week',
     title: 'Your first week',
@@ -516,7 +517,24 @@ const HELP_SECTION_ROWS: readonly HelpSectionRow[] = [
       },
     ],
   },
-];
+] as const satisfies readonly HelpSectionRow[];
+
+type HelpCatalogId = (typeof HELP_SECTIONS_IN_DISPLAY_ORDER)[number]['id'];
+
+const _homeHelpTourIdsAreCatalogIds: HomeHelpTourSectionId extends HelpCatalogId
+  ? true
+  : never = true;
+
+function helpSectionsFromCatalog(now: Date): HelpSection[] {
+  return HELP_SECTIONS_IN_DISPLAY_ORDER.map((row, index) => ({
+    ...row,
+    order: index + 1,
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+    createdBy: 'system',
+  }));
+}
 
 @Injectable({
   providedIn: 'root',
@@ -727,14 +745,6 @@ export class HelpContentService {
   }
 
   private getDefaultSections(): HelpSection[] {
-    const now = new Date();
-    return HELP_SECTION_ROWS.map((row, index) => ({
-      ...row,
-      order: index + 1,
-      isActive: true,
-      createdAt: now,
-      updatedAt: now,
-      createdBy: 'system',
-    }));
+    return helpSectionsFromCatalog(new Date());
   }
 }
