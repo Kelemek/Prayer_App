@@ -89,7 +89,7 @@ describe('user-settings-export-run', () => {
     expect(host.exportingAccount).toBe(false);
   });
 
-  it('rejects a payload that is not a scoped export package', async () => {
+  it('rejects a body missing the version-1 sections', async () => {
     const host = makeHost(async () => ({
       data: { prayers: [{ email: 'other@example.com' }] },
       error: null,
@@ -114,9 +114,12 @@ describe('user-settings-export-run', () => {
   });
 
   it('creates an object URL for a JSON download', () => {
-    const createObjectURL = vi.fn(() => 'blob:export');
-    const revokeObjectURL = vi.fn();
-    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+    const createObjectURL = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:export');
+    const revokeObjectURL = vi
+      .spyOn(URL, 'revokeObjectURL')
+      .mockImplementation(() => undefined);
     const click = vi.fn();
     const realCreate = document.createElement.bind(document);
     vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
