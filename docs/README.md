@@ -6,6 +6,7 @@ Complete documentation for the Prayer App multi-tenant prayer management platfor
 
 - **[CHANGELOG.md](CHANGELOG.md)** - Project history and major milestones
 - **[SETUP.md](SETUP.md)** - Installation, configuration, and deployment
+- **[client-version-gate.md](client-version-gate.md)** - How to raise web/native min versions on a breaking deploy
 - **[DEVELOPMENT.md](DEVELOPMENT.md)** - Architecture, testing, development, timezone handling, and component documentation
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Solutions to common issues
 - **[Capacitor (iOS/Android)](Capacitor/)** - Native app build, push notifications, and backend setup ([CAPACITOR_GETTING_STARTED.md](Capacitor/CAPACITOR_GETTING_STARTED.md), [CAPACITOR_BACKEND_SETUP.md](Capacitor/CAPACITOR_BACKEND_SETUP.md), [NATIVE_IDENTITY.md](Capacitor/NATIVE_IDENTITY.md))

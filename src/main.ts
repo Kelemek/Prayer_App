@@ -7,12 +7,19 @@ import { isDevMode } from "@angular/core";
 
 import { IMAGE_CONFIG } from "@angular/common";
 import { APP_INITIALIZER } from "@angular/core";
+import { Capacitor } from "@capacitor/core";
 import { AppComponent } from "./app/app.component";
 import { routes } from "./app/app.routes";
 import { AdminAuthService } from "./app/services/admin-auth.service";
 import { BrandingService } from "./app/services/branding.service";
+import { ClientVersionGateService } from "./app/services/client-version-gate.service";
 import { BRANDING_SERVICE_TOKEN } from "./app/components/app-logo/app-logo.component";
 import { providePostHogErrorHandler } from "./app/posthog-error-handler";
+import { environment } from "./environments/environment";
+import {
+  clientSurfaceFromPlatform,
+  maybeAutoReloadWebOnce,
+} from "./lib/client-version-gate";
 
 // Add a global visibility check to ensure content stays visible during background refresh
 const setupVisibilityRecovery = () => {
@@ -71,6 +78,34 @@ bootstrapApplication(AppComponent, {
         disableImageSizeWarning: true,
         disableImageLazyLoadWarning: true,
       },
+    },
+    {
+      provide: APP_INITIALIZER,
+      useFactory: (clientVersionGate: ClientVersionGateService) => {
+        return async () => {
+          try {
+            const previewBlocked =
+              !environment.production &&
+              new URLSearchParams(window.location.search).get(
+                "force_upgrade"
+              ) === "1";
+            await clientVersionGate.initialize({ previewBlocked });
+            const decision = clientVersionGate.getDecision();
+            maybeAutoReloadWebOnce({
+              blocked: decision.blocked,
+              surface: clientSurfaceFromPlatform(Capacitor.getPlatform()),
+              reload: () => window.location.reload(),
+            });
+          } catch (error) {
+            console.warn(
+              "[AppInitialization] Client version gate failed (fail-open):",
+              error
+            );
+          }
+        };
+      },
+      deps: [ClientVersionGateService],
+      multi: true,
     },
     {
       provide: APP_INITIALIZER,

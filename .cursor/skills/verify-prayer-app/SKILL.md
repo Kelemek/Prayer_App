@@ -1,6 +1,6 @@
 ---
 name: verify-prayer-app
-description: Drive the Prayer App Angular web UI (localhost ng serve, not Capacitor) to prove a change before promoting to https://prayerapp.romans8.net. Use when verifying login, church join/setup, prayer list/request, Stripe billing, or in-app feedback.
+description: Drive the Prayer App Angular web UI (localhost ng serve, not Capacitor) to prove a change before promoting to https://prayerapp.romans8.net. Use when verifying login, church join/setup, prayer list/request, Stripe billing, in-app feedback, or the client force-upgrade gate.
 ---
 
 # Verify Prayer App
@@ -140,6 +140,7 @@ Do not add Playwright to the app `package.json`.
 | Feedback | Settings → `#tour-settings-feedback-section`, radios `Suggestion` / `Feature Request` / `Bug Report`, `#feedbackTitle`, `#feedbackDescription`, button `Send Feedback` |
 | Pro billing | Settings heading `Billing`, button `Billing & invoices` (only if the user has a Pro customer) |
 | Church checkout | `/church-setup` button `Continue to payment` (web only) |
+| Force upgrade (local preview) | `/info?force_upgrade=1`, heading `Update required`, `[data-testid="force-upgrade-gate"]` |
 
 Use **desktop width ≥ 640px** so the `#tour-btn-*-desktop` header is visible. Mobile uses the `*-mobile` ids and the `Request` / `Pray` short labels.
 

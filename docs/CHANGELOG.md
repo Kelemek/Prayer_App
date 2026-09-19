@@ -4,6 +4,10 @@ Major features and milestones for the Prayer App.
 
 ## [Current] - September 2026
 
+### Force client-side upgrades
+- Platform `admin_settings.min_web_build` / `min_native_version` (via `get_public_client_min_versions`) block outdated web and Capacitor shells after a breaking deploy.
+- Unset mins fail open. Web shows refresh / hard-refresh; native opens the store. Ops: [client-version-gate.md](client-version-gate.md). Migration: `20260922120000_client_min_versions.sql`.
+
 ### Terms of Service (`/terms`)
 - Public Terms of Service page mirroring the Privacy page layout, with draft sections for lawyer review before public paid launch.
 - Linked from `/info` and `/support` alongside Privacy; documented in `DEVELOPMENT.md` and `NATIVE_IDENTITY.md`. Added `/privacy` and `/terms` to `public/sitemap.xml`.
