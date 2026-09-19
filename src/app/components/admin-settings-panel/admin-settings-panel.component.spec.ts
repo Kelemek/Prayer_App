@@ -5,6 +5,18 @@ import { fileURLToPath } from 'url';
 import { AdminSettingsPanelComponent } from './admin-settings-panel.component';
 import { ADMIN_SETTINGS_TABS } from '../../lib/admin-settings-tabs';
 
+function settingsTabContent(html: string, tabId: string): string {
+  const switchAt = html.indexOf('@switch (activeSettingsTab)');
+  expect(switchAt).toBeGreaterThan(-1);
+  const fromSwitch = html.slice(switchAt);
+  const caseMark = `@case ('${tabId}')`;
+  const caseAt = fromSwitch.indexOf(caseMark);
+  expect(caseAt).toBeGreaterThan(-1);
+  const afterCase = fromSwitch.slice(caseAt);
+  const nextAt = afterCase.indexOf('@case', caseMark.length);
+  return nextAt === -1 ? afterCase : afterCase.slice(0, nextAt);
+}
+
 describe('AdminSettingsPanelComponent', () => {
   it('includes tenant_manager in the settings tab catalog', () => {
     const ids = ADMIN_SETTINGS_TABS.map((tab) => tab.id);
@@ -74,15 +86,27 @@ describe('AdminSettingsPanelComponent', () => {
     expect(html).not.toContain('github-settings');
   });
 
+  it('security tab mounts Invite members above Admin User Management for every admin', () => {
+    const htmlPath = join(
+      dirname(fileURLToPath(import.meta.url)),
+      'admin-settings-panel.component.html'
+    );
+    const html = readFileSync(htmlPath, 'utf-8');
+    const security = settingsTabContent(html, 'security');
+    const inviteAt = security.indexOf('<app-church-member-invite>');
+    const adminUsersAt = security.indexOf('<app-admin-user-management>');
+    expect(inviteAt).toBeGreaterThan(-1);
+    expect(inviteAt).toBeLessThan(adminUsersAt);
+    expect(security).not.toContain('isSuperAdmin');
+  });
+
   it('security tab includes church wipe danger zone', () => {
     const htmlPath = join(
       dirname(fileURLToPath(import.meta.url)),
       'admin-settings-panel.component.html'
     );
     const html = readFileSync(htmlPath, 'utf-8');
-    const securityBlock = html.match(
-      /@case \('security'\) \{[\s\S]*?app-admin-wipe-church[\s\S]*?\}/
-    );
-    expect(securityBlock).toBeTruthy();
+    const security = settingsTabContent(html, 'security');
+    expect(security).toContain('app-admin-wipe-church');
   });
 });

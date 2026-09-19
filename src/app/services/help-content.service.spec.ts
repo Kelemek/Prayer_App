@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { HelpContentService } from './help-content.service';
 import { HelpSection, HelpSectionInput } from '../types/help-content';
+import { HOME_HELP_TOUR_SECTION_IDS } from '../lib/home-help-tour-dispatch';
 
 describe('HelpContentService', () => {
   let service: HelpContentService;
@@ -70,16 +71,20 @@ describe('HelpContentService', () => {
       });
 
       const requiredSections = [
+        'help_first_week',
         'help_prayers',
+        'help_personal_prayers',
+        'help_filtering',
+        'help_groups',
+        'help_memorize',
         'help_prompts',
         'help_prayer_encouragement',
         'help_search',
-        'help_personal_prayers',
-        'help_filtering',
         'help_presentation',
         'help_printing',
         'help_email_subscription',
         'help_prayer_reminders',
+        'help_memorization_reminders',
         'help_feedback',
         'help_settings',
       ];
@@ -87,6 +92,49 @@ describe('HelpContentService', () => {
       requiredSections.forEach((id) => {
         expect(sections.some((s) => s.id === id)).toBe(true);
       });
+    });
+
+    it('puts Your first week first and names Memorize and Groups', () => {
+      let sections: HelpSection[] = [];
+      service.getSections().subscribe((data) => {
+        sections = data;
+      });
+
+      expect(sections[0]).toMatchObject({ id: 'help_first_week', title: 'Your first week', order: 1 });
+      expect(sections.find((s) => s.id === 'help_memorize')?.title).toBe('Memorize');
+      expect(sections.find((s) => s.id === 'help_groups')?.title).toBe('Groups');
+    });
+
+    it('has a help section for every id the Home tour dispatcher knows', () => {
+      let sections: HelpSection[] = [];
+      service.getSections().subscribe((data) => {
+        sections = data;
+      });
+
+      const ids = new Set(sections.map((s) => s.id));
+      const missing = HOME_HELP_TOUR_SECTION_IDS.filter((id) => !ids.has(id));
+      expect(missing).toEqual([]);
+    });
+
+    it('describes the header button as Request and drops stale search advice', () => {
+      let sections: HelpSection[] = [];
+      service.getSections().subscribe((data) => {
+        sections = data;
+      });
+
+      const prayers = sections.find((s) => s.id === 'help_prayers')!;
+      const prayersText = prayers.content.map((c) => c.text).join('\n');
+      expect(prayersText).toContain('Tap Request in the header');
+      expect(prayersText).not.toContain('Add Request');
+      expect(prayersText).not.toContain('mangement');
+
+      const allText = sections
+        .flatMap((s) => s.content.map((c) => `${c.subtitle}\n${c.text}`))
+        .join('\n');
+      expect(allText).not.toContain('Use quotes for exact phrases');
+      expect(allText).not.toContain('First letters');
+      expect(allText).toContain('Add Verses');
+      expect(allText).toContain('Initials');
     });
 
     it('should set correct order for default sections', () => {

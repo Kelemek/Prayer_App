@@ -141,6 +141,8 @@ Do not add Playwright to the app `package.json`.
 | Pro billing | Settings heading `Billing`, button `Billing & invoices` (only if the user has a Pro customer) |
 | Church checkout | `/church-setup` button `Continue to payment` (web only) |
 | Force upgrade (local preview) | `/info?force_upgrade=1`, heading `Update required`, `[data-testid="force-upgrade-gate"]` |
+| Help | header `getByTitle('Help & Guidance')`, dialog `#help-modal-title`, `#help-modal-guided-tour`, per-topic button `Show me`, search `Search help topics` |
+| Invite members (church admin) | Settings footer `getByRole('button', { name: 'Admin Portal' })` → Admin tile `Settings` → `Security` → `#church-member-invite-trigger`, `getByLabel('Email address')`, button `Create invite`, `[data-testid="church-member-invite-link"]` |
 
 Use **desktop width ≥ 640px** so the `#tour-btn-*-desktop` header is visible. Mobile uses the `*-mobile` ids and the `Request` / `Pray` short labels.
 

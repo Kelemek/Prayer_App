@@ -18,6 +18,7 @@ import { AdminSubscriberEmailBroadcastComponent } from '../admin-subscriber-emai
 import { EmailTemplatesManagerComponent } from '../email-templates-manager/email-templates-manager.component';
 import { HourlyReminderTemplateSectionComponent } from '../hourly-reminder-template-section/hourly-reminder-template-section.component';
 import { AdminUserManagementComponent } from '../admin-user-management/admin-user-management.component';
+import { ChurchMemberInviteComponent } from '../church-member-invite/church-member-invite.component';
 import { PrayerSearchComponent } from '../prayer-search/prayer-search.component';
 import { PrayerArchiveTimelineComponent } from '../prayer-archive-timeline/prayer-archive-timeline.component';
 import { PrayerListBookletPrintComponent } from '../prayer-list-booklet-print/prayer-list-booklet-print.component';
@@ -57,6 +58,7 @@ import type { AnalyticsStats } from '../../services/analytics.service';
     EmailTemplatesManagerComponent,
     HourlyReminderTemplateSectionComponent,
     AdminUserManagementComponent,
+    ChurchMemberInviteComponent,
     PrayerSearchComponent,
     PrayerArchiveTimelineComponent,
     PrayerListBookletPrintComponent,

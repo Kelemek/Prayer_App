@@ -792,7 +792,7 @@ export class HelpDriverTourService {
             title: 'Thank you',
             description:
               'You’ve reached the end of the full tour. We hope this helps you pray with your church and grow in faith.<br><br>' +
-              'Remember: each topic in <strong>Help &amp; Guidance</strong> has its own <strong>Start guided tour</strong> if you ever want to revisit just that part of the app.<br><br>' +
+              'Remember: each topic in <strong>Help &amp; Guidance</strong> has its own <strong>Show me</strong> walkthrough if you ever want to revisit just that part of the app.<br><br>' +
               '<strong>Thank you and God bless.</strong>',
             side: 'bottom',
             align: 'center',
@@ -831,7 +831,7 @@ export class HelpDriverTourService {
           element: () => getNewPrayerRequestButtonEl()!,
           popover: {
             title: title0,
-            description: `${body0}<br><br>Tap <strong>Open form</strong> to continue (or tap <strong>Request</strong> yourself). The article refers to this as “Add Request”.`,
+            description: `${body0}<br><br>Tap <strong>Open form</strong> to continue (or tap <strong>Request</strong> yourself).`,
             side: 'bottom',
             align: 'start',
             nextBtnText: 'Open form &rarr;',
@@ -945,9 +945,9 @@ export class HelpDriverTourService {
         {
           element: () => getNewPrayerRequestButtonEl()!,
           popover: {
-            title: 'Add Request',
+            title: 'Request',
             description:
-              'With <strong>Personal</strong> selected, tap <strong>Request</strong> (same as “Add Request” in Help). The form opens ready for a <strong>personal</strong> prayer—no admin approval.',
+              'With <strong>Personal</strong> selected, tap <strong>Request</strong>. The form opens ready for a <strong>personal</strong> prayer. No admin approval is needed.',
             side: 'bottom',
             align: 'start',
             nextBtnText: 'Open form &rarr;',
@@ -1221,7 +1221,7 @@ export class HelpDriverTourService {
         element: () => getNewPrayerRequestButtonEl()!,
         popover: {
           title: title0,
-          description: `${desc0}<br><br>This tour covers a <strong>community</strong> request and <strong>updates</strong> on cards. Use <strong>Help → Filtering Prayers</strong> for filter tiles, and <strong>Help → Personal Prayers</strong> for private prayers. Tap <strong>Open form &rarr;</strong> to begin (or tap <strong>Request</strong> yourself). Help calls this “Add Request”.`,
+          description: `${desc0}<br><br>This tour covers a <strong>community</strong> request and <strong>updates</strong> on cards. Use <strong>Help → Filtering Prayers</strong> for filter tiles, and <strong>Help → Personal Prayers</strong> for private prayers. Tap <strong>Open form &rarr;</strong> to begin (or tap <strong>Request</strong> yourself).`,
           side: 'bottom',
           align: 'start',
           nextBtnText: 'Open form &rarr;',
@@ -1895,7 +1895,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Print options',
           description:
-            'Three print actions—<strong>Prayers</strong> (community list), <strong>Prompts</strong>, and <strong>Personal</strong>—in soft blue bordered cards (Prayer_App style). Each has a <strong>chevron</strong> to narrow what gets included (time range, prompt types, or personal categories).',
+            'Three print actions. <strong>Prayers</strong> (community list), <strong>Prompts</strong>, and <strong>Personal</strong> sit in soft blue bordered cards. Each has a <strong>chevron</strong> to narrow what gets included (time range, prompt types, or personal categories).',
           side: 'bottom',
           align: 'center',
         },
@@ -2214,7 +2214,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Send Feedback',
           description:
-            'Use this form to send **Suggestion**, **Feature request**, or **Bug report** feedback to the development team.',
+            'Use this form to send <strong>Suggestion</strong>, <strong>Feature request</strong>, or <strong>Bug report</strong> feedback to the development team.',
           side: 'bottom',
           align: 'start',
         },
@@ -2224,7 +2224,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Feedback type',
           description:
-            'Choose **Suggestion** for improvements, **Feature request** for new ideas, or **Bug report** if something broke.',
+            'Choose <strong>Suggestion</strong> for improvements, <strong>Feature request</strong> for new ideas, or <strong>Bug report</strong> if something broke.',
           side: 'bottom',
           align: 'start',
         },
@@ -2234,7 +2234,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Title & description',
           description:
-            'Give a clear **title** and enough **description** that the team can act on it. When the fields look good, tap <strong>Send Feedback</strong>.',
+            'Give a clear <strong>title</strong> and enough <strong>description</strong> that the team can act on it. When the fields look good, tap <strong>Send Feedback</strong>.',
           side: 'top',
           align: 'start',
         },

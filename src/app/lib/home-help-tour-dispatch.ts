@@ -18,11 +18,39 @@ import {
 
 export const HELP_SECTION_ID_PRESENTATION = 'help_presentation';
 
+export const HOME_HELP_TOUR_SECTION_IDS = [
+  'help_prayers',
+  'help_filtering',
+  'help_prompts',
+  'help_prayer_encouragement',
+  'help_search',
+  'help_personal_prayers',
+  'help_memorize',
+  'help_printing',
+  'help_email_subscription',
+  'help_prayer_reminders',
+  'help_feedback',
+  'help_settings',
+  HELP_SECTION_ID_PRESENTATION,
+] as const;
+
+export type HomeHelpTourSectionId = (typeof HOME_HELP_TOUR_SECTION_IDS)[number];
+
+const HOME_HELP_TOUR_SECTION_ID_SET: ReadonlySet<string> = new Set(HOME_HELP_TOUR_SECTION_IDS);
+
+export function isHomeHelpTourSectionId(id: string): id is HomeHelpTourSectionId {
+  return HOME_HELP_TOUR_SECTION_ID_SET.has(id);
+}
+
 export function dispatchHomeHelpSectionTour(
   section: HelpSection,
   ctx: HomeHelpTourSectionStartContext
 ): boolean {
-  switch (section.id) {
+  const id = section.id;
+  if (!isHomeHelpTourSectionId(id)) {
+    return false;
+  }
+  switch (id) {
     case 'help_prayers':
       startCreatingPrayersTour(section, ctx);
       return true;
@@ -62,7 +90,9 @@ export function dispatchHomeHelpSectionTour(
     case HELP_SECTION_ID_PRESENTATION:
       startPresentationModeTour(section, ctx);
       return true;
-    default:
-      return false;
+    default: {
+      const _exhaustive: never = id;
+      return _exhaustive;
+    }
   }
 }

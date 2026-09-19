@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
 import { TenantManagementComponent } from './tenant-management.component';
 import type { Tenant } from '../../types/tenant';
-import { InviteEmailSendError } from '../../lib/tenant-invite';
 
 const tenantA: Tenant = {
   id: 'tenant-a',
@@ -33,7 +32,6 @@ describe('TenantManagementComponent', () => {
   let switchTenant: ReturnType<typeof vi.fn>;
   let createTenant: ReturnType<typeof vi.fn>;
   let getMembershipsForActiveTenant: ReturnType<typeof vi.fn>;
-  let createInvite: ReturnType<typeof vi.fn>;
   let setTenantPlan: ReturnType<typeof vi.fn>;
   let listSuperAdmins: ReturnType<typeof vi.fn>;
   let getActorEmail: ReturnType<typeof vi.fn>;
@@ -57,10 +55,6 @@ describe('TenantManagementComponent', () => {
     getMembershipsForActiveTenant = vi.fn().mockResolvedValue([
       { tenant_id: tenantA.id, user_email: 'admin@test.com', role: 'tenant_admin' },
     ]);
-    createInvite = vi.fn().mockResolvedValue({
-      token: 'invite-token-123',
-      url: 'https://alpha-church.example/join/invite-token-123',
-    });
     setTenantPlan = vi.fn().mockResolvedValue(undefined);
     listSuperAdmins = vi.fn().mockResolvedValue([{ user_email: 'super@test.com' }]);
     getActorEmail = vi.fn().mockResolvedValue('super@test.com');
@@ -84,7 +78,6 @@ describe('TenantManagementComponent', () => {
       {
         createTenant,
         getMembershipsForActiveTenant,
-        createInvite,
         setTenantPlan,
         listSuperAdmins,
         getActorEmail,
@@ -180,46 +173,6 @@ describe('TenantManagementComponent', () => {
     switchTenant.mockResolvedValue(true);
     await component.setActiveTenant('tenant-b');
     expect(toastSuccess).toHaveBeenCalledWith('Active organization is now Beta Group');
-  });
-
-  it('createInvite creates invite when tenant and email are set', async () => {
-    component.inviteEmail = 'member@example.com';
-    await component.createInvite();
-    expect(createInvite).toHaveBeenCalledWith('tenant-a', 'member@example.com');
-    expect(component.lastInviteToken).toBe('invite-token-123');
-    expect(component.lastInviteUrl).toBe(
-      'https://alpha-church.example/join/invite-token-123'
-    );
-    expect(toastSuccess).toHaveBeenCalledWith(
-      'Invitation sent to member@example.com'
-    );
-    expect(component.inviteEmail).toBe('');
-  });
-
-  it('createInvite keeps backup link when email send fails', async () => {
-    createInvite.mockRejectedValue(
-      new InviteEmailSendError(
-        'Resend down',
-        'invite-token-123',
-        'https://alpha-church.example/join/invite-token-123'
-      )
-    );
-    component.inviteEmail = 'member@example.com';
-    await component.createInvite();
-    expect(component.lastInviteUrl).toBe(
-      'https://alpha-church.example/join/invite-token-123'
-    );
-    expect(toastError).toHaveBeenCalledWith(
-      'Invite created, but the email could not be sent. Copy the link below.'
-    );
-    expect(toastSuccess).not.toHaveBeenCalled();
-  });
-
-  it('createInvite returns early without tenant or email', async () => {
-    component.activeTenantId = null;
-    component.inviteEmail = 'x@y.com';
-    await component.createInvite();
-    expect(createInvite).not.toHaveBeenCalled();
   });
 
   it('updatePlan requires super admin and updates plan', async () => {
