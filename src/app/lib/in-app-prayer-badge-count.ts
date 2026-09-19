@@ -87,18 +87,24 @@ export function parseInAppBadgeReadState(raw: unknown): InAppBadgeReadState {
     return emptyInAppBadgeReadState();
   }
   const record = parsed as Record<string, unknown>;
+  const prayerUpdates = stringArrayField(record, 'prayerUpdates');
   return {
-    prayers: Array.isArray(record.prayers) ? (record.prayers as string[]) : [],
-    prayerUpdates: Array.isArray(record.prayerUpdates)
-      ? (record.prayerUpdates as string[])
-      : Array.isArray(record.updates)
-        ? (record.updates as string[])
-        : [],
-    prompts: Array.isArray(record.prompts) ? (record.prompts as string[]) : [],
-    promptUpdates: Array.isArray(record.promptUpdates)
-      ? (record.promptUpdates as string[])
-      : [],
+    prayers: stringArrayField(record, 'prayers'),
+    prayerUpdates:
+      prayerUpdates.length > 0
+        ? prayerUpdates
+        : stringArrayField(record, 'updates'),
+    prompts: stringArrayField(record, 'prompts'),
+    promptUpdates: stringArrayField(record, 'promptUpdates'),
   };
+}
+
+function stringArrayField(
+  record: Record<string, unknown>,
+  key: string
+): string[] {
+  const value = record[key];
+  return Array.isArray(value) ? (value as string[]) : [];
 }
 
 export function unionInAppBadgeReadState(
