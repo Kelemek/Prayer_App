@@ -97,12 +97,13 @@ describe('user-settings-export-run', () => {
     const revokeObjectURL = vi.fn();
     vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
     const click = vi.fn();
-    const append = vi.spyOn(document.body, 'appendChild');
+    const realCreate = document.createElement.bind(document);
     vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = realCreate(tag);
       if (tag === 'a') {
-        return { click, remove: vi.fn(), href: '', download: '', rel: '' } as unknown as HTMLAnchorElement;
+        el.click = click;
       }
-      return document.createElement(tag);
+      return el;
     });
 
     downloadJsonFile('prayer-app-data-export-2026-09-19.json', { ok: true });
@@ -110,6 +111,5 @@ describe('user-settings-export-run', () => {
     expect(createObjectURL).toHaveBeenCalled();
     expect(click).toHaveBeenCalled();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:export');
-    append.mockRestore();
   });
 });

@@ -940,16 +940,23 @@ describe('UserSettingsComponent', () => {
     });
 
     it('downloadMyData should invoke export_user_account', async () => {
-      const downloadSpy = vi
-        .spyOn(await import('../../lib/user-settings-export-run'), 'downloadJsonFile')
-        .mockImplementation(() => undefined);
+      const click = vi.fn();
+      const realCreate = document.createElement.bind(document);
+      vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+        const el = realCreate(tag);
+        if (tag === 'a') {
+          el.click = click;
+        }
+        return el;
+      });
+      vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:export');
+      vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
 
       await component.downloadMyData();
 
       expect(mockSupabaseService.client.rpc).toHaveBeenCalledWith('export_user_account');
-      expect(downloadSpy).toHaveBeenCalled();
+      expect(component.error).toBeNull();
       expect(component.exportingAccount).toBe(false);
-      downloadSpy.mockRestore();
     });
 
     it('deleteAccountAndPrayers on failure should set error and not call logout', async () => {

@@ -12,9 +12,7 @@ export function downloadJsonFile(filename: string, data: unknown): void {
   anchor.href = url;
   anchor.download = filename;
   anchor.rel = 'noopener';
-  document.body.appendChild(anchor);
   anchor.click();
-  anchor.remove();
   URL.revokeObjectURL(url);
 }
 
