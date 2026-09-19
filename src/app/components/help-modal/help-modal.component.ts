@@ -56,7 +56,7 @@ import { isHomeHelpTourSectionId } from "../../lib/home-help-tour-dispatch";
               type="button"
               id="help-modal-guided-tour"
               (click)="onTakeGuidedTour()"
-              [disabled]="filteredSections.length === 0"
+              [disabled]="sections.length === 0"
               class="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <svg
@@ -333,7 +333,7 @@ export class HelpModalComponent implements OnInit {
   }
 
   onTakeGuidedTour(): void {
-    this.fullGuidedTourRequested.emit(this.filteredSections);
+    this.fullGuidedTourRequested.emit(this.sections);
   }
 
   onShowMe(section: HelpSection): void {

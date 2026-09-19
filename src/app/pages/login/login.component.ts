@@ -337,7 +337,7 @@ import { Subject, takeUntil } from "rxjs";
                 <textarea
                   id="affiliation-reason"
                   [(ngModel)]="affiliationReason"
-                  placeholder="Please explain your connection or involvement with our church community (e.g., visitor, attender, family of member, etc.)"
+                  placeholder="Please explain your connection to this church (for example visitor, attender, or family of a member)"
                   [disabled]="loading"
                   rows="3"
                   required
@@ -348,7 +348,7 @@ import { Subject, takeUntil } from "rxjs";
                            resize-none"
                 ></textarea>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  This helps our administrators review your request
+                  This helps church administrators review your request
                 </p>
               </div>
               }

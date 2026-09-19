@@ -792,7 +792,7 @@ export class HelpDriverTourService {
             title: 'Thank you',
             description:
               'You’ve reached the end of the full tour. We hope this helps you pray with your church and grow in faith.<br><br>' +
-              'Remember: each topic in <strong>Help &amp; Guidance</strong> has its own <strong>Start guided tour</strong> if you ever want to revisit just that part of the app.<br><br>' +
+              'Remember: each topic in <strong>Help &amp; Guidance</strong> has its own <strong>Show me</strong> walkthrough if you ever want to revisit just that part of the app.<br><br>' +
               '<strong>Thank you and God bless.</strong>',
             side: 'bottom',
             align: 'center',
@@ -1895,7 +1895,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Print options',
           description:
-            'Three print actions—<strong>Prayers</strong> (community list), <strong>Prompts</strong>, and <strong>Personal</strong>—in soft blue bordered cards (Prayer_App style). Each has a <strong>chevron</strong> to narrow what gets included (time range, prompt types, or personal categories).',
+            'Three print actions. <strong>Prayers</strong> (community list), <strong>Prompts</strong>, and <strong>Personal</strong> sit in soft blue bordered cards. Each has a <strong>chevron</strong> to narrow what gets included (time range, prompt types, or personal categories).',
           side: 'bottom',
           align: 'center',
         },

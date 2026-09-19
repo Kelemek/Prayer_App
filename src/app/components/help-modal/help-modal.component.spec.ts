@@ -124,7 +124,7 @@ describe('HelpModalComponent', () => {
     expect(screen.queryByRole('button', { name: 'Show me' })).toBeNull();
   });
 
-  it('Take the guided tour emits the sections currently listed', async () => {
+  it('Take the guided tour emits every section, even after a search', async () => {
     const { fixture } = await renderOpenHelp();
     const requested: HelpSection[][] = [];
     fixture.componentInstance.fullGuidedTourRequested.subscribe((s) => requested.push(s));
@@ -139,7 +139,12 @@ describe('HelpModalComponent', () => {
 
     await userEvent.type(screen.getByRole('textbox', { name: 'Search help topics' }), 'group');
     await userEvent.click(screen.getByRole('button', { name: 'Take the guided tour' }));
-    expect(requested[1].map((s) => s.id)).toEqual(['help_groups']);
+    expect(requested[1].map((s) => s.id)).toEqual([
+      'help_first_week',
+      'help_prayers',
+      'help_groups',
+      'help_prayer_encouragement',
+    ]);
   });
 
   it('close control emits closeModal', async () => {
