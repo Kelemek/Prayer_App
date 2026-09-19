@@ -62,8 +62,8 @@ import { ClientVersionGateService } from '../../services/client-version-gate.ser
 })
 export class ForceUpgradeComponent implements OnInit {
   private readonly gate = inject(ClientVersionGateService);
-  readonly isNative = Capacitor.isNativePlatform();
   readonly decision: ClientVersionGateDecision = this.gate.getDecision();
+  readonly isNative = this.decision.surface === 'native';
 
   ngOnInit(): void {
     capturePostHogEvent('client_upgrade_required', {
@@ -84,9 +84,6 @@ export class ForceUpgradeComponent implements OnInit {
   }
 
   async onHardReload(): Promise<void> {
-    if (this.isNative) {
-      return;
-    }
     try {
       if ('serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();

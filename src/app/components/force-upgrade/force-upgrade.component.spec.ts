@@ -65,11 +65,22 @@ describe('ForceUpgradeComponent', () => {
   });
 
   it('opens the store on native and hides hard refresh', async () => {
-    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
 
     await render(ForceUpgradeComponent, {
-      providers: [{ provide: ClientVersionGateService, useValue: gate }],
+      providers: [
+        {
+          provide: ClientVersionGateService,
+          useValue: {
+            getDecision: () => ({
+              blocked: true,
+              surface: 'native' as const,
+              clientVersion: '1.0',
+              minVersion: '2.0',
+            }),
+          },
+        },
+      ],
     });
 
     expect(screen.getByTestId('force-upgrade-cta').textContent).toContain(

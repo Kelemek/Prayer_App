@@ -1,11 +1,10 @@
 import { Injectable } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
-import { environment } from '../../environments/environment';
+import { APP_BUNDLE_VERSION } from '../../lib/app-analytics-context';
 import {
+  clientSurfaceFromPlatform,
   evaluateClientVersionGate,
-  maybeAutoReloadWebOnce,
   normalizeMinVersionsRow,
-  resolveClientVersion,
   type ClientVersionGateDecision,
 } from '../../lib/client-version-gate';
 import { SupabaseService } from './supabase.service';
@@ -17,7 +16,7 @@ export class ClientVersionGateService {
   private decision: ClientVersionGateDecision = {
     blocked: false,
     surface: null,
-    clientVersion: resolveClientVersion('web'),
+    clientVersion: APP_BUNDLE_VERSION,
     minVersion: null,
   };
   private initialized = false;
@@ -33,7 +32,7 @@ export class ClientVersionGateService {
     return this.decision;
   }
 
-  async initialize(): Promise<void> {
+  async initialize(options?: { previewBlocked?: boolean }): Promise<void> {
     if (this.initialized) {
       return;
     }
@@ -41,23 +40,21 @@ export class ClientVersionGateService {
       return this.initializationPromise;
     }
 
-    this.initializationPromise = this.evaluatePolicy();
-    try {
-      await this.initializationPromise;
-    } finally {
-      this.initialized = true;
-    }
+    this.initializationPromise = this.loadDecision(options);
+    await this.initializationPromise;
+    this.initialized = true;
   }
 
-  private async evaluatePolicy(): Promise<void> {
-    const platform = Capacitor.getPlatform();
-    const clientVersion = resolveClientVersion(platform);
+  private async loadDecision(options?: {
+    previewBlocked?: boolean;
+  }): Promise<void> {
+    const surface = clientSurfaceFromPlatform(Capacitor.getPlatform());
 
-    if (!environment.production && this.hasLocalPreviewOverride()) {
+    if (options?.previewBlocked) {
       this.decision = {
         blocked: true,
-        surface: Capacitor.isNativePlatform() ? 'native' : 'web',
-        clientVersion,
+        surface,
+        clientVersion: APP_BUNDLE_VERSION,
         minVersion: 'preview',
       };
       return;
@@ -75,32 +72,16 @@ export class ClientVersionGateService {
         return;
       }
 
-      const mins = normalizeMinVersionsRow(data);
-      this.decision = evaluateClientVersionGate(platform, clientVersion, mins);
-      if (this.decision.blocked) {
-        maybeAutoReloadWebOnce({
-          blocked: true,
-          platform,
-          reload: () => {
-            window.location.reload();
-          },
-        });
-      }
+      this.decision = evaluateClientVersionGate(
+        surface,
+        APP_BUNDLE_VERSION,
+        normalizeMinVersionsRow(data)
+      );
     } catch (error) {
       console.warn(
         '[ClientVersionGate] Min-version check failed (fail-open):',
         error
       );
-    }
-  }
-
-  private hasLocalPreviewOverride(): boolean {
-    try {
-      return (
-        new URLSearchParams(window.location.search).get('force_upgrade') === '1'
-      );
-    } catch {
-      return false;
     }
   }
 }

@@ -1,5 +1,3 @@
-import { APP_BUNDLE_VERSION } from './app-analytics-context';
-
 export const CLIENT_UPGRADE_AUTO_RELOAD_KEY =
   'prayerapp.client-upgrade.auto-reloaded';
 
@@ -9,7 +7,7 @@ export const ANDROID_PLAY_STORE_URL =
 export const IOS_APP_STORE_URL =
   'https://apps.apple.com/search?term=Prayer%20App';
 
-export type ClientVersionPlatform = 'web' | 'ios' | 'android' | string;
+export type ClientSurface = 'web' | 'native';
 
 export interface ClientMinVersions {
   min_web_build: string | null;
@@ -18,9 +16,19 @@ export interface ClientMinVersions {
 
 export interface ClientVersionGateDecision {
   blocked: boolean;
-  surface: 'web' | 'native' | null;
+  surface: ClientSurface | null;
   clientVersion: string;
   minVersion: string | null;
+}
+
+export function clientSurfaceFromPlatform(platform: string): ClientSurface {
+  switch (platform) {
+    case 'ios':
+    case 'android':
+      return 'native';
+    default:
+      return 'web';
+  }
 }
 
 /** Split semver or dotted/build strings into numeric parts (`1.12.0`, `15`). */
@@ -67,52 +75,50 @@ export function isClientBelowMin(
   return compareClientVersions(client, min) < 0;
 }
 
-export function isNativeClientPlatform(platform: ClientVersionPlatform): boolean {
-  return platform === 'ios' || platform === 'android';
-}
-
 export function evaluateClientVersionGate(
-  platform: ClientVersionPlatform,
+  surface: ClientSurface,
   clientVersion: string,
   mins: ClientMinVersions | null | undefined
 ): ClientVersionGateDecision {
-  const native = isNativeClientPlatform(platform);
-  const minVersion = native
-    ? mins?.min_native_version ?? null
-    : mins?.min_web_build ?? null;
+  let minVersion: string | null;
+  switch (surface) {
+    case 'native':
+      minVersion = mins?.min_native_version ?? null;
+      break;
+    case 'web':
+      minVersion = mins?.min_web_build ?? null;
+      break;
+    default: {
+      const _exhaustive: never = surface;
+      throw new Error(`Unhandled client surface: ${_exhaustive}`);
+    }
+  }
   const blocked = isClientBelowMin(clientVersion, minVersion);
   return {
     blocked,
-    surface: blocked ? (native ? 'native' : 'web') : null,
+    surface: blocked ? surface : null,
     clientVersion,
     minVersion: minVersion?.trim() || null,
   };
 }
 
-export function resolveClientVersion(
-  _platform: ClientVersionPlatform
-): string {
-  return APP_BUNDLE_VERSION;
-}
-
-export function storeUrlForPlatform(platform: ClientVersionPlatform): string {
-  if (platform === 'ios') {
-    return IOS_APP_STORE_URL;
-  }
-  return ANDROID_PLAY_STORE_URL;
+export function storeUrlForPlatform(platform: string): string {
+  return platform === 'ios' ? IOS_APP_STORE_URL : ANDROID_PLAY_STORE_URL;
 }
 
 /** Auto-reload a stale web shell once per tab. Returns true if a reload was started. */
 export function maybeAutoReloadWebOnce(options: {
   blocked: boolean;
-  platform: ClientVersionPlatform;
+  surface: ClientSurface;
   reload: () => void;
   storage?: Pick<Storage, 'getItem' | 'setItem'>;
 }): boolean {
-  if (!options.blocked || options.platform !== 'web') {
+  if (!options.blocked || options.surface !== 'web') {
     return false;
   }
-  const storage = options.storage ?? (typeof sessionStorage === 'undefined' ? null : sessionStorage);
+  const storage =
+    options.storage ??
+    (typeof sessionStorage === 'undefined' ? null : sessionStorage);
   if (!storage) {
     return false;
   }

@@ -4,13 +4,13 @@ import {
   ANDROID_PLAY_STORE_URL,
   CLIENT_UPGRADE_AUTO_RELOAD_KEY,
   IOS_APP_STORE_URL,
+  clientSurfaceFromPlatform,
   compareClientVersions,
   evaluateClientVersionGate,
   isClientBelowMin,
   maybeAutoReloadWebOnce,
   normalizeMinVersionsRow,
   parseVersionParts,
-  resolveClientVersion,
   storeUrlForPlatform,
 } from './client-version-gate';
 
@@ -54,10 +54,10 @@ describe('client-version-gate', () => {
         clientVersion: '1.0',
         minVersion: '2.0',
       });
-      expect(evaluateClientVersionGate('ios', '1.0', mins).surface).toBe(
+      expect(evaluateClientVersionGate('native', '1.0', mins).surface).toBe(
         'native'
       );
-      expect(evaluateClientVersionGate('android', '3.0', mins).blocked).toBe(
+      expect(evaluateClientVersionGate('native', '3.0', mins).blocked).toBe(
         false
       );
     });
@@ -70,7 +70,7 @@ describe('client-version-gate', () => {
         }).blocked
       ).toBe(false);
       expect(
-        evaluateClientVersionGate('ios', APP_BUNDLE_VERSION, null).blocked
+        evaluateClientVersionGate('native', APP_BUNDLE_VERSION, null).blocked
       ).toBe(false);
     });
   });
@@ -89,7 +89,7 @@ describe('client-version-gate', () => {
       expect(
         maybeAutoReloadWebOnce({
           blocked: true,
-          platform: 'web',
+          surface: 'web',
           reload,
           storage: store,
         })
@@ -100,7 +100,7 @@ describe('client-version-gate', () => {
       expect(
         maybeAutoReloadWebOnce({
           blocked: true,
-          platform: 'web',
+          surface: 'web',
           reload,
           storage: store,
         })
@@ -113,7 +113,7 @@ describe('client-version-gate', () => {
       expect(
         maybeAutoReloadWebOnce({
           blocked: true,
-          platform: 'ios',
+          surface: 'native',
           reload,
         })
       ).toBe(false);
@@ -134,8 +134,10 @@ describe('client-version-gate', () => {
     expect(normalizeMinVersionsRow(null)).toBeNull();
   });
 
-  it('resolves store URLs and the bundled client version', () => {
-    expect(resolveClientVersion('web')).toBe(APP_BUNDLE_VERSION);
+  it('narrows Capacitor platforms and store URLs', () => {
+    expect(clientSurfaceFromPlatform('ios')).toBe('native');
+    expect(clientSurfaceFromPlatform('android')).toBe('native');
+    expect(clientSurfaceFromPlatform('web')).toBe('web');
     expect(storeUrlForPlatform('ios')).toBe(IOS_APP_STORE_URL);
     expect(storeUrlForPlatform('android')).toBe(ANDROID_PLAY_STORE_URL);
   });
