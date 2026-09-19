@@ -25,7 +25,7 @@ Preconditions:
 
 - `bin/doctor --instance` is READY.
 - `/support` needs no secrets. Everything else needs a signed-in session (see [Sign in](./auth-login.md)).
-- `help-church-invite` also needs the test account to be a church admin of the active tenant. If the Admin button is missing from the Settings footer, record the skip and stop.
+- `help-church-invite` also needs the test account to be a church admin of the active tenant. If the Settings footer button `Admin Portal` is missing, record the skip and stop.
 - Desktop viewport ≥ 640px.
 - Do not send a real invite. Use `verify-prayer-app+<run-id>@example.invalid` so the email bounces and nobody joins.
 
@@ -36,7 +36,7 @@ Preconditions:
 - **Show me.** Expand `Creating Prayers`. Run `page.getByRole('button', { name: /Creating Prayers/ }).click()` then `page.getByRole('button', { name: 'Show me' }).click()`. The Help dialog closes and a `.driver-popover` appears anchored on the header `Request` button (`#tour-btn-new-prayer-request-desktop`) with a `Open form →` next button. Save `help-section-tour.png`. Close with Escape.
 - **Memorize tour.** Reopen Help, expand `Memorize`, choose `Show me`. The popover anchors on `#tour-filter-memorize`. Close with Escape.
 - **Guided tour.** Reopen Help and choose `Take the guided tour`. Run `page.locator('#help-modal-guided-tour').click()`. Help closes and a `.driver-popover` titled `Welcome` appears. Save `help-guided-tour.png`. Close with Escape and record that you did not walk every step.
-- **Invite members.** Open Settings → `Admin` → `Settings` tile → `Security`. Run `page.getByRole('button', { name: 'Security' }).click()` then `page.locator('#church-member-invite-trigger').click()`. Copy says the link works only for that address and expires after 7 days. `Create invite` is disabled until an email is typed.
+- **Invite members.** Open Settings, then the footer button `Admin Portal`. Run `page.getByRole('button', { name: 'Admin Portal' }).click()`. Then the Admin `Settings` tile and `Security`. Run `page.getByRole('button', { name: 'Security' }).click()` then `page.locator('#church-member-invite-trigger').click()`. Copy says the link works only for that address and expires after 7 days. `Create invite` is disabled until an email is typed.
 - **Create a bounce-only invite.** Type the run email and choose `Create invite`. Run `page.getByLabel('Email address').fill('verify-prayer-app+' + runId + '@example.invalid')` and `page.getByRole('button', { name: 'Create invite' }).click()`. A status box shows either `Invite emailed to ...` or `but the email could not be sent`, and `[data-testid="church-member-invite-link"]` has an `href` containing `/join/`. Save `help-church-invite.png`. Unit stand-ins: `npx vitest --run src/app/components/help-modal src/app/services/help-content.service.spec.ts src/app/components/church-member-invite src/app/pages/support`.
 
 ## Gotchas
@@ -46,5 +46,5 @@ Preconditions:
 - The Memorize tour needs the Memorize tab button in the DOM. If the tenant hides it, the tour returns without a popover; record the skip.
 - Do not walk the full guided tour across Presentation mode; it navigates away and stores a resume queue in `sessionStorage`. Escape on `Welcome` is enough proof.
 - `Invite members` writes a `tenant_invites` row and calls the email function. The `@example.invalid` address keeps it inert; still name the run in the address so it can be found.
-- Super admins also see the card. Proving it as a super admin does not prove the church-admin path; the `Admin` footer button must come from the tenant role, not the platform role.
+- Super admins also see the card. Proving it as a super admin does not prove the church-admin path. The Settings footer button labeled Admin (`aria-label="Admin Portal"`) must come from the tenant role, not the platform role.
 - `/support` is a public route. Do not treat the SPA shell there as a signed-in home.
