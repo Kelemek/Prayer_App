@@ -12,6 +12,7 @@ Read `features/README.md` before driving. Prove the mapped feature you were aske
 ## Interview facts (do not rediscover)
 
 - **Start command (source of truth):** `package.json` → `npm start` → `ng serve`. Ready when `http://127.0.0.1:4200/info` returns the Angular index. Default port **4200**.
+- **Node:** Angular 22 CLI requires **^22.22.3**. A PATH `node` of 22.14.0 (common on this cloud image) will exit immediately. `nvm install 22.22.3 && nvm use 22.22.3` then `export PATH="$NVM_DIR/versions/node/v22.22.3/bin:$PATH"`.
 - **Stale docs:** `docs/SETUP.md` still says `npm run dev` and port **5173**. That script does not exist. Ignore it.
 - **Env:** local `ng serve` compiles `src/environments/environment.ts` (already has a Supabase URL + publishable key). `.env.example` `VITE_*` vars are for `scripts/write-prod-environment.mjs` / production builds, not required to boot locally. `.env.local` is optional.
 - **Auth:** `/`, `/admin`, `/presentation`, `/church-setup`, `/join/:token` use `siteAuthGuard`. Unauthenticated visits redirect to `/login?returnUrl=...`. Public: `/info`, `/login`, `/privacy`, `/terms`, `/support`, `/unsubscribe`.
@@ -21,10 +22,12 @@ Read `features/README.md` before driving. Prove the mapped feature you were aske
 
 ## Launch
 
-Use the helper. It writes a pid file and refuses a second process on the same run id / port.
+Use the helper. It writes a pid file and refuses a second process on the same run id / port. Put Node ^22.22.3 on `PATH` first (`nvm use 22.22.3`); otherwise `ng serve` exits before binding the port.
 
 ```bash
 cd /path/to/Prayer_App
+# if `node -v` is below 22.22.3:
+#   nvm use 22.22.3 && export PATH="$NVM_DIR/versions/node/v22.22.3/bin:$PATH"
 export PRAYER_APP_VERIFY_RUN_ID="${PRAYER_APP_VERIFY_RUN_ID:-verify1}"
 export PRAYER_APP_VERIFY_HOST=127.0.0.1
 export PRAYER_APP_VERIFY_PORT=4200
@@ -64,7 +67,8 @@ PRAYER_APP_VERIFY_RUN_ID=verify1 .cursor/skills/verify-prayer-app/bin/doctor --i
 
 A READY instance has:
 
-- Node 18+ and `node_modules/@angular/cli`
+- Node **^22.22.3** (or ^24.15 / >=26). `v22.14.0` fails `ng serve` with “Angular CLI requires a minimum Node.js version of v22.22.3”. On this cloud image: `nvm use 22.22.3` and put that `bin` first on `PATH`.
+- `node_modules/@angular/cli`
 - `environment.ts` `supabaseUrl` not a placeholder
 - `BASE_URL` not a production host
 - `--instance`: recorded pid alive, `/info` and `/login` HTTP 200, port listening

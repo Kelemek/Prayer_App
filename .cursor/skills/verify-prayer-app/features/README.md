@@ -4,6 +4,7 @@ This directory is the maintained source for verifying the user-facing behavior o
 
 ## Baseline preconditions
 
+- Node ^22.22.3 on PATH (`nvm use 22.22.3`). Node 22.14.0 cannot start Angular 22.
 - Launch with `.cursor/skills/verify-prayer-app/bin/launch` so the instance is at `http://127.0.0.1:4200` (or the `PRAYER_APP_VERIFY_PORT` you chose).
 - Run `.cursor/skills/verify-prayer-app/bin/doctor --instance` and require READY, a non-production host, and the recorded pid.
 - Use a disposable `PRAYER_APP_VERIFY_RUN_ID`. Put evidence in `.cursor/skills/verify-prayer-app/artifacts/<run-id>/`.
