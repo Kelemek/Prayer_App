@@ -15,6 +15,10 @@ const defaultTenantContextMock = () => ({
     name: 'Test Tenant',
     slug: 'test',
   })),
+  getMemberTenants: vi.fn(() => [
+    { id: TEST_TENANT_ID, name: 'Test Tenant', slug: 'test' },
+  ]),
+  getMemberships: vi.fn(() => [{ tenant_id: TEST_TENANT_ID }]),
   getIsSuperAdmin: vi.fn(() => false),
   activeTenant$: new BehaviorSubject({
     id: TEST_TENANT_ID,
@@ -94,6 +98,16 @@ describe('BadgeService', () => {
         name: 'Test Tenant',
         slug: 'test',
       })),
+      getMemberTenants: vi.fn(() => [
+        {
+          id: '33333333-3333-4333-8333-333333333333',
+          name: 'Test Tenant',
+          slug: 'test',
+        },
+      ]),
+      getMemberships: vi.fn(() => [
+        { tenant_id: '33333333-3333-4333-8333-333333333333' },
+      ]),
       getIsSuperAdmin: vi.fn(() => false),
       activeTenant$: new BehaviorSubject({
         id: '33333333-3333-4333-8333-333333333333',
@@ -2221,6 +2235,68 @@ describe('BadgeService - Additional Coverage Tests', () => {
       service.refreshBadgeCounts();
       expect(localStorage.getItem(`tenant_${TEST_TENANT_ID}_prayers`)).toBeTruthy();
       expect(localStorage.getItem(`prompts:${TEST_TENANT_ID}`)).toBeTruthy();
+    });
+  });
+
+  describe('all-tenant displayed badge count for the app icon', () => {
+    const otherTenantId = '44444444-4444-4444-8444-444444444444';
+
+    beforeEach(() => {
+      mockTenantContextService.getMemberTenants.mockReturnValue([
+        { id: TEST_TENANT_ID, name: 'Test Tenant', slug: 'test' },
+        { id: otherTenantId, name: 'Other Church', slug: 'other' },
+      ]);
+      mockTenantContextService.getMemberships.mockReturnValue([
+        { tenant_id: TEST_TENANT_ID },
+        { tenant_id: otherTenantId },
+      ]);
+      localStorage.setItem(
+        `tenant_${TEST_TENANT_ID}_prayers`,
+        JSON.stringify({
+          data: [
+            { id: 'p-current', status: 'current', updates: [{ id: 'u-1' }] },
+            { id: 'p-answered', status: 'answered' },
+            { id: 'p-archived', status: 'archived' },
+          ],
+        })
+      );
+      localStorage.setItem(
+        `prompts:${TEST_TENANT_ID}`,
+        JSON.stringify({ data: [{ id: 'pr-1' }] })
+      );
+      localStorage.setItem(
+        `tenant_${otherTenantId}_prayers`,
+        JSON.stringify({
+          data: [{ id: 'p-other', status: 'current' }],
+        })
+      );
+      seedScopedReadState({ prayers: [], prayerUpdates: [], prompts: [] }, service);
+    });
+
+    it('sums Current + Answered + Prompts across every member tenant', () => {
+      // active: current prayer, current update, answered prayer, prompt = 4
+      // other: current prayer = 1
+      expect(service.getAllTenantDisplayedBadgeCount()).toBe(5);
+    });
+
+    it('decrements when a badged surface is marked read (not on refresh alone)', () => {
+      expect(service.getAllTenantDisplayedBadgeCount()).toBe(5);
+      service.markAllAsReadByStatus('prayers', 'current');
+      // current prayer + update cleared; answered + prompt + other tenant remain
+      expect(service.getAllTenantDisplayedBadgeCount()).toBe(3);
+      service.refreshBadgeCounts();
+      expect(service.getAllTenantDisplayedBadgeCount()).toBe(3);
+    });
+
+    it('returns 0 when badge functionality is disabled', async () => {
+      mockUserSessionService.userSession$.next({
+        email: TEST_EMAIL,
+        fullName: 'Test User',
+        isActive: true,
+        badgeFunctionalityEnabled: false,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(service.getAllTenantDisplayedBadgeCount()).toBe(0);
     });
   });
 });

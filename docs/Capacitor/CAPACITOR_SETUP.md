@@ -11,6 +11,7 @@ See [NATIVE_IDENTITY.md](NATIVE_IDENTITY.md) for SaaS vs Cross Pointe bundle IDs
 3. **@capacitor/ios** - iOS platform support
 4. **@capacitor/android** - Android platform support
 5. **@capacitor/push-notifications** - Push notification support
+6. **@capawesome/capacitor-badge** - Native app icon badge count (iOS + Android launchers that support badges)
 
 ## Project Structure
 
@@ -124,6 +125,12 @@ this.capacitorService.pushToken$.subscribe(token => {
 // Or get it synchronously
 const pushToken = this.capacitorService.getPushToken();
 ```
+
+#### App icon badges
+
+`AppIconBadgeService` sets the home-screen badge to the **all-tenant** in-app prayer badge count (Current + Answered + Prompts across every church membership). It uses `@capawesome/capacitor-badge` with `autoClear: false` so launching or resuming the app does **not** clear the number. The badge decrements when the member opens the same surfaces that clear in-app badges (filter pills / Church aggregate / badged cards). Web ignores the plugin.
+
+On Android, not every launcher shows a numeric badge (Pixel Launcher typically does not). iOS uses the system badge API and needs notification/badge permission (already requested with push).
 
 #### Checking Platform
 

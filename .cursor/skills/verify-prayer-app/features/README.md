@@ -47,7 +47,7 @@ Keep implementation details out of the map. Name only user paths, stable handles
 
 - [Sign in](./auth-login.md) covers the public login form, OTP / app-tester code, registration gate, and `/info`.
 - [Church join and setup](./church-tenant.md) covers invite claim, in-app join token, and pay-first church setup.
-- [Prayer list and request](./prayer-list-request.md) covers home tabs, new request, personal vs church visibility, and list persistence.
+- [Prayer list and request](./prayer-list-request.md) covers home tabs, new request, personal vs church visibility, and list persistence. Native home-screen icon badges follow the same in-app Current/Answered/Prompts counts (all-tenant) and are out of band for web Drive.
 - [Billing and Stripe](./billing-stripe.md) covers Church checkout, Pro upgrade, and billing portal — stop before a live charge unless Stripe test mode is confirmed.
 - [Send feedback](./feedback.md) covers Settings feedback and the configured-check skip.
 - [Settings data export](./settings-data-export.md) covers Settings → **Download my data** (JSON account / prayers / prefs / memberships).

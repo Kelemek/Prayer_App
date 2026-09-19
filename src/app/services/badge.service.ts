@@ -4,6 +4,12 @@ import { distinctUntilChanged, startWith } from 'rxjs/operators';
 import { SupabaseService } from './supabase.service';
 import { UserSessionService } from './user-session.service';
 import { TenantContextService } from './tenant-context.service';
+import {
+  countDisplayedInAppPrayerBadgesAcrossTenants,
+  listMemberTenantIds,
+  readAllTenantInAppBadgeSnapshots,
+  resolveAppIconBadgeCount,
+} from '../lib/in-app-prayer-badge-count';
 
 /**
  * Prayer or Prompt object structure
@@ -601,6 +607,53 @@ export class BadgeService {
     status?: 'current' | 'answered'
   ): Observable<number> {
     return this.getBadgeCountInternal$(type, status);
+  }
+
+  /**
+   * All-tenant sum of in-app prayer badges currently displayed
+   * (Current + Answered + Prompts across every church membership).
+   * Returns 0 when badge functionality is disabled.
+   */
+  getAllTenantDisplayedBadgeCount(): number {
+    return resolveAppIconBadgeCount({
+      badgesEnabled: this.badgeFunctionalityEnabled$.value,
+      allTenantDisplayedCount: this.sumAllTenantDisplayedBadgeCount(),
+    });
+  }
+
+  private sumAllTenantDisplayedBadgeCount(): number {
+    const email = this.getActiveUserEmail();
+    if (!email || typeof localStorage === 'undefined') {
+      return 0;
+    }
+    const tenantIds = this.getAllMemberTenantIds();
+    if (tenantIds.length === 0) {
+      return 0;
+    }
+    return countDisplayedInAppPrayerBadgesAcrossTenants(
+      readAllTenantInAppBadgeSnapshots(
+        localStorage,
+        tenantIds,
+        email,
+        this.getActiveTenantId(),
+        this.readState
+      )
+    );
+  }
+
+  private getAllMemberTenantIds(): string[] {
+    try {
+      const ctx = this.getTenantContext();
+      return listMemberTenantIds({
+        memberTenants: ctx.getMemberTenants?.() ?? [],
+        memberships: ctx.getMemberships?.() ?? [],
+        activeTenantId: this.getActiveTenantId(),
+      });
+    } catch {
+      return listMemberTenantIds({
+        activeTenantId: this.getActiveTenantId(),
+      });
+    }
   }
 
   hasIndividualBadge$(
