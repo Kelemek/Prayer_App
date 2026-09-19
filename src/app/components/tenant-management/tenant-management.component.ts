@@ -14,7 +14,6 @@ import { ToastService } from "../../services/toast.service";
 import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/admin-collapsible-section.component";
 import { AdminWipeChurchDialogComponent } from "../admin-wipe-church-dialog/admin-wipe-church-dialog.component";
 import { switchTenantWithNavigation } from "../../lib/tenant-navigation";
-import { InviteEmailSendError } from "../../lib/tenant-invite";
 import { normalizeTenantSlug, validateTenantSlug } from "../../lib/tenant-slug";
 import { PlatformBillingService, type TenantBillingRow } from "../../services/platform-billing.service";
 import type {
@@ -230,32 +229,6 @@ import type {
             </button>
           </div>
         </div>
-        }
-      </div>
-
-      <div class="mb-4">
-        <label
-          class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1"
-          >Invite Member</label
-        >
-        <div class="flex gap-2">
-          <input
-            [(ngModel)]="inviteEmail"
-            type="email"
-            placeholder="member@example.com"
-            class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            (click)="createInvite()"
-            class="px-4 py-2 rounded-lg bg-green-600 text-white text-sm hover:bg-green-700"
-          >
-            Create Invite
-          </button>
-        </div>
-        @if (lastInviteUrl) {
-        <p class="mt-2 text-xs text-gray-600 dark:text-gray-300 break-all">
-          Invite link (backup): {{ lastInviteUrl }}
-        </p>
         }
       </div>
 
@@ -523,9 +496,6 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
   activeTenantName = "";
   planTier: PlanTier = "groups";
   planStatus: PlanStatus = "active";
-  inviteEmail = "";
-  lastInviteToken = "";
-  lastInviteUrl = "";
   memberships: TenantMembership[] = [];
   isSuperAdmin = false;
   superAdminEmail = "";
@@ -691,33 +661,6 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
       this.toast.success(`Active organization is now ${label}`);
     } finally {
       this.isSwitchingTenant = false;
-    }
-  }
-
-  async createInvite(): Promise<void> {
-    if (!this.activeTenantId || !this.inviteEmail.trim()) return;
-    const inviteeEmail = this.inviteEmail.trim();
-    try {
-      const created = await this.tenantManagement.createInvite(
-        this.activeTenantId,
-        inviteeEmail
-      );
-      this.lastInviteToken = created.token;
-      this.lastInviteUrl = created.url;
-      this.toast.success(`Invitation sent to ${inviteeEmail.toLowerCase()}`);
-      this.inviteEmail = "";
-    } catch (error) {
-      if (error instanceof InviteEmailSendError) {
-        this.lastInviteToken = error.token;
-        this.lastInviteUrl = error.url;
-        this.toast.error(
-          "Invite created, but the email could not be sent. Copy the link below."
-        );
-        return;
-      }
-      this.toast.error(
-        error instanceof Error ? error.message : "Failed to create invite"
-      );
     }
   }
 

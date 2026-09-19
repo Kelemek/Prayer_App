@@ -193,7 +193,7 @@ const HELP_SECTIONS_IN_DISPLAY_ORDER = [
     content: [
       {
         subtitle: 'Add passages',
-        text: 'Open the Memorize tab. Use Verses to pick a Bible reference, or Bible Books to memorize whole books in order. Tap Recommended for curated passages grouped by topic. Your list is private to your account.',
+        text: 'Open the Memorize tab. Use Add Verses to pick a Bible reference, or Bible Books to memorize whole books in order. Tap Recommended for curated passages grouped by topic. Your list is private to your account.',
       },
       {
         subtitle: 'Learning, Practicing, Mastered',
@@ -201,7 +201,7 @@ const HELP_SECTIONS_IN_DISPLAY_ORDER = [
       },
       {
         subtitle: 'Practice modes',
-        text: 'Each session offers modes such as Type, Word, Reorder, and First letters. When your church enables it, Recite mode (beta) records your voice and shows word-by-word accuracy. You can also Listen to ESV audio while you practice. Progress saves automatically.',
+        text: 'Each session offers modes such as Type, Word, Reorder, and Initials. When your church enables it, Recite mode (beta) records your voice and shows word-by-word accuracy. You can also Listen to ESV audio while you practice. Progress saves automatically.',
       },
       {
         subtitle: 'Standard or Strict',

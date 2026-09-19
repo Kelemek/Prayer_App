@@ -132,6 +132,9 @@ describe('HelpContentService', () => {
         .flatMap((s) => s.content.map((c) => `${c.subtitle}\n${c.text}`))
         .join('\n');
       expect(allText).not.toContain('Use quotes for exact phrases');
+      expect(allText).not.toContain('First letters');
+      expect(allText).toContain('Add Verses');
+      expect(allText).toContain('Initials');
     });
 
     it('should set correct order for default sections', () => {
