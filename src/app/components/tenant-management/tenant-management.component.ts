@@ -12,6 +12,7 @@ import { TenantManagementService } from "../../services/tenant-management.servic
 import { TenantPermissionService } from "../../services/tenant-permission.service";
 import { ToastService } from "../../services/toast.service";
 import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/admin-collapsible-section.component";
+import { AdminWipeChurchDialogComponent } from "../admin-wipe-church-dialog/admin-wipe-church-dialog.component";
 import { switchTenantWithNavigation } from "../../lib/tenant-navigation";
 import { InviteEmailSendError } from "../../lib/tenant-invite";
 import { normalizeTenantSlug, validateTenantSlug } from "../../lib/tenant-slug";
@@ -26,7 +27,7 @@ import type {
 @Component({
   selector: "app-tenant-management",
   standalone: true,
-  imports: [CommonModule, FormsModule, AdminCollapsibleSectionComponent],
+  imports: [CommonModule, FormsModule, AdminCollapsibleSectionComponent, AdminWipeChurchDialogComponent],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <app-admin-collapsible-section
@@ -335,6 +336,7 @@ import type {
                   <th class="px-2 py-2">Past due since</th>
                   <th class="px-2 py-2">Grace ends</th>
                   <th class="px-2 py-2">Period end</th>
+                  <th class="px-2 py-2 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
@@ -347,6 +349,17 @@ import type {
                   <td class="px-2 py-2">{{ row.past_due_since || "—" }}</td>
                   <td class="px-2 py-2">{{ row.grace_until || "—" }}</td>
                   <td class="px-2 py-2">{{ row.stripe_current_period_end || "—" }}</td>
+                  <td class="px-2 py-2 text-right">
+                    @if (row.slug !== 'default-tenant') {
+                      <button
+                        type="button"
+                        (click)="openWipeDialog(row)"
+                        class="text-red-600 dark:text-red-400 hover:underline text-xs cursor-pointer"
+                      >
+                        Wipe
+                      </button>
+                    }
+                  </td>
                 </tr>
                 }
               </tbody>
@@ -490,6 +503,17 @@ import type {
       </div>
       }
     </app-admin-collapsible-section>
+
+    @if (wipeTarget) {
+      <app-admin-wipe-church-dialog
+        [tenantId]="wipeTarget.id"
+        [tenantName]="wipeTarget.name"
+        [tenantSlug]="wipeTarget.slug"
+        [open]="wipeDialogOpen"
+        (openChange)="onWipeDialogOpenChange($event)"
+        (wiped)="onChurchWiped()"
+      ></app-admin-wipe-church-dialog>
+    }
   `,
 })
 export class TenantManagementComponent implements OnInit, OnDestroy {
@@ -525,6 +549,8 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
   savingGraceDays = false;
   tenantBillingRows: TenantBillingRow[] = [];
   tenantBillingLoading = false;
+  wipeDialogOpen = false;
+  wipeTarget: TenantBillingRow | null = null;
   private destroy$ = new Subject<void>();
 
   constructor(
@@ -879,5 +905,23 @@ export class TenantManagementComponent implements OnInit, OnDestroy {
     } else {
       this.memberships = [];
     }
+  }
+
+  openWipeDialog(row: TenantBillingRow): void {
+    this.wipeTarget = row;
+    this.wipeDialogOpen = true;
+  }
+
+  onWipeDialogOpenChange(open: boolean): void {
+    this.wipeDialogOpen = open;
+    if (!open) {
+      this.wipeTarget = null;
+    }
+  }
+
+  async onChurchWiped(): Promise<void> {
+    await this.tenantContext.refresh();
+    await this.loadTenantBilling();
+    await this.hydrateFromContext();
   }
 }

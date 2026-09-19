@@ -238,6 +238,10 @@
         <div class="mb-4">
           <app-security-policy-settings></app-security-policy-settings>
         </div>
+        <app-admin-wipe-church
+          [tenant]="activeTenant"
+          [canWipe]="canWipeChurch"
+        ></app-admin-wipe-church>
       </div>
     }
     @case ('tenant_manager') {

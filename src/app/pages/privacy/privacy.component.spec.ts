@@ -39,4 +39,11 @@ describe('PrivacyComponent', () => {
     const text = fixture.nativeElement.textContent ?? '';
     expect(text).not.toMatch(/ask your organization['’]s administrators to delete your account/i);
   });
+
+  it('describes church operator wipe vs member account deletion', async () => {
+    const { fixture } = await renderPrivacy();
+    const text = fixture.nativeElement.textContent ?? '';
+    expect(text).toMatch(/Church administrators/i);
+    expect(text).toMatch(/personal prayers and prayer groups/i);
+  });
 });

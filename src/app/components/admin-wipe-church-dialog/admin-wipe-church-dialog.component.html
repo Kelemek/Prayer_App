@@ -1,0 +1,75 @@
+@if (open) {
+  <div
+    class="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-[60] p-4"
+    (click)="wiping ? null : close()"
+  >
+    <div
+      class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full modal-panel-edge"
+      (click)="$event.stopPropagation()"
+      role="dialog"
+      aria-labelledby="wipe-church-title"
+      aria-modal="true"
+    >
+      <div class="px-6 py-4 modal-chrome-header">
+        <h2 id="wipe-church-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          Delete church permanently?
+        </h2>
+      </div>
+      <div class="px-6 py-4">
+        <p class="text-gray-600 dark:text-gray-300 mb-3">
+          This removes <strong>{{ tenantName }}</strong> (slug
+          <code class="text-sm">{{ tenantSlug }}</code>), all church prayer wall
+          data, settings, and church billing in Stripe. Members keep their login
+          accounts, personal prayers, and prayer groups.
+        </p>
+        <div
+          class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-4"
+        >
+          <p class="text-sm text-red-700 dark:text-red-300">
+            This cannot be undone. Canceling a subscription alone does not delete
+            the church. See our
+            <a href="/privacy" class="underline font-medium" target="_blank" rel="noopener noreferrer"
+              >Privacy Policy</a
+            >.
+          </p>
+        </div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+          Type <span class="font-mono">{{ tenantSlug }}</span> to confirm
+        </label>
+        <input
+          type="text"
+          [(ngModel)]="confirmSlugInput"
+          [disabled]="wiping"
+          autocomplete="off"
+          class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+          [attr.aria-invalid]="error ? true : null"
+        />
+        @if (error) {
+          <p class="mt-2 text-sm text-red-600 dark:text-red-400" role="alert">{{ error }}</p>
+        }
+      </div>
+      <div class="px-6 py-4 modal-chrome-footer flex flex-col sm:flex-row gap-3 justify-end">
+        <button
+          type="button"
+          (click)="close()"
+          [disabled]="wiping"
+          class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 font-medium cursor-pointer disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          (click)="confirmWipe()"
+          [disabled]="!canSubmit"
+          class="px-4 py-2 rounded-md btn-chip btn-chip-red disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          @if (wiping) {
+            Deleting…
+          } @else {
+            Delete church
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}

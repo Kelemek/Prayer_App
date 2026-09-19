@@ -208,6 +208,19 @@ export class AdminComponent implements OnInit, OnDestroy {
       );
   }
 
+  canWipeChurch(): boolean {
+    const tenant = this.tenantContextService.getActiveTenant();
+    if (!tenant || tenant.slug === 'default-tenant') {
+      return false;
+    }
+    if (this.isSuperAdmin) {
+      return true;
+    }
+    return this.tenantContextService.getMemberships().some(
+      (m) => m.tenant_id === tenant.id && m.role === 'tenant_admin'
+    );
+  }
+
   private async handleChurchCheckoutQuery(): Promise<void> {
     const checkout = this.route.snapshot.queryParamMap.get('church_checkout');
     if (!checkout) return;

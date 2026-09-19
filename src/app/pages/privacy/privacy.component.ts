@@ -282,6 +282,15 @@ import { RouterModule } from "@angular/router";
               descriptions or historical GitHub issues if any were created
               outside the current in-app flow).
             </p>
+            <p class="mb-2">
+              Church administrators (or platform support) may delete a church
+              organization from Admin settings. That removes the church’s shared
+              prayer wall, settings, and church billing in Stripe; it does not
+              delete members’ login accounts or their personal prayers and
+              prayer groups. Members who pay for Pro individually keep Pro;
+              others return to free platform limits when they no longer belong to
+              a paid church.
+            </p>
             <p>
               We use industry-standard security measures (for example encryption
               in transit and at rest and access controls) to protect your data.

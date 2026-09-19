@@ -596,7 +596,7 @@ Deno.serve(async (req: Request) => {
         event.type === 'customer.subscription.deleted'
       );
       const tenantId = churchTenant?.id ?? metadata.tenant_id;
-      if (tenantId) {
+      if (tenantId && churchTenant) {
         await applyChurchBillingPatch(adminClient, tenantId, patch);
         if (patch.should_notify_past_due) {
           const { data: tenantRow } = await adminClient
@@ -612,6 +612,12 @@ Deno.serve(async (req: Request) => {
             String(tenantRow?.name ?? 'Church')
           );
         }
+      } else if (tenantId && !churchTenant) {
+        console.log(
+          'stripe-webhook: church subscription event for missing tenant; no-op',
+          tenantId,
+          subscriptionId
+        );
       } else {
         await syncChurchSignupLeadFromSubscription(
           adminClient,

@@ -30,6 +30,8 @@ import { MemorizationRecommendationsManagerComponent } from '../memorization-rec
 import { VerseMemorizationPrayerManagerComponent } from '../verse-memorization-prayer-manager/verse-memorization-prayer-manager.component';
 import { MemorizationReciteSettingsComponent } from '../memorization-recite-settings/memorization-recite-settings.component';
 import { TenantManagementComponent } from '../tenant-management/tenant-management.component';
+import { AdminWipeChurchComponent } from '../admin-wipe-church/admin-wipe-church.component';
+import type { Tenant } from '../../types/tenant';
 import { TenantUsersComponent } from '../tenant-users/tenant-users.component';
 import { AdminPlatformPlanSettingsComponent } from '../admin-platform-plan-settings/admin-platform-plan-settings.component';
 import { AdminSiteAnalyticsPanelComponent } from '../admin-site-analytics-panel/admin-site-analytics-panel.component';
@@ -65,6 +67,7 @@ import type { AnalyticsStats } from '../../services/analytics.service';
     TenantManagementComponent,
     TenantUsersComponent,
     AdminPlatformPlanSettingsComponent,
+    AdminWipeChurchComponent,
   ],
   templateUrl: './admin-settings-panel.component.html',
 })
@@ -74,6 +77,8 @@ export class AdminSettingsPanelComponent implements OnInit {
   @Input() showAnalyticsTab = true;
   @Input() isChurchTenant = true;
   @Input() isSuperAdmin = false;
+  @Input() canWipeChurch = false;
+  @Input() activeTenant: Tenant | null = null;
   showFeedbackForm = false;
 
   @Output() settingsTabChange = new EventEmitter<AdminSettingsTab>();

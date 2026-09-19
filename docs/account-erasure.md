@@ -19,6 +19,14 @@ Engineering path for self-serve account deletion. Not legal advice.
 
 **Never deleted:** church `tenants`, church Stripe customers, other users’ data. `tenants.created_by_email` anonymized when it matches.
 
+Church operators can separately **wipe a church tenant** (admin path); that is not member erase. See [church-tenant-wipe.md](church-tenant-wipe.md) for the matrix vs cancel-only billing.
+
+| Action | Auth | Personal prayers/groups | Church tenant | Pro Stripe | Church Stripe |
+|--------|------|-------------------------|---------------|------------|---------------|
+| Member delete-account | deleted | keep/wipe per mode | untouched | deleted | untouched |
+| Church cancel (Stripe) | keep | keep | remains | n/a | cancel |
+| Church wipe | keep | keep | deleted | keep if Pro | ended |
+
 ## Third-party ops checklist
 
 | System | Automated in Edge | Manual if needed |

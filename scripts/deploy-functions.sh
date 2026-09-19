@@ -82,6 +82,11 @@ case $FUNCTION_NAME in
         echo "💡 JWT required (verify_jwt=true). Settings account erasure; requires migration erase_user_account applied."
         echo "📋 Optional: STRIPE_SECRET_KEY (Pro customer cleanup), POSTHOG_PERSONAL_API_KEY + POSTHOG_PROJECT_ID"
         ;;
+    "wipe-church-tenant")
+        deploy_function "wipe-church-tenant" ""
+        echo "💡 JWT required (verify_jwt=true). Admin church wipe; requires migration wipe_church_tenant applied."
+        echo "📋 Optional: STRIPE_SECRET_KEY (church customer cancel/delete only; never Pro)"
+        ;;
     "get-openai-org-usage")
         deploy_function "get-openai-org-usage" ""
         echo "📋 Optional secret: OPENAI_ADMIN_KEY (org-wide spend in admin UI)"
@@ -160,6 +165,7 @@ case $FUNCTION_NAME in
         deploy_function "transcribe-audio" ""
         deploy_function "submit-feedback" ""
         deploy_function "delete-account" ""
+        deploy_function "wipe-church-tenant" ""
         deploy_function "get-openai-org-usage" ""
         deploy_function "cleanup-device-tokens" ""
         deploy_function "stripe-church-checkout" ""
@@ -189,6 +195,7 @@ case $FUNCTION_NAME in
         echo "  transcribe-audio              - Memorization Recite Whisper STT (JWT)"
         echo "  submit-feedback               - In-app feedback to Notion (JWT; NOTION_TOKEN)"
         echo "  delete-account                - Settings account erasure (JWT; service role RPC)"
+        echo "  wipe-church-tenant            - Admin church tenant wipe (JWT; service role RPC)"
         echo "  get-openai-org-usage          - OpenAI org spend for admin UI"
         echo "  cleanup-device-tokens    - Stale device tokens + push log cleanup (cron)"
         echo "  stripe-church-checkout   - Church Stripe Checkout (JWT)"

@@ -121,6 +121,8 @@
             [showAnalyticsTab]="canAccessAnalytics()"
             [isChurchTenant]="isChurchTenant()"
             [isSuperAdmin]="isSuperAdmin"
+            [canWipeChurch]="canWipeChurch()"
+            [activeTenant]="tenantContextService.getActiveTenant()"
             (settingsTabChange)="onSettingsTabChange($event)"
           ></app-admin-settings-panel>
         }

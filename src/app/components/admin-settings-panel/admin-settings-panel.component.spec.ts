@@ -73,4 +73,16 @@ describe('AdminSettingsPanelComponent', () => {
     expect(html).not.toContain('github_token');
     expect(html).not.toContain('github-settings');
   });
+
+  it('security tab includes church wipe danger zone', () => {
+    const htmlPath = join(
+      dirname(fileURLToPath(import.meta.url)),
+      'admin-settings-panel.component.html'
+    );
+    const html = readFileSync(htmlPath, 'utf-8');
+    const securityBlock = html.match(
+      /@case \('security'\) \{[\s\S]*?app-admin-wipe-church[\s\S]*?\}/
+    );
+    expect(securityBlock).toBeTruthy();
+  });
 });

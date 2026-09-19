@@ -377,6 +377,22 @@ See [account-erasure.md](account-erasure.md) for DB table inventory, anonymize v
 
 ---
 
+## Church tenant wipe (`wipe-church-tenant`)
+
+Admin **Delete church** calls Edge Function **`wipe-church-tenant`** (JWT required). Apply migration **`20260918120000_wipe_church_tenant.sql`** before deploy.
+
+```bash
+./scripts/deploy-functions.sh wipe-church-tenant
+```
+
+| Secret | Used by |
+|--------|---------|
+| `STRIPE_SECRET_KEY` | Optional. Cancel/delete **church** Stripe customer only (never Pro). |
+
+See [church-tenant-wipe.md](church-tenant-wipe.md) for matrix vs member erase, DB detach rules, and Stripe test-mode manual checks.
+
+---
+
 ## Stripe (Church + Pro billing)
 
 Web-only Stripe Checkout and Customer Portal. Native apps do not show buy/manage UI in-app; church admins may open the system browser for billing. Church and Pro acquisition on native is **tour → email a web link**; web tours start Checkout. Church tenants are created only after payment, on `/church-setup`.
