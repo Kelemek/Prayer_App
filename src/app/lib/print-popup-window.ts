@@ -1,6 +1,6 @@
 /**
- * Auto-print runs inside the popup (required for Chrome/Edge after async content load).
- * Opener-only print() loses the user-gesture chain and is ignored.
+ * Chromium: auto-print must run inside the popup after async content load.
+ * Safari: inline scripts from opener document.write are unreliable — print from opener after focus.
  */
 export const PRINT_POPUP_AUTO_PRINT_SCRIPT = `<script>
 (function() {
@@ -21,7 +21,11 @@ export const PRINT_POPUP_AUTO_PRINT_SCRIPT = `<script>
   }
   function schedulePrint() {
     if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(afterLayout).catch(afterLayout);
+      var fallback = setTimeout(afterLayout, 600);
+      document.fonts.ready.then(function() {
+        clearTimeout(fallback);
+        afterLayout();
+      }).catch(afterLayout);
     } else {
       afterLayout();
     }
@@ -34,6 +38,10 @@ export const PRINT_POPUP_AUTO_PRINT_SCRIPT = `<script>
 })();
 </script>`;
 
+export function isLikelySafariBrowser(userAgent = navigator.userAgent): boolean {
+  return /safari/i.test(userAgent) && !/chrome|chromium|crios|fxios|edg/i.test(userAgent);
+}
+
 export function injectPrintDialogScript(html: string): string {
   if (html.includes('__prayerAppPrintScheduled')) {
     return html;
@@ -45,21 +53,7 @@ export function injectPrintDialogScript(html: string): string {
   return `${html}${PRINT_POPUP_AUTO_PRINT_SCRIPT}`;
 }
 
-/** Write HTML into a popup opened from a user gesture; print dialog runs in the popup. */
-export function writeHtmlToPopupAndPrint(targetWindow: Window, html: string): void {
-  const htmlWithPrint = injectPrintDialogScript(html);
-  targetWindow.document.open();
-  targetWindow.document.write(htmlWithPrint);
-  targetWindow.document.close();
-  try {
-    targetWindow.focus();
-  } catch {
-    // Popup may be blocked or closed.
-  }
-}
-
-/** @deprecated Prefer writeHtmlToPopupAndPrint — opener print() fails in Chromium after async. */
-export function schedulePrintOnWindow(targetWindow: Window): void {
+export function schedulePrintOnWindow(targetWindow: Window, delayMs = 200): void {
   const runPrint = (): void => {
     try {
       targetWindow.focus();
@@ -72,7 +66,7 @@ export function schedulePrintOnWindow(targetWindow: Window): void {
   const afterLayout = (): void => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        setTimeout(runPrint, 200);
+        setTimeout(runPrint, delayMs);
       });
     });
   };
@@ -85,5 +79,25 @@ export function schedulePrintOnWindow(targetWindow: Window): void {
     targetWindow.addEventListener('load', afterLayout, { once: true });
   } catch {
     afterLayout();
+  }
+}
+
+/** Write HTML into a popup opened from a user gesture; open the print dialog when ready. */
+export function writeHtmlToPopupAndPrint(targetWindow: Window, html: string): void {
+  const useOpenerPrint = isLikelySafariBrowser();
+  const htmlToWrite = useOpenerPrint ? html : injectPrintDialogScript(html);
+
+  targetWindow.document.open();
+  targetWindow.document.write(htmlToWrite);
+  targetWindow.document.close();
+
+  try {
+    targetWindow.focus();
+  } catch {
+    // Popup may be blocked or closed.
+  }
+
+  if (useOpenerPrint) {
+    schedulePrintOnWindow(targetWindow, 450);
   }
 }
