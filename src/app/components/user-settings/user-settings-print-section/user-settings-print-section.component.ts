@@ -7,23 +7,28 @@ import {
   SimpleChanges,
 } from '@angular/core';
 import { NgClass } from '@angular/common';
+import { ModalShellComponent } from '../../modal-shell/modal-shell.component';
 import { PrintService } from '../../../services/print.service';
 import { PrayerService } from '../../../services/prayer.service';
 import { SupabaseService } from '../../../services/supabase.service';
+import { TenantContextService } from '../../../services/tenant-context.service';
+import { uniquePrayerTypeNamesInOrder } from '../../../lib/prayer-type-names';
+import type { MemorizationPrintSheetStyle } from '../../../lib/print-memorization-cards';
 import { USER_SETTINGS_SECTION_HOST_STYLES } from '../user-settings-section-host';
 import {
+  SETTINGS_CHOICE_ACTION_ROW_CLASS,
   SETTINGS_CHOICE_DROPDOWN_SHELL_CLASS,
-  SETTINGS_CHOICE_SIDE_CHEVRON_BTN_CLASS,
   SETTINGS_CHOICE_SPLIT_TILE_BTN_CLASS,
   settingsChoiceNgClass,
 } from '../../../lib/settings-choice-ui';
 
 export type PrintRange = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
+export type PrintOptionsModal = 'prayers' | 'prompts' | 'personal' | 'verses';
 
 @Component({
   selector: 'app-user-settings-print-section',
   standalone: true,
-  imports: [NgClass],
+  imports: [NgClass, ModalShellComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './user-settings-print-section.component.html',
   styles: [...USER_SETTINGS_SECTION_HOST_STYLES],
@@ -31,22 +36,44 @@ export type PrintRange = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
 export class UserSettingsPrintSectionComponent implements OnChanges {
   readonly choiceShellClass = SETTINGS_CHOICE_DROPDOWN_SHELL_CLASS;
   readonly choiceSplitTileClass = SETTINGS_CHOICE_SPLIT_TILE_BTN_CLASS;
-  readonly choiceSideBtnClass = SETTINGS_CHOICE_SIDE_CHEVRON_BTN_CLASS;
   readonly choiceState = settingsChoiceNgClass;
+  readonly printModalActionBtnClass = `${SETTINGS_CHOICE_ACTION_ROW_CLASS} mt-4`;
+  /** Fixed height so label ↔ spinner does not resize print tiles. */
+  readonly printTileContentClass =
+    'grid h-5 w-full shrink-0 place-items-center sm:h-5';
+  readonly printTileSpinnerClass =
+    'h-[18px] w-[18px] text-gray-600 dark:text-gray-400 sm:h-5 sm:w-5 animate-spin';
 
   @Input() isOpen = false;
 
   isPrinting = false;
   isPrintingPrompts = false;
+  isPrintingMemorization = false;
   isPrintingPersonal = false;
   printRange: PrintRange = 'week';
-  showPrintDropdown = false;
-  showPromptTypesDropdown = false;
-  showPrintPersonalDropdown = false;
+  printOptionsModal: PrintOptionsModal | null = null;
   promptTypes: string[] = [];
   selectedPromptTypes: string[] = [];
   personalCategories: string[] = [];
   selectedPersonalCategories: string[] = [];
+  memorizationSheetStyle: MemorizationPrintSheetStyle = 'duplex';
+
+  readonly memorizationSheetStyleOptions: Array<{
+    value: MemorizationPrintSheetStyle;
+    label: string;
+    description: string;
+  }> = [
+    {
+      value: 'duplex',
+      label: 'Duplex',
+      description: 'Two-sided — print front, flip on the long edge, print back',
+    },
+    {
+      value: 'foldable',
+      label: 'Foldable',
+      description: 'One-sided — reference left, verse right; fold on the center line',
+    },
+  ];
 
   readonly printRangeOptions = [
     { value: 'week' as PrintRange, label: 'Last Week' },
@@ -60,19 +87,92 @@ export class UserSettingsPrintSectionComponent implements OnChanges {
     private printService: PrintService,
     private prayerService: PrayerService,
     private supabase: SupabaseService,
+    private tenantContext: TenantContextService,
     private cdr: ChangeDetectorRef
   ) {}
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['isOpen']?.currentValue === false) {
+      this.closePrintOptionsModal();
+    }
     if (changes['isOpen']?.currentValue === true) {
       void this.loadPromptTypes();
       void this.loadPersonalCategories();
     }
   }
 
+  get printOptionsModalTitle(): string {
+    switch (this.printOptionsModal) {
+      case 'prayers':
+        return 'Prayer print period';
+      case 'prompts':
+        return 'Prompt types';
+      case 'personal':
+        return 'Personal categories';
+      case 'verses':
+        return 'Verse card format';
+      default:
+        return '';
+    }
+  }
+
+  openPrintOptionsModal(mode: PrintOptionsModal): void {
+    this.printOptionsModal = mode;
+    this.cdr.markForCheck();
+  }
+
+  closePrintOptionsModal(): void {
+    if (!this.printOptionsModal) {
+      return;
+    }
+    this.printOptionsModal = null;
+    this.cdr.markForCheck();
+  }
+
   setPrintRange(range: PrintRange): void {
     this.printRange = range;
     this.cdr.markForCheck();
+  }
+
+  setMemorizationSheetStyle(style: MemorizationPrintSheetStyle): void {
+    this.memorizationSheetStyle = style;
+    this.cdr.markForCheck();
+  }
+
+  selectAllPromptTypes(): void {
+    this.selectedPromptTypes = [];
+    this.cdr.markForCheck();
+  }
+
+  selectAllPersonalCategories(): void {
+    this.selectedPersonalCategories = [];
+    this.cdr.markForCheck();
+  }
+
+  async printFromOptionsModal(): Promise<void> {
+    const mode = this.printOptionsModal;
+    if (!mode) {
+      return;
+    }
+    this.closePrintOptionsModal();
+    switch (mode) {
+      case 'prayers':
+        await this.handlePrint();
+        break;
+      case 'prompts':
+        await this.handlePrintPrompts();
+        break;
+      case 'personal':
+        await this.handlePrintPersonalPrayers();
+        break;
+      case 'verses':
+        await this.handlePrintMemorizationCards();
+        break;
+      default: {
+        const _exhaustive: never = mode;
+        break;
+      }
+    }
   }
 
   async handlePrint(): Promise<void> {
@@ -134,6 +234,34 @@ export class UserSettingsPrintSectionComponent implements OnChanges {
     }
   }
 
+  async handlePrintMemorizationCards(): Promise<void> {
+    this.isPrintingMemorization = true;
+    this.cdr.markForCheck();
+
+    const newWindow = this.isNativeApp() ? null : window.open('', '_blank');
+    if (newWindow) {
+      newWindow.document.open();
+      newWindow.document.write(
+        '<!DOCTYPE html><html><head><title>Preparing verse cards</title></head><body style="font-family:system-ui,sans-serif;padding:2rem">Preparing verse cards…</body></html>'
+      );
+      newWindow.document.close();
+      newWindow.focus();
+    }
+
+    try {
+      await this.printService.downloadPrintableMemorizationCards(
+        newWindow,
+        this.memorizationSheetStyle
+      );
+    } catch (error) {
+      console.error('Error printing memorization verse cards:', error);
+      newWindow?.close();
+    } finally {
+      this.isPrintingMemorization = false;
+      this.cdr.markForCheck();
+    }
+  }
+
   togglePromptType(type: string): void {
     const index = this.selectedPromptTypes.indexOf(type);
     if (index > -1) {
@@ -157,15 +285,23 @@ export class UserSettingsPrintSectionComponent implements OnChanges {
   }
 
   private async loadPromptTypes(): Promise<void> {
+    const tenantId = this.tenantContext.getActiveTenant()?.id;
+    if (!tenantId) {
+      this.promptTypes = [];
+      this.cdr.markForCheck();
+      return;
+    }
+
     try {
       const { data, error } = await this.supabase.client
         .from('prayer_types')
         .select('name, display_order')
+        .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .order('display_order', { ascending: true });
 
       if (!error && data) {
-        this.promptTypes = data.map((t) => t.name);
+        this.promptTypes = uniquePrayerTypeNamesInOrder(data);
         this.cdr.markForCheck();
       }
     } catch (err) {

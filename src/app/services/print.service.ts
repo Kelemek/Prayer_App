@@ -17,7 +17,16 @@ import {
   resolvePrintInfoPageUrl,
   tryFetchImageAsDataUrl,
 } from '../lib/print-info-footer';
+import { isBibleBooksMemorizationItem } from '../lib/memorization/bibleBooksMemorization';
+import {
+  buildMemorizationCardsPrintHtml,
+  type MemorizationPrintCard,
+  type MemorizationPrintSheetStyle,
+} from '../lib/print-memorization-cards';
 import { isPrintNativeApp, sharePrintHtmlOnNativeApp } from '../lib/print-native';
+import { writeHtmlToPopupAndPrint } from '../lib/print-popup-window';
+import { MemorizationService } from './memorization.service';
+import { ScriptureService } from './scripture.service';
 import { sortPromptsAlphabeticalByTitle } from '../lib/print-prompt-layout';
 import {
   getPrintEmptyRangeUserMessage,
@@ -58,7 +67,9 @@ export class PrintService {
     private tenantContext: TenantContextService,
     private brandingService: BrandingService,
     private emailNotificationService: EmailNotificationService,
-    private toast: ToastService
+    private toast: ToastService,
+    private memorizationService: MemorizationService,
+    private scriptureService: ScriptureService
   ) {}
 
   /**
@@ -896,6 +907,103 @@ export class PrintService {
       console.error('Error generating personal prayers list:', error);
       alert('Failed to generate personal prayers list. Please try again.');
       if (newWindow) newWindow.close();
+    }
+  }
+
+  /**
+   * Generate cut-out memorization verse cards (reference front, text back).
+   */
+  async downloadPrintableMemorizationCards(
+    newWindow: Window | null = null,
+    sheetStyle: MemorizationPrintSheetStyle = 'duplex'
+  ): Promise<void> {
+    try {
+      await this.memorizationService.loadItems();
+      const verseItems = this.memorizationService.items.filter(
+        (item) => !isBibleBooksMemorizationItem(item)
+      );
+
+      if (verseItems.length === 0) {
+        this.toast.info('Add verses on the Memorize tab first.');
+        if (newWindow) {
+          newWindow.close();
+        }
+        return;
+      }
+
+      const cards: MemorizationPrintCard[] = [];
+      for (const item of verseItems) {
+        let text = item.text?.trim() ?? '';
+        if (!text) {
+          try {
+            const passage = await this.scriptureService.getPassage(
+              item.reference,
+              item.translation
+            );
+            text = passage.text?.trim() ?? '';
+          } catch (error) {
+            console.error(
+              '[PrintService] Failed to load passage for memorization card:',
+              item.reference,
+              error
+            );
+          }
+        }
+        if (!text) {
+          continue;
+        }
+        cards.push({
+          reference: item.reference,
+          text,
+          translation: item.translation,
+        });
+      }
+
+      if (cards.length === 0) {
+        this.toast.info('Add verses on the Memorize tab first.');
+        if (newWindow) {
+          newWindow.close();
+        }
+        return;
+      }
+
+      const html = buildMemorizationCardsPrintHtml(cards, sheetStyle);
+
+      if (this.isNativeApp()) {
+        const today = new Date().toISOString().split('T')[0];
+        await this.shareOnNativeApp(
+          html,
+          `memorization-verse-cards-${today}.html`,
+          'Memorization verse cards'
+        );
+        return;
+      }
+
+      const targetWindow = newWindow || window.open('', '_blank');
+
+      if (!targetWindow) {
+        const blob = new Blob([html], { type: 'text/html' });
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        const today = new Date().toISOString().split('T')[0];
+        link.download = `memorization-verse-cards-${today}.html`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+        this.toast.info(
+          'Verse cards downloaded. Open the file to view and print.'
+        );
+      } else {
+        writeHtmlToPopupAndPrint(targetWindow, html);
+      }
+    } catch (error) {
+      console.error('Error generating memorization verse cards:', error);
+      this.toast.error('Failed to generate verse cards. Please try again.');
+      if (newWindow) {
+        newWindow.close();
+      }
     }
   }
 

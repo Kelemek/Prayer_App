@@ -8,16 +8,19 @@ describe('UserSettingsPrintSectionComponent', () => {
     downloadPrintablePrayerList: ReturnType<typeof vi.fn>;
     downloadPrintablePromptList: ReturnType<typeof vi.fn>;
     downloadPrintablePersonalPrayerList: ReturnType<typeof vi.fn>;
+    downloadPrintableMemorizationCards: ReturnType<typeof vi.fn>;
   };
   let mockPrayerService: { getUniqueCategoriesForUser: ReturnType<typeof vi.fn> };
   let mockSupabase: { client: { from: ReturnType<typeof vi.fn> } };
   let mockCdr: { markForCheck: ReturnType<typeof vi.fn> };
+  let mockTenantContext: { getActiveTenant: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     mockPrintService = {
       downloadPrintablePrayerList: vi.fn(() => Promise.resolve()),
       downloadPrintablePromptList: vi.fn(() => Promise.resolve()),
       downloadPrintablePersonalPrayerList: vi.fn(() => Promise.resolve()),
+      downloadPrintableMemorizationCards: vi.fn(() => Promise.resolve()),
     };
     mockPrayerService = {
       getUniqueCategoriesForUser: vi.fn(() => Promise.resolve(['Health'])),
@@ -27,23 +30,32 @@ describe('UserSettingsPrintSectionComponent', () => {
         from: vi.fn(() => ({
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
-              order: vi.fn(() =>
-                Promise.resolve({
-                  data: [{ name: 'Healing', display_order: 1 }],
-                  error: null,
-                })
-              ),
+              eq: vi.fn(() => ({
+                order: vi.fn(() =>
+                  Promise.resolve({
+                    data: [
+                      { name: 'Healing', display_order: 1 },
+                      { name: 'Healing', display_order: 2 },
+                    ],
+                    error: null,
+                  })
+                ),
+              })),
             })),
           })),
         })),
       },
     };
     mockCdr = { markForCheck: vi.fn() };
+    mockTenantContext = {
+      getActiveTenant: vi.fn(() => ({ id: 'tenant-1' })),
+    };
 
     component = new UserSettingsPrintSectionComponent(
       mockPrintService as any,
       mockPrayerService as any,
       mockSupabase as any,
+      mockTenantContext as any,
       mockCdr as unknown as ChangeDetectorRef
     );
   });
@@ -108,6 +120,65 @@ describe('UserSettingsPrintSectionComponent', () => {
       ['Family'],
       expect.anything()
     );
+  });
+
+  it('handlePrintMemorizationCards calls print service with sheet style', async () => {
+    component.memorizationSheetStyle = 'foldable';
+    await component.handlePrintMemorizationCards();
+    expect(mockPrintService.downloadPrintableMemorizationCards).toHaveBeenCalledWith(
+      expect.anything(),
+      'foldable'
+    );
+    expect(component.isPrintingMemorization).toBe(false);
+  });
+
+  it('printFromOptionsModal for verses closes modal and prints', async () => {
+    component.openPrintOptionsModal('verses');
+    component.memorizationSheetStyle = 'duplex';
+    await component.printFromOptionsModal();
+    expect(component.printOptionsModal).toBeNull();
+    expect(mockPrintService.downloadPrintableMemorizationCards).toHaveBeenCalledWith(
+      expect.anything(),
+      'duplex'
+    );
+  });
+
+  it('openPrintOptionsModal sets printOptionsModal', () => {
+    component.openPrintOptionsModal('prompts');
+    expect(component.printOptionsModal).toBe('prompts');
+    component.closePrintOptionsModal();
+    expect(component.printOptionsModal).toBeNull();
+  });
+
+  it('setPrintRange from modal keeps modal open', () => {
+    component.openPrintOptionsModal('prayers');
+    component.setPrintRange('month');
+    expect(component.printRange).toBe('month');
+    expect(component.printOptionsModal).toBe('prayers');
+  });
+
+  it('printFromOptionsModal closes modal and prints prayers', async () => {
+    component.openPrintOptionsModal('prayers');
+    component.printRange = 'year';
+    await component.printFromOptionsModal();
+    expect(component.printOptionsModal).toBeNull();
+    expect(mockPrintService.downloadPrintablePrayerList).toHaveBeenCalledWith(
+      'year',
+      expect.anything()
+    );
+  });
+
+  it('closes print options modal when settings section closes', () => {
+    component.openPrintOptionsModal('personal');
+    component.ngOnChanges({
+      isOpen: {
+        currentValue: false,
+        previousValue: true,
+        firstChange: false,
+        isFirstChange: () => false,
+      },
+    });
+    expect(component.printOptionsModal).toBeNull();
   });
 
   it('closes print window when prayer print fails', async () => {

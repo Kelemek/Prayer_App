@@ -344,6 +344,10 @@ const HELP_SECTIONS_IN_DISPLAY_ORDER = [
         text: 'You can also print prayer prompts to use in group settings or for personal study. Like prayers, you can print all prompts or just those of a specific type.',
       },
       {
+        subtitle: 'Memorization verse cards',
+        text: 'Use Print Verses to create cut-out cards from your Memorize list. Choose Duplex (two-sided, long-edge flip) or Foldable (single-sided: reference left, verse right, fold on the center line), then cut on the dashed lines.',
+      },
+      {
         subtitle: 'PDF Export',
         text: 'Modern browsers allow you to "Print to PDF" which creates a digital copy you can save and share.',
       },

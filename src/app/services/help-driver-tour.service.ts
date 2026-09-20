@@ -27,6 +27,7 @@ export const TOUR_SETTINGS_PRINT_ROW_ID = 'tour-settings-print-buttons';
 export const TOUR_SETTINGS_PRINT_PRAYERS_ID = 'tour-settings-print-prayers';
 export const TOUR_SETTINGS_PRINT_PROMPTS_ID = 'tour-settings-print-prompts';
 export const TOUR_SETTINGS_PRINT_PERSONAL_ID = 'tour-settings-print-personal';
+export const TOUR_SETTINGS_PRINT_MEMORIZATION_ID = 'tour-settings-print-memorization';
 export const TOUR_SETTINGS_EMAIL_SUBSCRIPTION_ID = 'tour-settings-email-subscription';
 export const TOUR_SETTINGS_PRAYER_REMINDERS_ID = 'tour-settings-prayer-reminders';
 export const TOUR_SETTINGS_PRAYER_REMINDER_CONTROLS_ID = 'tour-settings-prayer-reminder-controls';
@@ -1838,7 +1839,7 @@ export class HelpDriverTourService {
   }
 
   /**
-   * **Printing** (`help_printing`): Settings gear → print row → **Print Prayers** / **Print Prompts** / **Print Personal**,
+   * **Printing** (`help_printing`): Settings gear → print row → **Print Prayers** / **Prompts** / **Personal** / **Verses**,
    * then tips and close Settings.
    */
   startPrintingHelpSectionTour(
@@ -1878,6 +1879,8 @@ export class HelpDriverTourService {
       document.getElementById(TOUR_SETTINGS_PRINT_PROMPTS_ID) ?? row();
     const printPersonal = (): HTMLElement =>
       document.getElementById(TOUR_SETTINGS_PRINT_PERSONAL_ID) ?? row();
+    const printMemorization = (): HTMLElement =>
+      document.getElementById(TOUR_SETTINGS_PRINT_MEMORIZATION_ID) ?? row();
 
     const steps: DriveStep[] = [
       {
@@ -1895,7 +1898,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Print options',
           description:
-            'Three print actions. <strong>Prayers</strong> (community list), <strong>Prompts</strong>, and <strong>Personal</strong> sit in soft blue bordered cards. Each has a <strong>chevron</strong> to narrow what gets included (time range, prompt types, or personal categories).',
+            'Four print actions. <strong>Prayers</strong> (community list), <strong>Prompts</strong>, <strong>Personal</strong>, and <strong>Verses</strong> (memorization cut-out cards). Each opens a dialog to choose options (verse format: duplex or foldable), then print.',
           side: 'bottom',
           align: 'center',
         },
@@ -1905,7 +1908,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Print Prayers',
           description:
-            'Prints <strong>community prayers</strong> to match what you see on the home list—your <strong>filter</strong> (Current, Answered, Total, …) and <strong>search</strong> apply. Use the <strong>chevron</strong> on the right to choose how far back in time to include.',
+            'Opens a dialog to pick how far back in time to include, then tap <strong>Print Prayers</strong>. Community <strong>filter</strong> and <strong>search</strong> on Home still apply.',
           side: 'bottom',
           align: 'start',
         },
@@ -1915,7 +1918,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Print Prompts',
           description:
-            'Print prayer <strong>prompts</strong> for groups or study. The chevron lets you print <strong>all types</strong> or pick specific categories.',
+            'Opens a dialog to print <strong>all types</strong> or pick specific prompt categories, then tap <strong>Print Prompts</strong>.',
           side: 'bottom',
           align: 'start',
         },
@@ -1925,7 +1928,17 @@ export class HelpDriverTourService {
         popover: {
           title: 'Print Personal',
           description:
-            'Print your <strong>private</strong> personal prayers as they appear when you use the Personal filter. The chevron limits output to selected <strong>categories</strong> or all.',
+            'Opens a dialog to limit output to selected <strong>categories</strong> or all, then tap <strong>Print Personal</strong>.',
+          side: 'bottom',
+          align: 'start',
+        },
+      },
+      {
+        element: () => printMemorization(),
+        popover: {
+          title: 'Print Verses',
+          description:
+            'Print <strong>memorization verse cards</strong> from your Memorize list—reference on the front and passage on the back. Duplex on the long edge, then cut on the dashed lines.',
           side: 'bottom',
           align: 'start',
         },
@@ -2348,7 +2361,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Print',
           description:
-            '<strong>Print Prayers</strong>, <strong>Print Prompts</strong>, and <strong>Print Personal</strong>—each with a <strong>chevron</strong> to limit time range, prompt types, or categories. Filters and search on Home apply to community prints.',
+            '<strong>Print Prayers</strong>, <strong>Print Prompts</strong>, <strong>Print Personal</strong>, and <strong>Print Verses</strong> (memorization cards). Each opens a dialog for options, then print; filters and search on Home apply to community prints.',
           side: 'bottom',
           align: 'center',
         },

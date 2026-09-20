@@ -35,6 +35,23 @@ const mockToastService = {
   error: vi.fn(),
 };
 
+const mockMemorizationService = {
+  loadItems: vi.fn(() => Promise.resolve()),
+  items: [] as Array<{
+    id: string;
+    reference: string;
+    text: string;
+    translation: string;
+    kind?: string;
+  }>,
+};
+
+const mockScriptureService = {
+  getPassage: vi.fn(() =>
+    Promise.resolve({ reference: 'John 3:16', text: 'For God so loved', translation: 'esv' })
+  ),
+};
+
 function createPrintService(
   supabase: SupabaseService,
   prayerService: PrayerService
@@ -45,7 +62,9 @@ function createPrintService(
     mockTenantContext as never,
     mockBrandingService as never,
     mockEmailNotificationService as never,
-    mockToastService as never
+    mockToastService as never,
+    mockMemorizationService as never,
+    mockScriptureService as never
   );
 }
 
@@ -3006,5 +3025,85 @@ describe('PrintService - Advanced Coverage Tests', () => {
     });
   });
 
+  describe('downloadPrintableMemorizationCards', () => {
+    let memorizationPrintService: PrintService;
 
+    beforeEach(() => {
+      mockMemorizationService.items = [];
+      mockMemorizationService.loadItems.mockResolvedValue(undefined);
+      mockToastService.info.mockClear();
+      memorizationPrintService = createPrintService(
+        { client: { from: vi.fn() } } as unknown as SupabaseService,
+        { getPersonalPrayers: vi.fn() } as unknown as PrayerService
+      );
+      global.window.open = vi.fn(() => ({
+        document: {
+          open: vi.fn(),
+          write: vi.fn(),
+          close: vi.fn(),
+        },
+        focus: vi.fn(),
+      })) as typeof window.open;
+    });
+
+    it('toasts and closes window when there are no verse items', async () => {
+      const close = vi.fn();
+      const newWindow = { close } as unknown as Window;
+
+      await memorizationPrintService.downloadPrintableMemorizationCards(newWindow);
+
+      expect(mockToastService.info).toHaveBeenCalledWith(
+        'Add verses on the Memorize tab first.'
+      );
+      expect(close).toHaveBeenCalled();
+    });
+
+    it('writes HTML when verses are available', async () => {
+      mockMemorizationService.items = [
+        {
+          id: '1',
+          reference: 'John 3:16',
+          text: 'For God so loved the world',
+          translation: 'esv',
+        },
+      ];
+      const mockWindow = {
+        document: {
+          open: vi.fn(),
+          write: vi.fn(),
+          close: vi.fn(),
+        },
+        focus: vi.fn(),
+      };
+      (global.window.open as any).mockReturnValue(mockWindow);
+
+      await memorizationPrintService.downloadPrintableMemorizationCards(
+        mockWindow as unknown as Window
+      );
+
+      expect(mockWindow.document.write).toHaveBeenCalled();
+      const html = mockWindow.document.write.mock.calls[0][0] as string;
+      expect(html).toContain('John 3:16');
+      expect(html).toContain('For God so loved the world');
+    });
+
+    it('skips bible books items', async () => {
+      mockMemorizationService.items = [
+        {
+          id: 'bb',
+          reference: 'Bible Books (OT)',
+          text: 'Genesis Exodus',
+          translation: 'esv',
+          kind: 'bibleBooks',
+          bibleBooksScope: 'ot',
+        } as never,
+      ];
+
+      await memorizationPrintService.downloadPrintableMemorizationCards(null);
+
+      expect(mockToastService.info).toHaveBeenCalledWith(
+        'Add verses on the Memorize tab first.'
+      );
+    });
+  });
 });
