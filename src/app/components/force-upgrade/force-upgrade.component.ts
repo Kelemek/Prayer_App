@@ -7,7 +7,9 @@ import {
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { capturePostHogEvent } from '../../../lib/posthog';
+import { isCapacitorBundledBootOrigin } from '../../../lib/capacitor-live-boot';
 import {
+  forceUpgradeBodyForDecision,
   storeUrlForPlatform,
   type ClientVersionGateDecision,
 } from '../../../lib/client-version-gate';
@@ -30,8 +32,7 @@ import { ClientVersionGateService } from '../../services/client-version-gate.ser
           Update required
         </h1>
         <p class="mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-          This version of Prayer App is no longer supported. Please update
-          from the App Store or Google Play to keep using the app.
+          {{ bodyText }}
         </p>
         <button
           type="button"
@@ -39,7 +40,7 @@ import { ClientVersionGateService } from '../../services/client-version-gate.ser
           data-testid="force-upgrade-cta"
           (click)="onPrimaryAction()"
         >
-          {{ isNative ? 'Update the app' : 'Refresh this page' }}
+          {{ ctaLabel }}
         </button>
       </div>
     </main>
@@ -48,11 +49,19 @@ import { ClientVersionGateService } from '../../services/client-version-gate.ser
 export class ForceUpgradeComponent implements OnInit {
   private readonly gate = inject(ClientVersionGateService);
   readonly decision: ClientVersionGateDecision = this.gate.getDecision();
-  readonly isNative = this.decision.surface === 'native';
+  readonly bodyText = forceUpgradeBodyForDecision(this.decision, {
+    onBundledCapacitorOrigin: isCapacitorBundledBootOrigin(
+      window.location.origin,
+      window.location.hostname
+    ),
+  });
+  readonly ctaLabel =
+    this.decision.upgradeKind === 'store' ? 'Update the app' : 'Refresh this page';
 
   ngOnInit(): void {
     capturePostHogEvent('client_upgrade_required', {
       surface: this.decision.surface,
+      upgrade_kind: this.decision.upgradeKind,
       platform: Capacitor.getPlatform(),
       client_version: this.decision.clientVersion,
       min_version: this.decision.minVersion,
@@ -60,7 +69,7 @@ export class ForceUpgradeComponent implements OnInit {
   }
 
   async onPrimaryAction(): Promise<void> {
-    if (this.isNative) {
+    if (this.decision.upgradeKind === 'store') {
       const url = storeUrlForPlatform(Capacitor.getPlatform());
       await Browser.open({ url });
       return;

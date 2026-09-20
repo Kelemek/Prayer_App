@@ -11,18 +11,23 @@
 
 ## Next Steps
 
-### 1. Build and Sync (Do this whenever you change code)
+### 1. Web deploy vs native sync (hybrid shell)
+
+**Most UI changes:** deploy to Vercel (`https://prayerapp.romans8.net`). Online native users load the live site automatically — no Xcode/Android rebuild.
+
+**Offline fallback:** the store binary still contains a snapshot from the last `npm run cap:sync:prod` (bundled `webDir`). Refresh it when cutting a store release or when offline users must not lag too far behind.
+
+**Native rebuild required for:** Capacitor plugins, icons/splash, permissions, `allowNavigation`, and refreshing the offline bundle (`cap:sync:prod`).
 
 ```bash
-# Build Angular app
-npm run build
+# Refresh offline bundle + copy config into ios/android (store builds)
+npm run cap:sync:prod
 
-# Sync to iOS and Android
-npx cap sync
-
-# Or combine both:
-npm run build && npx cap sync
+# Config/plugins only (no Angular rebuild)
+npm run cap:dev
 ```
+
+**Device live-reload (optional):** copy `.env.capacitor.example` → `.env.capacitor`, set `CAPACITOR_SERVER_URL` to your `ng serve` URL, run `npm run start:lan`, then `npm run cap:dev` once and run from Xcode/Android Studio.
 
 ### 2. Test on iOS (Xcode)
 
@@ -67,16 +72,12 @@ Then:
 ## Development Workflow
 
 ```bash
-# 1. Make changes to your Angular code
-# 2. Build and sync
-npm run build && npx cap sync
-
-# 3. Open IDE
+# 1. Change Angular code
+# 2. Verify in browser: npm start (or deploy to Vercel for native online testing)
+# 3. When you need a newer offline snapshot or native project updates:
+npm run cap:sync:prod
+# 4. Open IDE and run (Play)
 npx cap open ios   # or npx cap open android
-
-# 4. Build and run from IDE (Play button)
-
-# 5. View logs and test features
 ```
 
 ## Key Files
@@ -118,7 +119,7 @@ Right now, push notifications require backend setup. For testing:
 
 **"Could not find the web assets directory"**
 ```bash
-npm run build && npx cap sync
+npm run cap:sync:prod
 ```
 
 **Build fails in Xcode**
@@ -136,18 +137,12 @@ npm run build && npx cap sync
 - Look at service logs (Xcode/Android Studio)
 - Verify `CapacitorService` initialized (see logs)
 
-## What Happens When You Build
+## What Happens When You Launch Native
 
-1. **npm run build** - Compiles Angular to `dist/prayerapp/browser/`
-2. **npx cap sync** - Copies web files to native apps:
-   - iOS: `ios/App/App/public/`
-   - Android: `android/app/src/main/assets/public/`
-3. **Native build** - Xcode/Android Studio wraps the web app in a native shell
-4. **Result** - Your Angular app runs as a real native app with access to:
-   - Push notifications
-   - Device camera, contacts, files
-   - Local storage (preserved)
-   - All Supabase queries work the same
+1. **Cold start** loads bundled assets from `dist/prayerapp/browser/` (offline-capable UI snapshot).
+2. **If online**, the app probes `https://prayerapp.romans8.net` and navigates there so users get the latest Vercel deploy.
+3. **Capacitor plugins** (push, badge, print, browser) work on both bundled and live origins when `allowNavigation` includes the production host.
+4. **Supabase** still requires network for live data either way.
 
 ## Next: Add Backend for Notifications
 

@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { APP_BUNDLE_VERSION } from '../../lib/app-analytics-context';
 import {
@@ -15,6 +16,7 @@ import { SupabaseService } from './supabase.service';
 export class ClientVersionGateService {
   private decision: ClientVersionGateDecision = {
     blocked: false,
+    upgradeKind: null,
     surface: null,
     clientVersion: APP_BUNDLE_VERSION,
     minVersion: null,
@@ -53,11 +55,25 @@ export class ClientVersionGateService {
     if (options?.previewBlocked) {
       this.decision = {
         blocked: true,
+        upgradeKind: 'refresh',
         surface,
         clientVersion: APP_BUNDLE_VERSION,
         minVersion: 'preview',
       };
       return;
+    }
+
+    let nativeBinaryVersion: string | null = null;
+    if (surface === 'native') {
+      try {
+        const info = await App.getInfo();
+        nativeBinaryVersion = info.version?.trim() || null;
+      } catch (error) {
+        console.warn(
+          '[ClientVersionGate] Failed to read native app version (fail-open):',
+          error
+        );
+      }
     }
 
     try {
@@ -75,7 +91,8 @@ export class ClientVersionGateService {
       this.decision = evaluateClientVersionGate(
         surface,
         APP_BUNDLE_VERSION,
-        normalizeMinVersionsRow(data)
+        normalizeMinVersionsRow(data),
+        nativeBinaryVersion
       );
     } catch (error) {
       console.warn(

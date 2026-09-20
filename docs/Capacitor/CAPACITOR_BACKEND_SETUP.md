@@ -228,7 +228,7 @@ Do **not** submit until the public marketing name is ready. Checklist and App Re
   - Remove tokens from uninstalled apps
 
 - [ ] **Update when needed**
-  - Changes to Angular code: `npm run build && npx cap sync`
+  - Most Angular changes: deploy to Vercel (online native picks up live site). Offline bundle: `npm run cap:sync:prod`
   - Changes to native code (iOS/Android): rebuild in Xcode/Android Studio
   - Changes to Edge Function: `supabase functions deploy send-push-notification`
 
@@ -253,7 +253,7 @@ Do **not** submit until the public marketing name is ready. Checklist and App Re
 - [ ] Check for "[Capacitor] Push registration error" in Xcode console—this indicates why native registration failed.
 - [ ] Check for "Push token received" in logs (token arrives asynchronously after register()).
 - [ ] Check database: `SELECT * FROM device_tokens;`
-- [ ] Rebuild: `npm run build && npx cap sync`
+- [ ] Refresh offline bundle when needed: `npm run cap:sync:prod`
 
 **"The registration token is not a valid FCM registration token" (iOS)**
 - [ ] On **iOS**, Capacitor gives an **APNs device token**, not an FCM token. The Edge Function sends iOS via **APNs**, not FCM. Set the **APNs secrets** (Phase 4): `APNS_KEY_P8`, `APNS_KEY_ID`, `APNS_TEAM_ID`, and optionally `APNS_BUNDLE_ID`, `APNS_USE_SANDBOX`. Then redeploy: `supabase functions deploy send-push-notification`.

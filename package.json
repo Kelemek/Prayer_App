@@ -5,6 +5,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "start:lan": "ng serve --host 0.0.0.0",
     "build": "node scripts/write-prod-environment.mjs && ng build",
     "build:dev": "ng build --configuration development",
     "build:prod": "node scripts/write-prod-environment.mjs && ng build --configuration production",
@@ -16,9 +17,10 @@
     "cap:icons": "cp public/apple-touch-icon.png resources/logo.png && npx @capacitor/assets generate --iconBackgroundColor '#1a365d' --iconBackgroundColorDark '#1a365d' --splashBackgroundColor '#1a365d' --splashBackgroundColorDark '#1a365d' && cp icons/icon-*.webp public/icons/",
     "cap:icons:generate": "npx @capacitor/assets generate --iconBackgroundColor '#1a365d' --iconBackgroundColorDark '#1a365d' --splashBackgroundColor '#1a365d' --splashBackgroundColorDark '#1a365d'",
     "cap:sync": "npx cap sync",
+    "cap:sync:prod": "npm run build:prod && npx cap sync",
     "cap:open": "npx cap open ios",
-    "cap:dev": "ng build --configuration development && npx cap sync",
-    "cap:prod": "ng build --configuration production && npx cap sync",
+    "cap:dev": "npx cap sync",
+    "cap:prod": "npm run cap:sync:prod",
     "resize-app-store-screenshots": "node scripts/resize-app-store-screenshots.js"
   },
   "dependencies": {
@@ -34,6 +36,7 @@
     "@angular/router": "^22.1.7",
     "@angular/service-worker": "^22.1.7",
     "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
     "@capacitor/browser": "^8.0.4",
     "@capacitor/cli": "^8.5.2",
     "@capacitor/core": "^8.5.2",

@@ -34,28 +34,26 @@ The main configuration file that connects your Angular build to the native platf
 
 ```typescript
 const config: CapacitorConfig = {
-  appId: 'com.churchprayer.app',      // Unique app identifier (not Cross Pointe)
-  appName: 'Prayer App',              // Display name
-  webDir: 'dist/prayerapp/browser'   // Where built Angular assets are located
+  appId: 'com.churchprayer.app',
+  appName: 'Prayer App',
+  webDir: 'dist/prayerapp/browser', // Offline fallback snapshot
+  server: {
+    iosScheme: 'https',
+    allowNavigation: ['prayerapp.romans8.net', '*.romans8.net', ...],
+    // Optional dev-only: url from .env.capacitor CAPACITOR_SERVER_URL
+  },
 };
 ```
+
+At runtime, native boots from `webDir`, then redirects to `https://prayerapp.romans8.net` when reachable (`src/lib/capacitor-live-boot.ts`).
 
 ## Development Workflow
 
 ### 1. Building and Syncing
 
-After making changes to your Angular code:
-
-```bash
-# Build Angular app
-npm run build
-
-# Sync to native platforms
-npx cap sync
-
-# Or do both at once
-npm run build && npx cap sync
-```
+- **Website / online native:** deploy Angular to Vercel — no `cap sync` required.
+- **Offline bundle in the store binary:** `npm run cap:sync:prod` (`build:prod` + `npx cap sync`).
+- **Local device live-reload:** `.env.capacitor` + `npm run start:lan` + `npm run cap:dev`.
 
 ### 2. iOS Development (Xcode)
 
@@ -353,7 +351,7 @@ npx cap build android
 ### Build Errors
 
 **"Could not find the web assets directory"**
-- Run: `npm run build && npx cap sync`
+- Run: `npm run cap:sync:prod`
 
 **Xcode build fails**
 - Clean build: Xcode → Product → Clean Build Folder
@@ -375,7 +373,7 @@ npx cap build android
 1. On iOS/Android, localStorage is persisted to device storage
 2. If clearing app data in settings, localStorage is cleared
 3. Check `capacitor.config.ts` is correct
-4. Rebuild: `npm run build && npx cap sync`
+4. Refresh bundle: `npm run cap:sync:prod`
 
 ## Next Steps
 

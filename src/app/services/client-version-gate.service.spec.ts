@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
 import { ClientVersionGateService } from './client-version-gate.service';
 import { APP_BUNDLE_VERSION } from '../../lib/app-analytics-context';
 
@@ -10,6 +11,12 @@ vi.mock('@capacitor/core', () => ({
   },
 }));
 
+vi.mock('@capacitor/app', () => ({
+  App: {
+    getInfo: vi.fn(),
+  },
+}));
+
 describe('ClientVersionGateService', () => {
   let rpcMock: ReturnType<typeof vi.fn>;
 
@@ -17,6 +24,7 @@ describe('ClientVersionGateService', () => {
     rpcMock = vi.fn();
     vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
+    vi.mocked(App.getInfo).mockResolvedValue({ version: '1.12' } as never);
   });
 
   afterEach(() => {
@@ -49,23 +57,30 @@ describe('ClientVersionGateService', () => {
     await service.initialize();
     expect(service.isBlocked()).toBe(true);
     expect(service.getDecision()).toMatchObject({
+      upgradeKind: 'refresh',
       surface: 'web',
       clientVersion: APP_BUNDLE_VERSION,
       minVersion: '99.0',
     });
   });
 
-  it('blocks native against min_native_version', async () => {
+  it('blocks native store when binary is below min_native_version', async () => {
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(App.getInfo).mockResolvedValue({ version: '1.0' } as never);
     rpcMock.mockResolvedValue({
-      data: [{ min_web_build: null, min_native_version: '99.0' }],
+      data: [{ min_web_build: null, min_native_version: '2.0' }],
       error: null,
     });
     const service = createService();
     await service.initialize();
     expect(service.isBlocked()).toBe(true);
-    expect(service.getDecision().surface).toBe('native');
+    expect(service.getDecision()).toMatchObject({
+      upgradeKind: 'store',
+      surface: 'native',
+      clientVersion: '1.0',
+      minVersion: '2.0',
+    });
   });
 
   it('fails open when the RPC errors', async () => {
@@ -82,6 +97,7 @@ describe('ClientVersionGateService', () => {
     const service = createService();
     await service.initialize({ previewBlocked: true });
     expect(service.isBlocked()).toBe(true);
+    expect(service.getDecision().upgradeKind).toBe('refresh');
     expect(rpcMock).not.toHaveBeenCalled();
   });
 });

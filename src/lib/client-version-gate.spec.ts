@@ -3,10 +3,13 @@ import { APP_BUNDLE_VERSION } from './app-analytics-context';
 import {
   ANDROID_PLAY_STORE_URL,
   CLIENT_UPGRADE_AUTO_RELOAD_KEY,
+  FORCE_UPGRADE_OFFLINE_REFRESH_BODY,
+  FORCE_UPGRADE_REFRESH_BODY,
   IOS_APP_STORE_URL,
   clientSurfaceFromPlatform,
   compareClientVersions,
   evaluateClientVersionGate,
+  forceUpgradeBodyForDecision,
   isClientBelowMin,
   maybeAutoReloadWebOnce,
   normalizeMinVersionsRow,
@@ -46,20 +49,42 @@ describe('client-version-gate', () => {
   });
 
   describe('evaluateClientVersionGate', () => {
-    it('uses min_web_build on web and min_native_version on native', () => {
+    it('uses min_web_build for refresh on web and native', () => {
       const mins = { min_web_build: '2.0', min_native_version: '3.0' };
       expect(evaluateClientVersionGate('web', '1.0', mins)).toEqual({
         blocked: true,
+        upgradeKind: 'refresh',
         surface: 'web',
         clientVersion: '1.0',
         minVersion: '2.0',
       });
-      expect(evaluateClientVersionGate('native', '1.0', mins).surface).toBe(
-        'native'
-      );
-      expect(evaluateClientVersionGate('native', '3.0', mins).blocked).toBe(
-        false
-      );
+      expect(evaluateClientVersionGate('native', '1.0', mins)).toMatchObject({
+        blocked: true,
+        upgradeKind: 'refresh',
+        surface: 'native',
+      });
+    });
+
+    it('blocks native binary below min_native_version with store upgrade', () => {
+      const mins = { min_web_build: null, min_native_version: '2.0' };
+      expect(
+        evaluateClientVersionGate('native', '1.0', mins, '1.12')
+      ).toMatchObject({
+        blocked: true,
+        upgradeKind: 'store',
+        clientVersion: '1.12',
+        minVersion: '2.0',
+      });
+    });
+
+    it('prefers store block when both binary and JS are below floor', () => {
+      const mins = { min_web_build: '9.0', min_native_version: '2.0' };
+      expect(
+        evaluateClientVersionGate('native', '1.0', mins, '1.0')
+      ).toMatchObject({
+        blocked: true,
+        upgradeKind: 'store',
+      });
     });
 
     it('leaves current clients through when mins are unset', () => {
@@ -70,13 +95,43 @@ describe('client-version-gate', () => {
         }).blocked
       ).toBe(false);
       expect(
-        evaluateClientVersionGate('native', APP_BUNDLE_VERSION, null).blocked
+        evaluateClientVersionGate('native', APP_BUNDLE_VERSION, null, '1.15')
+          .blocked
       ).toBe(false);
     });
   });
 
+  describe('forceUpgradeBodyForDecision', () => {
+    it('uses offline copy on bundled Capacitor origin for refresh blocks', () => {
+      expect(
+        forceUpgradeBodyForDecision(
+          {
+            blocked: true,
+            upgradeKind: 'refresh',
+            surface: 'native',
+            clientVersion: '1.0',
+            minVersion: '2.0',
+          },
+          { onBundledCapacitorOrigin: true }
+        )
+      ).toBe(FORCE_UPGRADE_OFFLINE_REFRESH_BODY);
+      expect(
+        forceUpgradeBodyForDecision(
+          {
+            blocked: true,
+            upgradeKind: 'refresh',
+            surface: 'web',
+            clientVersion: '1.0',
+            minVersion: '2.0',
+          },
+          { onBundledCapacitorOrigin: false }
+        )
+      ).toBe(FORCE_UPGRADE_REFRESH_BODY);
+    });
+  });
+
   describe('maybeAutoReloadWebOnce', () => {
-    it('reloads a blocked web client once per storage', () => {
+    it('reloads a blocked refresh client once per storage', () => {
       const reload = vi.fn();
       const storage = new Map<string, string>();
       const store = {
@@ -89,7 +144,7 @@ describe('client-version-gate', () => {
       expect(
         maybeAutoReloadWebOnce({
           blocked: true,
-          surface: 'web',
+          upgradeKind: 'refresh',
           reload,
           storage: store,
         })
@@ -100,7 +155,7 @@ describe('client-version-gate', () => {
       expect(
         maybeAutoReloadWebOnce({
           blocked: true,
-          surface: 'web',
+          upgradeKind: 'refresh',
           reload,
           storage: store,
         })
@@ -108,12 +163,12 @@ describe('client-version-gate', () => {
       expect(reload).toHaveBeenCalledTimes(1);
     });
 
-    it('does not auto-reload native clients', () => {
+    it('does not auto-reload store upgrade blocks', () => {
       const reload = vi.fn();
       expect(
         maybeAutoReloadWebOnce({
           blocked: true,
-          surface: 'native',
+          upgradeKind: 'store',
           reload,
         })
       ).toBe(false);

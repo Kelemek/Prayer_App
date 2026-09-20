@@ -8,29 +8,30 @@ Platform singleton `admin_settings` (`id = 1`):
 
 | Column | Compared to | Typical value |
 | --- | --- | --- |
-| `min_web_build` | Web JS `APP_BUNDLE_VERSION` (`src/lib/app-analytics-context.ts`) | semver or build, e.g. `1.1` |
-| `min_native_version` | Same bundled `APP_BUNDLE_VERSION` on Capacitor `com.churchprayer.app` | semver or build, e.g. `1.1` |
+| `min_web_build` | Web JS `APP_BUNDLE_VERSION` (`src/lib/app-analytics-context.ts`) on **browser and native WebView** | semver or build, e.g. `1.1` |
+| `min_native_version` | **Store binary** version from `@capacitor/app` `App.getInfo().version` (iOS `MARKETING_VERSION` / Android `versionName`) | e.g. `1.12` |
 
 Clients read **`get_public_client_min_versions()`** (anon + authenticated). `NULL` or blank means **no floor** — current users stay in the app. Fetch errors fail open.
 
 ## How to bump the floor
 
-1. Ship the breaking web/native build with `APP_BUNDLE_VERSION` **raised** in that same release (so new clients pass the gate).
-2. After that build is live, set only the surface that broke:
+1. Ship the breaking web/native build with `APP_BUNDLE_VERSION` **raised** in that same release (so new JS clients pass the JS gate).
+2. For a breaking **native plugin or shell** change, ship a new store binary and raise `min_native_version` to match `App.getInfo().version`.
+3. After that build is live, set only the surface that broke:
 
 ```sql
--- Web-only breaking change
+-- Web/JS breaking change (browser + native when on live site or bundled fallback)
 update public.admin_settings
 set min_web_build = '1.1', updated_at = now()
 where id = 1;
 
--- Native-only breaking change (store build that includes the new JS)
+-- Store binary breaking change (plugins, Capacitor config users cannot get via web deploy)
 update public.admin_settings
-set min_native_version = '1.1', updated_at = now()
+set min_native_version = '1.12', updated_at = now()
 where id = 1;
 ```
 
-3. To roll back a mistaken floor:
+4. To roll back a mistaken floor:
 
 ```sql
 update public.admin_settings
@@ -42,10 +43,10 @@ Super-admins can also `update public.admin_settings` through the SQL editor. The
 
 ## What users see
 
-- **Web:** full-screen **Update required** with the same body as native and one **Refresh this page** button (`window.location.reload()`). The boot path may auto-reload a stale web shell once per tab via `maybeAutoReloadWebOnce`. There is no Hard refresh or service-worker unregister control.
-- **Native:** same title and body with **Update the app**, which opens the App Store search or Play listing for `com.churchprayer.app`. No dismiss or "remind me later".
+- **JS floor (`min_web_build`):** **Update required** with **Refresh this page**. Boot may auto-reload once per tab/session via `maybeAutoReloadWebOnce`. On native **bundled** origin while offline, copy asks the user to connect before refreshing.
+- **Binary floor (`min_native_version`):** **Update required** with **Update the app** (App Store / Play). Takes precedence when both floors would block.
 
-PostHog event (when capture is allowed): `client_upgrade_required` with `surface`, `platform`, `client_version`, `min_version`.
+PostHog event (when capture is allowed): `client_upgrade_required` with `surface`, `upgrade_kind`, `platform`, `client_version`, `min_version`.
 
 ## Local verify
 

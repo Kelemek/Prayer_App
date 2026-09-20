@@ -17,9 +17,10 @@ import { BRANDING_SERVICE_TOKEN } from "./app/components/app-logo/app-logo.compo
 import { providePostHogErrorHandler } from "./app/posthog-error-handler";
 import { environment } from "./environments/environment";
 import {
-  clientSurfaceFromPlatform,
-  maybeAutoReloadWebOnce,
-} from "./lib/client-version-gate";
+  CAPACITOR_LIVE_ORIGIN,
+  maybeRedirectNativeToLiveSite,
+} from "./lib/capacitor-live-boot";
+import { maybeAutoReloadWebOnce } from "./lib/client-version-gate";
 
 // Add a global visibility check to ensure content stays visible during background refresh
 const setupVisibilityRecovery = () => {
@@ -57,130 +58,134 @@ const setupVisibilityRecovery = () => {
 
 setupVisibilityRecovery();
 
-bootstrapApplication(AppComponent, {
-  providers: [
-    providePostHogErrorHandler(),
-    provideRouter(
-      routes,
-      withInMemoryScrolling({ scrollPositionRestoration: "top" })
-    ),
-    provideHttpClient(withXhr()),
-    provideAnimations(),
-    provideServiceWorker("ngsw-worker.js", {
-      enabled: !isDevMode(),
-      registrationStrategy: "registerWhenStable:30000",
-    }),
-    BrandingService,
-    { provide: BRANDING_SERVICE_TOKEN, useExisting: BrandingService },
-    {
-      provide: IMAGE_CONFIG,
-      useValue: {
-        disableImageSizeWarning: true,
-        disableImageLazyLoadWarning: true,
-      },
-    },
-    {
-      provide: APP_INITIALIZER,
-      useFactory: (clientVersionGate: ClientVersionGateService) => {
-        return async () => {
-          try {
-            const previewBlocked =
-              !environment.production &&
-              new URLSearchParams(window.location.search).get(
-                "force_upgrade"
-              ) === "1";
-            await clientVersionGate.initialize({ previewBlocked });
-            const decision = clientVersionGate.getDecision();
-            maybeAutoReloadWebOnce({
-              blocked: decision.blocked,
-              surface: clientSurfaceFromPlatform(Capacitor.getPlatform()),
-              reload: () => window.location.reload(),
-            });
-          } catch (error) {
-            console.warn(
-              "[AppInitialization] Client version gate failed (fail-open):",
-              error
-            );
-          }
-        };
-      },
-      deps: [ClientVersionGateService],
-      multi: true,
-    },
-    {
-      provide: APP_INITIALIZER,
-      useFactory: (brandingService: BrandingService) => {
-        return async () => {
-          try {
-            console.log(
-              "[AppInitialization] Initializing BrandingService to load logos before rendering"
-            );
-            await brandingService.initialize();
-            console.log(
-              "[AppInitialization] BrandingService initialization complete"
-            );
-          } catch (error) {
-            console.error(
-              "[AppInitialization] BrandingService initialization failed:",
-              error
-            );
-            // Continue initialization even if branding fails
-          }
-        };
-      },
-      deps: [BrandingService],
-      multi: true,
-    },
-    {
-      provide: APP_INITIALIZER,
-      useFactory: (adminAuthService: AdminAuthService) => {
-        return () => {
-          console.log(
-            "[AppInitialization] Initializing AdminAuthService for session restoration"
-          );
-          // Wait for the loading state to complete (loading goes from true -> false)
-          return new Promise((resolve) => {
-            let resolved = false;
+const serviceWorkerEnabled =
+  !isDevMode() && !Capacitor.isNativePlatform();
 
-            // Subscribe to loading state
-            const subscription = adminAuthService.loading$.subscribe(
-              (isLoading) => {
-                // Once loading completes (becomes false), resolve
-                if (!isLoading && !resolved) {
+function startApp(): void {
+  bootstrapApplication(AppComponent, {
+    providers: [
+      providePostHogErrorHandler(),
+      provideRouter(
+        routes,
+        withInMemoryScrolling({ scrollPositionRestoration: "top" })
+      ),
+      provideHttpClient(withXhr()),
+      provideAnimations(),
+      provideServiceWorker("ngsw-worker.js", {
+        enabled: serviceWorkerEnabled,
+        registrationStrategy: "registerWhenStable:30000",
+      }),
+      BrandingService,
+      { provide: BRANDING_SERVICE_TOKEN, useExisting: BrandingService },
+      {
+        provide: IMAGE_CONFIG,
+        useValue: {
+          disableImageSizeWarning: true,
+          disableImageLazyLoadWarning: true,
+        },
+      },
+      {
+        provide: APP_INITIALIZER,
+        useFactory: (clientVersionGate: ClientVersionGateService) => {
+          return async () => {
+            try {
+              const previewBlocked =
+                !environment.production &&
+                new URLSearchParams(window.location.search).get(
+                  "force_upgrade"
+                ) === "1";
+              await clientVersionGate.initialize({ previewBlocked });
+              const decision = clientVersionGate.getDecision();
+              maybeAutoReloadWebOnce({
+                blocked: decision.blocked,
+                upgradeKind: decision.upgradeKind,
+                reload: () => window.location.reload(),
+              });
+            } catch (error) {
+              console.warn(
+                "[AppInitialization] Client version gate failed (fail-open):",
+                error
+              );
+            }
+          };
+        },
+        deps: [ClientVersionGateService],
+        multi: true,
+      },
+      {
+        provide: APP_INITIALIZER,
+        useFactory: (brandingService: BrandingService) => {
+          return async () => {
+            try {
+              console.log(
+                "[AppInitialization] Initializing BrandingService to load logos before rendering"
+              );
+              await brandingService.initialize();
+              console.log(
+                "[AppInitialization] BrandingService initialization complete"
+              );
+            } catch (error) {
+              console.error(
+                "[AppInitialization] BrandingService initialization failed:",
+                error
+              );
+              // Continue initialization even if branding fails
+            }
+          };
+        },
+        deps: [BrandingService],
+        multi: true,
+      },
+      {
+        provide: APP_INITIALIZER,
+        useFactory: (adminAuthService: AdminAuthService) => {
+          return () => {
+            console.log(
+              "[AppInitialization] Initializing AdminAuthService for session restoration"
+            );
+            // Wait for the loading state to complete (loading goes from true -> false)
+            return new Promise((resolve) => {
+              let resolved = false;
+
+              // Subscribe to loading state
+              const subscription = adminAuthService.loading$.subscribe(
+                (isLoading) => {
+                  // Once loading completes (becomes false), resolve
+                  if (!isLoading && !resolved) {
+                    resolved = true;
+                    console.log(
+                      "[AppInitialization] AdminAuthService initialization complete"
+                    );
+                    subscription.unsubscribe();
+                    resolve(true);
+                  }
+                }
+              );
+
+              // Safety timeout in case loading never completes
+              setTimeout(() => {
+                if (!resolved) {
                   resolved = true;
-                  console.log(
-                    "[AppInitialization] AdminAuthService initialization complete"
+                  console.warn(
+                    "[AppInitialization] AdminAuthService initialization timed out after 5s"
                   );
                   subscription.unsubscribe();
                   resolve(true);
                 }
-              }
-            );
-
-            // Safety timeout in case loading never completes
-            setTimeout(() => {
-              if (!resolved) {
-                resolved = true;
-                console.warn(
-                  "[AppInitialization] AdminAuthService initialization timed out after 5s"
-                );
-                subscription.unsubscribe();
-                resolve(true);
-              }
-            }, 5000);
-          });
-        };
+              }, 5000);
+            });
+          };
+        },
+        deps: [AdminAuthService],
+        multi: true,
       },
-      deps: [AdminAuthService],
-      multi: true,
-    },
-  ],
-}).catch((err) => {
-  console.error("[AppInitialization] Bootstrap error:", err);
-  // Ensure user sees something instead of blank page
-  const rootElement = document.querySelector("app-root");
-  if (rootElement) {
-    rootElement.innerHTML = `
+    ],
+  }).catch((err) => {
+    console.error("[AppInitialization] Bootstrap error:", err);
+    // Ensure user sees something instead of blank page
+    const rootElement = document.querySelector("app-root");
+    if (rootElement) {
+      rootElement.innerHTML = `
       <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #f3f4f6; font-family: system-ui, -apple-system, sans-serif;">
         <div style="text-align: center; padding: 2rem; background: white; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
           <h1 style="color: #374151; margin-bottom: 1rem;">Oops, something went wrong</h1>
@@ -189,9 +194,25 @@ bootstrapApplication(AppComponent, {
         </div>
       </div>
     `;
+    }
+    // Attempt automatic reload
+    setTimeout(() => {
+      window.location.reload();
+    }, 3000);
+  });
+}
+
+void (async () => {
+  const redirected = await maybeRedirectNativeToLiveSite({
+    isNative: Capacitor.isNativePlatform(),
+    origin: window.location.origin,
+    hostname: window.location.hostname,
+    location: window.location,
+    liveOrigin: CAPACITOR_LIVE_ORIGIN,
+    fetchFn: fetch,
+    timeoutMs: 2000,
+  });
+  if (!redirected) {
+    startApp();
   }
-  // Attempt automatic reload
-  setTimeout(() => {
-    window.location.reload();
-  }, 3000);
-});
+})();

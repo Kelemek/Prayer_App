@@ -88,8 +88,9 @@ See [CAPACITOR_BACKEND_SETUP.md](CAPACITOR_BACKEND_SETUP.md) for step-by-step in
 ## Development Workflow
 
 ```bash
-# After code changes:
-npm run build && npx cap sync
+# Online native users: deploy web to Vercel (no cap sync)
+# Refresh offline bundle / native config:
+npm run cap:sync:prod
 
 # Open in Xcode (iOS development)
 npx cap open ios
@@ -106,10 +107,10 @@ The app talks to Supabase using the URL in Angular's **environment** files. Whic
 
 | Goal | Command | Supabase used |
 |------|---------|----------------|
-| **Dev backend** (e.g. `jcdhajfqtzipltvfslhu.supabase.co`) | `npm run cap:dev` | `src/environments/environment.ts` |
-| **Production backend** (e.g. `eqiafsygvfaifhoaewxi.supabase.co`) | `npm run cap:prod` or `npm run build && npx cap sync` | `src/environments/environment.prod.ts` |
+| **Dev backend** (e.g. `jcdhajfqtzipltvfslhu.supabase.co`) | `npm run build:dev && npm run cap:dev` (or live-reload via `.env.capacitor`) | `src/environments/environment.ts` |
+| **Production backend** (e.g. `eqiafsygvfaifhoaewxi.supabase.co`) | `npm run cap:prod` | `src/environments/environment.prod.ts` |
 
-So to point the native app at your **dev** site: run **`npm run cap:dev`**, then open and run in Xcode or Android Studio. To switch back to production, run **`npm run cap:prod`** and rebuild in the IDE.
+For **device live-reload** against dev Supabase: set `CAPACITOR_SERVER_URL` in `.env.capacitor`, run `npm run start:lan`, `npm run cap:dev`, then run from Xcode/Android Studio. For **production online** behavior, deploy Vercel; native redirects to `https://prayerapp.romans8.net` when online.
 
 ## Key Points
 
@@ -144,7 +145,7 @@ Prayer_App/
 
 ## Testing Checklist
 
-- [ ] Build: `npm run build && npx cap sync`
+- [ ] Offline bundle: `npm run cap:sync:prod`
 - [ ] Test on iOS: `npx cap open ios` → Run in Xcode
 - [ ] Test on Android: `npx cap open android` → Run in Android Studio
 - [ ] Check logs for initialization message
@@ -178,12 +179,15 @@ Icons and splash screens are generated into `ios/App/App/Assets.xcassets/` and `
 ### Add a new page to the app
 1. Create component in `src/app/components/`
 2. Add route in `src/app/app.routes.ts`
-3. Build: `npm run build && npx cap sync`
-4. Rebuild in Xcode/Android Studio
+3. Deploy to Vercel for online native users; run `npm run cap:sync:prod` when the offline bundle should match.
 
 ### Deploy new code to app
 ```bash
-npm run build && npx cap sync
+# Web + online native
+git push  # Vercel deploy
+
+# Offline snapshot in store binary (optional, e.g. before store release)
+npm run cap:sync:prod
 # Then rebuild in Xcode/Android Studio
 ```
 
