@@ -62,4 +62,52 @@ describe("HomePrayerCardActionsController", () => {
     await controller.addUpdate({ prayer_id: "p1", content: "hi" } as any);
     expect(prayerService.addUpdate).toHaveBeenCalled();
   });
+
+  it("routes community card add-update through facade when requester email is set", async () => {
+    const event = { prayer_id: "p1", content: "thanks", mark_as_answered: true };
+    await controller.onCardAddUpdate(
+      {
+        id: "p1",
+        email: "requester@example.com",
+      } as any,
+      event as any
+    );
+    expect(prayerCardActions.addUpdateForCard).toHaveBeenCalledWith(
+      { id: "p1", email: "requester@example.com" },
+      event
+    );
+    expect(prayerService.addPersonalPrayerUpdate).not.toHaveBeenCalled();
+  });
+
+  it("routes personal card add-update through facade when user_email is set", async () => {
+    const event = { prayer_id: "pp1", content: "answered", mark_as_answered: true };
+    await controller.onCardAddUpdate(
+      { id: "pp1", user_email: "me@example.com", email: "me@example.com" } as any,
+      event as any
+    );
+    expect(prayerCardActions.addUpdateForCard).toHaveBeenCalled();
+    expect(prayerService.addUpdate).not.toHaveBeenCalled();
+  });
+
+  it("dedupes concurrent identical card add-update submissions", async () => {
+    let resolveAdd!: () => void;
+    prayerCardActions.addUpdateForCard.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveAdd = () => resolve(true);
+        })
+    );
+    const event = {
+      prayer_id: "p1",
+      content: "thanks",
+      mark_as_answered: false,
+      is_personal_card: false,
+    };
+    const prayer = { id: "p1", email: "a@example.com" };
+    const first = controller.onCardAddUpdate(prayer as any, event as any);
+    const second = controller.onCardAddUpdate(prayer as any, event as any);
+    resolveAdd();
+    await Promise.all([first, second]);
+    expect(prayerCardActions.addUpdateForCard).toHaveBeenCalledTimes(1);
+  });
 });

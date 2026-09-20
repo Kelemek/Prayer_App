@@ -17,15 +17,9 @@ export const PERSONAL_PRAYER_BORDER_CLASSES =
 export const META_HEADER_BORDER_BOTTOM_CLASSES =
   'border-b border-[#2F5F54] dark:border-[#2F5F54]';
 
-/** Border classes for home prayer cards by status. */
-export function getPrayerStatusBorderClasses(status: string): string {
-  if (status === 'current') {
-    return '!border-[#0047AB] dark:!border-[#0047AB]';
-  }
-  if (status === 'answered') {
-    return '!border-[#39704D] dark:!border-[#39704D]';
-  }
-  return '!border-[#C9A961] dark:!border-[#C9A961]';
+/** Border classes for church/community prayer cards (uniform church blue). */
+export function getPrayerStatusBorderClasses(_status: string): string {
+  return '!border-[#0047AB] dark:!border-[#0047AB]';
 }
 
 /** Pill/badge classes for presentation and legacy status badges. */

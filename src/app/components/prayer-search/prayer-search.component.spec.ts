@@ -649,6 +649,15 @@ describe('PrayerSearchComponent', () => {
       expect(component.expandedCards.has(mockPrayer.id)).toBe(true);
     });
 
+    it('should prefill requester from email when stored requester is empty', () => {
+      component.startEditPrayer({
+        ...mockPrayer,
+        requester: '',
+        email: 'markdlarson@me.com',
+      });
+      expect(component.editForm.requester).toBe('Markdlarson');
+    });
+
     it('should cancel edit', () => {
       component.editingPrayer = '123';
       component.editForm.title = 'Changed';
@@ -682,6 +691,27 @@ describe('PrayerSearchComponent', () => {
       await component.savePrayer('123');
 
       expect(component.error).toContain('required');
+    });
+
+    it('should save archived prayer when requester is derived from email', async () => {
+      component.editForm = {
+        title: 'Prayer for test',
+        description: 'Still praying',
+        requester: '',
+        email: 'markdlarson@me.com',
+        prayer_for: 'test',
+        status: 'archived',
+      };
+      component.allPrayers = [mockPrayer];
+      component.loadPageData();
+
+      await component.savePrayer('123');
+
+      expect(mockToastService.error).not.toHaveBeenCalledWith(
+        'Title, description, and requester are required'
+      );
+      expect(mockToastService.success).toHaveBeenCalled();
+      expect(component.editingPrayer).toBeNull();
     });
 
     it('should handle save prayer error', async () => {

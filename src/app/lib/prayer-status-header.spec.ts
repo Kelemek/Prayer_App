@@ -30,10 +30,10 @@ describe('prayer-status-header', () => {
     expect(META_HEADER_BORDER_BOTTOM_CLASSES).toContain('2F5F54');
   });
 
-  it('getPrayerStatusBorderClasses varies by status', () => {
+  it('getPrayerStatusBorderClasses uses church blue for all statuses', () => {
     expect(getPrayerStatusBorderClasses('current')).toContain('0047AB');
-    expect(getPrayerStatusBorderClasses('answered')).toContain('39704D');
-    expect(getPrayerStatusBorderClasses('archived')).toContain('C9A961');
+    expect(getPrayerStatusBorderClasses('answered')).toContain('0047AB');
+    expect(getPrayerStatusBorderClasses('archived')).toContain('0047AB');
   });
 
   it('getPrayerStatusPillClasses returns pill styles by status', () => {

@@ -24,6 +24,7 @@ import { AdminSectionLoadingComponent } from "../admin-section-loading/admin-sec
 import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/admin-collapsible-section.component";
 import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.component";
 import { RichTextViewComponent } from "../rich-text-view/rich-text-view.component";
+import { resolveAuthorName } from "../../utils/display-name";
 
 interface PrayerUpdate {
   id: string;
@@ -2730,7 +2731,8 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
     this.editForm = {
       title: prayer.title,
       description: prayer.description || "",
-      requester: prayer.requester,
+      requester:
+        resolveAuthorName(prayer.requester, prayer.email) || prayer.requester || "",
       email: prayer.email || "",
       prayer_for: prayer.prayer_for || "",
       status: prayer.status,
@@ -3009,11 +3011,12 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
     this.editPrayerDescriptionEditor?.flushMarkdownToForm();
     this.cdr.markForCheck();
 
-    if (
-      !this.editForm.title.trim() ||
-      !this.editForm.description.trim() ||
-      !this.editForm.requester.trim()
-    ) {
+    const title = this.editForm.title.trim();
+    const description = (this.editForm.description ?? "").trim();
+    const email = this.editForm.email.trim();
+    const requester = resolveAuthorName(this.editForm.requester, email).trim();
+
+    if (!title || !description || !requester) {
       this.error = "Title, description, and requester are required";
       this.toast.error(this.error);
       return;
@@ -3034,10 +3037,10 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
         .getClient()
         .from("prayers")
         .update({
-          title: this.editForm.title.trim(),
-          description: this.editForm.description.trim(),
-          requester: this.editForm.requester.trim(),
-          email: this.editForm.email.trim() || null,
+          title,
+          description,
+          requester,
+          email: email || null,
           prayer_for: this.editForm.prayer_for.trim() || null,
           status: this.editForm.status,
         })
@@ -3052,10 +3055,10 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
         p.id === prayerId
           ? ({
               ...p,
-              title: this.editForm.title.trim(),
-              description: this.editForm.description.trim(),
-              requester: this.editForm.requester.trim(),
-              email: this.editForm.email.trim() || null,
+              title,
+              description,
+              requester,
+              email: email || null,
               prayer_for: this.editForm.prayer_for.trim() || undefined,
               status: this.editForm.status,
             } as Prayer)
@@ -3066,10 +3069,10 @@ export class PrayerSearchComponent implements OnInit, OnDestroy {
         p.id === prayerId
           ? ({
               ...p,
-              title: this.editForm.title.trim(),
-              description: this.editForm.description.trim(),
-              requester: this.editForm.requester.trim(),
-              email: this.editForm.email.trim() || null,
+              title,
+              description,
+              requester,
+              email: email || null,
               prayer_for: this.editForm.prayer_for.trim() || undefined,
               status: this.editForm.status,
             } as Prayer)

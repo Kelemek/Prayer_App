@@ -25,6 +25,8 @@ import { HomePlanningCenterController } from "./home-planning-center.controller"
 
 @Injectable()
 export class HomePrayerCardActionsController {
+  private readonly cardAddUpdateInFlight = new Map<string, Promise<void>>();
+
   constructor(
     private readonly prayerService: PrayerService,
     private readonly prayerGroupService: PrayerGroupService,
@@ -78,9 +80,11 @@ export class HomePrayerCardActionsController {
       );
 
       if (success && updateData.mark_as_answered) {
-        await this.prayerService.updatePersonalPrayer(updateData.prayer_id, {
-          category: "Answered",
-        });
+        await this.prayerService.updatePersonalPrayer(
+          updateData.prayer_id,
+          { category: "Answered" },
+          { successToast: false }
+        );
       }
     } catch (error) {
       console.error("Error adding personal prayer update:", error);
@@ -89,6 +93,38 @@ export class HomePrayerCardActionsController {
   }
 
   async onCardAddUpdate(
+    prayer: PrayerRequest,
+    event: PrayerCardAddUpdateEvent
+  ): Promise<void> {
+    const dedupeKey = this.cardAddUpdateDedupeKey(prayer.id, event);
+    const inflight = this.cardAddUpdateInFlight.get(dedupeKey);
+    if (inflight) {
+      await inflight;
+      return;
+    }
+
+    const task = this.runCardAddUpdate(prayer, event);
+    this.cardAddUpdateInFlight.set(dedupeKey, task);
+    try {
+      await task;
+    } finally {
+      this.cardAddUpdateInFlight.delete(dedupeKey);
+    }
+  }
+
+  private cardAddUpdateDedupeKey(
+    prayerId: string,
+    event: PrayerCardAddUpdateEvent
+  ): string {
+    return [
+      prayerId,
+      event.content,
+      event.mark_as_answered ? "1" : "0",
+      event.is_personal_card ? "1" : "0",
+    ].join("\0");
+  }
+
+  private async runCardAddUpdate(
     prayer: PrayerRequest,
     event: PrayerCardAddUpdateEvent
   ): Promise<void> {
@@ -112,11 +148,7 @@ export class HomePrayerCardActionsController {
       );
       return;
     }
-    if (prayer.email || prayer.category != null) {
-      await this.addPersonalUpdate(event);
-      return;
-    }
-    await this.addUpdate(event);
+    await this.prayerCardActions.addUpdateForCard(prayer, event);
   }
 
   async deleteUpdate(event: PrayerCardDeleteUpdateEvent): Promise<void> {
@@ -157,11 +189,7 @@ export class HomePrayerCardActionsController {
       );
       return;
     }
-    if (prayer.email || prayer.category != null) {
-      await this.deletePersonalUpdate(event);
-      return;
-    }
-    await this.deleteUpdate(event);
+    await this.prayerCardActions.deleteUpdateForCard(prayer, event);
   }
 
   async requestDeletion(requestData: PrayerDeletionRequestInput): Promise<void> {

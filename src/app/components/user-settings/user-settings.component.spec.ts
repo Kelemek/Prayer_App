@@ -1326,26 +1326,6 @@ describe('UserSettingsComponent', () => {
     });
   });
 
-  describe.skip('Dropdown visibility', () => {
-    it('should toggle print dropdown visibility', () => {
-      component.showPrintDropdown = false;
-      component.showPrintDropdown = !component.showPrintDropdown;
-      expect(component.showPrintDropdown).toBe(true);
-
-      component.showPrintDropdown = !component.showPrintDropdown;
-      expect(component.showPrintDropdown).toBe(false);
-    });
-
-    it('should toggle prompt types dropdown visibility', () => {
-      component.showPromptTypesDropdown = false;
-      component.showPromptTypesDropdown = !component.showPromptTypesDropdown;
-      expect(component.showPromptTypesDropdown).toBe(true);
-
-      component.showPromptTypesDropdown = !component.showPromptTypesDropdown;
-      expect(component.showPromptTypesDropdown).toBe(false);
-    });
-  });
-
   describe('Component state properties', () => {
     it('should initialize with correct default values', () => {
       expect(component.isOpen).toBe(false);

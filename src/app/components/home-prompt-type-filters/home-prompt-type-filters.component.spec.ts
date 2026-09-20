@@ -97,7 +97,7 @@ describe("HomePromptTypeFiltersComponent", () => {
     expect(allTypesButton.className).toContain(
       HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS.split(" ")[0]
     );
-    expect(allTypesButton.className).toContain("ring-[#988F83]");
+    expect(allTypesButton.className).toContain("ring-[#0047AB]");
     expect(allTypesButton.className).not.toContain("underline");
   });
 

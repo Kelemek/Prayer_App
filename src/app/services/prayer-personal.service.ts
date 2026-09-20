@@ -621,7 +621,8 @@ export class PrayerPersonalService {
     id: string,
     updates: Partial<
       Pick<PrayerRequest, "title" | "prayer_for" | "description" | "category">
-    >
+    >,
+    options?: { successToast?: boolean }
   ): Promise<boolean> {
     if (!this.connectivity.requireOnline("update a personal prayer")) {
       return false;
@@ -698,7 +699,9 @@ export class PrayerPersonalService {
       }
 
       console.log("[PrayerService] Personal prayer updated successfully");
-      this.toast.success("Personal prayer updated");
+      if (options?.successToast !== false) {
+        this.toast.success("Personal prayer updated");
+      }
       return true;
     } catch (error) {
       console.error("Error updating personal prayer:", error);

@@ -12,6 +12,7 @@ import { FormsModule } from "@angular/forms";
 import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.component";
 import { ModalShellComponent } from "../modal-shell/modal-shell.component";
 import { ToastService } from "../../services/toast.service";
+import { resolvePrayerUpdateContent } from "../../lib/prayer-update-content";
 
 export interface PrayerAddUpdatePayload {
   content: string;
@@ -34,7 +35,7 @@ export interface PrayerAddUpdatePayload {
     >
       <form
         #updateForm="ngForm"
-        (ngSubmit)="updateForm.valid && handleSubmit()"
+        (ngSubmit)="handleSubmit()"
         class="p-6 space-y-4"
       >
         <div [attr.id]="updateContentElementId">
@@ -106,7 +107,7 @@ export interface PrayerAddUpdatePayload {
           <button
             type="submit"
             [attr.id]="submitButtonId"
-            [disabled]="!updateForm.valid || !canSubmitUpdate()"
+            [disabled]="!canSubmitUpdate()"
             class="btn-chip btn-chip-green min-h-11 px-6 py-2.5 text-base rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Submit prayer update"
           >
@@ -144,9 +145,11 @@ export class PrayerAddUpdateModalComponent implements OnChanges {
   updateContent = "";
   updateIsAnonymous = false;
   updateMarkAsAnswered = false;
+  private isSubmittingUpdate = false;
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes["isOpen"]?.currentValue === false) {
+      this.isSubmittingUpdate = false;
       this.resetForm();
     }
   }
@@ -185,15 +188,30 @@ export class PrayerAddUpdateModalComponent implements OnChanges {
   }
 
   canSubmitUpdate(): boolean {
-    return (this.updateContent ?? "").trim().length > 0;
+    if (this.isSubmittingUpdate) {
+      return false;
+    }
+    return (
+      resolvePrayerUpdateContent(
+        this.resolveUpdateContent(),
+        this.updateMarkAsAnswered
+      ).trim().length > 0
+    );
   }
 
   handleSubmit(): void {
-    const content = this.resolveUpdateContent();
+    if (this.isSubmittingUpdate) {
+      return;
+    }
+    const content = resolvePrayerUpdateContent(
+      this.resolveUpdateContent(),
+      this.updateMarkAsAnswered
+    );
     if (!content.trim()) {
       this.toast.error("Update content is required");
       return;
     }
+    this.isSubmittingUpdate = true;
     this.submit.emit({
       content,
       is_anonymous: this.updateIsAnonymous,

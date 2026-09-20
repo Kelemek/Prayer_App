@@ -40,6 +40,15 @@ export class PrayerCardActionsFacade {
     void this.deleteCardForCard(prayer);
   }
 
+  private mutationContextFromUpdate(
+    updateData: PrayerCardAddUpdateEvent
+  ): { isPersonalCard?: boolean } {
+    if (updateData.is_personal_card === undefined) {
+      return {};
+    }
+    return { isPersonalCard: updateData.is_personal_card };
+  }
+
   async deleteCardForCard(prayer: PrayerCardIdentity): Promise<boolean> {
     try {
       const kind = getPrayerCardMutationKind(prayer);
@@ -67,15 +76,17 @@ export class PrayerCardActionsFacade {
     updateData: PrayerCardAddUpdateEvent
   ): Promise<boolean> {
     try {
-      const kind = getPrayerCardMutationKind(prayer);
+      const kind = getPrayerCardMutationKind(
+        prayer,
+        this.mutationContextFromUpdate(updateData)
+      );
       switch (kind) {
         case "member":
           return await this.addMemberUpdate(prayer.id, updateData);
         case "personal":
           return await this.addPersonalUpdate(updateData);
         case "community":
-          await this.prayerService.addUpdate(updateData);
-          return true;
+          return await this.prayerService.addUpdate(updateData);
         default: {
           const _exhaustive: never = kind;
           return _exhaustive;
@@ -206,9 +217,11 @@ export class PrayerCardActionsFacade {
     );
 
     if (success && updateData.mark_as_answered) {
-      await this.prayerService.updatePersonalPrayer(updateData.prayer_id, {
-        category: "Answered",
-      });
+      await this.prayerService.updatePersonalPrayer(
+        updateData.prayer_id,
+        { category: "Answered" },
+        { successToast: false }
+      );
     }
     return success;
   }

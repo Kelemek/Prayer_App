@@ -524,7 +524,8 @@ export class PrayerCardComponent
       buildPrayerCardAddUpdateEvent(
         this.prayer.id,
         payload,
-        this.userSessionService
+        this.userSessionService,
+        this.isPersonal
       )
     );
     this.showAddUpdateForm = false;

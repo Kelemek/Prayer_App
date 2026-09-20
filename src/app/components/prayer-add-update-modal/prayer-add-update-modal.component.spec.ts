@@ -79,6 +79,32 @@ describe("PrayerAddUpdateModalComponent", () => {
     expect(toast.error).toHaveBeenCalledWith("Update content is required");
   });
 
+  it("handleSubmit ignores a second submit while the first is in flight", () => {
+    component.richTextEditorsEnabled = false;
+    component.updateContent = "Once";
+    const spy = vi.spyOn(component.submit, "emit");
+
+    component.handleSubmit();
+    component.handleSubmit();
+
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("handleSubmit allows mark-as-answered with default content when body is empty", () => {
+    component.richTextEditorsEnabled = false;
+    component.updateContent = "";
+    component.updateMarkAsAnswered = true;
+    const spy = vi.spyOn(component.submit, "emit");
+
+    component.handleSubmit();
+
+    expect(spy).toHaveBeenCalledWith({
+      content: "Marked as answered",
+      is_anonymous: false,
+      mark_as_answered: true,
+    });
+  });
+
   it("canSubmitUpdate returns false for whitespace-only content", () => {
     component.updateContent = "   \n\t";
     expect(component.canSubmitUpdate()).toBe(false);

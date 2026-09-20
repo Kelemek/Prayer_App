@@ -1,5 +1,6 @@
 import type { UserSettingsFacade } from './user-settings-facade';
 import { isPrintNativeApp } from './print-native';
+import { uniquePrayerTypeNamesInOrder } from './prayer-type-names';
 
 export async function runUserSettingsHandlePrint(
   host: UserSettingsFacade
@@ -43,6 +44,26 @@ export async function runUserSettingsHandlePrintPrompts(
     }
   } finally {
     host.isPrintingPrompts = false;
+    host.deps.cdr.detectChanges();
+  }
+}
+
+export async function runUserSettingsHandlePrintMemorizationCards(
+  host: UserSettingsFacade
+): Promise<void> {
+  host.isPrintingMemorization = true;
+  const isNative = isPrintNativeApp();
+  const newWindow = !isNative ? window.open('', '_blank') : null;
+
+  try {
+    await host.deps.printService.downloadPrintableMemorizationCards(newWindow);
+  } catch (error) {
+    console.error('Error printing memorization verse cards:', error);
+    if (newWindow) {
+      newWindow.close();
+    }
+  } finally {
+    host.isPrintingMemorization = false;
     host.deps.cdr.detectChanges();
   }
 }
@@ -104,15 +125,22 @@ export function toggleUserSettingsPersonalCategory(
 export async function runUserSettingsLoadPromptTypes(
   host: UserSettingsFacade
 ): Promise<void> {
+  const tenantId = host.deps.tenantContext.getActiveTenant()?.id;
+  if (!tenantId) {
+    host.promptTypes = [];
+    return;
+  }
+
   try {
     const { data, error } = await host.deps.supabase.client
       .from('prayer_types')
       .select('name, display_order')
+      .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .order('display_order', { ascending: true });
 
     if (!error && data) {
-      host.promptTypes = data.map((t: { name: string }) => t.name);
+      host.promptTypes = uniquePrayerTypeNamesInOrder(data);
     }
   } catch (err) {
     console.error('Error fetching prayer types:', err);

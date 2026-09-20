@@ -22,7 +22,6 @@ describe("HOME_*_SUB_FILTER_GROUP_CLASS", () => {
     expect(HOME_PERSONAL_SUB_FILTER_GROUP_CLASS).toContain(
       "dark:bg-green-900/40"
     );
-    expect(HOME_PROMPTS_SUB_FILTER_GROUP_CLASS).toContain("bg-stone-300");
     expect(HOME_PUBLIC_SUB_FILTER_GROUP_CLASS).toContain("bg-blue-200");
     expect(HOME_PUBLIC_SUB_FILTER_GROUP_CLASS).toContain("rounded-b-lg");
     expect(HOME_PUBLIC_SUB_FILTER_GROUP_CLASS).toContain("border-[#0047AB]");
@@ -33,15 +32,18 @@ describe("HOME_*_SUB_FILTER_GROUP_CLASS", () => {
       "border-[2px]"
     );
     expect(HOME_PERSONAL_SUB_FILTER_GROUP_CLASS).toContain("border-[#2F5F54]");
-    expect(HOME_PROMPTS_SUB_FILTER_GROUP_CLASS).toContain("border-[#988F83]");
+    expect(HOME_PROMPTS_SUB_FILTER_GROUP_CLASS).toContain("border-[#0047AB]");
     expect(HOME_GROUPS_SUB_FILTER_GROUP_CLASS).toContain("bg-slate-200");
     expect(HOME_GROUPS_SUB_FILTER_GROUP_CLASS).toContain("dark:bg-blue-900/40");
     expect(HOME_GROUPS_SUB_FILTER_GROUP_CLASS).toContain("border-[#0047AB]");
     expect(HOME_GROUPS_SUB_FILTER_GROUP_CLASS).not.toContain("bg-blue-200");
   });
 
-  it("aliases memorize group fill to public blue", () => {
+  it("aliases memorize and prompts group fill to public blue", () => {
     expect(HOME_MEMORIZE_SUB_FILTER_GROUP_CLASS).toBe(
+      HOME_PUBLIC_SUB_FILTER_GROUP_CLASS
+    );
+    expect(HOME_PROMPTS_SUB_FILTER_GROUP_CLASS).toBe(
       HOME_PUBLIC_SUB_FILTER_GROUP_CLASS
     );
   });
@@ -137,23 +139,20 @@ describe("HOME_PUBLIC_STATUS_CHIP layout classes", () => {
 });
 
 describe("HOME_PUBLIC_STATUS_CHIP_THEMES", () => {
-  it("uses bordered chips with accent rings", () => {
-    expect(HOME_PUBLIC_STATUS_CHIP_THEMES.current.active).toContain("ring");
-    expect(HOME_PUBLIC_STATUS_CHIP_THEMES.current.active).toContain(
-      "border-[#0047AB]"
-    );
-    expect(HOME_PUBLIC_STATUS_CHIP_THEMES.answered.active).toContain(
-      "border-[#39704D]"
-    );
-    expect(HOME_PUBLIC_STATUS_CHIP_THEMES.archived.active).toContain(
-      "border-[#C9A961]"
-    );
-    expect(HOME_PUBLIC_STATUS_CHIP_THEMES.total.active).toContain(
-      "border-gray-500"
-    );
-    expect(HOME_PUBLIC_STATUS_CHIP_THEMES.members.active).toContain(
-      "border-[#0047AB]"
-    );
+  it("uses bordered chips with church blue accent rings", () => {
+    for (const key of [
+      "current",
+      "answered",
+      "archived",
+      "total",
+      "prompts",
+      "members",
+    ] as const) {
+      expect(HOME_PUBLIC_STATUS_CHIP_THEMES[key].active).toContain("ring");
+      expect(HOME_PUBLIC_STATUS_CHIP_THEMES[key].active).toContain(
+        "border-[#0047AB]"
+      );
+    }
   });
 
   it("uses lighter light-mode fills than folder panels for selected chips", () => {
@@ -165,10 +164,10 @@ describe("HOME_PUBLIC_STATUS_CHIP_THEMES", () => {
       "bg-home-panel-blue-chip-active"
     );
     expect(HOME_PUBLIC_STATUS_CHIP_THEMES.answered.active).toContain(
-      "bg-home-panel-green-status-chip-active"
+      "bg-home-panel-blue-chip-active"
     );
     expect(HOME_PUBLIC_STATUS_CHIP_THEMES.archived.active).toContain(
-      "bg-home-panel-amber-status-chip-active"
+      "bg-home-panel-blue-chip-active"
     );
   });
 });

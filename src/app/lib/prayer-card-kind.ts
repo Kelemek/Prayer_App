@@ -5,6 +5,12 @@ export interface PrayerCardIdentity {
   id: string;
   user_email?: string | null;
   content_kind?: PrayerContentKind | null;
+  is_shared_personal_prayer?: boolean;
+}
+
+export interface PrayerCardMutationContext {
+  /** When `false`, never treat as personal (Church / community tab). When `true`, personal mutations. */
+  isPersonalCard?: boolean;
 }
 
 export function isVerseMemorizationPrayer(
@@ -31,12 +37,21 @@ export type PrayerCardMutationKind = 'personal' | 'community' | 'member';
 
 export function getPrayerCardMutationKind(
   prayer: PrayerCardIdentity,
-  isPersonalFlag = false
+  context: PrayerCardMutationContext = {}
 ): PrayerCardMutationKind {
   if (isMemberPrayerId(prayer.id)) {
     return 'member';
   }
-  if (isPersonalPrayerCard(prayer, isPersonalFlag)) {
+  if (prayer.is_shared_personal_prayer) {
+    return 'community';
+  }
+  if (context.isPersonalCard === true) {
+    return 'personal';
+  }
+  if (context.isPersonalCard === false) {
+    return 'community';
+  }
+  if (isPersonalPrayerCard(prayer)) {
     return 'personal';
   }
   return 'community';

@@ -12,6 +12,7 @@ import { runUserSettingsDownloadMyData } from './user-settings-export-run';
 import { runUserSettingsOpenChange } from './user-settings-facade-open';
 import {
   runUserSettingsHandlePrint,
+  runUserSettingsHandlePrintMemorizationCards,
   runUserSettingsHandlePrintPersonalPrayers,
   runUserSettingsHandlePrintPrompts,
   runUserSettingsLoadPersonalCategories,
@@ -88,10 +89,8 @@ export class UserSettingsFacade {
   isPrinting = false;
   isPrintingPrompts = false;
   isPrintingPersonal = false;
+  isPrintingMemorization = false;
   printRange: PrintRange = 'week';
-  showPrintDropdown = false;
-  showPromptTypesDropdown = false;
-  showPrintPersonalDropdown = false;
   promptTypes: string[] = [];
   selectedPromptTypes: string[] = [];
   personalCategories: string[] = [];
@@ -208,6 +207,10 @@ export class UserSettingsFacade {
 
   handlePrintPersonalPrayers(): Promise<void> {
     return runUserSettingsHandlePrintPersonalPrayers(this);
+  }
+
+  handlePrintMemorizationCards(): Promise<void> {
+    return runUserSettingsHandlePrintMemorizationCards(this);
   }
 
   togglePromptType(type: string): void {

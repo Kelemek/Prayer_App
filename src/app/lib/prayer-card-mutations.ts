@@ -10,11 +10,13 @@ import {
 } from './prayer-card-user-context';
 import { resolveAuthorName } from '../utils/display-name';
 import type { UserSessionService } from '../services/user-session.service';
+import { resolvePrayerUpdateContent } from './prayer-update-content';
 
 export function buildPrayerCardAddUpdateEvent(
   prayerId: string,
   payload: PrayerAddUpdatePayload,
-  userSessionService: UserSessionService
+  userSessionService: UserSessionService,
+  isPersonalCard = false
 ): PrayerCardAddUpdateEvent {
   const userEmail = getPrayerCardUserEmail(userSessionService);
   const userSession = userSessionService.getCurrentSession?.() ?? null;
@@ -25,11 +27,15 @@ export function buildPrayerCardAddUpdateEvent(
 
   return {
     prayer_id: prayerId,
-    content: payload.content,
+    content: resolvePrayerUpdateContent(
+      payload.content,
+      payload.mark_as_answered
+    ),
     author: authorName,
     author_email: userEmail,
     is_anonymous: payload.is_anonymous,
     mark_as_answered: payload.mark_as_answered,
+    is_personal_card: isPersonalCard,
   };
 }
 

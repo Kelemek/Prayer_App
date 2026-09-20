@@ -269,7 +269,7 @@ export interface PromptCardVariantLayout extends CardVariantChrome {
 const HOME_PROMPT_CARD_VARIANT_LAYOUT: PromptCardVariantLayout = {
   ...HOME_CARD_CHROME,
   shellBaseClasses:
-    `prompt-card bg-white dark:bg-gray-800 ${PRAYER_CARD_SHELL_FILL_CLASSES} rounded-lg shadow-md border-[2px] !border-[#988F83] dark:!border-[#988F83] transition-colors relative`,
+    `prompt-card bg-white dark:bg-gray-800 ${PRAYER_CARD_SHELL_FILL_CLASSES} rounded-lg shadow-md border-[2px] !border-[#0047AB] dark:!border-[#0047AB] transition-colors relative`,
   shellTopPadding: 'pt-0',
   shellBottomPadding: 'pb-4',
   shellOuterMargin: HOME_SHELL_SECTION_GAP_CLASSES,

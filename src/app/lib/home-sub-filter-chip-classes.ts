@@ -222,59 +222,28 @@ export const HOME_PERSONAL_PANEL_CHIP_ACTIVE_FILL_CLASS =
 export const HOME_PROMPTS_PANEL_CHIP_ACTIVE_FILL_CLASS =
   "bg-home-panel-stone-chip-active dark:bg-home-panel-stone-chip-active-dark";
 
-const HOME_GREEN_STATUS_CHIP_ACTIVE_FILL_CLASS =
-  "bg-home-panel-green-status-chip-active dark:bg-home-panel-green-status-chip-active-dark";
+/** Church blue chip styles (public status row, prompt-type row under Church, etc.). */
+export const HOME_CHURCH_BLUE_CHIP_ACTIVE_CLASS =
+  `border !border-[#0047AB] dark:!border-[#0047AB] ${HOME_PUBLIC_PANEL_CHIP_ACTIVE_FILL_CLASS} ring ring-[#0047AB] dark:ring-[#0047AB] ring-offset-0 text-gray-700 dark:text-gray-300 shadow-md`;
 
-const HOME_AMBER_STATUS_CHIP_ACTIVE_FILL_CLASS =
-  "bg-home-panel-amber-status-chip-active dark:bg-home-panel-amber-status-chip-active-dark";
+export const HOME_CHURCH_BLUE_CHIP_INACTIVE_CLASS =
+  HOME_SUB_FILTER_CHIP_INACTIVE_CLASS +
+  " hover:border-[#0047AB] dark:hover:border-[#0047AB]";
 
-const HOME_GRAY_STATUS_CHIP_ACTIVE_FILL_CLASS =
-  "bg-home-panel-gray-status-chip-active dark:bg-home-panel-gray-status-chip-active-dark";
+/** Church tab sub-filters share the same blue accent as Current. */
+const HOME_PUBLIC_STATUS_CHIP_BLUE_THEME = {
+  active: HOME_CHURCH_BLUE_CHIP_ACTIVE_CLASS,
+  inactive: HOME_CHURCH_BLUE_CHIP_INACTIVE_CLASS,
+} as const;
 
 /** Tailwind active/inactive pairs for public community sub-chips. */
 export const HOME_PUBLIC_STATUS_CHIP_THEMES = {
-  current: {
-    active:
-      `border !border-[#0047AB] dark:!border-[#0047AB] ${HOME_PUBLIC_PANEL_CHIP_ACTIVE_FILL_CLASS} ring ring-[#0047AB] dark:ring-[#0047AB] ring-offset-0 text-gray-700 dark:text-gray-300 shadow-md`,
-    inactive:
-      HOME_SUB_FILTER_CHIP_INACTIVE_CLASS +
-      " hover:border-[#0047AB] dark:hover:border-[#0047AB]",
-  },
-  answered: {
-    active:
-      `border !border-[#39704D] dark:!border-[#39704D] ${HOME_GREEN_STATUS_CHIP_ACTIVE_FILL_CLASS} ring ring-[#39704D] dark:ring-[#39704D] ring-offset-0 text-gray-700 dark:text-gray-300 shadow-md`,
-    inactive:
-      HOME_SUB_FILTER_CHIP_INACTIVE_CLASS +
-      " hover:border-[#39704D] dark:hover:border-[#39704D]",
-  },
-  archived: {
-    active:
-      `border !border-[#C9A961] dark:!border-[#C9A961] ${HOME_AMBER_STATUS_CHIP_ACTIVE_FILL_CLASS} ring ring-[#C9A961] dark:ring-[#C9A961] ring-offset-0 text-gray-700 dark:text-gray-300 shadow-md`,
-    inactive:
-      HOME_SUB_FILTER_CHIP_INACTIVE_CLASS +
-      " hover:border-[#C9A961] dark:hover:border-[#C9A961]",
-  },
-  total: {
-    active:
-      `border !border-gray-500 dark:!border-gray-400 ${HOME_GRAY_STATUS_CHIP_ACTIVE_FILL_CLASS} ring ring-gray-500 dark:ring-gray-400 ring-offset-0 text-gray-700 dark:text-gray-300 shadow-md`,
-    inactive:
-      HOME_SUB_FILTER_CHIP_INACTIVE_CLASS +
-      " hover:border-gray-500 dark:hover:border-gray-400",
-  },
-  prompts: {
-    active:
-      `border !border-[#988F83] dark:!border-[#988F83] ${HOME_PROMPTS_PANEL_CHIP_ACTIVE_FILL_CLASS} ring ring-[#988F83] dark:ring-[#988F83] ring-offset-0 text-gray-700 dark:text-gray-300 shadow-md`,
-    inactive:
-      HOME_SUB_FILTER_CHIP_INACTIVE_CLASS +
-      " hover:border-[#988F83] dark:hover:border-[#988F83]",
-  },
-  members: {
-    active:
-      `border !border-[#0047AB] dark:!border-[#0047AB] ${HOME_PUBLIC_PANEL_CHIP_ACTIVE_FILL_CLASS} ring ring-[#0047AB] dark:ring-[#0047AB] ring-offset-0 text-gray-700 dark:text-gray-300 shadow-md`,
-    inactive:
-      HOME_SUB_FILTER_CHIP_INACTIVE_CLASS +
-      " hover:border-[#0047AB] dark:hover:border-[#0047AB]",
-  },
+  current: HOME_PUBLIC_STATUS_CHIP_BLUE_THEME,
+  answered: HOME_PUBLIC_STATUS_CHIP_BLUE_THEME,
+  archived: HOME_PUBLIC_STATUS_CHIP_BLUE_THEME,
+  total: HOME_PUBLIC_STATUS_CHIP_BLUE_THEME,
+  prompts: HOME_PUBLIC_STATUS_CHIP_BLUE_THEME,
+  members: HOME_PUBLIC_STATUS_CHIP_BLUE_THEME,
 } as const;
 
 export const HOME_PERSONAL_NAMED_CHIP_INACTIVE_CLASS =
@@ -299,8 +268,9 @@ export const HOME_PUBLIC_SUB_FILTER_GROUP_CLASS =
   "rounded-b-lg bg-blue-200 dark:bg-blue-950 border-x-[2px] border-b-[2px] border-t-0 border-[#0047AB] dark:border-[#0047AB] px-3 py-2";
 export const HOME_PERSONAL_SUB_FILTER_GROUP_CLASS =
   `rounded-b-lg ${HOME_PERSONAL_FILL_LIGHT_CLASS} border-x-[2px] border-b-[2px] border-t-0 border-[#2F5F54] dark:border-[#2F5F54] px-3 py-2`;
+/** Prompt type row under Church uses the same blue panel as public status filters. */
 export const HOME_PROMPTS_SUB_FILTER_GROUP_CLASS =
-  "rounded-b-lg bg-stone-300 dark:bg-stone-900/40 border-x-[2px] border-b-[2px] border-t-0 border-[#988F83] dark:border-[#988F83] px-3 py-2";
+  HOME_PUBLIC_SUB_FILTER_GROUP_CLASS;
 /** Same blue fill as Public — Memorize tab shares `#0047AB`. */
 export const HOME_MEMORIZE_SUB_FILTER_GROUP_CLASS =
   HOME_PUBLIC_SUB_FILTER_GROUP_CLASS;

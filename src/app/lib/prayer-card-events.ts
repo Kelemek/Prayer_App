@@ -7,6 +7,8 @@ export interface PrayerCardAddUpdateEvent {
   author_email: string;
   is_anonymous: boolean;
   mark_as_answered: boolean;
+  /** From prayer card `[isPersonal]` — routes updates to personal vs community tables. */
+  is_personal_card?: boolean;
 }
 
 export interface PrayerCardDeleteUpdateEvent {

@@ -649,9 +649,10 @@ export class PrayerService {
     id: string,
     updates: Partial<
       Pick<PrayerRequest, 'title' | 'prayer_for' | 'description' | 'category'>
-    >
+    >,
+    options?: { successToast?: boolean }
   ): Promise<boolean> {
-    return this.personal.updatePersonalPrayer(id, updates);
+    return this.personal.updatePersonalPrayer(id, updates, options);
   }
 
   async updatePersonalPrayerOrder(
