@@ -257,6 +257,8 @@
   titleId="user-settings-print-options-title"
   panelId="user-settings-print-options-modal"
   panelClass="max-w-md"
+  [appendToBody]="settingsPrintModalShell.appendToBody"
+  [reserveAppTopChrome]="settingsPrintModalShell.reserveAppTopChrome"
   closeAriaLabel="Close print options"
   (close)="closePrintOptionsModal()"
 >

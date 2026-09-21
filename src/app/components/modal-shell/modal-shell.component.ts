@@ -7,12 +7,15 @@ import {
   OnInit,
   OnDestroy,
   AfterViewInit,
+  OnChanges,
+  SimpleChanges,
   ElementRef,
   ViewChild,
   ChangeDetectorRef,
   inject,
 } from "@angular/core";
 import { NgClass } from "@angular/common";
+import { measureAppTopChromeInsetPx } from "../../lib/measure-app-top-chrome-inset";
 
 @Component({
   selector: "app-modal-shell",
@@ -52,6 +55,7 @@ import { NgClass } from "@angular/common";
       [style.left]="overlayLeft"
       [style.width]="overlayWidth"
       [style.height]="overlayHeight"
+      [style.padding-top]="overlayPaddingTop"
       (click)="onBackdropClick($event)"
       (touchmove)="onOverlayTouchMove($event)"
     >
@@ -134,7 +138,9 @@ import { NgClass } from "@angular/common";
     </div>
   `,
 })
-export class ModalShellComponent implements OnInit, AfterViewInit, OnDestroy {
+export class ModalShellComponent
+  implements OnInit, OnChanges, AfterViewInit, OnDestroy
+{
   private static readonly TOUCH_GUARD_OPTIONS: AddEventListenerOptions = {
     passive: false,
     capture: true,
@@ -149,6 +155,12 @@ export class ModalShellComponent implements OnInit, AfterViewInit, OnDestroy {
   @Input() closeOnBackdrop = true;
   @Input() showHeader = true;
   @Input() ariaLabel = "";
+  /** Portals overlay to document.body (escapes overflow-hidden ancestors). */
+  @Input() appendToBody = false;
+  /** Fixed pixel inset below safe-area (overrides reserveAppTopChrome when > 0). */
+  @Input() reserveTopChromePx = 0;
+  /** When true, measures app-tenant-switcher-bar so the panel sits below it. */
+  @Input() reserveAppTopChrome = false;
 
   @Output() close = new EventEmitter<void>();
 
@@ -162,8 +174,10 @@ export class ModalShellComponent implements OnInit, AfterViewInit, OnDestroy {
   overlayLeft = "0";
   overlayWidth = "100%";
   overlayHeight = "100%";
+  overlayPaddingTop: string | null = null;
 
   private scrollLockEl: HTMLElement | null = null;
+  private overlayMovedToBody = false;
   private scrollLockPreviousOverflow = "";
   private scrollLockPreviousTouchAction = "";
   private bodyPreviousOverflow = "";
@@ -191,6 +205,7 @@ export class ModalShellComponent implements OnInit, AfterViewInit, OnDestroy {
       Math.floor(vv.height - overlayPadTop - overlayPadBottom)
     );
     this.panelMaxHeight = `${max}px`;
+    this.syncOverlayPaddingTop();
     this.cdr.markForCheck();
   };
 
@@ -206,9 +221,53 @@ export class ModalShellComponent implements OnInit, AfterViewInit, OnDestroy {
     return parseFloat(window.getComputedStyle(overlay).paddingBottom) || 8;
   }
 
+  private syncOverlayPaddingTop(): void {
+    const chromePx =
+      this.reserveTopChromePx > 0
+        ? this.reserveTopChromePx
+        : this.reserveAppTopChrome
+          ? measureAppTopChromeInsetPx()
+          : 0;
+    if (chromePx > 0) {
+      this.overlayPaddingTop = `calc(env(safe-area-inset-top, 0px) + ${chromePx}px)`;
+      return;
+    }
+    this.overlayPaddingTop = null;
+  }
+
+  private portalOverlayToBodyIfNeeded(): void {
+    if (!this.appendToBody) {
+      return;
+    }
+    const overlay = this.overlayRef?.nativeElement;
+    if (!overlay || overlay.parentElement === document.body) {
+      return;
+    }
+    document.body.appendChild(overlay);
+    this.overlayMovedToBody = true;
+  }
+
+  private restoreOverlayFromBody(): void {
+    if (!this.overlayMovedToBody) {
+      return;
+    }
+    const overlay = this.overlayRef?.nativeElement;
+    if (overlay?.parentElement === document.body) {
+      overlay.remove();
+    }
+    this.overlayMovedToBody = false;
+  }
+
   private readonly cdr = inject(ChangeDetectorRef);
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes["reserveTopChromePx"] || changes["reserveAppTopChrome"]) {
+      this.syncOverlayPaddingTop();
+    }
+  }
+
   ngOnInit(): void {
+    this.syncOverlayPaddingTop();
     this.lockBackgroundScroll();
     document.addEventListener(
       "touchmove",
@@ -218,10 +277,13 @@ export class ModalShellComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
+    this.portalOverlayToBodyIfNeeded();
+    this.syncOverlayPaddingTop();
     this.bindVisualViewport();
   }
 
   ngOnDestroy(): void {
+    this.restoreOverlayFromBody();
     document.removeEventListener(
       "touchmove",
       this.blockBackgroundTouchMove,

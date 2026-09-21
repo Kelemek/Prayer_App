@@ -14,6 +14,7 @@ import { SupabaseService } from '../../../services/supabase.service';
 import { TenantContextService } from '../../../services/tenant-context.service';
 import { uniquePrayerTypeNamesInOrder } from '../../../lib/prayer-type-names';
 import type { MemorizationPrintSheetStyle } from '../../../lib/print-memorization-cards';
+import { SETTINGS_PRINT_MODAL_SHELL } from '../../../lib/measure-app-top-chrome-inset';
 import { USER_SETTINGS_SECTION_HOST_STYLES } from '../user-settings-section-host';
 import {
   SETTINGS_CHOICE_ACTION_ROW_CLASS,
@@ -52,6 +53,7 @@ export class UserSettingsPrintSectionComponent implements OnChanges {
   isPrintingPersonal = false;
   printRange: PrintRange = 'week';
   printOptionsModal: PrintOptionsModal | null = null;
+  readonly settingsPrintModalShell = SETTINGS_PRINT_MODAL_SHELL;
   promptTypes: string[] = [];
   selectedPromptTypes: string[] = [];
   personalCategories: string[] = [];

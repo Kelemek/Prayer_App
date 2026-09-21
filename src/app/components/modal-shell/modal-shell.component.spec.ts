@@ -211,4 +211,43 @@ describe("ModalShellComponent", () => {
       });
     });
   });
+
+  it("portals overlay to body when appendToBody is true", () => {
+    fixture = TestBed.createComponent(ModalShellComponent);
+    fixture.componentInstance.appendToBody = true;
+    fixture.detectChanges();
+    const overlay = document.body.querySelector(
+      ".modal-shell-overlay"
+    ) as HTMLElement;
+    expect(overlay?.parentElement).toBe(document.body);
+    fixture.destroy();
+    expect(document.body.contains(overlay)).toBe(false);
+  });
+
+  it("sets overlay padding when reserveAppTopChrome is true", () => {
+    const bar = document.createElement("app-tenant-switcher-bar");
+    bar.getBoundingClientRect = () =>
+      ({
+        height: 48,
+        width: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    document.body.appendChild(bar);
+
+    fixture = TestBed.createComponent(ModalShellComponent);
+    fixture.componentInstance.reserveAppTopChrome = true;
+    fixture.detectChanges();
+    const overlay = fixture.nativeElement.querySelector(
+      ".modal-shell-overlay"
+    ) as HTMLElement;
+    expect(overlay.style.paddingTop).toContain("48px");
+
+    bar.remove();
+  });
 });
