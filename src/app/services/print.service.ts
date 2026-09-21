@@ -284,11 +284,7 @@ export class PrintService {
         setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
         alert('Prayer list downloaded. Please open the file to view and print.');
       } else {
-        // Write the HTML content to the window
-        targetWindow.document.open();
-        targetWindow.document.write(html);
-        targetWindow.document.close();
-        targetWindow.focus();
+        writeHtmlToPopupAndPrint(targetWindow, html);
       }
     } catch (error) {
       console.error('Error generating prayer list:', error);
@@ -814,12 +810,7 @@ export class PrintService {
         setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
         alert('Prayer prompts downloaded. Please open the file to view and print.');
       } else {
-        // Write the HTML content to the window
-        targetWindow.document.open();
-        targetWindow.document.write(html);
-        targetWindow.document.close();
-        // Switch focus to the new tab
-        targetWindow.focus();
+        writeHtmlToPopupAndPrint(targetWindow, html);
       }
     } catch (error) {
       console.error('Error generating prayer prompts list:', error);
@@ -897,11 +888,7 @@ export class PrintService {
         setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
         alert('Personal prayers downloaded. Please open the file to view and print.');
       } else {
-        // Write the HTML content to the window
-        targetWindow.document.open();
-        targetWindow.document.write(html);
-        targetWindow.document.close();
-        targetWindow.focus();
+        writeHtmlToPopupAndPrint(targetWindow, html);
       }
     } catch (error) {
       console.error('Error generating personal prayers list:', error);
@@ -1795,10 +1782,7 @@ export class PrintService {
           'Booklet download started. Open the file to print; use double-sided, flip on short edge, then fold and staple.'
         );
       } else {
-        targetWindow.document.open();
-        targetWindow.document.write(html);
-        targetWindow.document.close();
-        targetWindow.focus();
+        writeHtmlToPopupAndPrint(targetWindow, html);
       }
     } catch (error) {
       console.error('Error generating prayer booklet:', error);

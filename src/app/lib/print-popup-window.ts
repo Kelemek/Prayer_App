@@ -1,6 +1,6 @@
 /**
- * Chromium: auto-print must run inside the popup after async content load.
- * Safari: inline scripts from opener document.write are unreliable — print from opener after focus.
+ * Cross Pointe–style auto-print: inline script in the preview window (works on mobile
+ * WebKit after async HTML generation). Opener-only print() loses the gesture chain.
  */
 export const PRINT_POPUP_AUTO_PRINT_SCRIPT = `<script>
 (function() {
@@ -12,38 +12,25 @@ export const PRINT_POPUP_AUTO_PRINT_SCRIPT = `<script>
       window.print();
     } catch (e) {}
   }
-  function afterLayout() {
-    requestAnimationFrame(function() {
-      requestAnimationFrame(function() {
-        setTimeout(runPrint, 300);
-      });
-    });
-  }
-  function schedulePrint() {
-    if (document.fonts && document.fonts.ready) {
-      var fallback = setTimeout(afterLayout, 600);
-      document.fonts.ready.then(function() {
-        clearTimeout(fallback);
-        afterLayout();
-      }).catch(afterLayout);
-    } else {
-      afterLayout();
-    }
-  }
+  window.addEventListener('load', function() {
+    setTimeout(runPrint, 150);
+  });
   if (document.readyState === 'complete') {
-    schedulePrint();
-  } else {
-    window.addEventListener('load', schedulePrint, { once: true });
+    setTimeout(runPrint, 150);
   }
 })();
 </script>`;
 
+/** @deprecated Use injectPrintDialogScript + writeHtmlToPopupAndPrint; kept for tests. */
 export function isLikelySafariBrowser(userAgent = navigator.userAgent): boolean {
   return /safari/i.test(userAgent) && !/chrome|chromium|crios|fxios|edg/i.test(userAgent);
 }
 
 export function injectPrintDialogScript(html: string): string {
-  if (html.includes('__prayerAppPrintScheduled')) {
+  if (
+    html.includes('__prayerAppPrintScheduled') ||
+    html.includes('window.print(')
+  ) {
     return html;
   }
   const closeBody = '</body>';
@@ -82,22 +69,15 @@ export function schedulePrintOnWindow(targetWindow: Window, delayMs = 200): void
   }
 }
 
-/** Write HTML into a popup opened from a user gesture; open the print dialog when ready. */
+/** Write HTML into a popup and open the system print dialog when the page loads. */
 export function writeHtmlToPopupAndPrint(targetWindow: Window, html: string): void {
-  const useOpenerPrint = isLikelySafariBrowser();
-  const htmlToWrite = useOpenerPrint ? html : injectPrintDialogScript(html);
-
+  const htmlToWrite = injectPrintDialogScript(html);
   targetWindow.document.open();
   targetWindow.document.write(htmlToWrite);
   targetWindow.document.close();
-
   try {
     targetWindow.focus();
   } catch {
     // Popup may be blocked or closed.
-  }
-
-  if (useOpenerPrint) {
-    schedulePrintOnWindow(targetWindow, 450);
   }
 }
