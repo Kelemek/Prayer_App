@@ -14,15 +14,17 @@ import {
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { VerificationService } from "../../services/verification.service";
+import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
 
 @Component({
   selector: "app-verification-dialog",
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, AppTopChromeOverlayDirective],
   template: `
     @if (isOpen) {
     <div
-      class="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-[60] p-4"
+      appTopChromeOverlay
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-[60] p-4"
       (click)="onClose.emit()"
     >
       <div

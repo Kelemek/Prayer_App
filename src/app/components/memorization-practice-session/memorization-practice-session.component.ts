@@ -110,6 +110,7 @@ import { MemorizationWordChoicesFooterComponent } from '../memorization-word-cho
 import { MemorizeListenControlsDialogComponent } from '../memorize-listen-controls-dialog/memorize-listen-controls-dialog.component';
 import { BibleBooksMemorizationListComponent } from '../bible-books-memorization-list/bible-books-memorization-list.component';
 import { ScriptureAttributionComponent } from '../scripture-attribution/scripture-attribution.component';
+import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-overlay.directive';
 
 export type { PracticeSessionResult };
 
@@ -151,6 +152,7 @@ function hiddenTypingTokenIndices(
     MemorizeListenControlsDialogComponent,
     BibleBooksMemorizationListComponent,
     ScriptureAttributionComponent,
+    AppTopChromeOverlayDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './memorization-practice-session.component.html',

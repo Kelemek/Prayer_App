@@ -20,21 +20,23 @@ import {
   SETTINGS_CHOICE_BTN_CLASS,
   settingsChoiceNgClass,
 } from "../../lib/settings-choice-ui";
+import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
 
 type ThemeOption = "light" | "dark" | "system";
 
 @Component({
   selector: "app-presentation-settings-modal",
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppTopChromeOverlayDirective],
   template: `
     @if (visible) {
     <div
-      class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 safe-area-overlay"
+      appTopChromeOverlay
+      class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 p-2 sm:p-4 safe-area-overlay"
     >
       <div
         id="tour-presentation-settings-modal"
-        class="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl max-w-md sm:max-w-lg w-full shadow-xl max-h-[90dvh] sm:max-h-[85dvh] flex flex-col overflow-hidden"
+        class="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl max-w-md sm:max-w-lg w-full shadow-xl max-h-full flex flex-col overflow-hidden"
       >
         <div
           class="flex shrink-0 items-center justify-between p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"

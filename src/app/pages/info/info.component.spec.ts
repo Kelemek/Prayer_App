@@ -179,7 +179,7 @@ describe("InfoComponent", () => {
         kind: "header",
         action: "card-reminder",
       });
-      expect(fixture.nativeElement.textContent).toContain(
+      expect(document.body.textContent).toContain(
         "private reminder for this specific request"
       );
     });
@@ -260,7 +260,7 @@ describe("InfoComponent", () => {
         kind: "memorizeAction",
         action: "bible-books",
       });
-      expect(fixture.nativeElement.textContent).toContain(
+      expect(document.body.textContent).toContain(
         "names of the books of the Bible"
       );
     });
@@ -283,10 +283,10 @@ describe("InfoComponent", () => {
       expect(previewModals().activeModal).toEqual({
         kind: "memorizePractice",
       });
-      expect(fixture.nativeElement.textContent).toContain("Practice a verse");
-      expect(fixture.nativeElement.textContent).toContain("1 of 5");
+      expect(document.body.textContent).toContain("Practice a verse");
+      expect(document.body.textContent).toContain("1 of 5");
       expect(
-        fixture.nativeElement.querySelector(
+        document.body.querySelector(
           'img[src="/info/memorize-practice/light/01-type.png"]'
         )
       ).toBeTruthy();
@@ -311,7 +311,7 @@ describe("InfoComponent", () => {
         kind: "memorizeAction",
         action: "add-verses",
       });
-      expect(fixture.nativeElement.textContent).toContain("passage picker");
+      expect(document.body.textContent).toContain("passage picker");
     });
   });
 });

@@ -34,6 +34,8 @@ describe("ModalShellComponent", () => {
         el.style.touchAction = "";
       }
     });
+    document.querySelector("app-tenant-switcher-bar")?.remove();
+    document.querySelectorAll(".modal-shell-overlay").forEach((el) => el.remove());
   });
 
   it("should create", () => {
@@ -119,7 +121,7 @@ describe("ModalShellComponent", () => {
     fixture = TestBed.createComponent(ModalShellComponent);
     fixture.detectChanges();
     const component = fixture.componentInstance;
-    const scroller = fixture.nativeElement.querySelector(".modal-shell-body");
+    const scroller = document.body.querySelector(".modal-shell-body");
     const outside = document.createElement("div");
     const event = {
       target: outside,
@@ -160,7 +162,7 @@ describe("ModalShellComponent", () => {
       fixture = TestBed.createComponent(ModalShellComponent);
       fixture.detectChanges();
       const component = fixture.componentInstance;
-      const scroller = fixture.nativeElement.querySelector(
+      const scroller = document.body.querySelector(
         ".modal-shell-body"
       ) as HTMLElement;
       const input = document.createElement("input");
@@ -186,7 +188,7 @@ describe("ModalShellComponent", () => {
       fixture = TestBed.createComponent(ModalShellComponent);
       fixture.detectChanges();
       const component = fixture.componentInstance;
-      const scroller = fixture.nativeElement.querySelector(
+      const scroller = document.body.querySelector(
         ".modal-shell-body"
       ) as HTMLElement;
       const input = document.createElement("input");
@@ -212,9 +214,8 @@ describe("ModalShellComponent", () => {
     });
   });
 
-  it("portals overlay to body when appendToBody is true", () => {
+  it("portals overlay to body by default", () => {
     fixture = TestBed.createComponent(ModalShellComponent);
-    fixture.componentInstance.appendToBody = true;
     fixture.detectChanges();
     const overlay = document.body.querySelector(
       ".modal-shell-overlay"
@@ -224,7 +225,7 @@ describe("ModalShellComponent", () => {
     expect(document.body.contains(overlay)).toBe(false);
   });
 
-  it("sets overlay padding when reserveAppTopChrome is true", () => {
+  it("sets overlay padding from tenant switcher bar by default", () => {
     const bar = document.createElement("app-tenant-switcher-bar");
     bar.getBoundingClientRect = () =>
       ({
@@ -241,9 +242,8 @@ describe("ModalShellComponent", () => {
     document.body.appendChild(bar);
 
     fixture = TestBed.createComponent(ModalShellComponent);
-    fixture.componentInstance.reserveAppTopChrome = true;
     fixture.detectChanges();
-    const overlay = fixture.nativeElement.querySelector(
+    const overlay = document.body.querySelector(
       ".modal-shell-overlay"
     ) as HTMLElement;
     expect(overlay.style.paddingTop).toContain("48px");

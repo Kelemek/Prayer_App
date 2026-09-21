@@ -40,6 +40,7 @@ import {
   lockHomePersonalCategoryDragScroll,
   unlockHomePersonalCategoryDragScroll,
 } from "../../lib/personal-category-drag-scroll";
+import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
 
 @Component({
   selector: "app-home-group-filters",
@@ -52,6 +53,7 @@ import {
     CardActionsOverflowMenuComponent,
     ConfirmationDialogComponent,
     HomeGroupMembersModalComponent,
+    AppTopChromeOverlayDirective,
   ],
   templateUrl: "./home-group-filters.component.html",
   host: { class: "block" },

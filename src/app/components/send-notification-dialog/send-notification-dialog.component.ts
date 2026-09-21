@@ -1,15 +1,19 @@
 import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-overlay.directive';
 
 export type NotificationType = 'prayer' | 'update' | 'subscriber';
 
 @Component({
   selector: 'app-send-notification-dialog',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, AppTopChromeOverlayDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4">
+    <div
+      appTopChromeOverlay
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
+    >
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full">
         <!-- Header -->
         <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">

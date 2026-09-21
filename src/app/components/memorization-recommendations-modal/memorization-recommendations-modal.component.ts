@@ -20,16 +20,17 @@ import type {
   MemorizationRecommendationAddPayload,
   MemorizationRecommendationCategoryGroup,
 } from '../../types/memorization';
+import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-overlay.directive';
 
 @Component({
   selector: 'app-memorization-recommendations-modal',
   standalone: true,
-  imports: [CommonModule, MemorizationRecommendationCardComponent, BibleTranslationPickerComponent],
+  imports: [CommonModule, MemorizationRecommendationCardComponent, BibleTranslationPickerComponent, AppTopChromeOverlayDirective],
   template: `
     @if (isOpen) {
       <div
-        class="fixed inset-0 z-[200] flex items-center justify-center bg-gray-900/50 p-2 sm:p-4 safe-area-overlay overscroll-none touch-none"
-        style="padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom));"
+        appTopChromeOverlay
+        class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4 overscroll-none touch-none"
         role="dialog"
         aria-modal="true"
         aria-labelledby="memorization-recommendations-title"
@@ -37,11 +38,11 @@ import type {
         (touchmove)="onModalTouchMove($event)"
       >
         <div
-          class="w-full max-w-lg max-h-[min(92vh,720px)] flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden border border-gray-200 dark:border-gray-700 touch-none"
+          class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-lg w-full max-h-full flex flex-col modal-panel-edge touch-none"
           (click)="$event.stopPropagation()"
         >
           <div
-            class="shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 touch-none"
+            class="px-6 py-4 modal-chrome-header shrink-0 flex items-center justify-between gap-3 touch-none"
           >
             <h2
               id="memorization-recommendations-title"
@@ -52,19 +53,18 @@ import type {
             <button
               type="button"
               (click)="onClose.emit()"
-              class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              class="shrink-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer"
               aria-label="Close"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
 
           <div
             #modalScroller
-            class="flex-1 min-h-0 overflow-y-auto overscroll-y-contain touch-pan-y px-4 py-3"
+            class="flex-1 min-h-0 overflow-y-auto overscroll-y-contain touch-pan-y px-6 py-4"
           >
             @if (loading) {
               <div class="text-center py-8">

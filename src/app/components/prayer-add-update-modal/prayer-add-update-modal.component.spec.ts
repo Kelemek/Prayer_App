@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { PrayerAddUpdateModalComponent } from "./prayer-add-update-modal.component";
+import {
+  isPrayerAddUpdatePayload,
+  PrayerAddUpdateModalComponent,
+} from "./prayer-add-update-modal.component";
 import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.component";
 import { ToastService } from "../../services/toast.service";
 
@@ -30,7 +33,7 @@ describe("PrayerAddUpdateModalComponent", () => {
     expect(component.showAnonymousOption()).toBe(true);
   });
 
-  it("handleSubmit emits payload and resets form fields", () => {
+  it("handleSubmit emits payload without clearing fields before the modal closes", () => {
     const flush = vi.fn().mockReturnValue("Test update");
     component.richTextEditorsEnabled = true;
     component.addUpdateRichText = {
@@ -39,7 +42,7 @@ describe("PrayerAddUpdateModalComponent", () => {
     component.updateContent = "";
     component.updateIsAnonymous = true;
     component.updateMarkAsAnswered = true;
-    const spy = vi.spyOn(component.submit, "emit");
+    const spy = vi.spyOn(component.updateSubmit, "emit");
 
     component.handleSubmit();
 
@@ -49,15 +52,14 @@ describe("PrayerAddUpdateModalComponent", () => {
       is_anonymous: true,
       mark_as_answered: true,
     });
-    expect(component.updateContent).toBe("");
-    expect(component.updateIsAnonymous).toBe(false);
-    expect(component.updateMarkAsAnswered).toBe(false);
+    expect(component.updateIsAnonymous).toBe(true);
+    expect(component.updateMarkAsAnswered).toBe(true);
   });
 
   it("handleSubmit uses textarea content when rich text is disabled", () => {
     component.richTextEditorsEnabled = false;
     component.updateContent = "Plain text update";
-    const spy = vi.spyOn(component.submit, "emit");
+    const spy = vi.spyOn(component.updateSubmit, "emit");
 
     component.handleSubmit();
 
@@ -71,7 +73,7 @@ describe("PrayerAddUpdateModalComponent", () => {
   it("handleSubmit does not emit when content is empty", () => {
     component.richTextEditorsEnabled = false;
     component.updateContent = "   ";
-    const spy = vi.spyOn(component.submit, "emit");
+    const spy = vi.spyOn(component.updateSubmit, "emit");
 
     component.handleSubmit();
 
@@ -82,7 +84,7 @@ describe("PrayerAddUpdateModalComponent", () => {
   it("handleSubmit ignores a second submit while the first is in flight", () => {
     component.richTextEditorsEnabled = false;
     component.updateContent = "Once";
-    const spy = vi.spyOn(component.submit, "emit");
+    const spy = vi.spyOn(component.updateSubmit, "emit");
 
     component.handleSubmit();
     component.handleSubmit();
@@ -90,11 +92,31 @@ describe("PrayerAddUpdateModalComponent", () => {
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
+  it("does not show required error when modal closes mid-submit and form fires again", () => {
+    component.richTextEditorsEnabled = false;
+    component.updateContent = "Once";
+    vi.spyOn(component.updateSubmit, "emit");
+
+    component.handleSubmit();
+    component.ngOnChanges({
+      isOpen: {
+        currentValue: false,
+        previousValue: true,
+        firstChange: false,
+        isFirstChange: () => false,
+      },
+    });
+    component.updateContent = "";
+    component.handleSubmit();
+
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it("handleSubmit allows mark-as-answered with default content when body is empty", () => {
     component.richTextEditorsEnabled = false;
     component.updateContent = "";
     component.updateMarkAsAnswered = true;
-    const spy = vi.spyOn(component.submit, "emit");
+    const spy = vi.spyOn(component.updateSubmit, "emit");
 
     component.handleSubmit();
 
@@ -161,5 +183,30 @@ describe("PrayerAddUpdateModalComponent", () => {
 
     expect(component.updateContentElementId).toBe("updateContent-p1");
     expect(component.anonymousCheckboxInputId).toBe("updateIsAnonymous-p1");
+  });
+
+  it("stops native form submit from bubbling", () => {
+    component.richTextEditorsEnabled = false;
+    component.updateContent = "Once";
+    const event = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+    } as unknown as Event;
+
+    component.handleSubmit(event);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(event.stopPropagation).toHaveBeenCalled();
+  });
+
+  it("isPrayerAddUpdatePayload rejects native submit events", () => {
+    expect(
+      isPrayerAddUpdatePayload({
+        content: "ok",
+        is_anonymous: false,
+        mark_as_answered: false,
+      })
+    ).toBe(true);
+    expect(isPrayerAddUpdatePayload(new Event("submit"))).toBe(false);
   });
 });

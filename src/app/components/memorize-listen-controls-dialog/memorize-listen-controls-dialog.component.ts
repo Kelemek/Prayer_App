@@ -16,50 +16,47 @@ import {
 import { CommonModule } from '@angular/common';
 import { MemorizeListenSpeedButtonComponent } from '../memorize-listen-speed-button/memorize-listen-speed-button.component';
 import type { MemorizeListenSpeed } from '../../lib/memorization/memorizeListenSpeedStorage';
+import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-overlay.directive';
 
 @Component({
   selector: 'app-memorize-listen-controls-dialog',
   standalone: true,
-  imports: [CommonModule, MemorizeListenSpeedButtonComponent],
+  imports: [CommonModule, MemorizeListenSpeedButtonComponent, AppTopChromeOverlayDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (open) {
       <div
         #backdrop
-        class="fixed inset-0 z-[120] flex items-center justify-center bg-gray-900/50 p-4"
-        [style.paddingTop]="'env(safe-area-inset-top)'"
-        [style.paddingBottom]="'env(safe-area-inset-bottom)'"
+        appTopChromeOverlay
+        class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
         role="presentation"
         (click)="onBackdropClick($event)"
       >
         <div
           [id]="dialogId"
-          class="relative w-full max-w-md rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl"
+          class="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full modal-panel-edge"
           role="dialog"
           aria-modal="true"
           [attr.aria-labelledby]="titleId"
           (click)="$event.stopPropagation()"
         >
-          <div class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 border-b border-gray-200 dark:border-gray-700 px-4 pt-3 pb-2">
-            <h2 [id]="titleId" class="text-lg font-semibold text-gray-800 dark:text-gray-100 min-w-0">
+          <div class="px-6 py-4 modal-chrome-header shrink-0 flex items-center justify-between gap-3">
+            <h2 [id]="titleId" class="text-lg font-semibold text-gray-900 dark:text-gray-100 min-w-0">
               Listen
             </h2>
-            <div class="flex justify-center shrink-0 px-1"></div>
-            <div class="flex justify-end">
-              <button
-                type="button"
-                data-tour="memorize-listen-close"
-                (click)="close.emit()"
-                class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer"
-                aria-label="Close"
-              >
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+            <button
+              type="button"
+              data-tour="memorize-listen-close"
+              (click)="close.emit()"
+              class="shrink-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer"
+              aria-label="Close"
+            >
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <div class="box-border w-full p-4">
+          <div class="box-border w-full px-6 py-4">
             <button
               type="button"
               data-testid="memorize-listen-passage"

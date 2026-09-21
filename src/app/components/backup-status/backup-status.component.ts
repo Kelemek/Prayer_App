@@ -5,6 +5,7 @@ import { ToastService } from "../../services/toast.service";
 import { ConfirmationDialogComponent } from "../confirmation-dialog/confirmation-dialog.component";
 import { AdminSectionLoadingComponent } from "../admin-section-loading/admin-section-loading.component";
 import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/admin-collapsible-section.component";
+import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
 
 interface BackupLog {
   id: string;
@@ -25,6 +26,7 @@ interface BackupLog {
     ConfirmationDialogComponent,
     AdminSectionLoadingComponent,
     AdminCollapsibleSectionComponent,
+    AppTopChromeOverlayDirective,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
@@ -397,7 +399,8 @@ interface BackupLog {
     <!-- Restore Dialog -->
     @if (showRestoreDialog) {
     <div
-      class="fixed inset-0 bg-gray-900/50 flex items-center justify-center p-4 z-50"
+      appTopChromeOverlay
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center p-4 z-50"
     >
       <div
         class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6"

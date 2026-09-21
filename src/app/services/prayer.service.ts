@@ -708,10 +708,6 @@ export class PrayerService {
     return this.personal.reorderCategories(orderedIds);
   }
 
-  async sharePrayerForApproval(personalPrayerId: string): Promise<string> {
-    return this.personal.sharePrayerForApproval(personalPrayerId);
-  }
-
   ngOnDestroy(): void {
     unsubscribePrayerResumeListeners(this.resumeListenerSubscriptions);
     this.resumeListenerSubscriptions = [];

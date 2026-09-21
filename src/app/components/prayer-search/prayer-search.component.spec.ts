@@ -2781,7 +2781,7 @@ describe('PrayerSearchComponent', () => {
         title: 'Test',
         description: 'Test',
         requester: '',
-        email: 'john@example.com',
+        email: '',
         prayer_for: 'Jane',
         status: 'current'
       };

@@ -18,7 +18,6 @@ describe('PrayerCardMetaHeaderComponent overflow items', () => {
     expect(component.overflowItems.map((item) => item.id)).toEqual([
       'reminder',
       'answered',
-      'share',
       'edit',
       'delete',
     ]);
@@ -28,10 +27,10 @@ describe('PrayerCardMetaHeaderComponent overflow items', () => {
     expect(component.overflowItems[1]?.tourAnchorId).toBe(
       'tour-walkthrough-personal-answered'
     );
-    expect(component.overflowItems[3]?.tourAnchorId).toBe(
+    expect(component.overflowItems[2]?.tourAnchorId).toBe(
       'tour-walkthrough-personal-edit'
     );
-    expect(component.overflowItems[4]?.tourAnchorId).toBe(
+    expect(component.overflowItems[3]?.tourAnchorId).toBe(
       'tour-walkthrough-personal-delete'
     );
   });
@@ -47,7 +46,6 @@ describe('PrayerCardMetaHeaderComponent overflow items', () => {
     const component = new PrayerCardMetaHeaderComponent();
     const emitted: string[] = [];
     component.edit.subscribe(() => emitted.push('edit'));
-    component.share.subscribe(() => emitted.push('share'));
     component.delete.subscribe(() => emitted.push('delete'));
     component.reminder.subscribe(() => emitted.push('reminder'));
     component.toggleAnswered.subscribe(() => emitted.push('answered'));
@@ -59,6 +57,6 @@ describe('PrayerCardMetaHeaderComponent overflow items', () => {
     for (const item of component.overflowItems) {
       item.onSelect();
     }
-    expect(emitted).toEqual(['reminder', 'answered', 'share', 'edit', 'delete']);
+    expect(emitted).toEqual(['reminder', 'answered', 'edit', 'delete']);
   });
 });

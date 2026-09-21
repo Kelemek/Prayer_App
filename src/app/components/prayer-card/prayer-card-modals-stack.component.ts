@@ -69,7 +69,6 @@ export class PrayerCardModalsStackComponent implements OnChanges, OnDestroy {
   @Input({ required: true }) prayerFor!: string;
   @Input({ required: true }) titleSnapshot!: string;
   @Input() reminders: PrayerItemReminder[] = [];
-  @Input() showShareModal = false;
   @Input() showPrayForModal = false;
   @Input() usesPersonalCooldown = false;
 
@@ -86,8 +85,6 @@ export class PrayerCardModalsStackComponent implements OnChanges, OnDestroy {
   @Output() confirmPersonalUnanswered = new EventEmitter<string | null>();
   @Output() closeReminder = new EventEmitter<void>();
   @Output() remindersChange = new EventEmitter<PrayerItemReminder[]>();
-  @Output() confirmShare = new EventEmitter<void>();
-  @Output() cancelShare = new EventEmitter<void>();
   @Output() confirmPrayFor = new EventEmitter<boolean>();
   @Output() cancelPrayFor = new EventEmitter<void>();
 
@@ -122,8 +119,7 @@ export class PrayerCardModalsStackComponent implements OnChanges, OnDestroy {
         personalAnsweredStatusModalMode: this.personalAnsweredStatusModalMode,
         showReminderModal: this.showReminderModal,
         showPrayForModal: this.showPrayForModal,
-      }) ||
-      this.showShareModal
+      })
     ) {
       this.portalAnchor = portalPrayerCardModalsHostToBody(host, this.portalAnchor);
       return;

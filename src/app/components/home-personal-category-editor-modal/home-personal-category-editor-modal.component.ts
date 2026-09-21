@@ -10,6 +10,7 @@ import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { PersonalCategoryColorPickerComponent } from "../personal-category-color-picker/personal-category-color-picker.component";
 import { PERSONAL_CATEGORY_COLOR_PRESETS } from "../../../utils/personalCategoryColor";
+import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
 
 export type CreatePersonalCategoryPayload = {
   name: string;
@@ -19,7 +20,7 @@ export type CreatePersonalCategoryPayload = {
 @Component({
   selector: "app-home-personal-category-editor-modal",
   standalone: true,
-  imports: [CommonModule, FormsModule, PersonalCategoryColorPickerComponent],
+  imports: [CommonModule, FormsModule, PersonalCategoryColorPickerComponent, AppTopChromeOverlayDirective],
   templateUrl: "./home-personal-category-editor-modal.component.html",
   host: { class: "contents" },
 })

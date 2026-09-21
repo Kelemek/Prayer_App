@@ -73,11 +73,11 @@ describe("HomeChurchOnboardingModalComponent", () => {
   });
 
   it("shows tour and join choices without create-church purchase copy", () => {
-    expect(fixture.nativeElement.textContent).toContain("Connect to a church");
-    expect(fixture.nativeElement.textContent).toContain("See Church features");
-    expect(fixture.nativeElement.textContent).toContain("Join a church");
-    expect(fixture.nativeElement.textContent).not.toContain("Create a church");
-    expect(fixture.nativeElement.textContent).not.toMatch(/\$|Buy|Checkout/i);
+    expect(document.body.textContent).toContain("Connect to a church");
+    expect(document.body.textContent).toContain("See Church features");
+    expect(document.body.textContent).toContain("Join a church");
+    expect(document.body.textContent).not.toContain("Create a church");
+    expect(document.body.textContent).not.toMatch(/\$|Buy|Checkout/i);
   });
 
   it("emits startChurchTour and does not create a tenant", () => {
@@ -99,7 +99,7 @@ describe("HomeChurchOnboardingModalComponent", () => {
 
   it("closes from the header close button", () => {
     const closeSpy = vi.spyOn(fixture.componentInstance.close, "emit");
-    const closeButton = fixture.nativeElement.querySelector(
+    const closeButton = document.body.querySelector(
       'button[aria-label="Close"]'
     ) as HTMLButtonElement;
     closeButton.click();

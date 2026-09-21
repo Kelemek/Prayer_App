@@ -6415,6 +6415,7 @@ describe('PrayerService - Integration Tests', () => {
         const result = await service.updatePersonalPrayerUpdate('update1', 'prayer1', { content: 'New content' });
         
         expect(result).toBe(true);
+        expect(mockToastService.success).toHaveBeenCalledWith('Personal prayer update saved');
       });
     });
 
@@ -6943,85 +6944,6 @@ describe('PrayerService - share and category fallback coverage', () => {
       tenantContext,
       connectivity
     );
-  });
-
-  it('sharePrayerForApproval creates public prayer and copies updates', async () => {
-    const personal = {
-      id: 'pp-1',
-      title: 'Share me',
-      description: 'Desc',
-      prayer_for: 'Friend',
-      user_email: 'user@test.com',
-      category: 'Family',
-      created_at: '2026-01-01T00:00:00Z',
-      personal_prayer_updates: [
-        {
-          id: 'u1',
-          content: 'Update',
-          author: 'User',
-          author_email: 'user@test.com',
-          mark_as_answered: false,
-          created_at: '2026-01-02T00:00:00Z',
-        },
-      ],
-    };
-    const singlePersonal = vi.fn().mockResolvedValue({ data: personal, error: null });
-    const singlePublic = vi.fn().mockResolvedValue({
-      data: { id: 'pub-1' },
-      error: null,
-    });
-    const insertUpdates = vi.fn().mockResolvedValue({ error: null });
-    supabase.client.from.mockImplementation((table: string) => {
-      if (table === 'personal_prayers') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                single: singlePersonal,
-              })),
-            })),
-          })),
-        };
-      }
-      if (table === 'prayers') {
-        return {
-          insert: vi.fn(() => ({
-            select: vi.fn(() => ({ single: singlePublic })),
-          })),
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              order: vi.fn().mockResolvedValue({ data: [], error: null }),
-            })),
-          })),
-        };
-      }
-      if (table === 'prayer_updates') {
-        return { insert: insertUpdates };
-      }
-      return {
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            order: vi.fn().mockResolvedValue({ data: [], error: null }),
-          })),
-        })),
-      };
-    });
-    vi.spyOn(service, 'loadPersonalPrayers').mockResolvedValue(undefined);
-
-    const id = await service.sharePrayerForApproval('pp-1');
-    expect(id).toBe('pub-1');
-    expect(toast.success).toHaveBeenCalled();
-    expect(insertUpdates).toHaveBeenCalled();
-  });
-
-  it('sharePrayerForApproval returns empty when offline and throws without tenant', async () => {
-    connectivity.requireOnline.mockReturnValue(false);
-    expect(await service.sharePrayerForApproval('x')).toBe('');
-
-    connectivity.requireOnline.mockReturnValue(true);
-    tenantContext.getActiveTenant.mockReturnValue(null);
-    await expect(service.sharePrayerForApproval('x')).rejects.toThrow(/organization/);
-    expect(toast.error).toHaveBeenCalled();
   });
 
   it('reorderCategories returns false when RPC errors', async () => {

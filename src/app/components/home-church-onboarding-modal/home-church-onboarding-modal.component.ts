@@ -13,13 +13,14 @@ import { TenantManagementService } from "../../services/tenant-management.servic
 import { TenantContextService } from "../../services/tenant-context.service";
 import { ToastService } from "../../services/toast.service";
 import { switchTenantWithNavigation } from "../../lib/tenant-navigation";
+import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
 
 export type ChurchOnboardingView = "chooser" | "join";
 
 @Component({
   selector: "app-home-church-onboarding-modal",
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppTopChromeOverlayDirective],
   templateUrl: "./home-church-onboarding-modal.component.html",
   host: { class: "contents" },
 })

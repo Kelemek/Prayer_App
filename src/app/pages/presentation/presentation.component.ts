@@ -56,6 +56,7 @@ import {
   type SelectablePresentationContentType,
 } from "../../types/presentation";
 import type { PrayerPrompt as ServicePrayerPrompt } from "../../components/prompt-card/prompt-card.component";
+import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
 
 interface Prayer {
   id: string;
@@ -96,6 +97,7 @@ type ThemeOption = "light" | "dark" | "system";
     PresentationToolbarComponent,
     PresentationSlideCardComponent,
     PresentationSettingsModalComponent,
+    AppTopChromeOverlayDirective,
   ],
   templateUrl: "./presentation.component.html",
   changeDetection: ChangeDetectionStrategy.Eager,

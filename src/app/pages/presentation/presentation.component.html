@@ -137,7 +137,8 @@
       <!-- Timer Notification -->
       @if (showTimerNotification) {
       <div
-        class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 safe-area-overlay"
+        appTopChromeOverlay
+        class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 safe-area-overlay"
       >
         <div
           class="bg-white dark:bg-gray-800 rounded-3xl p-12 shadow-2xl border border-gray-200 dark:border-gray-700 text-center max-w-2xl mx-4 relative"
@@ -183,7 +184,8 @@
       <!-- Presentation Complete Notification -->
       @if (showPresentationCompleteNotification) {
       <div
-        class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 safe-area-overlay"
+        appTopChromeOverlay
+        class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-start sm:items-center justify-center z-50 safe-area-overlay"
       >
         <div
           class="bg-white dark:bg-gray-800 rounded-3xl p-12 shadow-2xl border border-gray-200 dark:border-gray-700 text-center max-w-2xl mx-4 relative"

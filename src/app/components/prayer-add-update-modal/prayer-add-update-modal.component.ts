@@ -20,6 +20,16 @@ export interface PrayerAddUpdatePayload {
   mark_as_answered: boolean;
 }
 
+/** True for modal payloads; false for a bubbling native form `submit` Event. */
+export function isPrayerAddUpdatePayload(
+  value: unknown
+): value is PrayerAddUpdatePayload {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  return typeof (value as PrayerAddUpdatePayload).content === "string";
+}
+
 @Component({
   selector: "app-prayer-add-update-modal",
   standalone: true,
@@ -35,7 +45,7 @@ export interface PrayerAddUpdatePayload {
     >
       <form
         #updateForm="ngForm"
-        (ngSubmit)="handleSubmit()"
+        (ngSubmit)="handleSubmit($event)"
         class="p-6 space-y-4"
       >
         <div [attr.id]="updateContentElementId">
@@ -140,7 +150,8 @@ export class PrayerAddUpdateModalComponent implements OnChanges {
   } | null = null;
 
   @Output() close = new EventEmitter<void>();
-  @Output() submit = new EventEmitter<PrayerAddUpdatePayload>();
+  /** Not named `submit` — that collides with the native form submit event. */
+  @Output() updateSubmit = new EventEmitter<PrayerAddUpdatePayload>();
 
   updateContent = "";
   updateIsAnonymous = false;
@@ -148,8 +159,10 @@ export class PrayerAddUpdateModalComponent implements OnChanges {
   private isSubmittingUpdate = false;
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes["isOpen"]?.currentValue === false) {
+    if (changes["isOpen"]?.currentValue === true) {
       this.isSubmittingUpdate = false;
+    }
+    if (changes["isOpen"]?.currentValue === false) {
       this.resetForm();
     }
   }
@@ -199,7 +212,9 @@ export class PrayerAddUpdateModalComponent implements OnChanges {
     );
   }
 
-  handleSubmit(): void {
+  handleSubmit(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
     if (this.isSubmittingUpdate) {
       return;
     }
@@ -212,12 +227,11 @@ export class PrayerAddUpdateModalComponent implements OnChanges {
       return;
     }
     this.isSubmittingUpdate = true;
-    this.submit.emit({
+    this.updateSubmit.emit({
       content,
       is_anonymous: this.updateIsAnonymous,
       mark_as_answered: this.updateMarkAsAnswered,
     });
-    this.resetForm();
   }
 
   private resolveUpdateContent(): string {

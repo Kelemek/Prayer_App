@@ -41,10 +41,10 @@ describe("HomePersonalCategoryEditorModalComponent", () => {
   });
 
   it("shows create category form with color picker", () => {
-    expect(fixture.nativeElement.textContent).toContain("Create a category");
-    expect(fixture.nativeElement.textContent).toContain("Category name");
-    expect(fixture.nativeElement.textContent).toContain("Color");
-    expect(fixture.nativeElement.textContent).toContain("Create category");
+    expect(document.body.textContent).toContain("Create a category");
+    expect(document.body.textContent).toContain("Category name");
+    expect(document.body.textContent).toContain("Color");
+    expect(document.body.textContent).toContain("Create category");
   });
 
   it("clears the name draft and resets color when reopened", () => {
@@ -75,7 +75,7 @@ describe("HomePersonalCategoryEditorModalComponent", () => {
 
   it("closes from the header close button", () => {
     const closeSpy = vi.spyOn(fixture.componentInstance.close, "emit");
-    const closeButton = fixture.nativeElement.querySelector(
+    const closeButton = document.body.querySelector(
       'button[aria-label="Close"]'
     ) as HTMLButtonElement;
     expect(closeButton).toBeTruthy();
@@ -86,7 +86,7 @@ describe("HomePersonalCategoryEditorModalComponent", () => {
   it("keeps the close button enabled while submitting", () => {
     fixture.componentRef.setInput("submitting", true);
     fixture.detectChanges();
-    const closeButton = fixture.nativeElement.querySelector(
+    const closeButton = document.body.querySelector(
       'button[aria-label="Close"]'
     ) as HTMLButtonElement;
     expect(closeButton.disabled).toBe(false);

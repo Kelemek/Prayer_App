@@ -27,11 +27,11 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
-      class="shrink-0 border-t border-gray-200 dark:border-gray-700"
+      class="shrink-0 modal-chrome-footer"
       data-testid="memorize-word-choices"
     >
       <div
-        class="memorize-word-choices-panel overflow-y-auto overscroll-y-contain px-4 py-3 touch-pan-y"
+        class="memorize-word-choices-panel overflow-y-auto overscroll-y-contain px-6 py-4 touch-pan-y"
       >
         <div class="flex w-full max-w-2xl mx-auto flex-col justify-center gap-4">
           @for (row of choiceRows; track $index) {

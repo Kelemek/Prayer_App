@@ -61,6 +61,7 @@ describe('EmailSubscribersComponent', () => {
 
     mockTenantContext = {
       getActiveTenant: vi.fn(() => MOCK_TENANT),
+      getIsSuperAdmin: vi.fn(() => false),
       activeTenant$,
     };
 
@@ -352,6 +353,29 @@ describe('EmailSubscribersComponent', () => {
     vi.spyOn(component, 'handleSearch').mockResolvedValue(undefined);
     await component.handleAddSubscriber();
     expect(component.showSendWelcomeEmailDialog).toBe(true);
+  });
+
+  it('refreshes hidden super admin membership instead of duplicate error', async () => {
+    component.newName = 'Mark Larson';
+    component.newEmail = 'super@example.com';
+    fromChain.maybeSingle.mockResolvedValue({
+      data: { user_email: 'super@example.com' },
+      error: null,
+    });
+    mockSupabaseService.client.rpc.mockResolvedValue({ data: true, error: null });
+    const updateEq = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+    fromChain.update.mockReturnValue({ eq: updateEq });
+    vi.spyOn(component, 'handleSearch').mockResolvedValue(undefined);
+
+    await component.handleAddSubscriber();
+
+    expect(fromChain.insert).not.toHaveBeenCalled();
+    expect(fromChain.update).toHaveBeenCalled();
+    expect(component.error).toBeNull();
+    expect(component.csvSuccess).toContain('Membership updated');
+    expect(component.csvSuccess).toContain('not shown in this subscriber list');
   });
 
   it('toggles active/push/blocked via confirmation actions', async () => {

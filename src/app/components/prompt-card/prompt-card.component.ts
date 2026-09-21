@@ -52,6 +52,7 @@ import {
   restorePrayerCardModalsHostFromBody,
   type PrayerCardModalsPortalAnchor,
 } from "../../lib/prayer-card-modals-portal";
+import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
 
 const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = "prayer_encouragement_modal_do_not_show";
 
@@ -75,6 +76,7 @@ export interface PrayerPrompt {
     CardMetaHeaderBandComponent,
     CardActionsOverflowMenuComponent,
     PrayerItemReminderModalComponent,
+    AppTopChromeOverlayDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {

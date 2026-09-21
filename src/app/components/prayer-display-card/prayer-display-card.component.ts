@@ -24,6 +24,7 @@ import {
   getPromptCardVariantLayout,
 } from "../../lib/prayer-card-layout";
 import { getPrayerStatusPillClasses, META_HEADER_BORDER_BOTTOM_CLASSES } from "../../lib/prayer-status-header";
+import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
 
 const PRAY_FOR_MODAL_DO_NOT_SHOW_KEY = "prayer_encouragement_modal_do_not_show";
 
@@ -70,7 +71,7 @@ interface PrayerPrompt {
 @Component({
   selector: "app-prayer-display-card",
   standalone: true,
-  imports: [NgClass, NgStyle, RichTextViewComponent, AsyncPipe, FormsModule],
+  imports: [NgClass, NgStyle, RichTextViewComponent, AsyncPipe, FormsModule, AppTopChromeOverlayDirective],
   template: `
     <!-- Prayer Card -->
     @if (prayer) {
@@ -254,7 +255,10 @@ interface PrayerPrompt {
 
     <!-- Pray For explanation modal -->
     @if (showPrayForModal) {
-    <div class="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4">
+    <div
+      appTopChromeOverlay
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
+    >
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full">
         <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Pray For This Request</h2>
@@ -384,7 +388,10 @@ interface PrayerPrompt {
 
     <!-- Pray For explanation modal (prompt) -->
     @if (showPrayForModal && prompt && !prayer) {
-    <div class="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4">
+    <div
+      appTopChromeOverlay
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
+    >
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full">
         <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Pray For This Prompt</h2>

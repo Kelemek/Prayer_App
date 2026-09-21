@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
 import { render } from '@testing-library/angular';
+import { within } from '@testing-library/dom';
 import { BehaviorSubject } from 'rxjs';
 import { ElementRef, SimpleChange, ɵresolveComponentResources as resolveComponentResources } from '@angular/core';
 import { MemorizationPracticeSessionComponent } from './memorization-practice-session.component';
@@ -178,8 +179,11 @@ async function renderSession(
   await fixture.whenStable();
   cdr.detectChanges();
 
+  const overlayQueries = within(document.body);
   return {
     ...result,
+    ...overlayQueries,
+    container: document.body,
     component,
     cdr,
     closed,
@@ -1931,8 +1935,8 @@ describe('MemorizationPracticeSessionComponent', () => {
       expect(component.reciteTokenStatus(godIndex)).toBe('missing');
 
       fixture.detectChanges();
-      expect(fixture.nativeElement.querySelector('[data-testid="memorize-recite-aligned-words"]')).toBeTruthy();
-      expect(fixture.nativeElement.querySelector('[data-testid="memorize-recite-words"]')).toBeFalsy();
+      expect(document.body.querySelector('[data-testid="memorize-recite-aligned-words"]')).toBeTruthy();
+      expect(document.body.querySelector('[data-testid="memorize-recite-words"]')).toBeFalsy();
     });
 
     it('waits for recite settings before starting whisper recording', async () => {

@@ -1,4 +1,4 @@
-import { BehaviorSubject, first } from "rxjs";
+import { BehaviorSubject } from "rxjs";
 import { SupabaseService } from "./supabase.service";
 import { ToastService } from "./toast.service";
 import { CacheService } from "./cache.service";
@@ -37,12 +37,9 @@ import {
   deletePersonalPrayerRow,
   deletePersonalPrayerUpdateRow,
   fetchPersonalCategoriesList,
-  fetchPersonalPrayerForShare,
   fetchPersonalPrayersList,
   insertPersonalPrayerRow,
   insertPersonalPrayerUpdateRow,
-  insertSharedCommunityPrayerRow,
-  insertSharedCommunityPrayerUpdates,
   markPersonalPrayerUpdateAnsweredRow,
   updatePersonalPrayerRow,
   updatePersonalPrayerUpdateRow,
@@ -73,11 +70,6 @@ import {
 import {
   personalPrayersCacheKeyForTenant,
 } from "../lib/prayer-tenant";
-import {
-  buildSharedPersonalPrayerCommunityRow,
-  buildSharedPersonalPrayerUpdateRows,
-  resolveSharedPrayerRequesterName,
-} from "../lib/prayer-personal-share";
 import type { PrayerRequest, PrayerUpdate } from "../lib/prayer-types";
 import type { PersonalCategory } from "../types/personal-category";
 import {
@@ -761,6 +753,7 @@ export class PrayerPersonalService {
       );
 
       console.log("[PrayerService] Personal prayer update updated successfully");
+      this.toast.success("Personal prayer update saved");
       return true;
     } catch (error) {
       console.error("Error updating personal prayer update:", error);
@@ -1017,99 +1010,6 @@ export class PrayerPersonalService {
       );
     }
     return success;
-  }
-
-  async sharePrayerForApproval(personalPrayerId: string): Promise<string> {
-    if (!this.connectivity.requireOnline("share a prayer")) {
-      return "";
-    }
-    try {
-      const tenantId = this.getActiveTenantId();
-      if (!tenantId) {
-        throw new Error("Select an organization to share a personal prayer.");
-      }
-
-      const { data: personalPrayer, error: fetchError } =
-        await fetchPersonalPrayerForShare(
-          this.supabase.client,
-          personalPrayerId,
-          tenantId
-        );
-      if (fetchError)
-        throw new Error(
-          `Failed to fetch personal prayer: ${(fetchError as Error).message}`
-        );
-      if (!personalPrayer) throw new Error("Personal prayer not found");
-
-      const session = await this.userSessionService.userSession$
-        .pipe(first())
-        .toPromise();
-      const requesterName = resolveSharedPrayerRequesterName(
-        session?.fullName,
-        personalPrayer.user_email
-      );
-
-      const publicPrayerData = buildSharedPersonalPrayerCommunityRow(
-        personalPrayer,
-        requesterName,
-        tenantId
-      );
-
-      const { data: newPrayer, error: createError } =
-        await insertSharedCommunityPrayerRow(
-          this.supabase.client,
-          publicPrayerData
-        );
-      if (createError)
-        throw new Error(
-          `Failed to create public prayer: ${(createError as Error).message}`
-        );
-      if (!newPrayer) throw new Error("Failed to create public prayer");
-
-      const updatesCopy = buildSharedPersonalPrayerUpdateRows(
-        personalPrayer,
-        newPrayer.id,
-        tenantId
-      );
-      if (updatesCopy.length > 0) {
-        const { error: updatesCopyError } =
-          await insertSharedCommunityPrayerUpdates(
-            this.supabase.client,
-            updatesCopy
-          );
-        if (updatesCopyError) {
-          console.error(
-            "Failed to copy updates, but public prayer was created:",
-            updatesCopyError
-          );
-        }
-      }
-
-      this.emailNotification
-        .sendAdminNotification({
-          type: "prayer",
-          title: personalPrayer.title,
-          description: personalPrayer.description,
-          requester: requesterName,
-          requestId: newPrayer.id,
-          tenantId,
-        })
-        .catch((err) =>
-          console.error("Failed to send admin notification:", err)
-        );
-
-      await this.facadeHooks.loadPersonalPrayers();
-      this.toast.success(
-        "Prayer shared! It has been submitted for admin approval."
-      );
-      return newPrayer.id;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to share prayer";
-      console.error("[PrayerService] Error sharing prayer:", error);
-      this.toast.error(errorMessage);
-      throw error;
-    }
   }
 
   private async getUserEmail(): Promise<string | null> {

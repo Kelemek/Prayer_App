@@ -8,11 +8,12 @@ import {
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
+import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
 
 @Component({
   selector: "app-home-group-editor-modal",
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppTopChromeOverlayDirective],
   templateUrl: "./home-group-editor-modal.component.html",
   host: { class: "contents" },
 })

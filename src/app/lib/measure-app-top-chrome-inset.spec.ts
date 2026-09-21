@@ -1,5 +1,8 @@
 import { describe, expect, it, afterEach } from 'vitest';
-import { measureAppTopChromeInsetPx } from './measure-app-top-chrome-inset';
+import {
+  appTopChromeOverlayPaddingTop,
+  measureAppTopChromeInsetPx,
+} from './measure-app-top-chrome-inset';
 
 describe('measureAppTopChromeInsetPx', () => {
   afterEach(() => {
@@ -26,5 +29,12 @@ describe('measureAppTopChromeInsetPx', () => {
       }) as DOMRect;
     document.body.appendChild(bar);
     expect(measureAppTopChromeInsetPx()).toBe(50);
+    expect(appTopChromeOverlayPaddingTop()).toBe(
+      'calc(env(safe-area-inset-top, 0px) + 50px + 0.75rem)'
+    );
+  });
+
+  it('returns null overlay padding when tenant bar is absent', () => {
+    expect(appTopChromeOverlayPaddingTop()).toBeNull();
   });
 });

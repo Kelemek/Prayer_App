@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { MemorizeListenControlsDialogComponent } from './memorize-listen-controls-dialog.component';
 
@@ -17,15 +17,19 @@ describe('MemorizeListenControlsDialogComponent', () => {
     fixture.detectChanges();
   });
 
+  afterEach(() => {
+    fixture?.destroy();
+  });
+
   it('renders listen controls when open', () => {
-    expect(fixture.nativeElement.textContent).toContain('Listen');
-    expect(fixture.nativeElement.textContent).toContain('Pause');
+    expect(document.body.textContent).toContain('Listen');
+    expect(document.body.textContent).toContain('Pause');
   });
 
   it('emits close when backdrop is clicked', () => {
     const close = vi.fn();
     component.close.subscribe(close);
-    const backdrop = fixture.nativeElement.querySelector('[role="presentation"]') as HTMLElement;
+    const backdrop = document.body.querySelector('[role="presentation"]') as HTMLElement;
     backdrop.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(close).toHaveBeenCalled();
   });
@@ -38,8 +42,8 @@ describe('MemorizeListenControlsDialogComponent', () => {
     component.repeatToggle.subscribe(repeatToggle);
     component.speedSelect.subscribe(speedSelect);
 
-    fixture.nativeElement.querySelector('[data-testid="memorize-listen-passage"]').click();
-    fixture.nativeElement.querySelector('[data-testid="memorize-listen-repeat"]').click();
+    document.body.querySelector('[data-testid="memorize-listen-passage"]').click();
+    document.body.querySelector('[data-testid="memorize-listen-repeat"]').click();
     component.speedSelect.emit(1.25);
 
     expect(primaryClick).toHaveBeenCalled();

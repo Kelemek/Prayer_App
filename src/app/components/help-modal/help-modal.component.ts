@@ -18,24 +18,26 @@ import { Observable } from "rxjs";
 import { HelpContentService } from "../../services/help-content.service";
 import { HelpSection } from "../../types/help-content";
 import { isHomeHelpTourSectionId } from "../../lib/home-help-tour-dispatch";
+import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
 
 @Component({
   selector: "app-help-modal",
   standalone: true,
-  imports: [CommonModule, NgClass, FormsModule],
+  imports: [CommonModule, NgClass, FormsModule, AppTopChromeOverlayDirective],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (isOpen) {
     <div
-      class="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-2 sm:p-4"
-      style="padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom));"
+      appTopChromeOverlay
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-2 sm:p-4"
+      style="padding-bottom: max(8px, env(safe-area-inset-bottom));"
       (click)="onClose()"
       role="dialog"
       aria-modal="true"
       aria-labelledby="help-modal-title"
     >
       <div
-        class="help-modal-panel bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg lg:max-w-2xl max-h-[90dvh] sm:max-h-[85dvh] overflow-y-auto"
+        class="help-modal-panel bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg lg:max-w-2xl max-h-full overflow-y-auto"
         #contentArea
         (click)="$event.stopPropagation()"
       >

@@ -14,11 +14,12 @@ import { SupabaseService } from '../../services/supabase.service';
 import { TenantContextService } from '../../services/tenant-context.service';
 import { ToastService } from '../../services/toast.service';
 import { invokeWipeChurchTenant, navigateAfterChurchWipe } from '../../lib/admin-wipe-church-run';
+import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-overlay.directive';
 
 @Component({
   selector: 'app-admin-wipe-church-dialog',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppTopChromeOverlayDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './admin-wipe-church-dialog.component.html',
 })

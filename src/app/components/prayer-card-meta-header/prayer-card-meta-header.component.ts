@@ -118,7 +118,6 @@ export class PrayerCardMetaHeaderComponent {
 
   @Output() toggleAnswered = new EventEmitter<void>();
   @Output() edit = new EventEmitter<void>();
-  @Output() share = new EventEmitter<void>();
   @Output() delete = new EventEmitter<void>();
   @Output() reminder = new EventEmitter<void>();
   @Output() pickerOpenChange = new EventEmitter<boolean>();
@@ -177,14 +176,6 @@ export class PrayerCardMetaHeaderComponent {
         tone: this.isAnswered ? 'green' : 'gray',
         tourAnchorId: this.personalAnsweredTourId,
         onSelect: () => this.toggleAnswered.emit(),
-      });
-      items.push({
-        id: 'share',
-        label: 'Share prayer to public',
-        ariaLabel: 'Share personal prayer',
-        icon: 'share',
-        tone: 'blue',
-        onSelect: () => this.share.emit(),
       });
       items.push({
         id: 'edit',

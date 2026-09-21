@@ -12,28 +12,29 @@ import { CommonModule } from '@angular/common';
 import { BibleTranslationPickerComponent } from '../bible-translation-picker/bible-translation-picker.component';
 import { MemorizationService } from '../../services/memorization.service';
 import type { BibleTranslation } from '../../types/memorization';
+import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-overlay.directive';
 
 @Component({
   selector: 'app-verse-memorization-translation-modal',
   standalone: true,
-  imports: [CommonModule, BibleTranslationPickerComponent],
+  imports: [CommonModule, BibleTranslationPickerComponent, AppTopChromeOverlayDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (isOpen) {
       <div
-        class="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-gray-900/50 p-0 sm:p-4 safe-area-overlay overscroll-none touch-none"
-        style="padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom));"
+        appTopChromeOverlay
+        class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4 overscroll-none touch-none"
         role="dialog"
         aria-modal="true"
         aria-labelledby="verse-memorization-translation-title"
         (click)="onCancel.emit()"
       >
         <div
-          class="w-full sm:max-w-md flex flex-col bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-lg shadow-xl modal-panel-edge touch-none"
+          class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full flex flex-col modal-panel-edge touch-none"
           (click)="$event.stopPropagation()"
         >
           <div
-            class="shrink-0 flex items-center justify-between gap-3 px-4 sm:px-6 py-3 modal-chrome-header touch-none"
+            class="px-6 py-4 modal-chrome-header shrink-0 flex items-center justify-between gap-3 touch-none"
           >
             <h2
               id="verse-memorization-translation-title"
@@ -44,17 +45,16 @@ import type { BibleTranslation } from '../../types/memorization';
             <button
               type="button"
               (click)="onCancel.emit()"
-              class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              class="shrink-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer"
               aria-label="Close"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
 
-          <div class="px-4 sm:px-6 py-3">
+          <div class="px-6 py-4">
             <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
               Memorize: {{ reference }}
             </p>
@@ -71,8 +71,7 @@ import type { BibleTranslation } from '../../types/memorization';
           </div>
 
           <div
-            class="shrink-0 modal-chrome-footer px-4 sm:px-6 py-3 touch-none"
-            style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom));"
+            class="shrink-0 modal-chrome-footer px-6 py-4 touch-none"
           >
             <button
               type="button"

@@ -15,6 +15,7 @@ import type { PrayerGroup, PrayerGroupMember } from "../../types/prayer-group";
 import { PrayerGroupService } from "../../services/prayer-group.service";
 import { ConfirmationDialogComponent } from "../confirmation-dialog/confirmation-dialog.component";
 import { isNearQuota } from "../../lib/plan-quota";
+import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
 
 type MembersConfirmAction =
   | { type: "leave"; groupId: string; groupName: string }
@@ -23,7 +24,7 @@ type MembersConfirmAction =
 @Component({
   selector: "app-home-group-members-modal",
   standalone: true,
-  imports: [CommonModule, FormsModule, ConfirmationDialogComponent],
+  imports: [CommonModule, FormsModule, ConfirmationDialogComponent, AppTopChromeOverlayDirective],
   templateUrl: "./home-group-members-modal.component.html",
   host: { class: "contents" },
 })

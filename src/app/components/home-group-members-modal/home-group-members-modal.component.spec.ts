@@ -74,8 +74,8 @@ describe("HomeGroupMembersModalComponent", () => {
 
   it("loads and shows members for the selected group", async () => {
     expect(prayerGroupService.loadGroupMembers).toHaveBeenCalledWith("g1");
-    expect(fixture.nativeElement.textContent).toContain("member@example.com");
-    expect(fixture.nativeElement.textContent).toContain("Invite by email");
+    expect(document.body.textContent).toContain("member@example.com");
+    expect(document.body.textContent).toContain("Invite by email");
   });
 
   it("does not allow removing the current owner from their own group", () => {
@@ -106,7 +106,7 @@ describe("HomeGroupMembersModalComponent", () => {
     ];
     fixture.detectChanges();
     expect(fixture.componentInstance.memberNearCap()).toBe(true);
-    expect(fixture.nativeElement.textContent).toContain("near the member limit");
+    expect(document.body.textContent).toContain("near the member limit");
   });
 
   it("blocks invites when the member cap is reached", async () => {
@@ -117,7 +117,7 @@ describe("HomeGroupMembersModalComponent", () => {
     fixture.componentInstance.emailsDraft = "new@example.com";
     await fixture.componentInstance.sendInvites();
     expect(prayerGroupService.inviteMembers).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.textContent).toContain(
+    expect(document.body.textContent).toContain(
       "reached the member limit"
     );
   });

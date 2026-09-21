@@ -174,7 +174,7 @@ describe('MemorizationRecommendationsModalComponent', () => {
       providers: [{ provide: MemorizationService, useValue: mockMemorization }],
     });
     const modal = fixture.componentInstance;
-    const scroller = fixture.nativeElement.querySelector(
+    const scroller = document.body.querySelector(
       '[class*="overflow-y-auto"]'
     ) as HTMLElement;
     expect(scroller).toBeTruthy();

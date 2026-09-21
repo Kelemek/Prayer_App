@@ -1,7 +1,8 @@
 @if (isOpen) {
   @if (passageLoading) {
     <div
-      class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/50 p-4"
+      appTopChromeOverlay
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
       role="dialog"
       aria-modal="true"
       aria-label="Memorize practice"
@@ -9,21 +10,22 @@
     >
       <div
         data-tour="memorize-practice-dialog"
-        class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-6 border border-gray-200 dark:border-gray-700"
+        class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-lg w-full p-6 modal-panel-edge"
       >
         <p class="text-gray-700 dark:text-gray-200">Loading passage…</p>
       </div>
     </div>
   } @else if (passageLoadError) {
     <div
-      class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/50 p-4"
+      appTopChromeOverlay
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
       role="dialog"
       aria-modal="true"
       aria-label="Memorize practice"
     >
       <div
         data-tour="memorize-practice-dialog"
-        class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-6 border border-gray-200 dark:border-gray-700"
+        class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-lg w-full p-6 modal-panel-edge"
       >
         <p class="text-gray-700 dark:text-gray-200">{{ passageLoadError }}</p>
         <button
@@ -37,14 +39,15 @@
     </div>
   } @else if (typableIndices.length === 0) {
     <div
-      class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/50 p-4"
+      appTopChromeOverlay
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
       role="dialog"
       aria-modal="true"
       aria-label="Memorize practice"
     >
       <div
         data-tour="memorize-practice-dialog"
-        class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-6 border border-gray-200 dark:border-gray-700"
+        class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-lg w-full p-6 modal-panel-edge"
       >
         <p class="text-gray-700 dark:text-gray-200">No passage text to practice for this item.</p>
         <button
@@ -58,9 +61,8 @@
     </div>
   } @else {
     <div
-      class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/50 p-4"
-      [style.paddingTop]="'env(safe-area-inset-top)'"
-      [style.paddingBottom]="'env(safe-area-inset-bottom)'"
+      appTopChromeOverlay
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
       role="dialog"
       aria-modal="true"
       [attr.aria-label]="phase === 'done' ? 'Finished' : 'Memorize practice'"
@@ -68,9 +70,9 @@
     >
       <div
         data-tour="memorize-practice-dialog"
-        class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden"
+        class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-2xl w-full max-h-full flex flex-col modal-panel-edge overflow-hidden"
       >
-        <div class="flex items-center justify-between gap-3 px-4 pt-4 pb-2 border-b border-gray-200 dark:border-gray-700 shrink-0">
+        <div class="flex items-center justify-between gap-3 px-6 py-4 modal-chrome-header shrink-0">
           @if (phase === 'done') {
             <h2
               id="memorize-practice-dialog-title"
@@ -245,7 +247,7 @@
               </div>
             </div>
             <div
-              class="shrink-0 border-t border-gray-200 dark:border-gray-700 px-4 py-3"
+              class="shrink-0 modal-chrome-footer px-6 py-4"
               data-testid="memorize-intro-footer"
             >
               <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end">
@@ -683,7 +685,7 @@
 
             @if (phase === 'practicing' && practiceMode === 'recite' && !awaitingRoundAdvance) {
               <div
-                class="shrink-0 border-t border-gray-200 dark:border-gray-700 px-4 py-3"
+                class="shrink-0 modal-chrome-footer px-6 py-4"
                 data-testid="memorize-recite-footer"
               >
                 <div class="flex flex-col sm:flex-row gap-3 sm:justify-end">
@@ -776,7 +778,7 @@
 
             @if (phase === 'practicing' && awaitingRoundAdvance) {
               <div
-                class="shrink-0 border-t border-gray-200 dark:border-gray-700 px-4 py-3"
+                class="shrink-0 modal-chrome-footer px-6 py-4"
                 data-testid="memorize-round-advance-footer"
               >
                 <p
@@ -823,7 +825,8 @@
 
     @if (modePickerOpen && phase === 'intro') {
       <div
-        class="fixed inset-0 z-[110] flex items-center justify-center bg-gray-900/50 p-4"
+        appTopChromeOverlay
+        class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
         role="presentation"
         (click)="closeModePicker()"
       >
@@ -832,11 +835,11 @@
           aria-modal="true"
           [attr.aria-labelledby]="modePickerTitle"
           data-tour="memorize-practice-mode-picker"
-          class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6 border border-gray-200 dark:border-gray-700"
+          class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full modal-panel-edge"
           (click)="$event.stopPropagation()"
         >
-          <div class="flex items-center justify-between gap-3 mb-4">
-            <h2 [id]="modePickerTitle" class="text-lg font-semibold text-gray-800 dark:text-gray-100 min-w-0">
+          <div class="px-6 py-4 modal-chrome-header shrink-0 flex items-center justify-between gap-3">
+            <h2 [id]="modePickerTitle" class="text-lg font-semibold text-gray-900 dark:text-gray-100 min-w-0">
               Choose practice mode
             </h2>
             <button
@@ -851,7 +854,8 @@
               </svg>
             </button>
           </div>
-          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          <div class="px-6 py-4">
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
             <strong>Type mode:</strong> keyboard — first letter of each blank. <strong>Initials mode:</strong> same typing
             with cue row. <strong>Word mode:</strong> tap choices. <strong>Reorder mode:</strong> drag chunks into order.
             @if (reciteModeAvailable) {
@@ -896,6 +900,7 @@
                 </span>
               </button>
             }
+          </div>
           </div>
         </div>
       </div>

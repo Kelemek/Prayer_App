@@ -5,7 +5,7 @@
   [richTextEditorsEnabled]="richTextEditorsEnabled"
   [tourElementIds]="addUpdateTourElementIds"
   (close)="closeAddUpdate.emit()"
-  (submit)="addUpdateSubmit.emit($event)"
+  (updateSubmit)="addUpdateSubmit.emit($event)"
 />
 
 <app-prayer-delete-request-modal
@@ -36,19 +36,6 @@
     [confirmText]="'Delete'"
     (confirm)="confirmUpdateDelete.emit()"
     (cancel)="cancelUpdateDelete.emit()"
-  />
-}
-
-@if (showShareModal) {
-  <app-confirmation-dialog
-    [title]="'Share Prayer?'"
-    [message]="'A copy of your prayer will be submitted for admin approval to share publicly.'"
-    [details]="'Your personal prayer stays in your private list. When approved, it will also appear on the main prayer board for the church to lift up in prayer.'"
-    [isDangerous]="false"
-    [confirmText]="'Share Prayer'"
-    [cancelText]="'Cancel'"
-    (confirm)="confirmShare.emit()"
-    (cancel)="cancelShare.emit()"
   />
 }
 

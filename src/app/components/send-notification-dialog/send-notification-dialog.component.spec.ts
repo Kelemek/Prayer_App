@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { SendNotificationDialogComponent, NotificationType } from './send-notification-dialog.component';
 
@@ -14,6 +14,10 @@ describe('SendNotificationDialogComponent', () => {
     fixture = TestBed.createComponent(SendNotificationDialogComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    fixture?.destroy();
   });
 
   describe('Component Initialization', () => {
@@ -197,14 +201,14 @@ describe('SendNotificationDialogComponent', () => {
 
   describe('Template Rendering', () => {
     it('should render dialog container with correct styles', () => {
-      const container = fixture.nativeElement.querySelector('div.fixed');
+      const container = document.body.querySelector('div.fixed');
       expect(container).toBeTruthy();
       expect(container.classList.contains('inset-0')).toBe(true);
       expect(container.classList.contains('z-50')).toBe(true);
     });
 
     it('should render dialog header with title', () => {
-      const header = fixture.nativeElement.querySelector('h2');
+      const header = document.body.querySelector('h2');
       expect(header).toBeTruthy();
       // Default notificationType is prayer: email & push header
       expect(header.textContent).toContain('Send Email & Push Notification?');
@@ -229,7 +233,7 @@ describe('SendNotificationDialogComponent', () => {
     });
 
     it('should render info box about email notifications', () => {
-      const infoBox = fixture.nativeElement.querySelector('.bg-blue-50');
+      const infoBox = document.body.querySelector('.bg-blue-50');
       expect(infoBox).toBeTruthy();
       expect(infoBox.textContent).toContain('Email will be sent');
     });
@@ -243,7 +247,7 @@ describe('SendNotificationDialogComponent', () => {
       expect(infoText).toContain('this new subscriber');
       
       // Also verify it's in the template
-      const infoBox = fixture.nativeElement.querySelector('.bg-blue-50');
+      const infoBox = document.body.querySelector('.bg-blue-50');
       expect(infoBox.textContent).toContain('Email will be sent');
     });
 
@@ -264,7 +268,7 @@ describe('SendNotificationDialogComponent', () => {
       fixture.changeDetectorRef.markForCheck();
       fixture.detectChanges();
       
-      const titleBox = fixture.nativeElement.querySelector('.bg-gray-50');
+      const titleBox = document.body.querySelector('.bg-gray-50');
       expect(titleBox).toBeFalsy();
     });
 
@@ -274,7 +278,7 @@ describe('SendNotificationDialogComponent', () => {
       fixture.changeDetectorRef.markForCheck();
       fixture.detectChanges();
       
-      const titleBox = fixture.nativeElement.querySelector('.bg-gray-50');
+      const titleBox = document.body.querySelector('.bg-gray-50');
       expect(titleBox).toBeFalsy();
     });
 
@@ -294,7 +298,7 @@ describe('SendNotificationDialogComponent', () => {
     it('should call onConfirm when confirm button is clicked', () => {
       const confirmSpy = vi.spyOn(component, 'onConfirm');
       
-      const sendButton = fixture.nativeElement.querySelectorAll('button')[1];
+      const sendButton = document.body.querySelectorAll('button')[1];
       sendButton.click();
       
       expect(confirmSpy).toHaveBeenCalled();
@@ -303,32 +307,32 @@ describe('SendNotificationDialogComponent', () => {
     it('should call onDecline when Don\'t Send button is clicked', () => {
       const declineSpy = vi.spyOn(component, 'onDecline');
       
-      const declineButton = fixture.nativeElement.querySelectorAll('button')[0];
+      const declineButton = document.body.querySelectorAll('button')[0];
       declineButton.click();
       
       expect(declineSpy).toHaveBeenCalled();
     });
 
     it('should render Don\'t Send button with correct text', () => {
-      const buttons = fixture.nativeElement.querySelectorAll('button');
+      const buttons = document.body.querySelectorAll('button');
       expect(buttons[0].textContent).toContain('Don\'t Send');
     });
 
     it('should render confirm button with correct text', () => {
-      const buttons = fixture.nativeElement.querySelectorAll('button');
+      const buttons = document.body.querySelectorAll('button');
       // Default is prayer: "Send Email & Push"
       expect(buttons[1].textContent).toContain('Send Email & Push');
     });
 
     it('should have two buttons in the dialog', () => {
-      const buttons = fixture.nativeElement.querySelectorAll('button');
+      const buttons = document.body.querySelectorAll('button');
       expect(buttons.length).toBe(2);
     });
 
     it('should emit confirm event when confirm button is clicked', () => {
       const confirmSpy = vi.spyOn(component.confirm, 'emit');
       
-      const sendButton = fixture.nativeElement.querySelectorAll('button')[1];
+      const sendButton = document.body.querySelectorAll('button')[1];
       sendButton.click();
       
       expect(confirmSpy).toHaveBeenCalled();
@@ -337,7 +341,7 @@ describe('SendNotificationDialogComponent', () => {
     it('should emit decline event when Don\'t Send button is clicked', () => {
       const declineSpy = vi.spyOn(component.decline, 'emit');
       
-      const declineButton = fixture.nativeElement.querySelectorAll('button')[0];
+      const declineButton = document.body.querySelectorAll('button')[0];
       declineButton.click();
       
       expect(declineSpy).toHaveBeenCalled();
@@ -349,7 +353,7 @@ describe('SendNotificationDialogComponent', () => {
       fixture.detectChanges();
       
       const confirmSpy = vi.spyOn(component.confirm, 'emit');
-      const sendButton = fixture.nativeElement.querySelectorAll('button')[1];
+      const sendButton = document.body.querySelectorAll('button')[1];
       sendButton.click();
       
       expect(confirmSpy).toHaveBeenCalled();
@@ -430,30 +434,30 @@ describe('SendNotificationDialogComponent', () => {
 
   describe('Accessibility and Styling', () => {
     it('should have proper border and spacing classes on dialog', () => {
-      const dialog = fixture.nativeElement.querySelector('.bg-white');
+      const dialog = document.body.querySelector('.bg-white');
       expect(dialog.classList.contains('rounded-lg')).toBe(true);
       expect(dialog.classList.contains('shadow-lg')).toBe(true);
     });
 
     it('should have dark mode classes', () => {
-      const dialog = fixture.nativeElement.querySelector('.bg-white');
+      const dialog = document.body.querySelector('.bg-white');
       expect(dialog.classList.contains('dark:bg-gray-800')).toBe(true);
     });
 
     it('should have responsive padding on dialog', () => {
-      const dialog = fixture.nativeElement.querySelector('.bg-white');
+      const dialog = document.body.querySelector('.bg-white');
       expect(dialog.classList.contains('max-w-md')).toBe(true);
     });
 
     it('should have proper heading structure', () => {
-      const heading = fixture.nativeElement.querySelector('h2');
+      const heading = document.body.querySelector('h2');
       expect(heading).toBeTruthy();
       expect(heading.classList.contains('text-lg')).toBe(true);
       expect(heading.classList.contains('font-semibold')).toBe(true);
     });
 
     it('should have accessible button styling', () => {
-      const buttons = fixture.nativeElement.querySelectorAll('button');
+      const buttons = document.body.querySelectorAll('button');
       buttons.forEach((button: HTMLElement) => {
         expect(button.classList.contains('rounded-lg')).toBe(true);
         expect(button.classList.contains('font-medium')).toBe(true);
@@ -521,7 +525,7 @@ describe('SendNotificationDialogComponent', () => {
     it('should handle rapid button clicks', () => {
       const confirmSpy = vi.spyOn(component.confirm, 'emit');
       
-      const sendButton = fixture.nativeElement.querySelectorAll('button')[1];
+      const sendButton = document.body.querySelectorAll('button')[1];
       for (let i = 0; i < 10; i++) {
         sendButton.click();
       }

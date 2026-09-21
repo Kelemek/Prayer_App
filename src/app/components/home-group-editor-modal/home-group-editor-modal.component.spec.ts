@@ -42,10 +42,10 @@ describe("HomeGroupEditorModalComponent", () => {
   });
 
   it("shows create group form", () => {
-    expect(fixture.nativeElement.textContent).toContain("Create a group");
-    expect(fixture.nativeElement.textContent).toContain("Group name");
-    expect(fixture.nativeElement.textContent).toContain("Create group");
-    expect(fixture.nativeElement.textContent).toContain(
+    expect(document.body.textContent).toContain("Create a group");
+    expect(document.body.textContent).toContain("Group name");
+    expect(document.body.textContent).toContain("Create group");
+    expect(document.body.textContent).toContain(
       "You're using 1 of 25 groups."
     );
   });
@@ -61,7 +61,7 @@ describe("HomeGroupEditorModalComponent", () => {
 
   it("closes from the header close button", () => {
     const closeSpy = vi.spyOn(fixture.componentInstance.close, "emit");
-    const closeButton = fixture.nativeElement.querySelector(
+    const closeButton = document.body.querySelector(
       'button[aria-label="Close"]'
     ) as HTMLButtonElement;
     expect(closeButton).toBeTruthy();

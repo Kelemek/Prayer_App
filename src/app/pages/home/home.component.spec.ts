@@ -1974,7 +1974,11 @@ describe('HomeComponent', () => {
       });
 
       expect(mocks.prayerService.addPersonalPrayerUpdate).toHaveBeenCalled();
-      expect(mocks.prayerService.updatePersonalPrayer).toHaveBeenCalledWith('p1', { category: 'Answered' });
+      expect(mocks.prayerService.updatePersonalPrayer).toHaveBeenCalledWith(
+        'p1',
+        { category: 'Answered' },
+        { successToast: false }
+      );
     });
 
     it('addPersonalUpdate without mark_as_answered does not update category', async () => {

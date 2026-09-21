@@ -88,7 +88,10 @@ import { PrayerCardActionsRowComponent } from './prayer-card-actions-row.compone
 import { PrayerCardModalsStackComponent } from './prayer-card-modals-stack.component';
 import { PrayerCardTitleBodyComponent } from './prayer-card-title-body.component';
 import { PrayerCardUpdatesSectionComponent } from './prayer-card-updates-section.component';
-import type { PrayerAddUpdatePayload } from '../prayer-add-update-modal/prayer-add-update-modal.component';
+import {
+  isPrayerAddUpdatePayload,
+  type PrayerAddUpdatePayload,
+} from '../prayer-add-update-modal/prayer-add-update-modal.component';
 import { PrayerDeleteRequestPayload } from '../prayer-delete-request-modal/prayer-delete-request-modal.component';
 import { PrayerCardMetaHeaderComponent } from '../prayer-card-meta-header/prayer-card-meta-header.component';
 import type { PersonalPrayerAnsweredStatusMode } from '../personal-prayer-answered-status-modal/personal-prayer-answered-status-modal.component';
@@ -178,8 +181,6 @@ export class PrayerCardComponent
   showUpdateDeleteRequestForm: string | null = null;
   showAllUpdates = false;
   showConfirmationDialog = false;
-  showShareModal = false;
-  isShareLoading = false;
   showUpdateConfirmationDialog = false;
   personalAnsweredStatusModalMode: PersonalPrayerAnsweredStatusMode | null =
     null;
@@ -519,7 +520,10 @@ export class PrayerCardComponent
     this.cdr.markForCheck();
   }
 
-  onAddUpdateSubmit(payload: PrayerAddUpdatePayload): void {
+  onAddUpdateSubmit(payload: PrayerAddUpdatePayload | Event): void {
+    if (!isPrayerAddUpdatePayload(payload)) {
+      return;
+    }
     this.addUpdate.emit(
       buildPrayerCardAddUpdateEvent(
         this.prayer.id,
@@ -693,21 +697,6 @@ export class PrayerCardComponent
     } finally {
       this.isTogglingPersonalAnswered = false;
       this.cdr.markForCheck();
-    }
-  }
-
-  async handleSharePrayer(): Promise<void> {
-    if (!this.isPersonal) return;
-
-    try {
-      this.isShareLoading = true;
-      await this.prayerService.sharePrayerForApproval(this.prayer.id);
-      this.showShareModal = false;
-      this.delete.emit(this.prayer.id);
-    } catch (error) {
-      console.error('Error sharing prayer:', error);
-    } finally {
-      this.isShareLoading = false;
     }
   }
 }

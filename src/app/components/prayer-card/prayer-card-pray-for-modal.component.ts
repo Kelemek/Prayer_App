@@ -9,11 +9,12 @@ import {
 import { CommonModule, AsyncPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PrayerEncouragementService } from '../../services/prayer-encouragement.service';
+import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-overlay.directive';
 
 @Component({
   selector: 'app-prayer-card-pray-for-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule, AsyncPipe],
+  imports: [CommonModule, FormsModule, AsyncPipe, AppTopChromeOverlayDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './prayer-card-pray-for-modal.component.html',
 })

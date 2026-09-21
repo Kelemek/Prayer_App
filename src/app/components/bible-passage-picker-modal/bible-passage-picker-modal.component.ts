@@ -18,6 +18,7 @@ import { buildBiblePassageReference } from '../../lib/memorization/buildBiblePas
 import type { BibleBookPublic } from '../../lib/memorization/bible-structure-types';
 import { MemorizationService } from '../../services/memorization.service';
 import type { BibleTranslation } from '../../types/memorization';
+import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-overlay.directive';
 
 type Testament = 'ot' | 'nt';
 
@@ -26,7 +27,7 @@ const TESTAMENT_KEY = 'prayer_app_memorize_add_testament';
 @Component({
   selector: 'app-bible-passage-picker-modal',
   standalone: true,
-  imports: [CommonModule, BibleTranslationPickerComponent],
+  imports: [CommonModule, BibleTranslationPickerComponent, AppTopChromeOverlayDirective],
   styles: [
     `
       .picker-book-list {
@@ -41,8 +42,8 @@ const TESTAMENT_KEY = 'prayer_app_memorize_add_testament';
   template: `
     @if (isOpen) {
     <div
-      class="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-gray-900/50 p-0 sm:p-4 safe-area-overlay overscroll-none touch-none"
-      style="padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom));"
+      appTopChromeOverlay
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4 overscroll-none touch-none"
       role="dialog"
       aria-modal="true"
       aria-labelledby="bible-passage-picker-title"
@@ -50,18 +51,18 @@ const TESTAMENT_KEY = 'prayer_app_memorize_add_testament';
       (touchmove)="onModalTouchMove($event)"
     >
       <div
-        class="w-full sm:max-w-lg max-h-[min(92vh,720px)] flex flex-col bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden touch-none"
+        class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-lg w-full max-h-full flex flex-col modal-panel-edge touch-none"
         (click)="$event.stopPropagation()"
         (touchmove)="onModalTouchMove($event)"
       >
-        <div class="shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b border-gray-200 dark:border-gray-700 touch-none">
-          <h2 id="bible-passage-picker-title" class="text-lg font-semibold text-gray-800 dark:text-gray-200">
+        <div class="px-6 py-4 modal-chrome-header shrink-0 flex items-center justify-between gap-3 touch-none">
+          <h2 id="bible-passage-picker-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">
             {{ selectedChapterId ? 'Pick Verse Range' : 'Pick Chapter' }}
           </h2>
           <button
             type="button"
             (click)="close.emit()"
-            class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer"
+            class="shrink-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer"
             aria-label="Close"
           >
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -71,7 +72,7 @@ const TESTAMENT_KEY = 'prayer_app_memorize_add_testament';
         </div>
 
         <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
-          <div class="shrink-0 px-4 sm:px-6 pt-3 touch-none">
+          <div class="shrink-0 px-6 pt-4 touch-none">
             <app-bible-translation-picker
               [translation]="translation"
               triggerId="bible-translation-picker-trigger"
@@ -112,7 +113,7 @@ const TESTAMENT_KEY = 'prayer_app_memorize_add_testament';
 
           <div
             #bookListScroller
-            class="picker-book-list flex-1 min-h-0 overflow-y-auto overscroll-y-contain touch-pan-y px-4 sm:px-6 pb-3"
+            class="picker-book-list flex-1 min-h-0 overflow-y-auto overscroll-y-contain touch-pan-y px-6 pb-4"
           >
             <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
               @for (book of filteredBooks; track book.id) {
@@ -185,8 +186,7 @@ const TESTAMENT_KEY = 'prayer_app_memorize_add_testament';
           </div>
 
           <div
-            class="shrink-0 border-t border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 bg-gray-50 dark:bg-gray-900/40 touch-none"
-            style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom));"
+            class="shrink-0 modal-chrome-footer px-6 py-4 touch-none"
             (touchmove)="onModalTouchMove($event)"
           >
             <button

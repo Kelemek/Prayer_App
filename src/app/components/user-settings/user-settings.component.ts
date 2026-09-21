@@ -29,11 +29,16 @@ import { Router } from '@angular/router';
 import { UserSettingsFacade } from '../../lib/user-settings-facade';
 import { UserSettingsPanelComponent } from './user-settings-panel/user-settings-panel.component';
 import { UserSettingsDeleteAccountDialogComponent } from './user-settings-delete-account-dialog/user-settings-delete-account-dialog.component';
+import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-overlay.directive';
 
 @Component({
   selector: 'app-user-settings',
   standalone: true,
-  imports: [UserSettingsPanelComponent, UserSettingsDeleteAccountDialogComponent],
+  imports: [
+    UserSettingsPanelComponent,
+    UserSettingsDeleteAccountDialogComponent,
+    AppTopChromeOverlayDirective,
+  ],
   templateUrl: './user-settings.component.html',
   styleUrl: './user-settings.component.css',
   changeDetection: ChangeDetectionStrategy.Eager,

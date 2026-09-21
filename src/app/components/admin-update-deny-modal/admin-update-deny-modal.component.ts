@@ -11,15 +11,19 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import type { PrayerUpdate } from '../../services/prayer.service';
 import { RichTextEditorComponent } from '../rich-text-editor/rich-text-editor.component';
+import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-overlay.directive';
 
 @Component({
   selector: 'app-admin-update-deny-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule, RichTextEditorComponent],
+  imports: [CommonModule, FormsModule, RichTextEditorComponent, AppTopChromeOverlayDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (isOpen && update) {
-      <div class="fixed inset-0 bg-gray-900/50 z-50 flex items-center justify-center p-4">
+      <div
+        appTopChromeOverlay
+        class="fixed inset-0 bg-gray-900/50 z-50 flex items-start sm:items-center justify-center p-4"
+      >
         <div
           class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
           role="dialog"

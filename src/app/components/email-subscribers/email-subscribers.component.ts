@@ -21,6 +21,7 @@ import {
   lookupPersonByEmail,
   type PlanningCenterPerson,
 } from '../../lib/planning-center';
+import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-overlay.directive';
 
 interface EmailSubscriber {
   id: string;
@@ -52,6 +53,7 @@ interface CSVRow {
     AdminSectionLoadingComponent,
     AdminCollapsibleSectionComponent,
     AdminFilterSelectComponent,
+    AppTopChromeOverlayDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -228,6 +230,13 @@ interface CSVRow {
       <!-- Add Subscriber Form -->
       @if (showAddForm) {
       <div class="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 mb-4 border border-gray-200 dark:border-gray-700">
+        @if (isViewerPlatformSuperAdmin) {
+        <p class="text-xs text-gray-600 dark:text-gray-400 mb-3">
+          Your platform super admin login is hidden from this table. Use
+          <strong>Add Subscriber</strong> with your email to refresh your membership
+          for the selected organization (name and active status).
+        </p>
+        }
         <form novalidate class="space-y-3">
           @if (pcoIntegrationEnabled) {
           <div class="mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
@@ -658,7 +667,10 @@ interface CSVRow {
     }
 
     @if (showEditSubscriberDialog) {
-      <div class="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 p-4">
+      <div
+        appTopChromeOverlay
+        class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
+      >
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full border border-gray-200 dark:border-gray-700">
           <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Subscriber</h2>
@@ -729,6 +741,13 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
   get activeTenantId(): string | null {
     return this.tenantContext.getActiveTenant()?.id ?? null;
   }
+
+  get isViewerPlatformSuperAdmin(): boolean {
+    return this.tenantContext.getIsSuperAdmin();
+  }
+
+  private readonly superAdminHiddenListNotice =
+    'Platform super admins are not shown in this subscriber list, but they can still access this organization.';
 
   subscribers: EmailSubscriber[] = [];
   searchQuery = '';
@@ -1040,6 +1059,25 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
   }
 
   /** Super admins are platform-level; they should not appear in tenant subscriber lists. */
+  private async refreshSuperAdminTenantMembership(
+    tenantId: string,
+    normalizedEmail: string,
+    name: string
+  ): Promise<void> {
+    const { error } = await this.supabase.client
+      .from('tenant_memberships')
+      .update({
+        name: name.trim(),
+        is_active: true,
+      })
+      .eq('tenant_id', tenantId)
+      .eq('user_email', normalizedEmail);
+
+    if (error) {
+      throw error;
+    }
+  }
+
   private async filterSubscribersExcludingSuper(
     subscribers: EmailSubscriber[]
   ): Promise<EmailSubscriber[]> {
@@ -1409,6 +1447,24 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
         .maybeSingle();
 
       if (existing) {
+        const isSuper = await this.isSuperAdminEmail(normalizedEmail);
+        if (isSuper) {
+          await this.refreshSuperAdminTenantMembership(
+            tid,
+            normalizedEmail,
+            this.newName.trim()
+          );
+          this.csvSuccess = `Membership updated for this organization. ${this.superAdminHiddenListNotice}`;
+          this.newName = '';
+          this.newEmail = '';
+          this.pendingInPlanningCenter = null;
+          this.pcSearchResults = [];
+          this.pcSearchQuery = '';
+          this.cdr.markForCheck();
+          this.cdr.detectChanges();
+          await this.handleSearch({ preserveCsvSuccess: true });
+          return;
+        }
         this.error = 'This email address is already subscribed';
         this.submitting = false;
         this.cdr.markForCheck();
@@ -1444,14 +1500,17 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
 
       if (error) throw error;
 
-      this.csvSuccess = 'Subscriber added successfully!';
+      const addedAsSuperAdmin = await this.isSuperAdminEmail(normalizedEmail);
+      this.csvSuccess = addedAsSuperAdmin
+        ? `Membership saved for this organization. ${this.superAdminHiddenListNotice}`
+        : 'Subscriber added successfully!';
       this.pendingSubscriberEmail = normalizedEmail;
       this.newName = '';
       this.newEmail = '';
       this.pendingInPlanningCenter = null;
       this.pcSearchResults = [];
       this.pcSearchQuery = '';
-      this.showSendWelcomeEmailDialog = true;
+      this.showSendWelcomeEmailDialog = !addedAsSuperAdmin;
       this.cdr.markForCheck();
       this.cdr.detectChanges();
       await this.handleSearch({ preserveCsvSuccess: true });

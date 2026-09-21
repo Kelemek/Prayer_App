@@ -9,6 +9,7 @@ import {
 import { MemorizationService } from '../../services/memorization.service';
 import { ToastService } from '../../services/toast.service';
 import type { BibleTranslation } from '../../types/memorization';
+import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-overlay.directive';
 
 const SCOPE_OPTIONS: {
   value: BibleBooksMemorizationScope;
@@ -23,29 +24,29 @@ const SCOPE_OPTIONS: {
 @Component({
   selector: 'app-add-memorized-bible-books-modal',
   standalone: true,
-  imports: [CommonModule, BibleBooksMemorizationListComponent],
+  imports: [CommonModule, BibleBooksMemorizationListComponent, AppTopChromeOverlayDirective],
   template: `
     @if (isOpen) {
     <div
-      class="fixed inset-0 z-[200] flex items-center justify-center bg-gray-900/50 p-2 sm:p-4 safe-area-overlay"
-      style="padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom));"
+      appTopChromeOverlay
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-memorized-bible-books-title"
       (click)="onClose.emit()"
     >
       <div
-        class="w-full max-w-lg max-h-[min(92vh,720px)] flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden"
+        class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-lg w-full max-h-full flex flex-col modal-panel-edge"
         (click)="$event.stopPropagation()"
       >
-        <div class="shrink-0 flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 id="add-memorized-bible-books-title" class="text-xl font-semibold text-gray-800 dark:text-gray-200">
+        <div class="px-6 py-4 modal-chrome-header shrink-0 flex items-center justify-between gap-3">
+          <h2 id="add-memorized-bible-books-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Bible Books
           </h2>
           <button
             type="button"
             (click)="onClose.emit()"
-            class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer"
+            class="shrink-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md p-1 cursor-pointer"
             aria-label="Close"
           >
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -54,7 +55,7 @@ const SCOPE_OPTIONS: {
           </button>
         </div>
 
-        <div class="flex-1 min-h-0 flex flex-col px-4 sm:px-6 py-4 overflow-hidden">
+        <div class="flex-1 min-h-0 flex flex-col px-6 py-4 overflow-hidden">
           <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
             Choose which books to memorize in order. Practice uses the same games as verse memorization.
           </p>
@@ -81,11 +82,13 @@ const SCOPE_OPTIONS: {
             }
           </div>
 
-          <div class="flex-1 min-h-0 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 p-2 mb-4">
+          <div class="flex-1 min-h-0 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 p-2">
             <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ bibleBooksCountLabel(scope) }} preview</p>
             <app-bible-books-memorization-list [scope]="scope" />
           </div>
+        </div>
 
+        <div class="shrink-0 modal-chrome-footer px-6 py-4">
           <button
             type="button"
             [disabled]="submitting"

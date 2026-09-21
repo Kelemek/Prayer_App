@@ -99,15 +99,15 @@ describe('PrayerCardComponent', () => {
     localStorage.clear();
   });
 
-  it('getBorderClass varies by status', () => {
+  it('getBorderClass uses church blue for community prayers of any status', () => {
     (component.prayer as any).status = 'current';
     expect(component.getBorderClass()).toContain('0047AB');
 
     (component.prayer as any).status = 'answered';
-    expect(component.getBorderClass()).toContain('39704D');
+    expect(component.getBorderClass()).toContain('0047AB');
 
     (component.prayer as any).status = 'archived';
-    expect(component.getBorderClass()).toContain('C9A961');
+    expect(component.getBorderClass()).toContain('0047AB');
   });
 
   it('getBorderClass uses Personal tab green for personal prayers', () => {
@@ -264,6 +264,14 @@ describe('PrayerCardComponent', () => {
     expect(spy).toHaveBeenCalled();
     const emitted = spy.mock.calls[0][0];
     expect(emitted.author_email).toBe('');
+  });
+
+  it('onAddUpdateSubmit ignores a bubbling native submit event', () => {
+    const spy = vi.spyOn(component.addUpdate, 'emit');
+
+    component.onAddUpdateSubmit(new Event('submit'));
+
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it('shouldShowToggleButton returns false when no updates present', () => {
@@ -1509,15 +1517,15 @@ describe('PrayerCardComponent', () => {
       }).not.toThrow();
     });
 
-    it('should get borders and badge classes for all statuses', () => {
+    it('should get church-blue borders for all community statuses', () => {
       component.prayer.status = 'current';
       expect(component.getBorderClass()).toContain('border-[#0047AB]');
 
       component.prayer.status = 'answered';
-      expect(component.getBorderClass()).toContain('border-[#39704D]');
+      expect(component.getBorderClass()).toContain('border-[#0047AB]');
 
       component.prayer.status = 'archived';
-      expect(component.getBorderClass()).toContain('border-[#C9A961]');
+      expect(component.getBorderClass()).toContain('border-[#0047AB]');
     });
 
     it('should format date with locale-specific formatting', () => {
@@ -1725,121 +1733,6 @@ describe('PrayerCardComponent', () => {
           fullName: 'Test'
         });
         expect(component.showAddUpdateButton()).toBe(true);
-      });
-
-      it('handleSharePrayer should emit delete event and close modal', async () => {
-        component.isPersonal = true;
-        component.prayer = {
-          id: 'prayer-1',
-          title: 'Personal Prayer',
-          description: 'Description',
-          status: 'current',
-          requester: 'Test User',
-          prayer_for: 'Health',
-          date_requested: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          updates: []
-        };
-        
-        const mockPrayerService = {
-          sharePrayerForApproval: vi.fn().mockResolvedValue('public-prayer-1')
-        };
-        
-        (component as any).prayerService = mockPrayerService;
-        
-        const deleteSpy = vi.spyOn(component.delete, 'emit');
-        
-        await component.handleSharePrayer();
-        
-        expect(mockPrayerService.sharePrayerForApproval).toHaveBeenCalledWith('prayer-1');
-        expect(component.showShareModal).toBe(false);
-        expect(deleteSpy).toHaveBeenCalledWith('prayer-1');
-      });
-
-      it('handleSharePrayer should handle share service error gracefully', async () => {
-        component.isPersonal = true;
-        component.prayer = {
-          id: 'prayer-1',
-          title: 'Personal Prayer',
-          description: 'Description',
-          status: 'current',
-          requester: 'Test User',
-          prayer_for: 'Health',
-          date_requested: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          updates: []
-        };
-        
-        const mockPrayerService = {
-          sharePrayerForApproval: vi.fn().mockRejectedValue(new Error('Share failed'))
-        };
-        
-        (component as any).prayerService = mockPrayerService;
-        
-        // Should not throw - error handling is managed by the service
-        await component.handleSharePrayer();
-        
-        expect(component.isShareLoading).toBe(false);
-      });
-
-      it('handleSharePrayer should set loading state correctly', async () => {
-        component.isPersonal = true;
-        component.prayer = {
-          id: 'prayer-1',
-          title: 'Personal Prayer',
-          description: 'Description',
-          status: 'current',
-          requester: 'Test User',
-          prayer_for: 'Health',
-          date_requested: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          updates: []
-        };
-        
-        let resolveShare: any;
-        const mockPrayerService = {
-          sharePrayerForApproval: vi.fn(() => new Promise(resolve => { resolveShare = resolve; }))
-        };
-        
-        (component as any).prayerService = mockPrayerService;
-        
-        const sharePromise = component.handleSharePrayer();
-        
-        expect(component.isShareLoading).toBe(true);
-        
-        resolveShare('public-prayer-1');
-        await sharePromise;
-        
-        expect(component.isShareLoading).toBe(false);
-      });
-
-      it('handleSharePrayer should not run when not personal prayer', async () => {
-        component.isPersonal = false;
-        component.prayer = {
-          id: 'prayer-1',
-          title: 'Public Prayer',
-          description: 'Description',
-          status: 'current',
-          requester: 'Test User',
-          prayer_for: 'Health',
-          date_requested: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          updates: []
-        };
-        
-        const mockPrayerService = {
-          sharePrayerForApproval: vi.fn()
-        };
-        
-        (component as any).prayerService = mockPrayerService;
-        
-        await component.handleSharePrayer();
-        
-        expect(mockPrayerService.sharePrayerForApproval).not.toHaveBeenCalled();
       });
     });
   });

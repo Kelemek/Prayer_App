@@ -15,7 +15,10 @@ import {
   inject,
 } from "@angular/core";
 import { NgClass } from "@angular/common";
-import { measureAppTopChromeInsetPx } from "../../lib/measure-app-top-chrome-inset";
+import {
+  appTopChromeOverlayPaddingTop,
+  appTopChromeOverlayPaddingTopFromPx,
+} from "../../lib/measure-app-top-chrome-inset";
 
 @Component({
   selector: "app-modal-shell",
@@ -156,11 +159,11 @@ export class ModalShellComponent
   @Input() showHeader = true;
   @Input() ariaLabel = "";
   /** Portals overlay to document.body (escapes overflow-hidden ancestors). */
-  @Input() appendToBody = false;
+  @Input() appendToBody = true;
   /** Fixed pixel inset below safe-area (overrides reserveAppTopChrome when > 0). */
   @Input() reserveTopChromePx = 0;
   /** When true, measures app-tenant-switcher-bar so the panel sits below it. */
-  @Input() reserveAppTopChrome = false;
+  @Input() reserveAppTopChrome = true;
 
   @Output() close = new EventEmitter<void>();
 
@@ -222,14 +225,14 @@ export class ModalShellComponent
   }
 
   private syncOverlayPaddingTop(): void {
-    const chromePx =
-      this.reserveTopChromePx > 0
-        ? this.reserveTopChromePx
-        : this.reserveAppTopChrome
-          ? measureAppTopChromeInsetPx()
-          : 0;
-    if (chromePx > 0) {
-      this.overlayPaddingTop = `calc(env(safe-area-inset-top, 0px) + ${chromePx}px)`;
+    if (this.reserveTopChromePx > 0) {
+      this.overlayPaddingTop = appTopChromeOverlayPaddingTopFromPx(
+        this.reserveTopChromePx
+      );
+      return;
+    }
+    if (this.reserveAppTopChrome) {
+      this.overlayPaddingTop = appTopChromeOverlayPaddingTop();
       return;
     }
     this.overlayPaddingTop = null;
