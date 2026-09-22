@@ -61,6 +61,8 @@ describe('print-memorization-cards', () => {
     expect(html).not.toContain('page-break-after');
     expect(html).toContain('page-break-before: always');
     expect(html).toContain(`height:${IOS_DUPLEX_ROW_HEIGHT_PT.toFixed(2)}pt`);
+    expect(html).toContain('valign="middle"');
+    expect(html).not.toContain('class="card card-front"');
     expect(IOS_DUPLEX_ROW_HEIGHT_PT * 3).toBeLessThan(
       computeMemorizationPrintLayout('duplex').contentHeightPt
     );

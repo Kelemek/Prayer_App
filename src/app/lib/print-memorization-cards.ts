@@ -10,7 +10,7 @@ export type MemorizationPrintCard = {
 export type MemorizationPrintSheetStyle = 'duplex' | 'foldable';
 
 /** Bumped when print CSS changes — visible in tab title and data-print-layout-version. */
-export const MEMORIZATION_PRINT_LAYOUT_VERSION = 14;
+export const MEMORIZATION_PRINT_LAYOUT_VERSION = 15;
 
 /**
  * Row height for iOS `printHtml` duplex. The web layout row (~228pt) plus cell padding
@@ -118,20 +118,14 @@ function memorizationCardsPrintStylesIosDuplex(rowHeightPt: number): string {
     .card-cell {
       width: 50%;
       height: ${rowH};
-      vertical-align: middle;
-    }
-    .card {
       border: 1px dashed #6b7280;
       padding: 10pt 8pt;
       text-align: center;
-      height: ${rowH};
-      min-height: ${rowH};
+      vertical-align: middle;
     }
     .card-empty {
       border-color: #d1d5db;
       background: #fafafa;
-      height: ${rowH};
-      min-height: ${rowH};
     }
     .card-front-ref {
       font-size: 14pt;
@@ -495,6 +489,30 @@ function renderGridCells(
     .join('');
 }
 
+function renderIosDuplexCell(
+  card: MemorizationPrintCard | null,
+  side: 'front' | 'back',
+  rowHeightPt: string
+): string {
+  const cellStyle = `height:${rowHeightPt};vertical-align:middle;text-align:center`;
+  if (!card) {
+    return `<td class="card-cell card-empty" valign="middle" style="${cellStyle}">&nbsp;</td>`;
+  }
+  const ref = escapeHtmlForPrint(card.reference);
+  if (side === 'front') {
+    const trans = escapeHtmlForPrint(card.translation.toUpperCase());
+    return `<td class="card-cell" valign="middle" style="${cellStyle}">
+      <div class="card-front-ref">${ref}</div>
+      <div class="card-front-trans">${trans}</div>
+    </td>`;
+  }
+  const text = escapeHtmlForPrint(card.text);
+  return `<td class="card-cell" valign="middle" style="${cellStyle}">
+    <div class="card-back-text">${text}</div>
+    <div class="card-back-ref">${ref}</div>
+  </td>`;
+}
+
 function renderDuplexGridTable(
   grid: (MemorizationPrintCard | null)[][],
   side: 'front' | 'back',
@@ -504,10 +522,7 @@ function renderDuplexGridTable(
   const rows = grid
     .map((row) => {
       const cells = row
-        .map((cell) => {
-          const inner = side === 'front' ? renderFrontCell(cell) : renderBackCell(cell);
-          return `<td class="card-cell" style="height:${rowH};vertical-align:middle">${inner}</td>`;
-        })
+        .map((cell) => renderIosDuplexCell(cell, side, rowH))
         .join('');
       return `<tr style="height:${rowH}">${cells}</tr>`;
     })
