@@ -8,8 +8,8 @@ describe('MemorizationActionBarComponent', () => {
   it('renders add buttons', async () => {
     await render(MemorizationActionBarComponent);
     expect(screen.getByRole('button', { name: /^Add Verses$/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Bible Books/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Recommended/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Bible Book Names/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Recommended Verses/i })).toBeTruthy();
   });
 
   it('emits addVerses when Add Verses is clicked', async () => {
@@ -22,23 +22,23 @@ describe('MemorizationActionBarComponent', () => {
     expect(addVerses).toHaveBeenCalledOnce();
   });
 
-  it('emits addBibleBooks when Bible Books is clicked', async () => {
+  it('emits addBibleBooks when Bible Book Names is clicked', async () => {
     const user = userEvent.setup();
     const addBibleBooks = vi.fn();
     const { fixture } = await render(MemorizationActionBarComponent);
     fixture.componentInstance.addBibleBooks.subscribe(addBibleBooks);
 
-    await user.click(screen.getByRole('button', { name: /Bible Books/i }));
+    await user.click(screen.getByRole('button', { name: /Bible Book Names/i }));
     expect(addBibleBooks).toHaveBeenCalledOnce();
   });
 
-  it('emits openRecommended when Recommended is clicked', async () => {
+  it('emits openRecommended when Recommended Verses is clicked', async () => {
     const user = userEvent.setup();
     const openRecommended = vi.fn();
     const { fixture } = await render(MemorizationActionBarComponent);
     fixture.componentInstance.openRecommended.subscribe(openRecommended);
 
-    await user.click(screen.getByRole('button', { name: /Recommended/i }));
+    await user.click(screen.getByRole('button', { name: /Recommended Verses/i }));
     expect(openRecommended).toHaveBeenCalledOnce();
   });
 
@@ -50,8 +50,8 @@ describe('MemorizationActionBarComponent', () => {
       },
     });
 
-    const bibleBooks = screen.getByRole('button', { name: /Bible Books/i });
-    const recommended = screen.getByRole('button', { name: /Recommended/i });
+    const bibleBooks = screen.getByRole('button', { name: /Bible Book Names/i });
+    const recommended = screen.getByRole('button', { name: /Recommended Verses/i });
 
     expect(bibleBooks.className).toMatch(/(?:^|\s)ring(?:\s|$)/);
     expect(bibleBooks.className).toContain('bg-home-panel-blue-chip-active');
@@ -94,11 +94,12 @@ describe('MemorizationActionBarComponent', () => {
       expect(group?.className).toContain(token);
     }
 
-    for (const name of ['Add Verses', 'Bible Books', 'Recommended']) {
+    for (const name of ['Add Verses', 'Bible Book Names', 'Recommended Verses']) {
       const button = screen.getByRole('button', { name: new RegExp(name, 'i') });
       expect(button.className).toContain('rounded-lg');
       expect(button.className).toContain('border');
-      expect(button.className).toContain('h-9');
+      expect(button.className).toContain('min-h-9');
+      expect(button.className).not.toContain(' h-9');
       expect(button.className).toContain('text-xs');
     }
   });

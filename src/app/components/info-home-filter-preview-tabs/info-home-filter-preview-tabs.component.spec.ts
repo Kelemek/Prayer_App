@@ -135,8 +135,10 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
       ".flex.w-full.gap-1.mb-0"
     ) as HTMLElement;
     expect(row.querySelector("#tour-filter-memorize")).toBeTruthy();
-    expect(fixture.nativeElement.textContent).toContain("Add Verses");
-    expect(fixture.nativeElement.textContent).toContain("Bible Books");
+    expect(fixture.nativeElement.textContent).toContain("Add");
+    expect(fixture.nativeElement.textContent).toContain("Verses");
+    expect(fixture.nativeElement.textContent).toContain("Bible Book");
+    expect(fixture.nativeElement.textContent).toContain("Names");
     expect(fixture.nativeElement.textContent).toContain("Recommended");
   });
 
@@ -146,17 +148,17 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
     component.previewFilter = "memorize";
     fixture.detectChanges();
 
-    const clickChip = (label: string) => {
-      const button = [...fixture.nativeElement.querySelectorAll("button")].find(
-        (el: HTMLButtonElement) => el.textContent?.trim() === label
-      ) as HTMLButtonElement | undefined;
+    const clickChip = (ariaLabel: string) => {
+      const button = fixture.nativeElement.querySelector(
+        `button[aria-label="${ariaLabel}"]`
+      ) as HTMLButtonElement | null;
       expect(button).toBeTruthy();
       button!.click();
     };
 
     clickChip("Add Verses");
-    clickChip("Bible Books");
-    clickChip("Recommended");
+    clickChip("Bible Book Names");
+    clickChip("Recommended Verses");
 
     expect(emitted).toEqual(["add-verses", "bible-books", "recommended"]);
   });

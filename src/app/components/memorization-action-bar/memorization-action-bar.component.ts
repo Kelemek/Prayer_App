@@ -10,10 +10,11 @@ import {
   MEMORIZE_CARD_SHELL_BORDER_CLASS,
 } from '../../lib/home-sub-filter-chip-classes';
 import { HOME_SHELL_SECTION_GAP_CLASSES } from '../../lib/home-shell-spacing';
+import { HomeSubFilterStackedLabelComponent } from '../home-sub-filter-stacked-label/home-sub-filter-stacked-label.component';
 
-/** Matches Home sub-filter chip height (`h-9` / 36px) on Public, Personal, and Groups tabs. */
+/** Matches two-line Home sub-filter chips (`min-h-9`) on Public, Personal, and Groups tabs. */
 const ACTION_BTN_BASE =
-  `flex h-9 flex-1 items-center justify-center whitespace-nowrap border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer sm:flex-none ${HOME_SUB_FILTER_CHIP_SIZE_CLASS}`;
+  `flex flex-1 items-center justify-center border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer sm:flex-none ${HOME_SUB_FILTER_CHIP_SIZE_CLASS}`;
 
 /** Outlined blue — lighter fill than the Memorize panel (`bg-blue-200`). */
 const MEMORIZE_TAB_CHIP =
@@ -53,7 +54,7 @@ const VIEW_BTN_INACTIVE =
 @Component({
   selector: 'app-memorization-action-bar',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, HomeSubFilterStackedLabelComponent],
   host: { class: 'block' },
   template: `
     <div
@@ -66,26 +67,29 @@ const VIEW_BTN_INACTIVE =
           id="tour-memorize-add-verses"
           (click)="addVerses.emit()"
           [attr.aria-pressed]="addVersesActive"
+          aria-label="Add Verses"
           [class]="actionBtnBase + ' ' + softBlueBtn"
         >
-          Add Verses
+          <app-home-sub-filter-stacked-label top="Add" bottom="Verses" />
         </button>
         <button
           type="button"
           (click)="addBibleBooks.emit()"
           [attr.aria-pressed]="bibleBooksActive"
+          aria-label="Bible Book Names"
           [class]="actionBtnBase + ' ' + (bibleBooksActive ? softBlueBtn : secondaryBtn)"
         >
-          Bible Books
+          <app-home-sub-filter-stacked-label top="Bible Book" bottom="Names" />
         </button>
         <button
           type="button"
           id="tour-memorize-recommended"
           (click)="openRecommended.emit()"
           [attr.aria-pressed]="recommendedActive"
+          aria-label="Recommended Verses"
           [class]="actionBtnBase + ' ' + (recommendedActive ? softBlueBtn : secondaryBtn)"
         >
-          Recommended
+          <app-home-sub-filter-stacked-label top="Recommended" bottom="Verses" />
         </button>
       </div>
 

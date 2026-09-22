@@ -151,27 +151,30 @@
       <button
         type="button"
         [class]="memorizeChipClass(true)"
+        aria-label="Add Verses"
         (click)="openMemorizeAction.emit('add-verses')"
       >
-        Add Verses
+        <app-home-sub-filter-stacked-label top="Add" bottom="Verses" />
       </button>
     </div>
     <div [class]="chipHostClass">
       <button
         type="button"
         [class]="memorizeChipClass(false)"
+        aria-label="Bible Book Names"
         (click)="openMemorizeAction.emit('bible-books')"
       >
-        Bible Books
+        <app-home-sub-filter-stacked-label top="Bible Book" bottom="Names" />
       </button>
     </div>
     <div [class]="chipHostClass">
       <button
         type="button"
         [class]="memorizeChipClass(false)"
+        aria-label="Recommended Verses"
         (click)="openMemorizeAction.emit('recommended')"
       >
-        Recommended
+        <app-home-sub-filter-stacked-label top="Recommended" bottom="Verses" />
       </button>
     </div>
   </div>

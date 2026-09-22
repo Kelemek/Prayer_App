@@ -60,9 +60,9 @@ import { MemorizedVersesTableComponent } from '../memorized-verses-table/memoriz
           Use
           <span class="font-medium text-gray-600 dark:text-gray-300">Add Verses</span>
           to pick passages to memorize,
-          <span class="font-medium text-gray-600 dark:text-gray-300">Bible Books</span>
+          <span class="font-medium text-gray-600 dark:text-gray-300">Bible Book Names</span>
           to memorize the names of the books of the Bible, or
-          <span class="font-medium text-gray-600 dark:text-gray-300">Recommended</span>
+          <span class="font-medium text-gray-600 dark:text-gray-300">Recommended Verses</span>
           for curated passages by biblical counseling topics. Your passages will
           appear here—tap one to practice.
         </p>

@@ -156,8 +156,8 @@ describe("InfoFeatureOverviewComponent", () => {
     memorizeTab.click();
     fixture.detectChanges();
 
-    const addVerses = [...fixture.nativeElement.querySelectorAll("button")].find(
-      (button: HTMLButtonElement) => button.textContent?.trim() === "Add Verses"
+    const addVerses = fixture.nativeElement.querySelector(
+      'button[aria-label="Add Verses"]'
     ) as HTMLButtonElement;
     addVerses.click();
     fixture.detectChanges();
