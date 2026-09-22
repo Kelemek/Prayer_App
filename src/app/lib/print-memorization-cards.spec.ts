@@ -59,6 +59,8 @@ describe('print-memorization-cards', () => {
     expect(html).not.toContain('display: grid');
     expect(html).not.toContain('page-break-after');
     expect(html).toContain('page-break-before: always');
+    const layout = computeMemorizationPrintLayout('duplex');
+    expect(html).toContain(`height:${layout.rowHeightPt.toFixed(2)}pt`);
   });
 
   it('embeds layout version and duplex sheet breaks', () => {
