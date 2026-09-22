@@ -39,16 +39,12 @@ describe('print-native', () => {
     expect(document.getElementById(NATIVE_PRINT_IFRAME_ID)).toBeNull();
   });
 
-  it('printFromNativeHtmlIframe waits for afterprint before removing iframe', async () => {
+  it('printFromNativeHtmlIframe resolves after printIframe without waiting for afterprint', async () => {
     const iframe = await mountNativePrintHtmlIframe(
       '<!DOCTYPE html><html><body><p>print me</p></body></html>'
     );
-    const contentWin = iframe.contentWindow;
-    expect(contentWin).toBeTruthy();
 
-    vi.mocked(Printer.printIframe).mockImplementation(async () => {
-      contentWin!.dispatchEvent(new Event('afterprint'));
-    });
+    vi.mocked(Printer.printIframe).mockResolvedValue();
 
     await printFromNativeHtmlIframe(iframe, 'Verse cards');
 
@@ -56,26 +52,26 @@ describe('print-native', () => {
       selector: `#${NATIVE_PRINT_IFRAME_ID}`,
       name: 'Verse cards',
     });
-    expect(document.getElementById(NATIVE_PRINT_IFRAME_ID)).toBeNull();
+    // Iframe kept for iOS print rendering until afterprint or timeout.
+    expect(document.getElementById(NATIVE_PRINT_IFRAME_ID)).toBeTruthy();
+    removeNativePrintHtmlIframe();
   });
 
   it('sharePrintHtmlOnNativeApp does not use capacitor printHtml on iOS', async () => {
     (window as { Capacitor?: { getPlatform: () => string } }).Capacitor = {
       getPlatform: () => 'ios',
     };
+    vi.mocked(Printer.printIframe).mockResolvedValue();
 
-    const html =
-      '<!DOCTYPE html><html><body><div class="print-page"></div></body></html>';
-    const iframe = await mountNativePrintHtmlIframe(html);
-    const contentWin = iframe.contentWindow!;
-    vi.mocked(Printer.printIframe).mockImplementation(async () => {
-      contentWin.dispatchEvent(new Event('afterprint'));
-    });
-
-    await printFromNativeHtmlIframe(iframe, 'Verse cards');
+    await sharePrintHtmlOnNativeApp(
+      '<!DOCTYPE html><html><body><div class="print-page"></div></body></html>',
+      'cards.html',
+      'Verse cards'
+    );
 
     expect(Printer.printIframe).toHaveBeenCalled();
     expect(Printer.printHtml).not.toHaveBeenCalled();
+    removeNativePrintHtmlIframe();
   });
 
   it('sharePrintHtmlOnNativeApp uses printHtml on Android', async () => {

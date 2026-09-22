@@ -3,6 +3,7 @@ import { Printer } from '@capgo/capacitor-printer';
 /** Hidden iframe used for iOS printing (WKWebView print respects @page / page breaks). */
 export const NATIVE_PRINT_IFRAME_ID = 'prayer-app-native-print-frame';
 
+/** How long to keep the print iframe if iOS never fires `afterprint`. */
 const IOS_PRINT_IFRAME_CLEANUP_MS = 120_000;
 
 /** Detect if running in native Capacitor app (iOS or Android). */
@@ -109,9 +110,29 @@ export function removeNativePrintHtmlIframe(): void {
   document.getElementById(NATIVE_PRINT_IFRAME_ID)?.remove();
 }
 
+function scheduleNativePrintIframeCleanup(contentWin: Window): void {
+  let cleaned = false;
+  const cleanup = (): void => {
+    if (cleaned) {
+      return;
+    }
+    cleaned = true;
+    window.clearTimeout(fallbackTimer);
+    contentWin.removeEventListener('afterprint', onAfterPrint);
+    removeNativePrintHtmlIframe();
+  };
+
+  const onAfterPrint = (): void => cleanup();
+  const fallbackTimer = window.setTimeout(() => {
+    cleanup();
+  }, IOS_PRINT_IFRAME_CLEANUP_MS);
+
+  contentWin.addEventListener('afterprint', onAfterPrint);
+}
+
 /**
- * Keep the iframe alive until the user dismisses the print sheet. Removing it early
- * (e.g. right after a native bridge call returns) prevents the dialog from opening.
+ * Start printing from a mounted iframe. Resolves once print is initiated so UI spinners
+ * can stop; the iframe stays until `afterprint` (or a timeout) so iOS can render pages.
  */
 export async function printFromNativeHtmlIframe(
   iframe: HTMLIFrameElement,
@@ -126,50 +147,22 @@ export async function printFromNativeHtmlIframe(
     iframe.contentDocument.title = title;
   }
 
-  await new Promise<void>((resolve, reject) => {
-    let settled = false;
+  scheduleNativePrintIframeCleanup(contentWin);
 
-    const cleanup = (): void => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      window.clearTimeout(fallbackTimer);
-      contentWin.removeEventListener('afterprint', onAfterPrint);
+  try {
+    await Printer.printIframe({
+      selector: `#${NATIVE_PRINT_IFRAME_ID}`,
+      name: title,
+    });
+  } catch (bridgeError) {
+    try {
+      contentWin.focus();
+      contentWin.print();
+    } catch (printError) {
       removeNativePrintHtmlIframe();
-      resolve();
-    };
-
-    const onAfterPrint = (): void => cleanup();
-
-    const fallbackTimer = window.setTimeout(() => {
-      cleanup();
-    }, IOS_PRINT_IFRAME_CLEANUP_MS);
-
-    contentWin.addEventListener('afterprint', onAfterPrint);
-
-    const startPrint = async (): Promise<void> => {
-      try {
-        await Printer.printIframe({
-          selector: `#${NATIVE_PRINT_IFRAME_ID}`,
-          name: title,
-        });
-      } catch (bridgeError) {
-        try {
-          contentWin.focus();
-          contentWin.print();
-        } catch (printError) {
-          settled = true;
-          window.clearTimeout(fallbackTimer);
-          contentWin.removeEventListener('afterprint', onAfterPrint);
-          removeNativePrintHtmlIframe();
-          reject(printError ?? bridgeError);
-        }
-      }
-    };
-
-    void startPrint();
-  });
+      throw printError ?? bridgeError;
+    }
+  }
 }
 
 async function printHtmlOnIosViaIframe(html: string, title: string): Promise<void> {
