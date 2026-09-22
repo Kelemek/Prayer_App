@@ -50,6 +50,15 @@ describe('print-memorization-cards', () => {
     );
   });
 
+  it('uses table layout for iOS native duplex', () => {
+    const html = buildMemorizationCardsPrintHtml([card('John 3:16')], 'duplex', {
+      iosNativeDuplex: true,
+    });
+    expect(html).toContain('data-print-ios-native-duplex="true"');
+    expect(html).toContain('<table class="card-grid-table"');
+    expect(html).not.toContain('display: grid');
+  });
+
   it('embeds layout version and duplex sheet breaks', () => {
     const html = buildMemorizationCardsPrintHtml([card('John 3:16')]);
     expect(html).toContain(`data-print-layout-version="${MEMORIZATION_PRINT_LAYOUT_VERSION}"`);
