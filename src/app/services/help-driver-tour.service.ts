@@ -25,8 +25,6 @@ export const TOUR_SETTINGS_BTN_MOBILE_ID = 'tour-btn-settings-mobile';
 export const TOUR_SETTINGS_BTN_DESKTOP_ID = 'tour-btn-settings-desktop';
 export const TOUR_SETTINGS_PRINT_ROW_ID = 'tour-settings-print-buttons';
 export const TOUR_SETTINGS_PRINT_PRAYERS_ID = 'tour-settings-print-prayers';
-export const TOUR_SETTINGS_PRINT_PROMPTS_ID = 'tour-settings-print-prompts';
-export const TOUR_SETTINGS_PRINT_PERSONAL_ID = 'tour-settings-print-personal';
 export const TOUR_SETTINGS_PRINT_MEMORIZATION_ID = 'tour-settings-print-memorization';
 export const TOUR_SETTINGS_EMAIL_SUBSCRIPTION_ID = 'tour-settings-email-subscription';
 export const TOUR_SETTINGS_PRAYER_REMINDERS_ID = 'tour-settings-prayer-reminders';
@@ -1592,7 +1590,7 @@ export class HelpDriverTourService {
       popover: {
         title: 'Prayer mode and print',
         description:
-          'Tap <strong>Pray</strong> for a focused presentation-style view of prompts. To print prompts, open <strong>Settings</strong> and use <strong>Print Prompts</strong>.',
+          'Tap <strong>Pray</strong> for a focused presentation-style view of prompts. To print prompts, open <strong>Settings</strong>, tap <strong>Prayers</strong>, then choose <strong>Prompts</strong>.',
         side: 'bottom',
         align: 'end',
         onNextClick: this.popoverNextKillsTour(),
@@ -1839,7 +1837,7 @@ export class HelpDriverTourService {
   }
 
   /**
-   * **Printing** (`help_printing`): Settings gear → print row → **Print Prayers** / **Prompts** / **Personal** / **Verses**,
+   * **Printing** (`help_printing`): Settings gear → print row → **Prayers** (Church, Groups, Personal, or Prompts) / **Verses**,
    * then tips and close Settings.
    */
   startPrintingHelpSectionTour(
@@ -1875,10 +1873,6 @@ export class HelpDriverTourService {
       document.getElementById(TOUR_SETTINGS_PRINT_ROW_ID) ?? gear();
     const printPrayers = (): HTMLElement =>
       document.getElementById(TOUR_SETTINGS_PRINT_PRAYERS_ID) ?? row();
-    const printPrompts = (): HTMLElement =>
-      document.getElementById(TOUR_SETTINGS_PRINT_PROMPTS_ID) ?? row();
-    const printPersonal = (): HTMLElement =>
-      document.getElementById(TOUR_SETTINGS_PRINT_PERSONAL_ID) ?? row();
     const printMemorization = (): HTMLElement =>
       document.getElementById(TOUR_SETTINGS_PRINT_MEMORIZATION_ID) ?? row();
 
@@ -1898,7 +1892,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Print options',
           description:
-            'Four print actions. <strong>Prayers</strong> (community list), <strong>Prompts</strong>, <strong>Personal</strong>, and <strong>Verses</strong> (memorization cut-out cards). Each opens a dialog to choose options (verse format: duplex or foldable), then print.',
+            'Two print actions. <strong>Prayers</strong> opens a chooser for Church, Groups, Personal, or Prompts. <strong>Verses</strong> prints memorization cut-out cards. Each path asks for the options it needs, then print.',
           side: 'bottom',
           align: 'center',
         },
@@ -1908,27 +1902,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Print Prayers',
           description:
-            'Opens a dialog to pick how far back in time to include, then tap <strong>Print Prayers</strong>. Community <strong>filter</strong> and <strong>search</strong> on Home still apply.',
-          side: 'bottom',
-          align: 'start',
-        },
-      },
-      {
-        element: () => printPrompts(),
-        popover: {
-          title: 'Print Prompts',
-          description:
-            'Opens a dialog to print <strong>all types</strong> or pick specific prompt categories, then tap <strong>Print Prompts</strong>.',
-          side: 'bottom',
-          align: 'start',
-        },
-      },
-      {
-        element: () => printPersonal(),
-        popover: {
-          title: 'Print Personal',
-          description:
-            'Opens a dialog to limit output to selected <strong>categories</strong> or all, then tap <strong>Print Personal</strong>.',
+            'Choose <strong>Church</strong> (then a time period), <strong>Groups</strong> (a group, then a time period), <strong>Personal</strong> (a category, then a time period), or <strong>Prompts</strong> (a category, no time period). Church prints still follow the Home <strong>filter</strong> and <strong>search</strong>.',
           side: 'bottom',
           align: 'start',
         },
@@ -2361,7 +2335,7 @@ export class HelpDriverTourService {
         popover: {
           title: 'Print',
           description:
-            '<strong>Print Prayers</strong>, <strong>Print Prompts</strong>, <strong>Print Personal</strong>, and <strong>Print Verses</strong> (memorization cards). Each opens a dialog for options, then print; filters and search on Home apply to community prints.',
+            '<strong>Prayers</strong> prints Church, Groups, Personal, or Prompts. <strong>Verses</strong> prints memorization cards. Church prints still follow filters and search on Home.',
           side: 'bottom',
           align: 'center',
         },

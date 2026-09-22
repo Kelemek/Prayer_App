@@ -11,9 +11,8 @@
             </div>
             <div
               id="tour-settings-print-buttons"
-              class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2"
+              class="grid grid-cols-2 gap-1.5 sm:gap-2"
             >
-        <!-- Print Prayer List -->
         <div class="relative flex-1 min-w-0">
           <div
             [ngClass]="choiceState(printRange !== 'week')"
@@ -23,16 +22,16 @@
               type="button"
               id="tour-settings-print-prayers"
               (click)="openPrintOptionsModal('prayers')"
-              title="Choose time period and print prayers"
-              [disabled]="isPrinting"
+              title="Choose church, prompts, groups, or personal prayers to print"
+              [disabled]="prayersTileBusy"
               [class]="choiceSplitTileClass + ' w-full'"
               aria-haspopup="dialog"
             >
               <span
                 [class]="printTileContentClass"
-                [attr.aria-busy]="isPrinting"
+                [attr.aria-busy]="prayersTileBusy"
               >
-                @if (isPrinting) {
+                @if (prayersTileBusy) {
                 <svg
                   [class]="printTileSpinnerClass"
                   viewBox="0 0 24 24"
@@ -71,123 +70,6 @@
           </div>
         </div>
 
-        <!-- Print Prompts -->
-        <div class="relative flex-1 min-w-0">
-          <div
-            [ngClass]="choiceState(selectedPromptTypes.length > 0)"
-            [class]="choiceShellClass"
-          >
-            <button
-              type="button"
-              id="tour-settings-print-prompts"
-              (click)="openPrintOptionsModal('prompts')"
-              [disabled]="isPrintingPrompts"
-              title="Choose prompt types and print"
-              [class]="choiceSplitTileClass + ' w-full'"
-              aria-haspopup="dialog"
-            >
-              <span
-                [class]="printTileContentClass"
-                [attr.aria-busy]="isPrintingPrompts"
-              >
-                @if (isPrintingPrompts) {
-                <svg
-                  [class]="printTileSpinnerClass"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  style="transform-origin: center"
-                  aria-hidden="true"
-                >
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="9"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    opacity="0.3"
-                  ></circle>
-                  <path
-                    d="M12 3a9 9 0 0 1 9 9"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    fill="none"
-                  ></path>
-                </svg>
-                } @else {
-                <span
-                  class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
-                  >Prompts</span
-                >
-                }
-              </span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Print Personal Prayers -->
-        <div class="relative flex-1 min-w-0">
-          <div
-            [ngClass]="choiceState(selectedPersonalCategories.length > 0)"
-            [class]="choiceShellClass"
-          >
-            <button
-              type="button"
-              id="tour-settings-print-personal"
-              (click)="openPrintOptionsModal('personal')"
-              title="Choose categories and print personal prayers"
-              [disabled]="isPrintingPersonal"
-              [class]="choiceSplitTileClass + ' w-full'"
-              aria-haspopup="dialog"
-            >
-              <span
-                [class]="printTileContentClass"
-                [attr.aria-busy]="isPrintingPersonal"
-              >
-                @if (isPrintingPersonal) {
-                <svg
-                  [class]="printTileSpinnerClass"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  style="transform-origin: center"
-                  aria-hidden="true"
-                >
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="9"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    opacity="0.3"
-                  ></circle>
-                  <path
-                    d="M12 3a9 9 0 0 1 9 9"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    fill="none"
-                  ></path>
-                </svg>
-                } @else {
-                <span
-                  class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
-                  >Personal</span
-                >
-                }
-              </span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Print memorization verse cards -->
         <div class="relative flex-1 min-w-0">
           <div [ngClass]="choiceState(false)" [class]="choiceShellClass">
             <button
@@ -245,7 +127,7 @@
             <p
               class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-2 text-pretty"
             >
-              Print prayers, prompts, personal prayers, or memorization verse cards
+              Print prayers or memorization verse cards
             </p>
           </div>
         </div>
@@ -265,77 +147,145 @@
   <div class="p-4 sm:p-6">
     @switch (printOptionsModal) {
       @case ('prayers') {
-        <ul class="divide-y divide-gray-200 dark:divide-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          @for (option of printRangeOptions; track option.value) {
-          <li>
-            <button
-              type="button"
-              (click)="setPrintRange(option.value)"
-              class="w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer"
-              [title]="'Print prayers from the last ' + option.label"
-            >
-              <span>{{ option.label }}</span>
-              @if (printRange === option.value) {
-              <span class="text-blue-600 dark:text-blue-400">✓</span>
-              }
-            </button>
-          </li>
-          }
-        </ul>
+        @if (prayerPrintStep !== 'source') {
         <button
           type="button"
-          (click)="printFromOptionsModal()"
-          [disabled]="isPrinting"
-          [class]="printModalActionBtnClass"
+          (click)="backPrayerPrintStep()"
+          class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 cursor-pointer"
         >
-          <span
-            class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
-            >Print Prayers</span
-          >
+          Back
         </button>
-      }
-      @case ('prompts') {
-        <ul class="max-h-[min(50dvh,16rem)] overflow-y-auto divide-y divide-gray-200 dark:divide-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <li>
-            <button
-              type="button"
-              (click)="selectAllPromptTypes()"
-              class="w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer"
-              title="Print all prompt types"
-            >
-              <span>All Types</span>
-              @if (selectedPromptTypes.length === 0) {
-              <span class="text-blue-600 dark:text-blue-400">✓</span>
+        }
+        @switch (prayerPrintStep) {
+          @case ('source') {
+            <ul class="divide-y divide-gray-200 dark:divide-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              @for (option of prayerPrintSources; track option.value) {
+              <li>
+                <button
+                  type="button"
+                  (click)="choosePrayerPrintSource(option.value)"
+                  [class]="printOptionRowClass"
+                >
+                  <span>{{ option.label }}</span>
+                </button>
+              </li>
               }
-            </button>
-          </li>
-          @for (type of promptTypes; track type) {
-          <li>
-            <button
-              type="button"
-              (click)="togglePromptType(type)"
-              class="w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer"
-              [title]="'Toggle ' + type + ' prompts for printing'"
-            >
-              <span>{{ type }}</span>
-              @if (selectedPromptTypes.includes(type)) {
-              <span class="text-blue-600 dark:text-blue-400">✓</span>
-              }
-            </button>
-          </li>
+            </ul>
           }
-        </ul>
-        <button
-          type="button"
-          (click)="printFromOptionsModal()"
-          [disabled]="isPrintingPrompts"
-          [class]="printModalActionBtnClass"
-        >
-          <span
-            class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
-            >Print Prompts</span
-          >
-        </button>
+          @case ('prompts') {
+            <ul class="max-h-[min(50dvh,16rem)] overflow-y-auto divide-y divide-gray-200 dark:divide-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <li>
+                <button
+                  type="button"
+                  (click)="selectAllPromptTypes()"
+                  [class]="printOptionRowClass"
+                  title="Print all prompt categories"
+                >
+                  <span>All Categories</span>
+                  @if (selectedPromptTypes.length === 0) {
+                  <span class="text-blue-600 dark:text-blue-400">✓</span>
+                  }
+                </button>
+              </li>
+              @for (type of promptTypes; track type) {
+              <li>
+                <button
+                  type="button"
+                  (click)="togglePromptType(type)"
+                  [class]="printOptionRowClass"
+                  [title]="'Toggle ' + type + ' prompts for printing'"
+                >
+                  <span>{{ type }}</span>
+                  @if (selectedPromptTypes.includes(type)) {
+                  <span class="text-blue-600 dark:text-blue-400">✓</span>
+                  }
+                </button>
+              </li>
+              }
+            </ul>
+            <button
+              type="button"
+              (click)="printFromOptionsModal()"
+              [disabled]="prayerPrintActionDisabled"
+              [class]="printModalActionBtnClass"
+            >
+              <span class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100">{{ prayerPrintActionLabel }}</span>
+            </button>
+          }
+          @case ('group') {
+            @if (printGroupsLoading) {
+            <p class="text-sm text-gray-600 dark:text-gray-400">Loading groups…</p>
+            } @else if (printGroups.length === 0) {
+            <p class="text-sm text-gray-600 dark:text-gray-400">You are not in any groups yet.</p>
+            } @else {
+            <ul class="max-h-[min(50dvh,16rem)] overflow-y-auto divide-y divide-gray-200 dark:divide-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              @for (group of printGroups; track group.id) {
+              <li>
+                <button
+                  type="button"
+                  (click)="choosePrintGroup(group.id)"
+                  [class]="printOptionRowClass"
+                >
+                  <span>{{ group.name }}</span>
+                </button>
+              </li>
+              }
+            </ul>
+            }
+          }
+          @case ('category') {
+            <ul class="max-h-[min(50dvh,16rem)] overflow-y-auto divide-y divide-gray-200 dark:divide-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <li>
+                <button
+                  type="button"
+                  (click)="choosePrintPersonalCategory(null)"
+                  [class]="printOptionRowClass"
+                  title="Print all personal prayer categories"
+                >
+                  <span>All Categories</span>
+                </button>
+              </li>
+              @for (category of personalCategories; track category) {
+              <li>
+                <button
+                  type="button"
+                  (click)="choosePrintPersonalCategory(category)"
+                  [class]="printOptionRowClass"
+                >
+                  <span>{{ category }}</span>
+                </button>
+              </li>
+              }
+            </ul>
+          }
+          @case ('timeframe') {
+            <ul class="divide-y divide-gray-200 dark:divide-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              @for (option of printRangeOptions; track option.value) {
+              <li>
+                <button
+                  type="button"
+                  (click)="setPrintRange(option.value)"
+                  [class]="printOptionRowClass"
+                  [title]="'Print prayers from the last ' + option.label"
+                >
+                  <span>{{ option.label }}</span>
+                  @if (printRange === option.value) {
+                  <span class="text-blue-600 dark:text-blue-400">✓</span>
+                  }
+                </button>
+              </li>
+              }
+            </ul>
+            <button
+              type="button"
+              (click)="printFromOptionsModal()"
+              [disabled]="prayerPrintActionDisabled"
+              [class]="printModalActionBtnClass"
+            >
+              <span class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100">{{ prayerPrintActionLabel }}</span>
+            </button>
+          }
+        }
       }
       @case ('verses') {
         <ul class="divide-y divide-gray-200 dark:divide-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -367,49 +317,6 @@
           <span
             class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
             >Print Verses</span
-          >
-        </button>
-      }
-      @case ('personal') {
-        <ul class="max-h-[min(50dvh,16rem)] overflow-y-auto divide-y divide-gray-200 dark:divide-gray-700 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <li>
-            <button
-              type="button"
-              (click)="selectAllPersonalCategories()"
-              class="w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer"
-              title="Print all personal prayer categories"
-            >
-              <span>All Categories</span>
-              @if (selectedPersonalCategories.length === 0) {
-              <span class="text-blue-600 dark:text-blue-400">✓</span>
-              }
-            </button>
-          </li>
-          @for (category of personalCategories; track category) {
-          <li>
-            <button
-              type="button"
-              (click)="togglePersonalCategory(category)"
-              class="w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer"
-              [title]="'Toggle ' + category + ' category for printing'"
-            >
-              <span>{{ category }}</span>
-              @if (selectedPersonalCategories.includes(category)) {
-              <span class="text-blue-600 dark:text-blue-400">✓</span>
-              }
-            </button>
-          </li>
-          }
-        </ul>
-        <button
-          type="button"
-          (click)="printFromOptionsModal()"
-          [disabled]="isPrintingPersonal"
-          [class]="printModalActionBtnClass"
-        >
-          <span
-            class="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100"
-            >Print Personal</span
           >
         </button>
       }

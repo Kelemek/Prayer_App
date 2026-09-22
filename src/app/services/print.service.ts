@@ -33,6 +33,7 @@ import {
   setPrintStartDateForTimeRange,
 } from '../lib/print-time-range';
 import type { BookletTimeRange, Prayer as BookletPrayer, TimeRange as PrintTimeRange } from '../lib/print-types';
+import type { PrayerRequest } from '../lib/prayer-types';
 
 export type { BookletTimeRange } from '../lib/print-types';
 
@@ -107,6 +108,79 @@ export class PrintService {
    */
   private async shareOnNativeApp(html: string, filename: string, title: string): Promise<void> {
     await sharePrintHtmlOnNativeApp(html, filename, title);
+  }
+
+  private filterPrayersByPrintRange<T extends {
+    created_at: string;
+    updates?: Array<{ created_at: string }> | null;
+    prayer_updates?: Array<{ created_at: string }> | null;
+  }>(items: T[], timeRange: TimeRange): T[] {
+    const endDate = new Date();
+    const startDate = new Date();
+    setPrintStartDateForTimeRange(startDate, endDate, timeRange);
+    return items.filter((item) => {
+      const created = new Date(item.created_at);
+      if (created >= startDate && created <= endDate) {
+        return true;
+      }
+      const updates = item.updates ?? item.prayer_updates ?? [];
+      return updates.some((update) => {
+        const updateDate = new Date(update.created_at);
+        return updateDate >= startDate && updateDate <= endDate;
+      });
+    });
+  }
+
+  private printRangeDateLabel(timeRange: TimeRange, todayLabel: string): string {
+    if (timeRange === 'all') {
+      return `All prayers (as of ${todayLabel})`;
+    }
+    const endDate = new Date();
+    const startDate = new Date();
+    setPrintStartDateForTimeRange(startDate, endDate, timeRange);
+    const startLabel = startDate.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    return `${startLabel} - ${todayLabel}`;
+  }
+
+  private escapePrintText(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  private async deliverPrintHtml(
+    html: string,
+    filename: string,
+    title: string,
+    newWindow: Window | null,
+  ): Promise<void> {
+    if (this.isNativeApp()) {
+      await this.shareOnNativeApp(html, filename, title);
+      return;
+    }
+
+    const targetWindow = newWindow || window.open('', '_blank');
+    if (!targetWindow) {
+      const blob = new Blob([html], { type: 'text/html' });
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+      alert('Prayer list downloaded. Please open the file to view and print.');
+      return;
+    }
+
+    writeHtmlToPopupAndPrint(targetWindow, html);
   }
 
   /**
@@ -269,9 +343,65 @@ export class PrintService {
   }
 
   /**
+   * Print prayers from one group for the selected time window.
+   * Does not change which group is open on Home.
+   */
+  async downloadPrintableGroupPrayerList(
+    prayers: PrayerRequest[],
+    groupName: string,
+    timeRange: TimeRange,
+    newWindow: Window | null = null,
+  ): Promise<void> {
+    try {
+      const inRange = this.filterPrayersByPrintRange(prayers, timeRange);
+      if (inRange.length === 0) {
+        alert(getPrintEmptyRangeUserMessage(timeRange));
+        if (newWindow) newWindow.close();
+        return;
+      }
+
+      const printable: Prayer[] = inRange.map((prayer) => ({
+        id: prayer.id,
+        title: prayer.title,
+        prayer_for: prayer.prayer_for,
+        description: prayer.description,
+        requester: prayer.requester,
+        status: prayer.status,
+        created_at: prayer.created_at,
+        date_answered: prayer.date_answered ?? undefined,
+        prayer_updates: (prayer.updates ?? []).map((update) => ({
+          id: update.id,
+          content: update.content,
+          author: update.author,
+          created_at: update.created_at,
+          is_anonymous: update.is_anonymous,
+        })),
+      }));
+
+      const heading = `${groupName} Prayers`;
+      const html = this.generatePrintableHTML(printable, timeRange, heading);
+      const today = new Date().toISOString().split('T')[0];
+      const slug = groupName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || 'group';
+      const filename = `group-prayers-${slug}-${getPrintRangeFileLabel(timeRange)}-${today}.html`;
+      await this.deliverPrintHtml(html, filename, heading, newWindow);
+    } catch (error) {
+      console.error('Error generating group prayer list:', error);
+      alert('Failed to generate prayer list. Please try again.');
+      if (newWindow) newWindow.close();
+    }
+  }
+
+  /**
    * Generate printable HTML for prayer list
    */
-  private generatePrintableHTML(prayers: Prayer[], timeRange: TimeRange = 'month'): string {
+  private generatePrintableHTML(
+    prayers: Prayer[],
+    timeRange: TimeRange = 'month',
+    heading = 'Church Prayer List',
+  ): string {
     const now = new Date();
     const today = now.toLocaleDateString('en-US', { 
       year: 'numeric', 
@@ -592,7 +722,7 @@ export class PrintService {
 <body>
   <div class="header">
     <div class="header-left">
-      <h1>🙏 Church Prayer List</h1>
+      <h1>🙏 ${this.escapePrintText(heading)}</h1>
       <span class="date-range">${dateRange}</span>
     </div>
     <div class="header-right">
@@ -798,7 +928,11 @@ export class PrintService {
   /**
    * Generate and download a printable list of personal prayers
    */
-  async downloadPrintablePersonalPrayerList(categories?: string[], newWindow: Window | null = null): Promise<void> {
+  async downloadPrintablePersonalPrayerList(
+    categories?: string[],
+    newWindow: Window | null = null,
+    timeRange?: TimeRange,
+  ): Promise<void> {
     try {
       // Fetch personal prayers using the prayer service
       const allPersonalPrayers = await this.prayerService.getPersonalPrayers();
@@ -809,21 +943,28 @@ export class PrintService {
         return;
       }
 
-      // Filter by categories if specified, otherwise include all
-      const personalPrayers = categories && categories.length > 0
+      let personalPrayers = categories && categories.length > 0
         ? allPersonalPrayers.filter((prayer: any) => categories.includes(prayer.category || ''))
         : allPersonalPrayers;
 
+      if (timeRange) {
+        personalPrayers = this.filterPrayersByPrintRange(personalPrayers, timeRange);
+      }
+
       if (personalPrayers.length === 0) {
-        const categoryText = categories && categories.length > 0 
-          ? `in the selected categories` 
-          : 'with the selected filters';
-        alert(`No personal prayers found ${categoryText}.`);
+        if (timeRange) {
+          alert(getPrintEmptyRangeUserMessage(timeRange));
+        } else {
+          const categoryText = categories && categories.length > 0
+            ? `in the selected categories`
+            : 'with the selected filters';
+          alert(`No personal prayers found ${categoryText}.`);
+        }
         if (newWindow) newWindow.close();
         return;
       }
 
-      const html = this.generatePersonalPrayersPrintableHTML(personalPrayers, categories);
+      const html = this.generatePersonalPrayersPrintableHTML(personalPrayers, categories, timeRange);
 
       // On native apps, use the native share/print dialog
       if (this.isNativeApp()) {
@@ -977,7 +1118,11 @@ export class PrintService {
   /**
    * Generate HTML content for printable personal prayers list
    */
-  private generatePersonalPrayersPrintableHTML(prayers: any[], categories?: string[]): string {
+  private generatePersonalPrayersPrintableHTML(
+    prayers: any[],
+    categories?: string[],
+    timeRange?: TimeRange,
+  ): string {
     const now = new Date();
     const today = now.toLocaleDateString('en-US', { 
       year: 'numeric', 
@@ -994,8 +1139,10 @@ export class PrintService {
     const categoryLabel = categories && categories.length > 0
       ? `Categories: ${categories.join(', ')}`
       : 'All Categories';
-    
-    const dateRange = `${categoryLabel} (as of ${today})`;
+
+    const dateRange = timeRange
+      ? `${categoryLabel} · ${this.printRangeDateLabel(timeRange, today)}`
+      : `${categoryLabel} (as of ${today})`;
 
     // Group prayers by category
     const prayersByCategory: { [key: string]: any[] } = {};

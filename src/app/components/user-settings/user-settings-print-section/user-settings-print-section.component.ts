@@ -9,9 +9,11 @@ import {
 import { NgClass } from '@angular/common';
 import { ModalShellComponent } from '../../modal-shell/modal-shell.component';
 import { PrintService } from '../../../services/print.service';
+import { PrayerGroupService } from '../../../services/prayer-group.service';
 import { PrayerService } from '../../../services/prayer.service';
 import { SupabaseService } from '../../../services/supabase.service';
 import { TenantContextService } from '../../../services/tenant-context.service';
+import type { PrayerGroup } from '../../../types/prayer-group';
 import { uniquePrayerTypeNamesInOrder } from '../../../lib/prayer-type-names';
 import type { MemorizationPrintSheetStyle } from '../../../lib/print-memorization-cards';
 import { SETTINGS_PRINT_MODAL_SHELL } from '../../../lib/measure-app-top-chrome-inset';
@@ -24,7 +26,9 @@ import {
 } from '../../../lib/settings-choice-ui';
 
 export type PrintRange = 'week' | 'twoweeks' | 'month' | 'year' | 'all';
-export type PrintOptionsModal = 'prayers' | 'prompts' | 'personal' | 'verses';
+export type PrintOptionsModal = 'prayers' | 'verses';
+export type PrayerPrintSource = 'church' | 'prompts' | 'groups' | 'personal';
+export type PrayerPrintStep = 'source' | 'prompts' | 'group' | 'category' | 'timeframe';
 
 @Component({
   selector: 'app-user-settings-print-section',
@@ -44,6 +48,14 @@ export class UserSettingsPrintSectionComponent implements OnChanges {
     'grid h-5 w-full shrink-0 place-items-center sm:h-5';
   readonly printTileSpinnerClass =
     'h-[18px] w-[18px] text-gray-600 dark:text-gray-400 sm:h-5 sm:w-5 animate-spin';
+  readonly printOptionRowClass =
+    'w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between cursor-pointer';
+  readonly prayerPrintSources: Array<{ value: PrayerPrintSource; label: string }> = [
+    { value: 'church', label: 'Church' },
+    { value: 'groups', label: 'Groups' },
+    { value: 'personal', label: 'Personal' },
+    { value: 'prompts', label: 'Prompts' },
+  ];
 
   @Input() isOpen = false;
 
@@ -53,6 +65,11 @@ export class UserSettingsPrintSectionComponent implements OnChanges {
   isPrintingPersonal = false;
   printRange: PrintRange = 'week';
   printOptionsModal: PrintOptionsModal | null = null;
+  prayerPrintStep: PrayerPrintStep = 'source';
+  prayerPrintSource: PrayerPrintSource | null = null;
+  printGroups: PrayerGroup[] = [];
+  printGroupsLoading = false;
+  selectedPrintGroupId: string | null = null;
   readonly settingsPrintModalShell = SETTINGS_PRINT_MODAL_SHELL;
   promptTypes: string[] = [];
   selectedPromptTypes: string[] = [];
@@ -90,6 +107,7 @@ export class UserSettingsPrintSectionComponent implements OnChanges {
     private prayerService: PrayerService,
     private supabase: SupabaseService,
     private tenantContext: TenantContextService,
+    private prayerGroupService: PrayerGroupService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -100,26 +118,81 @@ export class UserSettingsPrintSectionComponent implements OnChanges {
     if (changes['isOpen']?.currentValue === true) {
       void this.loadPromptTypes();
       void this.loadPersonalCategories();
+      void this.loadPrintGroups();
     }
   }
 
+  get prayersTileBusy(): boolean {
+    return this.isPrinting || this.isPrintingPrompts || this.isPrintingPersonal;
+  }
+
   get printOptionsModalTitle(): string {
-    switch (this.printOptionsModal) {
-      case 'prayers':
-        return 'Prayer print period';
+    if (this.printOptionsModal === 'verses') {
+      return 'Verse card format';
+    }
+    if (this.printOptionsModal !== 'prayers') {
+      return '';
+    }
+    switch (this.prayerPrintStep) {
+      case 'source':
+        return 'What to print';
       case 'prompts':
-        return 'Prompt types';
+        return 'Prompt category';
+      case 'group':
+        return 'Choose a group';
+      case 'category':
+        return 'Personal category';
+      case 'timeframe':
+        return 'Time period';
+      default: {
+        const _exhaustive: never = this.prayerPrintStep;
+        return _exhaustive;
+      }
+    }
+  }
+
+  get prayerPrintActionLabel(): string {
+    switch (this.prayerPrintSource) {
+      case 'church':
+        return 'Print Church';
+      case 'prompts':
+        return 'Print Prompts';
+      case 'groups':
+        return 'Print Group';
       case 'personal':
-        return 'Personal categories';
-      case 'verses':
-        return 'Verse card format';
-      default:
-        return '';
+        return 'Print Personal';
+      case null:
+        return 'Print';
+      default: {
+        const _exhaustive: never = this.prayerPrintSource;
+        return _exhaustive;
+      }
+    }
+  }
+
+  get prayerPrintActionDisabled(): boolean {
+    switch (this.prayerPrintSource) {
+      case 'prompts':
+        return this.isPrintingPrompts;
+      case 'personal':
+        return this.isPrintingPersonal;
+      case 'groups':
+        return this.isPrinting || !this.selectedPrintGroupId;
+      case 'church':
+      case null:
+        return this.isPrinting;
+      default: {
+        const _exhaustive: never = this.prayerPrintSource;
+        return _exhaustive;
+      }
     }
   }
 
   openPrintOptionsModal(mode: PrintOptionsModal): void {
     this.printOptionsModal = mode;
+    if (mode === 'prayers') {
+      this.resetPrayerPrintWizard();
+    }
     this.cdr.markForCheck();
   }
 
@@ -128,6 +201,63 @@ export class UserSettingsPrintSectionComponent implements OnChanges {
       return;
     }
     this.printOptionsModal = null;
+    this.resetPrayerPrintWizard();
+    this.cdr.markForCheck();
+  }
+
+  choosePrayerPrintSource(source: PrayerPrintSource): void {
+    this.prayerPrintSource = source;
+    switch (source) {
+      case 'church':
+        this.prayerPrintStep = 'timeframe';
+        break;
+      case 'prompts':
+        this.prayerPrintStep = 'prompts';
+        break;
+      case 'groups':
+        this.prayerPrintStep = 'group';
+        break;
+      case 'personal':
+        this.prayerPrintStep = 'category';
+        break;
+      default: {
+        const _exhaustive: never = source;
+        break;
+      }
+    }
+    this.cdr.markForCheck();
+  }
+
+  choosePrintGroup(groupId: string): void {
+    this.selectedPrintGroupId = groupId;
+    this.prayerPrintStep = 'timeframe';
+    this.cdr.markForCheck();
+  }
+
+  choosePrintPersonalCategory(category: string | null): void {
+    this.selectedPersonalCategories = category ? [category] : [];
+    this.prayerPrintStep = 'timeframe';
+    this.cdr.markForCheck();
+  }
+
+  backPrayerPrintStep(): void {
+    switch (this.prayerPrintStep) {
+      case 'source':
+        this.closePrintOptionsModal();
+        return;
+      case 'prompts':
+      case 'group':
+      case 'category':
+        this.prayerPrintStep = 'source';
+        break;
+      case 'timeframe':
+        this.prayerPrintStep = this.stepBeforeTimeframe();
+        break;
+      default: {
+        const _exhaustive: never = this.prayerPrintStep;
+        break;
+      }
+    }
     this.cdr.markForCheck();
   }
 
@@ -146,34 +276,30 @@ export class UserSettingsPrintSectionComponent implements OnChanges {
     this.cdr.markForCheck();
   }
 
-  selectAllPersonalCategories(): void {
-    this.selectedPersonalCategories = [];
-    this.cdr.markForCheck();
-  }
-
   async printFromOptionsModal(): Promise<void> {
     const mode = this.printOptionsModal;
+    const source = this.prayerPrintSource;
     if (!mode) {
       return;
     }
-    this.closePrintOptionsModal();
-    switch (mode) {
-      case 'prayers':
-        await this.handlePrint();
-        break;
-      case 'prompts':
-        await this.handlePrintPrompts();
-        break;
-      case 'personal':
-        await this.handlePrintPersonalPrayers();
-        break;
-      case 'verses':
-        await this.handlePrintMemorizationCards();
-        break;
-      default: {
-        const _exhaustive: never = mode;
-        break;
+    this.printOptionsModal = null;
+    this.cdr.markForCheck();
+    try {
+      switch (mode) {
+        case 'prayers':
+          await this.printChosenPrayerSource(source);
+          break;
+        case 'verses':
+          await this.handlePrintMemorizationCards();
+          break;
+        default: {
+          const _exhaustive: never = mode;
+          break;
+        }
       }
+    } finally {
+      this.resetPrayerPrintWizard();
+      this.cdr.markForCheck();
     }
   }
 
@@ -225,13 +351,42 @@ export class UserSettingsPrintSectionComponent implements OnChanges {
         this.selectedPersonalCategories.length > 0
           ? this.selectedPersonalCategories
           : undefined,
-        newWindow
+        newWindow,
+        this.printRange
       );
     } catch (error) {
       console.error('Error printing personal prayers:', error);
       newWindow?.close();
     } finally {
       this.isPrintingPersonal = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  async handlePrintGroup(): Promise<void> {
+    const group = this.printGroups.find((item) => item.id === this.selectedPrintGroupId);
+    if (!group) {
+      return;
+    }
+
+    this.isPrinting = true;
+    this.cdr.markForCheck();
+
+    const newWindow = this.isNativeApp() ? null : window.open('', '_blank');
+
+    try {
+      const prayers = await this.prayerGroupService.loadGroupPrayersForPrint(group.id);
+      await this.printService.downloadPrintableGroupPrayerList(
+        prayers,
+        group.name,
+        this.printRange,
+        newWindow
+      );
+    } catch (error) {
+      console.error('Error printing group prayers:', error);
+      newWindow?.close();
+    } finally {
+      this.isPrinting = false;
       this.cdr.markForCheck();
     }
   }
@@ -284,6 +439,66 @@ export class UserSettingsPrintSectionComponent implements OnChanges {
       this.selectedPersonalCategories = [...this.selectedPersonalCategories, category];
     }
     this.cdr.markForCheck();
+  }
+
+  private resetPrayerPrintWizard(): void {
+    this.prayerPrintStep = 'source';
+    this.prayerPrintSource = null;
+    this.selectedPrintGroupId = null;
+  }
+
+  private stepBeforeTimeframe(): PrayerPrintStep {
+    switch (this.prayerPrintSource) {
+      case 'groups':
+        return 'group';
+      case 'personal':
+        return 'category';
+      case 'church':
+      case 'prompts':
+      case null:
+        return 'source';
+      default: {
+        const _exhaustive: never = this.prayerPrintSource;
+        return _exhaustive;
+      }
+    }
+  }
+
+  private async printChosenPrayerSource(source: PrayerPrintSource | null): Promise<void> {
+    switch (source) {
+      case 'church':
+        await this.handlePrint();
+        break;
+      case 'prompts':
+        await this.handlePrintPrompts();
+        break;
+      case 'groups':
+        await this.handlePrintGroup();
+        break;
+      case 'personal':
+        await this.handlePrintPersonalPrayers();
+        break;
+      case null:
+        break;
+      default: {
+        const _exhaustive: never = source;
+        break;
+      }
+    }
+  }
+
+  private async loadPrintGroups(): Promise<void> {
+    this.printGroupsLoading = true;
+    this.cdr.markForCheck();
+    try {
+      this.printGroups = await this.prayerGroupService.loadMyGroups();
+    } catch (err) {
+      console.error('Error loading groups for print:', err);
+      this.printGroups = [];
+    } finally {
+      this.printGroupsLoading = false;
+      this.cdr.markForCheck();
+    }
   }
 
   private async loadPromptTypes(): Promise<void> {

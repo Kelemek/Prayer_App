@@ -8,9 +8,14 @@ describe('UserSettingsPrintSectionComponent', () => {
     downloadPrintablePrayerList: ReturnType<typeof vi.fn>;
     downloadPrintablePromptList: ReturnType<typeof vi.fn>;
     downloadPrintablePersonalPrayerList: ReturnType<typeof vi.fn>;
+    downloadPrintableGroupPrayerList: ReturnType<typeof vi.fn>;
     downloadPrintableMemorizationCards: ReturnType<typeof vi.fn>;
   };
   let mockPrayerService: { getUniqueCategoriesForUser: ReturnType<typeof vi.fn> };
+  let mockPrayerGroupService: {
+    loadMyGroups: ReturnType<typeof vi.fn>;
+    loadGroupPrayersForPrint: ReturnType<typeof vi.fn>;
+  };
   let mockSupabase: { client: { from: ReturnType<typeof vi.fn> } };
   let mockCdr: { markForCheck: ReturnType<typeof vi.fn> };
   let mockTenantContext: { getActiveTenant: ReturnType<typeof vi.fn> };
@@ -20,10 +25,15 @@ describe('UserSettingsPrintSectionComponent', () => {
       downloadPrintablePrayerList: vi.fn(() => Promise.resolve()),
       downloadPrintablePromptList: vi.fn(() => Promise.resolve()),
       downloadPrintablePersonalPrayerList: vi.fn(() => Promise.resolve()),
+      downloadPrintableGroupPrayerList: vi.fn(() => Promise.resolve()),
       downloadPrintableMemorizationCards: vi.fn(() => Promise.resolve()),
     };
     mockPrayerService = {
       getUniqueCategoriesForUser: vi.fn(() => Promise.resolve(['Health'])),
+    };
+    mockPrayerGroupService = {
+      loadMyGroups: vi.fn(() => Promise.resolve([{ id: 'group-1', name: 'Youth' }])),
+      loadGroupPrayersForPrint: vi.fn(() => Promise.resolve([])),
     };
     mockSupabase = {
       client: {
@@ -56,6 +66,7 @@ describe('UserSettingsPrintSectionComponent', () => {
       mockPrayerService as any,
       mockSupabase as any,
       mockTenantContext as any,
+      mockPrayerGroupService as any,
       mockCdr as unknown as ChangeDetectorRef
     );
   });
@@ -118,7 +129,8 @@ describe('UserSettingsPrintSectionComponent', () => {
     await component.handlePrintPersonalPrayers();
     expect(mockPrintService.downloadPrintablePersonalPrayerList).toHaveBeenCalledWith(
       ['Family'],
-      expect.anything()
+      expect.anything(),
+      'week'
     );
   });
 
@@ -143,9 +155,10 @@ describe('UserSettingsPrintSectionComponent', () => {
     );
   });
 
-  it('openPrintOptionsModal sets printOptionsModal', () => {
-    component.openPrintOptionsModal('prompts');
-    expect(component.printOptionsModal).toBe('prompts');
+  it('openPrintOptionsModal starts the prayer chooser', () => {
+    component.openPrintOptionsModal('prayers');
+    expect(component.printOptionsModal).toBe('prayers');
+    expect(component.prayerPrintStep).toBe('source');
     component.closePrintOptionsModal();
     expect(component.printOptionsModal).toBeNull();
   });
@@ -157,8 +170,9 @@ describe('UserSettingsPrintSectionComponent', () => {
     expect(component.printOptionsModal).toBe('prayers');
   });
 
-  it('printFromOptionsModal closes modal and prints prayers', async () => {
+  it('printFromOptionsModal closes modal and prints church prayers', async () => {
     component.openPrintOptionsModal('prayers');
+    component.choosePrayerPrintSource('church');
     component.printRange = 'year';
     await component.printFromOptionsModal();
     expect(component.printOptionsModal).toBeNull();
@@ -168,8 +182,51 @@ describe('UserSettingsPrintSectionComponent', () => {
     );
   });
 
+  it('prompts ask for a category and skip the timeframe', () => {
+    component.openPrintOptionsModal('prayers');
+    component.choosePrayerPrintSource('prompts');
+    expect(component.prayerPrintStep).toBe('prompts');
+    expect(component.printOptionsModalTitle).toBe('Prompt category');
+  });
+
+  it('groups ask for a group then a timeframe', () => {
+    component.openPrintOptionsModal('prayers');
+    component.choosePrayerPrintSource('groups');
+    expect(component.prayerPrintStep).toBe('group');
+    component.choosePrintGroup('group-1');
+    expect(component.prayerPrintStep).toBe('timeframe');
+    component.backPrayerPrintStep();
+    expect(component.prayerPrintStep).toBe('group');
+  });
+
+  it('personal asks for a category then a timeframe', () => {
+    component.openPrintOptionsModal('prayers');
+    component.choosePrayerPrintSource('personal');
+    expect(component.prayerPrintStep).toBe('category');
+    component.choosePrintPersonalCategory('Health');
+    expect(component.selectedPersonalCategories).toEqual(['Health']);
+    expect(component.prayerPrintStep).toBe('timeframe');
+  });
+
+  it('prints the selected group for the chosen timeframe', async () => {
+    component.printGroups = [{ id: 'group-1', name: 'Youth' } as any];
+    component.openPrintOptionsModal('prayers');
+    component.prayerPrintSource = 'groups';
+    component.selectedPrintGroupId = 'group-1';
+    component.prayerPrintStep = 'timeframe';
+    component.printRange = 'month';
+    await component.printFromOptionsModal();
+    expect(mockPrayerGroupService.loadGroupPrayersForPrint).toHaveBeenCalledWith('group-1');
+    expect(mockPrintService.downloadPrintableGroupPrayerList).toHaveBeenCalledWith(
+      [],
+      'Youth',
+      'month',
+      expect.anything()
+    );
+  });
+
   it('closes print options modal when settings section closes', () => {
-    component.openPrintOptionsModal('personal');
+    component.openPrintOptionsModal('prayers');
     component.ngOnChanges({
       isOpen: {
         currentValue: false,

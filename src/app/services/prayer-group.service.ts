@@ -624,6 +624,34 @@ export class PrayerGroupService {
     return grouped;
   }
 
+  /** Prayers for a printout. Does not change the group currently open on Home. */
+  async loadGroupPrayersForPrint(groupId: string): Promise<PrayerRequest[]> {
+    if (!this.connectivity.isOnline()) {
+      return (
+        this.getCachedGroupPrayers(groupId) ??
+        this.getStaleGroupPrayers(groupId) ??
+        []
+      );
+    }
+
+    try {
+      const grouped = await this.fetchGroupPrayersByGroupIds([groupId]);
+      const prayers = grouped.get(groupId) ?? [];
+      this.setCachedGroupPrayers(groupId, prayers);
+      if (this.activeGroupId === groupId) {
+        this.prayersSubject.next(prayers);
+      }
+      return prayers;
+    } catch (error) {
+      console.error('[PrayerGroup] loadGroupPrayersForPrint failed:', error);
+      return (
+        this.getCachedGroupPrayers(groupId) ??
+        this.getStaleGroupPrayers(groupId) ??
+        []
+      );
+    }
+  }
+
   private async fetchGroupPrayersByGroupIds(
     groupIds: string[]
   ): Promise<Map<string, PrayerRequest[]>> {

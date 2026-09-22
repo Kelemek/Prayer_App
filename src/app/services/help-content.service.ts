@@ -329,7 +329,7 @@ const HELP_SECTIONS_IN_DISPLAY_ORDER = [
     content: [
       {
         subtitle: 'Print Options',
-        text: 'Under the settings menu, find the print button to print your prayers. You can print all prayers or just the filtered results. This includes both community prayers and your personal private prayers.',
+        text: 'Open Settings and tap Prayers. Choose Church, Groups, Personal, or Prompts. Church asks for a time period. Prompts ask for a category. Groups ask for a group, then a time period. Personal asks for a category, then a time period. Verses prints memorization cards.',
       },
       {
         subtitle: 'Printing Personal Prayers',
