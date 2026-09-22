@@ -933,7 +933,7 @@ export class PrintService {
       const platform = (window as { Capacitor?: { getPlatform?: () => string } })
         .Capacitor?.getPlatform?.();
       const html = buildMemorizationCardsPrintHtml(cards, sheetStyle, {
-        iosNativeDuplex: platform === 'ios' && sheetStyle === 'duplex',
+        iosNativeMarkup: platform === 'ios',
       });
 
       if (this.isNativeApp()) {

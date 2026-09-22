@@ -53,7 +53,7 @@ describe('print-memorization-cards', () => {
 
   it('uses table layout for iOS native duplex', () => {
     const html = buildMemorizationCardsPrintHtml([card('John 3:16')], 'duplex', {
-      iosNativeDuplex: true,
+      iosNativeMarkup: true,
     });
     expect(html).toContain('data-print-ios-native-duplex="true"');
     expect(html).toContain('<table class="card-grid-table"');
@@ -97,6 +97,29 @@ describe('print-memorization-cards', () => {
     expect(html).not.toContain('sheet-back');
     expect((html.match(/sheet-foldable/g) ?? []).length).toBe(1);
     expect((html.match(/<div class="card-foldable/g) ?? []).length).toBe(3);
+  });
+
+  it('uses a table and breaks before later iOS foldable pages', () => {
+    const items = Array.from({ length: 4 }, (_, i) => card(`R${i + 1}`, 'Verse'));
+    const html = buildMemorizationCardsPrintHtml(items, 'foldable', {
+      iosNativeMarkup: true,
+    });
+    expect(html).toContain('data-print-ios-native-foldable="true"');
+    expect(html).not.toContain('sheet-break');
+    expect(html).not.toContain('page-break-after');
+    expect(html).not.toContain('display: grid');
+    expect((html.match(/sheet-foldable/g) ?? []).length).toBe(2);
+    expect((html.match(/page-break-before: always/g) ?? []).length).toBe(1);
+    expect(html).toContain('R4');
+    expect(html).toContain('valign="middle"');
+  });
+
+  it('does not insert a page break for a single iOS foldable sheet', () => {
+    const html = buildMemorizationCardsPrintHtml([card('John 3:16')], 'foldable', {
+      iosNativeMarkup: true,
+    });
+    expect(html).not.toContain('page-break');
+    expect((html.match(/sheet-foldable/g) ?? []).length).toBe(1);
   });
 
   it('renders two foldable pages for four cards', () => {

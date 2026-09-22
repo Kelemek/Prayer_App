@@ -10,7 +10,7 @@ export type MemorizationPrintCard = {
 export type MemorizationPrintSheetStyle = 'duplex' | 'foldable';
 
 /** Bumped when print CSS changes — visible in tab title and data-print-layout-version. */
-export const MEMORIZATION_PRINT_LAYOUT_VERSION = 15;
+export const MEMORIZATION_PRINT_LAYOUT_VERSION = 16;
 
 /**
  * Row height for iOS `printHtml` duplex. The web layout row (~228pt) plus cell padding
@@ -21,7 +21,7 @@ export const IOS_DUPLEX_ROW_HEIGHT_PT = 200;
 
 export type MemorizationPrintBuildOptions = {
   /** iOS Capacitor `printHtml` uses UIMarkupTextPrintFormatter — use tables, not CSS grid/@page. */
-  iosNativeDuplex?: boolean;
+  iosNativeMarkup?: boolean;
 };
 
 /** Duplex sheet: 2×3 grid. */
@@ -148,6 +148,66 @@ function memorizationCardsPrintStylesIosDuplex(rowHeightPt: number): string {
       color: #6b7280;
       font-family: system-ui, sans-serif;
       margin-top: 6pt;
+    }
+  `;
+}
+
+function memorizationCardsPrintStylesIosFoldable(rowHeightPt: number): string {
+  const rowH = formatPt(rowHeightPt);
+  return `
+    * { box-sizing: border-box; }
+    body {
+      font-family: Georgia, 'Times New Roman', serif;
+      color: #111;
+      margin: 0;
+    }
+    .no-print { display: none; }
+    .card-grid-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .fold-half {
+      width: 50%;
+      height: ${rowH};
+      padding: 8pt;
+      text-align: center;
+      vertical-align: middle;
+      border-top: 1px dashed #6b7280;
+      border-bottom: 1px dashed #6b7280;
+    }
+    .fold-half-front {
+      border-left: 1px dashed #6b7280;
+      border-right: 1px dashed #9ca3af;
+    }
+    .fold-half-back {
+      border-right: 1px dashed #6b7280;
+    }
+    .fold-empty {
+      border-color: #d1d5db;
+      background: #fafafa;
+    }
+    .card-front-ref {
+      font-size: 14pt;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .card-front-trans {
+      margin-top: 4pt;
+      font-size: 8pt;
+      letter-spacing: 0.06em;
+      color: #4b5563;
+      font-family: system-ui, sans-serif;
+    }
+    .card-fold-back-text {
+      font-size: 9.5pt;
+      line-height: 1.28;
+      margin: 0;
+    }
+    .card-fold-back-ref {
+      font-size: 7pt;
+      color: #6b7280;
+      font-family: system-ui, sans-serif;
+      margin-top: 5pt;
     }
   `;
 }
@@ -591,13 +651,54 @@ function buildDuplexSheetParts(
   return parts;
 }
 
+function renderIosFoldableRow(card: MemorizationPrintCard | null, rowHeightPt: string): string {
+  const cellStyle = `height:${rowHeightPt};vertical-align:middle;text-align:center`;
+  if (!card) {
+    return `<tr style="height:${rowHeightPt}">
+      <td class="fold-half fold-half-front fold-empty" valign="middle" style="${cellStyle}">&nbsp;</td>
+      <td class="fold-half fold-half-back fold-empty" valign="middle" style="${cellStyle}">&nbsp;</td>
+    </tr>`;
+  }
+  const ref = escapeHtmlForPrint(card.reference);
+  const trans = escapeHtmlForPrint(card.translation.toUpperCase());
+  const text = escapeHtmlForPrint(card.text);
+  return `<tr style="height:${rowHeightPt}">
+    <td class="fold-half fold-half-front" valign="middle" style="${cellStyle}">
+      <div class="card-front-ref">${ref}</div>
+      <div class="card-front-trans">${trans}</div>
+    </td>
+    <td class="fold-half fold-half-back" valign="middle" style="${cellStyle}">
+      <div class="card-fold-back-text">${text}</div>
+      <div class="card-fold-back-ref">${ref}</div>
+    </td>
+  </tr>`;
+}
+
+function renderIosFoldablePage(
+  cards: (MemorizationPrintCard | null)[],
+  breakBefore: boolean
+): string {
+  const rowH = formatPt(IOS_DUPLEX_ROW_HEIGHT_PT);
+  const rows = cards.map((card) => renderIosFoldableRow(card, rowH)).join('');
+  // Break only before later pages. page-break-after crashes UIMarkupTextPrintFormatter.
+  const breakAttr = breakBefore ? ' style="page-break-before: always;"' : '';
+  return `<div class="print-page sheet-foldable"${breakAttr}>
+  <table class="card-grid-table" cellspacing="0" cellpadding="0">${rows}</table>
+</div>`;
+}
+
 function buildFoldableSheetParts(
   sheets: MemorizationPrintCard[][],
-  layout: MemorizationPrintLayout
+  layout: MemorizationPrintLayout,
+  iosNativeFoldable = false
 ): string[] {
   const parts: string[] = [];
   sheets.forEach((sheet, sheetIndex) => {
     const cells = padSheetToGrid(sheet, MEMORIZATION_FOLDABLE_CARDS_PER_SHEET);
+    if (iosNativeFoldable) {
+      parts.push(renderIosFoldablePage(cells, sheetIndex > 0));
+      return;
+    }
     const grid = gridFromCells(cells, layout.gridCols, layout.gridRows);
     const isLastSheet = sheetIndex === sheets.length - 1;
     parts.push(renderPage(grid, 'foldable', layout));
@@ -626,8 +727,9 @@ export function buildMemorizationCardsPrintHtml(
   sheetStyle: MemorizationPrintSheetStyle = 'duplex',
   options: MemorizationPrintBuildOptions = {}
 ): string {
-  const iosNativeDuplex =
-    options.iosNativeDuplex === true && sheetStyle === 'duplex';
+  const iosNativeMarkup = options.iosNativeMarkup === true;
+  const iosNativeDuplex = iosNativeMarkup && sheetStyle === 'duplex';
+  const iosNativeFoldable = iosNativeMarkup && sheetStyle === 'foldable';
   const layout = computeMemorizationPrintLayout(sheetStyle);
   const sheets = chunkMemorizationCardsForSheets(
     cards,
@@ -635,7 +737,7 @@ export function buildMemorizationCardsPrintHtml(
   );
   const parts =
     sheetStyle === 'foldable'
-      ? buildFoldableSheetParts(sheets, layout)
+      ? buildFoldableSheetParts(sheets, layout, iosNativeFoldable)
       : buildDuplexSheetParts(sheets, layout, iosNativeDuplex);
 
   const body = parts.join('\n');
@@ -643,8 +745,14 @@ export function buildMemorizationCardsPrintHtml(
   const title = `Print v${MEMORIZATION_PRINT_LAYOUT_VERSION} — verses (${styleLabel})`;
   const styles = iosNativeDuplex
     ? memorizationCardsPrintStylesIosDuplex(IOS_DUPLEX_ROW_HEIGHT_PT)
-    : memorizationCardsPrintStyles(layout, sheetStyle);
-  const iosAttr = iosNativeDuplex ? ' data-print-ios-native-duplex="true"' : '';
+    : iosNativeFoldable
+      ? memorizationCardsPrintStylesIosFoldable(IOS_DUPLEX_ROW_HEIGHT_PT)
+      : memorizationCardsPrintStyles(layout, sheetStyle);
+  const iosAttr = iosNativeDuplex
+    ? ' data-print-ios-native-duplex="true"'
+    : iosNativeFoldable
+      ? ' data-print-ios-native-foldable="true"'
+      : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
