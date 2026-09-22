@@ -228,6 +228,7 @@ export class MemorizationPracticeSessionComponent
   @ViewChild('practiceInput') practiceInputRef?: ElementRef<HTMLInputElement>;
   @ViewChild('passageAudio') passageAudioRef?: ElementRef<HTMLAudioElement>;
   @ViewChild('hintButton') hintButtonRef?: ElementRef<HTMLButtonElement>;
+  @ViewChild('startOverMenu') startOverMenuRef?: ElementRef<HTMLDivElement>;
 
   readonly MEMORIZATION_FULL_HIDE_ROUND = MEMORIZATION_FULL_HIDE_ROUND;
   readonly MEMORIZE_LISTEN_CONTROLS_DIALOG_ID = MEMORIZE_LISTEN_CONTROLS_DIALOG_ID;
@@ -243,6 +244,7 @@ export class MemorizationPracticeSessionComponent
   phase: Phase = 'intro';
   practiceMode: MemorizationPracticeMode | null = null;
   modePickerOpen = false;
+  startOverMenuOpen = false;
   startRoundChoice = 1;
   roundIndex = 0;
   hasTypedInRound = false;
@@ -392,7 +394,7 @@ export class MemorizationPracticeSessionComponent
   }
 
   get showStartOver(): boolean {
-    return this.phase === 'practicing' || (this.phase === 'intro' && !!this.item.inProgressPractice);
+    return this.phase === 'practicing';
   }
 
   /** Strict mode: advance only after a perfect round (no wrong attempts). */
@@ -629,6 +631,11 @@ export class MemorizationPracticeSessionComponent
   @HostListener('window:keydown', ['$event'])
   onWindowKeydown(event: KeyboardEvent): void {
     if (!this.isOpen || event.key !== 'Escape') return;
+    if (this.startOverMenuOpen) {
+      this.startOverMenuOpen = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (this.modePickerOpen) {
       this.modePickerOpen = false;
       this.cdr.markForCheck();
@@ -672,19 +679,54 @@ export class MemorizationPracticeSessionComponent
     this.closed.emit();
   }
 
-  handleStartOver(): void {
-    this.listenPanelOpen = false;
-    this.stopPassageAudio();
-    this.invalidateReciteStop();
-    void this.reciteService.cancelRecording();
+  toggleStartOverMenu(): void {
+    this.startOverMenuOpen = !this.startOverMenuOpen;
+    this.cdr.markForCheck();
+  }
+
+  startOverRound(): void {
+    this.prepareStartOver();
+    if (this.phase === 'practicing' && this.practiceMode) {
+      this.wrongAttemptsTotal = Math.max(0, this.wrongAttemptsTotal - this.wrongAttemptsInRound);
+      this.repeatRound();
+      return;
+    }
+    this.cdr.markForCheck();
+  }
+
+  startOverSession(): void {
+    this.prepareStartOver();
     this.clearInProgress.emit();
     this.sessionSeed = '';
     this.practiceCompleted = false;
     this.roundAdvanceHandled = null;
     this.openedLayoutOnceForVerseId = null;
     this.lastVerseIdForLayout = this.item.id;
+    this.awaitingRoundAdvance = false;
+    this.roundAffirmation = '';
     this.resetToIntro();
     this.cdr.markForCheck();
+  }
+
+  @HostListener('document:pointerdown', ['$event'])
+  onDocumentPointerDown(event: Event): void {
+    if (!this.startOverMenuOpen) return;
+    const root = this.startOverMenuRef?.nativeElement;
+    const target = event.target;
+    if (root && target instanceof Node && root.contains(target)) return;
+    this.startOverMenuOpen = false;
+    this.cdr.markForCheck();
+  }
+
+  private prepareStartOver(): void {
+    this.startOverMenuOpen = false;
+    this.listenPanelOpen = false;
+    this.stopPassageAudio();
+    this.invalidateReciteStop();
+    void this.reciteService.cancelRecording();
+    this.hintHeld = false;
+    this.hintPeekCount = 1;
+    this.clearHintInterval();
   }
 
   openModePicker(): void {
@@ -1501,6 +1543,7 @@ export class MemorizationPracticeSessionComponent
     this.clearHintInterval();
     this.invalidateReciteStop();
     void this.reciteService.cancelRecording();
+    this.startOverMenuOpen = false;
     this.recitePhase = 'ready';
     this.reciteAlignment = null;
     this.reciteAlignmentByToken = new Map();

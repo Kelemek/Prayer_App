@@ -649,15 +649,61 @@ describe('MemorizationPracticeSessionComponent', () => {
       );
     });
 
-    it('handleStartOver emits clearInProgress and resets to intro', async () => {
+    it('startOverRound restarts the current round and clears its errors', async () => {
       const { component, clearInProgress } = await renderSession();
+      component.startRoundChoice = 2;
       component.beginPracticeWithMode('type');
+      const round = component.roundIndex;
+      component.wrongAttemptsInRound = 2;
+      component.wrongAttemptsTotal = 5;
 
-      component.handleStartOver();
+      component.startOverRound();
+
+      expect(clearInProgress).not.toHaveBeenCalled();
+      expect(component.phase).toBe('practicing');
+      expect(component.practiceMode).toBe('type');
+      expect(component.roundIndex).toBe(round);
+      expect(component.displayPracticeErrors).toBe(0);
+      expect(component.wrongAttemptsTotal).toBe(3);
+    });
+
+    it('opens Round and Session from Start over, and Session returns to the intro picker', async () => {
+      const { component, fixture, clearInProgress, getByTestId, queryByTestId } =
+        await renderSession();
+      component.beginPracticeWithMode('type');
+      component.wrongAttemptsInRound = 2;
+      component.wrongAttemptsTotal = 4;
+      fixture.detectChanges();
+
+      getByTestId('memorize-start-over').click();
+      fixture.detectChanges();
+
+      expect(getByTestId('memorize-start-over-round').textContent?.trim()).toBe('Round');
+      expect(getByTestId('memorize-start-over-session').textContent?.trim()).toBe('Session');
+
+      getByTestId('memorize-start-over-session').click();
+      fixture.detectChanges();
 
       expect(clearInProgress).toHaveBeenCalled();
       expect(component.phase).toBe('intro');
       expect(component.practiceMode).toBeNull();
+      expect(component.startOverMenuOpen).toBe(false);
+      expect(queryByTestId('memorize-start-over')).toBeNull();
+      expect(getByTestId('memorize-intro-footer').textContent).toContain('Start practice');
+
+      component.item = {
+        ...component.item,
+        inProgressPractice: {
+          sessionSeed: 'saved-seed',
+          wrongAttempts: 1,
+          correctKeystrokes: 2,
+          updatedAt: Date.now(),
+          phase: { kind: 'inRound', roundIndex: 1 },
+          practiceMode: 'type',
+        },
+      };
+      fixture.detectChanges();
+      expect(queryByTestId('memorize-start-over')).toBeNull();
     });
   });
 
@@ -681,6 +727,19 @@ describe('MemorizationPracticeSessionComponent', () => {
       component.onWindowKeydown(makeKeyEvent('Escape'));
 
       expect(component.listenPanelOpen).toBe(false);
+      expect(closed).not.toHaveBeenCalled();
+    });
+
+    it('closes the start-over menu on Escape without closing the session', async () => {
+      const { component, closed } = await renderSession();
+      component.beginPracticeWithMode('type');
+      component.toggleStartOverMenu();
+      expect(component.startOverMenuOpen).toBe(true);
+
+      component.onWindowKeydown(makeKeyEvent('Escape'));
+
+      expect(component.startOverMenuOpen).toBe(false);
+      expect(component.phase).toBe('practicing');
       expect(closed).not.toHaveBeenCalled();
     });
 
@@ -1851,13 +1910,13 @@ describe('MemorizationPracticeSessionComponent', () => {
       expect(component.wrongAttemptsInRound).toBe(wrongAfterAccept);
     });
 
-    it('handleStartOver cancels an active recite recording', async () => {
+    it('startOverRound cancels an active recite recording', async () => {
       const { component } = await renderSession({ reciteEnabled: true });
       await waitForReciteSettings(component);
       component.beginPracticeWithMode('recite');
       await component.startReciteRecording();
 
-      component.handleStartOver();
+      component.startOverRound();
 
       expect(mockReciteService.cancelRecording).toHaveBeenCalled();
     });
@@ -1877,13 +1936,15 @@ describe('MemorizationPracticeSessionComponent', () => {
       const stopPromise = component.stopReciteRecording();
       expect(component.recitePhase).toBe('transcribing');
 
-      component.handleStartOver();
+      component.startOverRound();
       resolveTranscribe('For God so loved the world');
       await stopPromise;
 
-      expect(component.phase).toBe('intro');
+      expect(component.phase).toBe('practicing');
+      expect(component.practiceMode).toBe('recite');
       expect(component.reciteAlignment).toBeNull();
       expect(component.recitePhase).toBe('ready');
+      expect(component.displayPracticeErrors).toBe(0);
     });
 
     it('shows spoken words on results with incorrect words in red', async () => {

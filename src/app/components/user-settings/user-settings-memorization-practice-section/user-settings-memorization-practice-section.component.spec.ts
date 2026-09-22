@@ -39,6 +39,17 @@ describe('UserSettingsMemorizationPracticeSectionComponent', () => {
     expect(memorizationStrictModeChange).toHaveBeenCalledWith(false);
   });
 
+  it('shows the green confirmation when practice mode is saved', () => {
+    component.memorizationStrictModeLoaded = true;
+    component.memorizationStrictMode = true;
+    component.successMemorizationStrictMode = '✅ Strict memorization practice enabled';
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain(
+      '✅ Strict memorization practice enabled'
+    );
+    expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeTruthy();
+  });
+
   it('describes strict mode when enabled', () => {
     component.memorizationStrictModeLoaded = true;
     component.memorizationStrictMode = true;

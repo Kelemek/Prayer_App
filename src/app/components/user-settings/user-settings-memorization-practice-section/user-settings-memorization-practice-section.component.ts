@@ -20,6 +20,7 @@ export class UserSettingsMemorizationPracticeSectionComponent {
   @Input() memorizationStrictModeLoaded = false;
   @Input() memorizationStrictMode = false;
   @Input() savingMemorizationStrictMode = false;
+  @Input() successMemorizationStrictMode: string | null = null;
 
   @Output() memorizationStrictModeChange = new EventEmitter<boolean>();
 }
