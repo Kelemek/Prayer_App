@@ -102,10 +102,12 @@
               @if (phase === 'practicing' && displayPracticeErrors > 0) {
                 <span
                   data-testid="memorize-error-count"
-                  class="text-sm text-red-600 dark:text-red-400 font-medium tabular-nums"
+                  class="flex flex-col items-center justify-center leading-none text-red-600 dark:text-red-400 font-medium tabular-nums"
                   aria-live="polite"
+                  [attr.aria-label]="'Errors: ' + displayPracticeErrors"
                 >
-                  Errors: {{ displayPracticeErrors }}
+                  <span class="text-[10px] leading-none">Errors</span>
+                  <span class="text-sm leading-none mt-0.5">{{ displayPracticeErrors }}</span>
                 </span>
               }
               @if (showStartOver) {
