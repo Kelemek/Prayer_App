@@ -57,6 +57,8 @@ describe('print-memorization-cards', () => {
     expect(html).toContain('data-print-ios-native-duplex="true"');
     expect(html).toContain('<table class="card-grid-table"');
     expect(html).not.toContain('display: grid');
+    expect(html).not.toContain('page-break-after');
+    expect(html).toContain('page-break-before: always');
   });
 
   it('embeds layout version and duplex sheet breaks', () => {

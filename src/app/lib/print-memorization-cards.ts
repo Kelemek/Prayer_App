@@ -10,7 +10,7 @@ export type MemorizationPrintCard = {
 export type MemorizationPrintSheetStyle = 'duplex' | 'foldable';
 
 /** Bumped when print CSS changes — visible in tab title and data-print-layout-version. */
-export const MEMORIZATION_PRINT_LAYOUT_VERSION = 11;
+export const MEMORIZATION_PRINT_LAYOUT_VERSION = 12;
 
 export type MemorizationPrintBuildOptions = {
   /** iOS Capacitor `printHtml` uses UIMarkupTextPrintFormatter — use tables, not CSS grid/@page. */
@@ -109,9 +109,6 @@ function memorizationCardsPrintStylesIosDuplex(): string {
       padding: 8pt;
       background: #eff6ff;
       border: 1px solid #93c5fd;
-    }
-    .print-page {
-      page-break-after: always;
     }
     .card-grid-table {
       width: 100%;
@@ -515,9 +512,13 @@ function renderDuplexGridTable(
 
 function renderIosDuplexPage(
   grid: (MemorizationPrintCard | null)[][],
-  side: 'front' | 'back'
+  side: 'front' | 'back',
+  breakBefore: boolean
 ): string {
-  return `<div class="print-page sheet-${side}">
+  // Break only before later pages. page-break-after on each sheet makes
+  // UIMarkupTextPrintFormatter show a blank preview.
+  const breakAttr = breakBefore ? ' style="page-break-before: always;"' : '';
+  return `<div class="print-page sheet-${side}"${breakAttr}>
   ${renderDuplexGridTable(grid, side)}
 </div>`;
 }
@@ -553,8 +554,8 @@ function buildDuplexSheetParts(
     const isLastSheet = sheetIndex === sheets.length - 1;
 
     if (iosNativeDuplex) {
-      parts.push(renderIosDuplexPage(frontGrid, 'front'));
-      parts.push(renderIosDuplexPage(backGrid, 'back'));
+      parts.push(renderIosDuplexPage(frontGrid, 'front', sheetIndex > 0));
+      parts.push(renderIosDuplexPage(backGrid, 'back', true));
     } else {
       parts.push(renderPage(frontGrid, 'front', layout));
       parts.push(SHEET_BREAK);
