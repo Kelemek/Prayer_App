@@ -7,7 +7,7 @@ import { Component, Input } from "@angular/core";
   host: { class: "contents" },
   template: `
     <span class="flex w-full min-w-0 flex-col items-center leading-tight">
-      <span class="w-full truncate text-center font-semibold">{{ label }} </span>
+      <span class="w-full truncate text-center font-bold">{{ label }} </span>
       <span class="tabular-nums">{{ count }}</span>
     </span>
   `,
