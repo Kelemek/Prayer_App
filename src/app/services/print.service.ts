@@ -22,7 +22,11 @@ import {
   type MemorizationPrintCard,
   type MemorizationPrintSheetStyle,
 } from '../lib/print-memorization-cards';
-import { isPrintNativeApp, sharePrintHtmlOnNativeApp } from '../lib/print-native';
+import {
+  isPrintNativeApp,
+  sharePrintHtmlOnNativeApp,
+  type SharePrintHtmlNativeOptions,
+} from '../lib/print-native';
 import { writeHtmlToPopupAndPrint } from '../lib/print-popup-window';
 import { MemorizationService } from './memorization.service';
 import { ScriptureService } from './scripture.service';
@@ -105,8 +109,13 @@ export class PrintService {
    * Share or save file content on native app (iOS and Android)
    * Uses @capgo/capacitor-printer plugin; Android uses a patched native implementation that runs print on the UI thread.
    */
-  private async shareOnNativeApp(html: string, filename: string, title: string): Promise<void> {
-    await sharePrintHtmlOnNativeApp(html, filename, title);
+  private async shareOnNativeApp(
+    html: string,
+    filename: string,
+    title: string,
+    options?: SharePrintHtmlNativeOptions
+  ): Promise<void> {
+    await sharePrintHtmlOnNativeApp(html, filename, title, options);
   }
 
   /**
@@ -934,10 +943,15 @@ export class PrintService {
 
       if (this.isNativeApp()) {
         const today = new Date().toISOString().split('T')[0];
+        const platform = (window as { Capacitor?: { getPlatform?: () => string } })
+          .Capacitor?.getPlatform?.();
         await this.shareOnNativeApp(
           html,
           `memorization-verse-cards-${today}.html`,
-          'Memorization verse cards'
+          'Memorization verse cards',
+          {
+            iosWebKitPrint: platform === 'ios' && sheetStyle === 'duplex',
+          }
         );
         return;
       }
