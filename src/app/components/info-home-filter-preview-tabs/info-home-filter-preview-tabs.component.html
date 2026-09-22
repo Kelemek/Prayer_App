@@ -55,21 +55,21 @@
         (click)="setPreviewFilter('current')"
         [class]="churchStatusChipClass('current')"
       >
-        Current (22)
+        <app-home-sub-filter-count label="Current" [count]="22" />
       </button>
       <button
         type="button"
         (click)="setPreviewFilter('answered')"
         [class]="churchStatusChipClass('answered')"
       >
-        Answered (4)
+        <app-home-sub-filter-count label="Answered" [count]="4" />
       </button>
       <button
         type="button"
         (click)="setPreviewFilter('archived')"
         [class]="churchStatusChipClass('archived')"
       >
-        Archived (21)
+        <app-home-sub-filter-count label="Archived" [count]="21" />
       </button>
     </div>
     <div [class]="publicChipRowClass + ' mt-2'">
@@ -79,7 +79,7 @@
           (click)="setPreviewFilter('total')"
           [class]="subFilterChipClass('total')"
         >
-          Total (47)
+          <app-home-sub-filter-count label="Total" [count]="47" />
         </button>
       </div>
       <div [class]="publicChipHostClass">
@@ -89,7 +89,7 @@
           (click)="setPreviewFilter('prompts')"
           [class]="subFilterChipClass('prompts')"
         >
-          Prompts (12)
+          <app-home-sub-filter-count label="Prompts" [count]="12" />
         </button>
       </div>
     </div>
@@ -118,13 +118,21 @@
 <div>
   <div [class]="groupsPanelGroupClass() + ' ' + chipRowClass">
     <button type="button" [class]="groupAddChipClass()">Add</button>
-    <button type="button" [class]="groupStatusChipClass(true)">Current (3)</button>
-    <button type="button" [class]="groupStatusChipClass(false)">Answered (1)</button>
-    <button type="button" [class]="groupStatusChipClass(false)">Total (4)</button>
+    <button type="button" [class]="groupStatusChipClass(true)">
+      <app-home-sub-filter-count label="Current" [count]="3" />
+    </button>
+    <button type="button" [class]="groupStatusChipClass(false)">
+      <app-home-sub-filter-count label="Answered" [count]="1" />
+    </button>
+    <button type="button" [class]="groupStatusChipClass(false)">
+      <app-home-sub-filter-count label="Total" [count]="4" />
+    </button>
   </div>
   <div [class]="groupsPanelGroupClass() + ' ' + chipRowClass + ' mt-2'">
     <div [class]="chipHostClass">
-      <button type="button" [class]="groupChipClass(false)">Family (2)</button>
+      <button type="button" [class]="groupChipClass(false)">
+        <app-home-sub-filter-count label="Family" [count]="2" />
+      </button>
     </div>
   </div>
 </div>

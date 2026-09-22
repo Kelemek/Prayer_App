@@ -6,7 +6,7 @@
       (click)="openPromptCategories.emit()"
       [class]="chipButtonClass(chip.active)"
     >
-      {{ chip.label }}
+      <app-home-sub-filter-count [label]="chip.label" [count]="chip.count" />
     </button>
   </div>
   }

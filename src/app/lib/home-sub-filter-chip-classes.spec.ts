@@ -73,7 +73,8 @@ describe("homeFilterTabClass", () => {
       active: true,
       hasSubRow: true,
     });
-    expect(cls).toContain("text-base");
+    expect(cls).toContain("text-[16px]");
+    expect(cls).not.toContain("text-base");
     expect(cls).toContain("px-3");
     expect(cls).toContain("py-2");
     expect(cls).toContain("font-semibold");

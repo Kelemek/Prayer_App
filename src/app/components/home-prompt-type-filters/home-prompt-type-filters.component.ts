@@ -20,11 +20,16 @@ import {
 import { buildHomeSubFilterChipButtonClass } from "../../lib/home-sub-filter-chip-button-class";
 import { HOME_SHELL_SECTION_GAP_CLASSES } from "../../lib/home-shell-spacing";
 import { HomeFilterBadgeButtonComponent } from "../home-filter-badge-button/home-filter-badge-button.component";
+import { HomeSubFilterCountComponent } from "../home-sub-filter-count/home-sub-filter-count.component";
 
 @Component({
   selector: "app-home-prompt-type-filters",
   standalone: true,
-  imports: [CommonModule, HomeFilterBadgeButtonComponent],
+  imports: [
+    CommonModule,
+    HomeFilterBadgeButtonComponent,
+    HomeSubFilterCountComponent,
+  ],
   templateUrl: "./home-prompt-type-filters.component.html",
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: "block" },

@@ -82,7 +82,7 @@ describe("HomePersonalCategoryFiltersComponent", () => {
     const select = chip.querySelector(
       "[data-personal-category-select]"
     ) as HTMLButtonElement;
-    expect(select.textContent).toContain("Family (3)");
+    expect(select.textContent?.replace(/\s+/g, " ")).toContain("Family 3");
     expect(chip.querySelector("div")?.className).toContain(
       HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS.split(" ")[0]
     );

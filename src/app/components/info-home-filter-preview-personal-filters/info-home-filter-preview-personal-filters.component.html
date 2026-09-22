@@ -13,21 +13,21 @@
       (click)="openPersonalCategories.emit()"
       [class]="subFilterChipBaseClass + ' flex-1 cursor-pointer ' + personalSubFilterChipActiveClass"
     >
-      Current (10)
+      <app-home-sub-filter-count label="Current" [count]="10" />
     </button>
     <button
       type="button"
       (click)="openPersonalCategories.emit()"
       [class]="subFilterChipBaseClass + ' flex-1 cursor-pointer ' + namedChipInactiveClass"
     >
-      Answered (3)
+      <app-home-sub-filter-count label="Answered" [count]="3" />
     </button>
     <button
       type="button"
       (click)="openPersonalCategories.emit()"
       [class]="subFilterChipBaseClass + ' flex-1 cursor-pointer ' + namedChipInactiveClass"
     >
-      Total (13)
+      <app-home-sub-filter-count label="Total" [count]="13" />
     </button>
   </div>
   <div [class]="chipRowClass + ' mt-2'">
@@ -36,21 +36,21 @@
       (click)="openPersonalCategories.emit()"
       [class]="subFilterChipWrapClass + ' cursor-pointer ' + namedChipInactiveClass"
     >
-      Health (4)
+      <app-home-sub-filter-count label="Health" [count]="4" />
     </button>
     <button
       type="button"
       (click)="openPersonalCategories.emit()"
       [class]="subFilterChipWrapClass + ' cursor-pointer ' + namedChipInactiveClass"
     >
-      Family (5)
+      <app-home-sub-filter-count label="Family" [count]="5" />
     </button>
     <button
       type="button"
       (click)="openPersonalCategories.emit()"
       [class]="subFilterChipWrapClass + ' cursor-pointer ' + namedChipInactiveClass"
     >
-      Work (2)
+      <app-home-sub-filter-count label="Work" [count]="2" />
     </button>
   </div>
   </div>

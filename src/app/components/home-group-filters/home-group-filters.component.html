@@ -22,7 +22,7 @@
         [inactiveClass]="chipThemes.members.inactive"
         (chipClick)="selectFilterMode.emit('current')"
       >
-        Current ({{ currentCount }})
+        <app-home-sub-filter-count label="Current" [count]="currentCount" />
       </app-home-sub-filter-chip>
       <app-home-sub-filter-chip
         chipId="tour-filter-groups-answered"
@@ -31,7 +31,7 @@
         [inactiveClass]="chipThemes.members.inactive"
         (chipClick)="selectFilterMode.emit('answered')"
       >
-        Answered ({{ answeredCount }})
+        <app-home-sub-filter-count label="Answered" [count]="answeredCount" />
       </app-home-sub-filter-chip>
       <app-home-sub-filter-chip
         chipId="tour-filter-groups-total"
@@ -40,7 +40,7 @@
         [inactiveClass]="chipThemes.members.inactive"
         (chipClick)="selectFilterMode.emit('total')"
       >
-        Total ({{ totalCount }})
+        <app-home-sub-filter-count label="Total" [count]="totalCount" />
       </app-home-sub-filter-chip>
     </div>
 
@@ -96,11 +96,14 @@
           <button
             type="button"
             [id]="'tour-filter-group-' + group.id"
-            class="min-w-0 flex-1 truncate border-0 bg-transparent px-2 text-center text-xs font-medium text-inherit cursor-pointer"
+            class="flex min-w-0 flex-1 items-center justify-center border-0 bg-transparent px-2 text-center text-xs font-medium text-inherit cursor-pointer"
             (click)="onGroupChipClick(group.id)"
             [disabled]="isGroupReordering"
           >
-            {{ group.name }} ({{ groupPrayerCount(group.id) }})
+            <app-home-sub-filter-count
+              [label]="group.name"
+              [count]="groupPrayerCount(group.id)"
+            />
             @if (isGroupReordering) {
             <svg
               class="ml-1 inline h-4 w-4 shrink-0 animate-spin"

@@ -12,7 +12,7 @@
         promptChipButtonClass(selectedPromptTypes.length === 0, false)
       "
     >
-      All Types ({{ promptsCount }})
+      <app-home-sub-filter-count label="All Types" [count]="promptsCount" />
     </button>
   </div>
 
@@ -28,7 +28,7 @@
         )
       "
     >
-      {{ type }} ({{ getPromptCountByType(type) }})
+      <app-home-sub-filter-count [label]="type" [count]="getPromptCountByType(type)" />
       @if (badgesEnabled && unreadCountForType(type) > 0) {
       <app-home-filter-badge-button
         [count]="unreadCountForType(type)"

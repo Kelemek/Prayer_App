@@ -1,4 +1,5 @@
 import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { HomeSubFilterCountComponent } from "../home-sub-filter-count/home-sub-filter-count.component";
 import { CommonModule } from "@angular/common";
 import {
   HOME_PROMPTS_SUB_FILTER_GROUP_CLASS,
@@ -15,7 +16,7 @@ import {
 @Component({
   selector: "app-info-home-filter-preview-prompts-filters",
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, HomeSubFilterCountComponent],
   templateUrl: "./info-home-filter-preview-prompts-filters.component.html",
   host: { class: "block" },
 })
@@ -30,10 +31,10 @@ export class InfoHomeFilterPreviewPromptsFiltersComponent {
   readonly promptTypeInactiveClass = PROMPT_TYPE_CHIP_INACTIVE_CLASS;
 
   readonly previewChips = [
-    { label: "All Types (76)", active: true },
-    { label: "Church (27)", active: false },
-    { label: "Family (5)", active: false },
-    { label: "Cities (9)", active: false },
+    { label: "All Types", count: 76, active: true },
+    { label: "Church", count: 27, active: false },
+    { label: "Family", count: 5, active: false },
+    { label: "Cities", count: 9, active: false },
   ] as const;
 
   @Output() openPromptCategories = new EventEmitter<void>();

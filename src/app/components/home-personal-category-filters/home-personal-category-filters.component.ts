@@ -16,6 +16,7 @@ import {
 import { buildHomeSubFilterChipButtonClass } from "../../lib/home-sub-filter-chip-button-class";
 import { HOME_SHELL_SECTION_GAP_CLASSES } from "../../lib/home-shell-spacing";
 import { HomeSubFilterChipComponent } from "../home-sub-filter-chip/home-sub-filter-chip.component";
+import { HomeSubFilterCountComponent } from "../home-sub-filter-count/home-sub-filter-count.component";
 import { CardActionsOverflowMenuComponent } from "../card-actions-overflow-menu/card-actions-overflow-menu.component";
 import type { CardActionsOverflowItem } from "../card-actions-overflow-menu/card-actions-overflow-menu.types";
 import { ConfirmationDialogComponent } from "../confirmation-dialog/confirmation-dialog.component";
@@ -27,6 +28,7 @@ import { ConfirmationDialogComponent } from "../confirmation-dialog/confirmation
     CommonModule,
     DragDropModule,
     HomeSubFilterChipComponent,
+    HomeSubFilterCountComponent,
     CardActionsOverflowMenuComponent,
     ConfirmationDialogComponent,
   ],

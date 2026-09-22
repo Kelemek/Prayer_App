@@ -93,7 +93,9 @@ describe("HomePromptTypeFiltersComponent", () => {
     const allTypesButton = fixture.nativeElement.querySelector(
       "button"
     ) as HTMLButtonElement;
-    expect(allTypesButton.textContent).toContain("All Types (8)");
+    expect(allTypesButton.textContent?.replace(/\s+/g, " ")).toContain(
+      "All Types 8"
+    );
     expect(allTypesButton.className).toContain(
       HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS.split(" ")[0]
     );

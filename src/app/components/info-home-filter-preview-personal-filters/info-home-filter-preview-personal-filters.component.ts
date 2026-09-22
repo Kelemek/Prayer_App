@@ -1,4 +1,5 @@
 import { Component, EventEmitter, Output } from "@angular/core";
+import { HomeSubFilterCountComponent } from "../home-sub-filter-count/home-sub-filter-count.component";
 import { CommonModule } from "@angular/common";
 import {
   HOME_PERSONAL_NAMED_CHIP_INACTIVE_CLASS,
@@ -12,7 +13,7 @@ import {
 @Component({
   selector: "app-info-home-filter-preview-personal-filters",
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, HomeSubFilterCountComponent],
   templateUrl: "./info-home-filter-preview-personal-filters.component.html",
   host: { class: "block" },
 })

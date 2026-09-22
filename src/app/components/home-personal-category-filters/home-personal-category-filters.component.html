@@ -19,7 +19,7 @@
       [inactiveClass]="namedChipInactiveClass"
       (chipClick)="selectFilterMode.emit('current')"
     >
-      Current ({{ personalCurrentCount }})
+      <app-home-sub-filter-count label="Current" [count]="personalCurrentCount" />
     </app-home-sub-filter-chip>
 
     <app-home-sub-filter-chip
@@ -28,7 +28,7 @@
       [inactiveClass]="namedChipInactiveClass"
       (chipClick)="selectFilterMode.emit('answered')"
     >
-      Answered ({{ personalAnsweredCount }})
+      <app-home-sub-filter-count label="Answered" [count]="personalAnsweredCount" />
     </app-home-sub-filter-chip>
 
     <app-home-sub-filter-chip
@@ -37,7 +37,7 @@
       [inactiveClass]="namedChipInactiveClass"
       (chipClick)="selectFilterMode.emit('total')"
     >
-      Total ({{ personalPrayersCount }})
+      <app-home-sub-filter-count label="Total" [count]="personalPrayersCount" />
     </app-home-sub-filter-chip>
   </div>
 
@@ -93,11 +93,14 @@
         <button
           type="button"
           data-personal-category-select
-          class="min-w-0 flex-1 truncate border-0 bg-transparent px-2 text-center text-xs font-medium text-inherit cursor-pointer"
+          class="flex min-w-0 flex-1 items-center justify-center border-0 bg-transparent px-2 text-center text-xs font-medium text-inherit cursor-pointer"
           (click)="toggleCategory.emit(category)"
           [disabled]="isCategorySwapping(category)"
         >
-          {{ category }} ({{ getCategoryCount(category) }})
+          <app-home-sub-filter-count
+            [label]="category"
+            [count]="getCategoryCount(category)"
+          />
           @if (isCategorySwapping(category)) {
           <svg
             class="ml-1 inline h-4 w-4 shrink-0 animate-spin"

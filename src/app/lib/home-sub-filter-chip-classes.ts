@@ -1,6 +1,7 @@
-/** Folder-tab chrome shared by Home and the Info filter mock (label typography included). */
+/** Folder-tab chrome shared by Home and the Info filter mock (label typography included).
+ *  16px is fixed so Settings text size does not scale these labels (root rem does). */
 export const HOME_FILTER_TAB_BASE_CLASS =
-  "flex-1 min-w-0 px-3 py-2 text-center text-base font-semibold leading-tight text-gray-700 dark:text-gray-300 transition-colors duration-150 ease-out cursor-pointer relative flex flex-col items-center justify-center";
+  "flex-1 min-w-0 px-3 py-2 text-center text-[16px] font-semibold leading-tight text-gray-700 dark:text-gray-300 transition-colors duration-150 ease-out cursor-pointer relative flex flex-col items-center justify-center";
 
 /** Slightly tinted off-white for inactive tabs/chips (not pure white on cream canvas). */
 export const HOME_INACTIVE_SURFACE_BG_CLASS =
@@ -148,7 +149,7 @@ export const HOME_SUB_FILTER_CHIP_WRAP_CLASS = [
 
 /** Full-width chip button inside a shared wrap row (no drag handle). */
 export const HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS = [
-  "relative flex h-9 w-full min-w-max items-center justify-center gap-1 text-center transition-colors duration-150 ease-out",
+  "relative flex min-h-9 w-full min-w-max items-center justify-center gap-1 text-center transition-colors duration-150 ease-out",
   HOME_SUB_FILTER_CHIP_SIZE_CLASS,
   "whitespace-nowrap",
 ].join(" ");
@@ -192,7 +193,7 @@ export const HOME_PERSONAL_CATEGORY_CHIP_SOLO_FLEX_CLASS =
 
 /** Chip shell with left padding for a drag handle and room for the overflow menu. */
 export const HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS = [
-  "relative flex h-9 w-full min-w-max items-center gap-0.5 text-center transition-colors duration-150 ease-out pl-7 pr-0.5",
+  "relative flex min-h-9 w-full min-w-max items-center gap-0.5 text-center transition-colors duration-150 ease-out pl-7 pr-0.5",
   "py-2 rounded-lg text-xs font-medium whitespace-nowrap",
 ].join(" ");
 
@@ -204,7 +205,7 @@ export const HOME_SUB_FILTER_CHIP_DRAG_SOLO_STRETCH_CLASS = [
 
 /** Chip row inside a folder-tab panel. */
 export const HOME_SUB_FILTER_CHIP_ROW_CLASS =
-  "flex w-full flex-wrap items-center gap-2";
+  "flex w-full flex-wrap items-stretch gap-2";
 
 export const HOME_SUB_FILTER_CHIP_INACTIVE_CLASS = [
   HOME_INACTIVE_SURFACE_BG_CLASS,

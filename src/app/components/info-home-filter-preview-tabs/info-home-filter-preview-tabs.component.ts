@@ -1,4 +1,5 @@
 import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { HomeSubFilterCountComponent } from "../home-sub-filter-count/home-sub-filter-count.component";
 import { CommonModule } from "@angular/common";
 import {
   HOME_GROUPS_SUB_FILTER_GROUP_CLASS,
@@ -32,6 +33,7 @@ import { InfoHomeFilterPreviewPromptsFiltersComponent } from "../info-home-filte
     CommonModule,
     InfoHomeFilterPreviewPersonalFiltersComponent,
     InfoHomeFilterPreviewPromptsFiltersComponent,
+    HomeSubFilterCountComponent,
   ],
   templateUrl: "./info-home-filter-preview-tabs.component.html",
   host: { class: "block" },

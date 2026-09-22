@@ -76,7 +76,9 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
       "#tour-filter-prompts"
     ) as HTMLButtonElement;
     expect(promptsChip).toBeTruthy();
-    expect(promptsChip.textContent?.trim()).toBe("Prompts (12)");
+    expect(promptsChip.textContent?.replace(/\s+/g, " ").trim()).toBe(
+      "Prompts 12"
+    );
   });
 
   it("puts Add, Current, Answered, and Archived on the first public preview row", () => {
@@ -94,13 +96,16 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
     const secondRowLabels = [...rows[1]!.querySelectorAll("button")].map(
       (button) => button.textContent?.trim() ?? ""
     );
-    expect(firstRowLabels).toEqual([
+    expect(firstRowLabels.map((label) => label.replace(/\s+/g, " "))).toEqual([
       "Add",
-      "Current (22)",
-      "Answered (4)",
-      "Archived (21)",
+      "Current 22",
+      "Answered 4",
+      "Archived 21",
     ]);
-    expect(secondRowLabels).toEqual(["Total (47)", "Prompts (12)"]);
+    expect(secondRowLabels.map((label) => label.replace(/\s+/g, " "))).toEqual([
+      "Total 47",
+      "Prompts 12",
+    ]);
   });
 
   it("still shows Church with Archived and Prompts when canAccessShared is false", () => {
@@ -117,8 +122,10 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
       fixture.nativeElement.querySelector("#tour-filter-prompts")
     ).toBeTruthy();
     expect(fixture.nativeElement.textContent).toContain("Add");
-    expect(fixture.nativeElement.textContent).toContain("Current (22)");
-    expect(fixture.nativeElement.textContent).toContain("Archived (21)");
+    expect(fixture.nativeElement.textContent).toContain("Current");
+    expect(fixture.nativeElement.textContent).toContain("22");
+    expect(fixture.nativeElement.textContent).toContain("Archived");
+    expect(fixture.nativeElement.textContent).toContain("21");
   });
 
   it("shows memorize action chips when Memorize is selected", () => {

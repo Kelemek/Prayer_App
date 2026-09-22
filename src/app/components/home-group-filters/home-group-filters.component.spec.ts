@@ -88,7 +88,7 @@ describe("HomeGroupFiltersComponent", () => {
     const chip = fixture.nativeElement.querySelector(
       "#tour-filter-group-g1"
     ) as HTMLButtonElement;
-    expect(chip.textContent?.replace(/\s+/g, " ").trim()).toBe("Family (3)");
+    expect(chip.textContent?.replace(/\s+/g, " ").trim()).toBe("Family 3");
   });
 
   it("shows status filter chips with counts on the first row", () => {
@@ -101,11 +101,9 @@ describe("HomeGroupFiltersComponent", () => {
     const total = fixture.nativeElement.querySelector(
       "#tour-filter-groups-total"
     ) as HTMLButtonElement;
-    expect(current.textContent?.replace(/\s+/g, " ").trim()).toBe("Current (2)");
-    expect(answered.textContent?.replace(/\s+/g, " ").trim()).toBe(
-      "Answered (1)"
-    );
-    expect(total.textContent?.replace(/\s+/g, " ").trim()).toBe("Total (3)");
+    expect(current.textContent?.replace(/\s+/g, " ").trim()).toBe("Current 2");
+    expect(answered.textContent?.replace(/\s+/g, " ").trim()).toBe("Answered 1");
+    expect(total.textContent?.replace(/\s+/g, " ").trim()).toBe("Total 3");
   });
 
   it("keeps Add on the status row and group chips on a following drop list", () => {
@@ -182,7 +180,7 @@ describe("HomeGroupFiltersComponent", () => {
     const chip = fixture.nativeElement.querySelector(
       "#tour-filter-group-g1"
     ) as HTMLButtonElement;
-    expect(chip.textContent?.replace(/\s+/g, " ").trim()).toBe("Family (5)");
+    expect(chip.textContent?.replace(/\s+/g, " ").trim()).toBe("Family 5");
   });
 
   it("shows group overflow for invitees without the add group chip", () => {

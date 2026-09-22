@@ -19,6 +19,7 @@ import {
   moveItemInArray,
 } from "@angular/cdk/drag-drop";
 import { HomeSubFilterChipComponent } from "../home-sub-filter-chip/home-sub-filter-chip.component";
+import { HomeSubFilterCountComponent } from "../home-sub-filter-count/home-sub-filter-count.component";
 import { CardActionsOverflowMenuComponent } from "../card-actions-overflow-menu/card-actions-overflow-menu.component";
 import type { CardActionsOverflowItem } from "../card-actions-overflow-menu/card-actions-overflow-menu.types";
 import { ConfirmationDialogComponent } from "../confirmation-dialog/confirmation-dialog.component";
@@ -50,6 +51,7 @@ import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-ov
     FormsModule,
     DragDropModule,
     HomeSubFilterChipComponent,
+    HomeSubFilterCountComponent,
     CardActionsOverflowMenuComponent,
     ConfirmationDialogComponent,
     HomeGroupMembersModalComponent,

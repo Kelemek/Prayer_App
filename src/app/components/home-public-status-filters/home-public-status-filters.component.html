@@ -26,7 +26,7 @@
       [inactiveClass]="chipThemes.current.inactive"
       (chipClick)="selectFilter.emit('current')"
     >
-      Current ({{ currentPrayersCount }})
+      <app-home-sub-filter-count label="Current" [count]="currentPrayersCount" />
       @if (canAccessShared && badgesEnabled && currentBadge > 0) {
       <app-home-filter-badge-button
         [count]="currentBadge"
@@ -45,7 +45,7 @@
       [inactiveClass]="chipThemes.answered.inactive"
       (chipClick)="selectFilter.emit('answered')"
     >
-      Answered ({{ answeredPrayersCount }})
+      <app-home-sub-filter-count label="Answered" [count]="answeredPrayersCount" />
       @if (canAccessShared && badgesEnabled && answeredBadge > 0) {
       <app-home-filter-badge-button
         [count]="answeredBadge"
@@ -63,7 +63,7 @@
       [inactiveClass]="chipThemes.archived.inactive"
       (chipClick)="selectFilter.emit('archived')"
     >
-      Archived ({{ archivedPrayersCount }})
+      <app-home-sub-filter-count label="Archived" [count]="archivedPrayersCount" />
     </app-home-sub-filter-chip>
   </div>
 
@@ -77,7 +77,7 @@
       [inactiveClass]="chipThemes.total.inactive"
       (chipClick)="selectFilter.emit('total')"
     >
-      Total ({{ totalPrayersCount }})
+      <app-home-sub-filter-count label="Total" [count]="totalPrayersCount" />
     </app-home-sub-filter-chip>
     </div>
 
@@ -91,7 +91,7 @@
       [inactiveClass]="chipThemes.prompts.inactive"
       (chipClick)="selectFilter.emit('prompts')"
     >
-      Prompts@if (promptsCount > 0) { ({{ promptsCount }})}
+      <app-home-sub-filter-count label="Prompts" [count]="promptsCount" />
       @if (badgesEnabled && promptBadge > 0) {
       <app-home-filter-badge-button
         [count]="promptBadge"
@@ -114,7 +114,7 @@
       [inactiveClass]="chipThemes.prompts.inactive"
       (chipClick)="selectFilter.emit('planning_center_list')"
     >
-      Members ({{ planningCenterMembersDisplayCount }})
+      <app-home-sub-filter-count label="Members" [count]="planningCenterMembersDisplayCount" />
     </app-home-sub-filter-chip>
     </div>
     }
