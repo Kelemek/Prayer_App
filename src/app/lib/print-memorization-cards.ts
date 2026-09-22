@@ -10,7 +10,7 @@ export type MemorizationPrintCard = {
 export type MemorizationPrintSheetStyle = 'duplex' | 'foldable';
 
 /** Bumped when print CSS changes — visible in tab title and data-print-layout-version. */
-export const MEMORIZATION_PRINT_LAYOUT_VERSION = 9;
+export const MEMORIZATION_PRINT_LAYOUT_VERSION = 10;
 
 /** Duplex sheet: 2×3 grid. */
 export const MEMORIZATION_CARDS_PER_SHEET = 6;
@@ -290,6 +290,16 @@ function memorizationCardsPrintStyles(
         height: ${contentH};
         max-height: ${contentH};
         overflow: hidden;
+        break-after: page;
+        page-break-after: always;
+      }
+      .print-page:last-child {
+        break-after: auto;
+        page-break-after: auto;
+      }
+      .sheet-break {
+        break-after: page;
+        page-break-after: always;
       }
     }
   `;

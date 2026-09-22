@@ -5,7 +5,6 @@ import { TenantContextService } from './tenant-context.service';
 import { BrandingService } from './branding.service';
 import { EmailNotificationService } from './email-notification.service';
 import { ToastService } from './toast.service';
-import { Printer } from '@capgo/capacitor-printer';
 import { markdownToSafeHtml } from '../../utils/markdown';
 import type { BookletInsertPage } from '../types/booklet-insert-page';
 import { buildBookletInsertPageHtml as renderBookletInsertPageHtml } from '../lib/print-booklet-chrome';
@@ -107,30 +106,7 @@ export class PrintService {
    * Uses @capgo/capacitor-printer plugin; Android uses a patched native implementation that runs print on the UI thread.
    */
   private async shareOnNativeApp(html: string, filename: string, title: string): Promise<void> {
-    try {
-      const platform = (window as any).Capacitor?.getPlatform?.();
-      if (platform === 'ios' || platform === 'android') {
-        try {
-          await Printer.printHtml({
-            name: title,
-            html
-          });
-        } catch (error) {
-          console.error('[PrintService] Printer plugin error:', error);
-          const message = (error as any)?.message || 'Unknown error';
-          if (!message.toLowerCase().includes('cancelled') && !message.toLowerCase().includes('user')) {
-            alert(`Failed to open print dialog: ${message}`);
-          }
-        }
-        return;
-      }
-    } catch (error) {
-      console.error('[PrintService] Error in shareOnNativeApp:', error);
-      const message = (error as any)?.message || 'Unknown error';
-      if (!message.toLowerCase().includes('cancelled') && !message.toLowerCase().includes('user')) {
-        alert(`Error: ${message}`);
-      }
-    }
+    await sharePrintHtmlOnNativeApp(html, filename, title);
   }
 
   /**
