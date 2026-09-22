@@ -42,23 +42,42 @@ export function buildLiveRedirectUrl(
   return `${base}${path}${location.search}${location.hash}`;
 }
 
+function liveOriginProbeUrl(liveOrigin: string): string {
+  return `${liveOrigin.replace(/\/$/, '')}/`;
+}
+
+/** WKWebView often fails CORS HEAD from capacitor://localhost even when the site is up. */
 export async function probeLiveOriginReachable(options: {
   liveOrigin: string;
   fetchFn: typeof fetch;
   timeoutMs: number;
 }): Promise<boolean> {
-  const url = `${options.liveOrigin.replace(/\/$/, '')}/`;
+  const url = liveOriginProbeUrl(options.liveOrigin);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs);
+  const init = {
+    cache: 'no-store' as const,
+    signal: controller.signal,
+  };
   try {
-    const response = await options.fetchFn(url, {
-      method: 'HEAD',
-      cache: 'no-store',
-      signal: controller.signal,
-    });
-    return response.ok;
-  } catch {
-    return false;
+    try {
+      const response = await options.fetchFn(url, { ...init, method: 'GET' });
+      if (response.ok || response.type === 'opaque') {
+        return true;
+      }
+    } catch {
+      // Fall through to a no-cors probe. A resolved opaque response means the host answered.
+    }
+    try {
+      const opaque = await options.fetchFn(url, {
+        ...init,
+        method: 'GET',
+        mode: 'no-cors',
+      });
+      return opaque.ok || opaque.type === 'opaque';
+    } catch {
+      return false;
+    }
   } finally {
     clearTimeout(timeout);
   }

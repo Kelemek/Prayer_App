@@ -65,8 +65,8 @@ describe('capacitor-live-boot', () => {
     ).toBe('https://prayerapp.romans8.net/info?x=1#top');
   });
 
-  it('probeLiveOriginReachable returns true on ok HEAD', async () => {
-    const fetchFn = vi.fn().mockResolvedValue({ ok: true });
+  it('probeLiveOriginReachable returns true on ok GET', async () => {
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, type: 'basic' });
     await expect(
       probeLiveOriginReachable({
         liveOrigin: CAPACITOR_LIVE_ORIGIN,
@@ -74,6 +74,29 @@ describe('capacitor-live-boot', () => {
         timeoutMs: 1000,
       })
     ).resolves.toBe(true);
+    expect(fetchFn).toHaveBeenCalledWith(
+      'https://prayerapp.romans8.net/',
+      expect.objectContaining({ method: 'GET' })
+    );
+  });
+
+  it('probeLiveOriginReachable treats a no-cors response as reachable', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Load failed'))
+      .mockResolvedValueOnce({ ok: false, type: 'opaque' });
+    await expect(
+      probeLiveOriginReachable({
+        liveOrigin: CAPACITOR_LIVE_ORIGIN,
+        fetchFn,
+        timeoutMs: 1000,
+      })
+    ).resolves.toBe(true);
+    expect(fetchFn).toHaveBeenNthCalledWith(
+      2,
+      'https://prayerapp.romans8.net/',
+      expect.objectContaining({ method: 'GET', mode: 'no-cors' })
+    );
   });
 
   it('maybeRedirectNativeToLiveSite replaces location when reachable', async () => {

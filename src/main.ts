@@ -18,7 +18,9 @@ import { providePostHogErrorHandler } from "./app/posthog-error-handler";
 import { environment } from "./environments/environment";
 import {
   CAPACITOR_LIVE_ORIGIN,
+  buildLiveRedirectUrl,
   maybeRedirectNativeToLiveSite,
+  shouldAttemptLiveRedirect,
 } from "./lib/capacitor-live-boot";
 import { maybeAutoReloadWebOnce } from "./lib/client-version-gate";
 
@@ -203,16 +205,35 @@ function startApp(): void {
 }
 
 void (async () => {
+  const isNative = Capacitor.isNativePlatform();
   const redirected = await maybeRedirectNativeToLiveSite({
-    isNative: Capacitor.isNativePlatform(),
+    isNative,
     origin: window.location.origin,
     hostname: window.location.hostname,
     location: window.location,
     liveOrigin: CAPACITOR_LIVE_ORIGIN,
     fetchFn: fetch,
-    timeoutMs: 2000,
+    timeoutMs: 8000,
   });
-  if (!redirected) {
-    startApp();
+  if (redirected) {
+    return;
   }
+
+  const missingSupabase =
+    !environment.supabaseUrl || !environment.supabasePublishableKey;
+  if (
+    missingSupabase &&
+    shouldAttemptLiveRedirect({
+      isNative,
+      origin: window.location.origin,
+      hostname: window.location.hostname,
+    })
+  ) {
+    window.location.replace(
+      buildLiveRedirectUrl(CAPACITOR_LIVE_ORIGIN, window.location)
+    );
+    return;
+  }
+
+  startApp();
 })();
