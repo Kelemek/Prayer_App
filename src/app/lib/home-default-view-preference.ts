@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UserSessionService } from "../services/user-session.service";
 
-export type HomeDefaultPrayerView = "current" | "personal" | "groups";
+export type HomeDefaultPrayerView = "current" | "personal" | "groups" | "memorize";
 
 export const HOME_DEFAULT_PRAYER_VIEW_OPTIONS: ReadonlyArray<{
   value: HomeDefaultPrayerView;
@@ -11,21 +11,27 @@ export const HOME_DEFAULT_PRAYER_VIEW_OPTIONS: ReadonlyArray<{
 }> = [
   {
     value: "current",
-    label: "Church Prayers",
+    label: "Church",
     title: "Open church prayers by default",
     description: "You will see church prayers when you log in",
   },
   {
     value: "groups",
-    label: "Group Prayers",
+    label: "Groups",
     title: "Open group prayers by default",
     description: "You will see group prayers when you log in",
   },
   {
     value: "personal",
-    label: "Personal Prayers",
+    label: "Personal",
     title: "Open personal prayers by default",
     description: "You will see personal prayers when you log in",
+  },
+  {
+    value: "memorize",
+    label: "Memorize",
+    title: "Open memorization by default",
+    description: "You will see your memorization list when you log in",
   },
 ];
 
@@ -39,6 +45,8 @@ export function parseHomeDefaultPrayerView(
       return "groups";
     case "current":
       return "current";
+    case "memorize":
+      return "memorize";
     default:
       return "current";
   }
@@ -49,11 +57,13 @@ export function homeDefaultPrayerViewLabel(
 ): string {
   switch (view) {
     case "current":
-      return "Church Prayers";
+      return "Church";
     case "groups":
-      return "Group Prayers";
+      return "Groups";
     case "personal":
-      return "Personal Prayers";
+      return "Personal";
+    case "memorize":
+      return "Memorize";
     default: {
       const _exhaustive: never = view;
       return _exhaustive;
@@ -71,6 +81,8 @@ export function homeDefaultPrayerViewDescription(
       return "You will see group prayers when you log in";
     case "personal":
       return "You will see personal prayers when you log in";
+    case "memorize":
+      return "You will see your memorization list when you log in";
     default: {
       const _exhaustive: never = view;
       return _exhaustive;

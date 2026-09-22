@@ -46,8 +46,15 @@ describe('UserSettingsDefaultViewSectionComponent', () => {
     component.defaultPrayerView = 'current';
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Church Prayers');
-    expect(fixture.nativeElement.textContent).toContain('Group Prayers');
+    expect(fixture.nativeElement.textContent).toContain('Church');
+    expect(fixture.nativeElement.textContent).toContain('Groups');
+    expect(fixture.nativeElement.textContent).toContain('Memorize');
+    expect(
+      fixture.nativeElement.querySelector('.grid')?.className
+    ).toContain('grid-cols-2');
+    expect(
+      fixture.nativeElement.querySelector('.grid')?.className
+    ).toContain('sm:grid-cols-4');
     fixture.nativeElement.querySelector('[title="Open group prayers by default"]').click();
     expect(defaultPrayerViewChange).toHaveBeenCalledWith('groups');
   });

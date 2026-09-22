@@ -40,7 +40,7 @@
               }
             </div>
             @if (defaultViewPreferencesLoaded) {
-            <div class="grid grid-cols-3 gap-1.5 sm:gap-2">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
               @for (option of defaultViewOptions; track option.value) {
               <button
                 type="button"
@@ -58,7 +58,10 @@
               }
             </div>
             } @else {
-            <div class="grid grid-cols-3 gap-1.5 sm:gap-2">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
+              <div
+                class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
+              ></div>
               <div
                 class="h-12 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"
               ></div>

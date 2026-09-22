@@ -2172,7 +2172,7 @@ describe('UserSettingsComponent', () => {
 
       await component.onDefaultViewChange('current');
 
-      expect(component.successDefaultView).toContain('Church Prayers');
+      expect(component.successDefaultView).toContain('Church');
     });
 
     it('should set proper text for groups view', async () => {
@@ -2183,7 +2183,7 @@ describe('UserSettingsComponent', () => {
 
       await component.onDefaultViewChange('groups');
 
-      expect(component.successDefaultView).toContain('Group Prayers');
+      expect(component.successDefaultView).toContain('Groups');
     });
 
     it('should set proper text for personal view', async () => {
@@ -2194,7 +2194,7 @@ describe('UserSettingsComponent', () => {
 
       await component.onDefaultViewChange('personal');
 
-      expect(component.successDefaultView).toContain('Personal Prayers');
+      expect(component.successDefaultView).toContain('Personal');
     });
   });
 

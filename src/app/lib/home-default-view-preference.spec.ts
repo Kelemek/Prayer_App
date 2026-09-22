@@ -11,14 +11,16 @@ describe("home default prayer view helpers", () => {
     expect(parseHomeDefaultPrayerView("personal")).toBe("personal");
     expect(parseHomeDefaultPrayerView("groups")).toBe("groups");
     expect(parseHomeDefaultPrayerView("current")).toBe("current");
+    expect(parseHomeDefaultPrayerView("memorize")).toBe("memorize");
     expect(parseHomeDefaultPrayerView("unknown")).toBe("current");
     expect(parseHomeDefaultPrayerView(null)).toBe("current");
   });
 
   it("labels church, group, and personal views", () => {
-    expect(homeDefaultPrayerViewLabel("current")).toBe("Church Prayers");
-    expect(homeDefaultPrayerViewLabel("groups")).toBe("Group Prayers");
-    expect(homeDefaultPrayerViewLabel("personal")).toBe("Personal Prayers");
+    expect(homeDefaultPrayerViewLabel("current")).toBe("Church");
+    expect(homeDefaultPrayerViewLabel("groups")).toBe("Groups");
+    expect(homeDefaultPrayerViewLabel("personal")).toBe("Personal");
+    expect(homeDefaultPrayerViewLabel("memorize")).toBe("Memorize");
   });
 
   it("describes the view shown after login", () => {
@@ -55,6 +57,15 @@ describe("home default prayer view helpers", () => {
         canAccessGroupsTab: true,
       })
     ).toBe("groups");
+  });
+
+  it("opens memorization when that is the saved preference", () => {
+    expect(
+      resolveHomeFilterForDefaultView("memorize", {
+        canAccessShared: true,
+        canAccessGroupsTab: true,
+      })
+    ).toBe("memorize");
   });
 
   it("falls back to church when groups are not available", () => {
