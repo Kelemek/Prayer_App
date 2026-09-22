@@ -97,6 +97,7 @@ export function runUserSettingsOpenChange(
     }
 
     host.error = null;
+    host.pendingAccountExport = null;
     host.success = null;
     host.successNotification = null;
     host.successPushNotification = null;

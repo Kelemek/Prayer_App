@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import type { UserSettingsFacade } from './user-settings-facade';
 
 export interface ExportUserAccountPayload {
@@ -41,6 +42,85 @@ export function downloadJsonFile(filename: string, data: unknown): void {
   URL.revokeObjectURL(url);
 }
 
+/** iOS WKWebView ignores `<a download>`. The share sheet can save the file. */
+const NATIVE_SHARE_FILE_TYPES = ['application/json', 'text/plain'] as const;
+
+export type AccountExportDelivery = 'saved' | 'needs-gesture';
+
+function isNativeMobileApp(): boolean {
+  try {
+    const platform = Capacitor.getPlatform();
+    return platform === 'ios' || platform === 'android';
+  } catch {
+    return false;
+  }
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
+function isGestureError(error: unknown): boolean {
+  return (
+    error instanceof DOMException &&
+    (error.name === 'NotAllowedError' || error.name === 'InvalidStateError')
+  );
+}
+
+function fileForNativeShare(filename: string, json: string): File | null {
+  if (typeof navigator.canShare !== 'function') {
+    return null;
+  }
+  for (const type of NATIVE_SHARE_FILE_TYPES) {
+    const file = new File([json], filename, { type });
+    try {
+      if (navigator.canShare({ files: [file] })) {
+        return file;
+      }
+    } catch {
+      // canShare throws when the browser rejects the payload shape
+    }
+  }
+  return null;
+}
+
+async function shareAccountExport(
+  filename: string,
+  json: string
+): Promise<AccountExportDelivery> {
+  const file = fileForNativeShare(filename, json);
+  try {
+    if (file) {
+      await navigator.share({ files: [file], title: filename });
+      return 'saved';
+    }
+    if (typeof navigator.share === 'function') {
+      await navigator.share({ title: filename, text: json });
+      return 'saved';
+    }
+  } catch (error) {
+    if (isAbortError(error)) {
+      return 'saved';
+    }
+    if (isGestureError(error)) {
+      return 'needs-gesture';
+    }
+    throw error;
+  }
+  throw new Error('Could not open the save sheet on this device. Please try again.');
+}
+
+export async function saveAccountExport(
+  filename: string,
+  data: unknown
+): Promise<AccountExportDelivery> {
+  if (!isNativeMobileApp()) {
+    downloadJsonFile(filename, data);
+    return 'saved';
+  }
+  return shareAccountExport(filename, JSON.stringify(data, null, 2));
+}
+
 export function exportUserAccountFilename(now: Date = new Date()): string {
   const date = now.toISOString().slice(0, 10);
   return `prayer-app-data-export-${date}.json`;
@@ -48,9 +128,30 @@ export function exportUserAccountFilename(now: Date = new Date()): string {
 
 export async function runUserSettingsDownloadMyData(
   host: UserSettingsFacade,
-  download: typeof downloadJsonFile = downloadJsonFile
+  deliver: (
+    filename: string,
+    data: unknown
+  ) => void | Promise<void | AccountExportDelivery> = saveAccountExport
 ): Promise<void> {
   if (host.exportingAccount) {
+    return;
+  }
+
+  if (host.pendingAccountExport) {
+    const pending = host.pendingAccountExport;
+    host.error = null;
+    host.markForCheck();
+    try {
+      const result = await deliver(pending.filename, pending.data);
+      if (result !== 'needs-gesture') {
+        host.pendingAccountExport = null;
+      }
+    } catch (err) {
+      host.error =
+        err instanceof Error ? err.message : 'Could not export your data. Please try again.';
+    } finally {
+      host.markForCheck();
+    }
     return;
   }
 
@@ -69,8 +170,11 @@ export async function runUserSettingsDownloadMyData(
       throw new Error('Could not export your data. Please try again.');
     }
 
-    download(exportUserAccountFilename(), data);
+    const filename = exportUserAccountFilename();
+    const result = await deliver(filename, data);
+    host.pendingAccountExport = result === 'needs-gesture' ? { filename, data } : null;
   } catch (err) {
+    host.pendingAccountExport = null;
     host.error =
       err instanceof Error ? err.message : 'Could not export your data. Please try again.';
   } finally {

@@ -98,6 +98,7 @@ export class UserSettingsFacade {
   showDeleteAccountVerification = false;
   deletingAccount = false;
   exportingAccount = false;
+  pendingAccountExport: { filename: string; data: unknown } | null = null;
 
   readonly destroy$ = new Subject<void>();
   readonly emailChange$ = new Subject<string>();

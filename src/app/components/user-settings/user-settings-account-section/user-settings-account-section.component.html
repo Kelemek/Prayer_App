@@ -1,7 +1,7 @@
 <!-- Download my data -->
 <div
   id="tour-settings-download-data-section"
-  class="settings-modal-section-card border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4"
+  class="settings-modal-section-card rounded-lg p-3 sm:p-4 mb-3 sm:mb-4"
 >
   <p class="text-sm text-gray-700 dark:text-gray-300 mb-2">
     Download a machine-readable copy of your account, prayers, preferences,
@@ -15,10 +15,27 @@
     [disabled]="host.exportingAccount"
     title="Download your data as JSON"
     class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline cursor-pointer disabled:opacity-60 disabled:cursor-wait"
-    aria-label="Download my data"
+    [attr.aria-label]="
+      host.exportingAccount
+        ? 'Preparing download'
+        : host.pendingAccountExport
+          ? 'Save my data'
+          : 'Download my data'
+    "
   >
-    {{ host.exportingAccount ? 'Preparing download…' : 'Download my data' }}
+    {{
+      host.exportingAccount
+        ? 'Preparing download…'
+        : host.pendingAccountExport
+          ? 'Save my data'
+          : 'Download my data'
+    }}
   </button>
+  @if (host.pendingAccountExport) {
+    <p class="mt-2 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+      Tap Save my data to choose where to store the file.
+    </p>
+  }
 </div>
 
 <!-- Delete account -->

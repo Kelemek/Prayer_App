@@ -2,16 +2,26 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { Capacitor } from '@capacitor/core';
 import {
   downloadJsonFile,
   exportUserAccountFilename,
   isExportUserAccountPayload,
   runUserSettingsDownloadMyData,
+  saveAccountExport,
 } from './user-settings-export-run';
+
+vi.mock('@capacitor/core', () => ({
+  Capacitor: {
+    getPlatform: vi.fn(() => 'web'),
+    isNativePlatform: vi.fn(() => false),
+  },
+}));
 
 function makeHost(rpcImpl: () => Promise<{ data: unknown; error: unknown }>) {
   return {
     exportingAccount: false,
+    pendingAccountExport: null as { filename: string; data: unknown } | null,
     error: null as string | null,
     markForCheck: vi.fn(),
     deps: {
@@ -52,6 +62,7 @@ describe('isExportUserAccountPayload', () => {
 describe('user-settings-export-run', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
   });
 
   it('names the file with an ISO date', () => {
@@ -135,6 +146,61 @@ describe('user-settings-export-run', () => {
     expect(createObjectURL).toHaveBeenCalled();
     expect(click).toHaveBeenCalled();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:export');
+  });
+
+  it('keeps the export ready when iOS will not open the save sheet yet', async () => {
+    const host = makeHost(async () => ({ data: validPayload, error: null }));
+    const deliver = vi.fn(async () => 'needs-gesture' as const);
+
+    await runUserSettingsDownloadMyData(host as never, deliver);
+
+    expect(host.pendingAccountExport?.filename).toMatch(
+      /^prayer-app-data-export-\d{4}-\d{2}-\d{2}\.json$/
+    );
+    expect(host.pendingAccountExport?.data).toEqual(validPayload);
+    expect(host.error).toBeNull();
+
+    deliver.mockResolvedValueOnce('saved');
+    await runUserSettingsDownloadMyData(host as never, deliver);
+
+    expect(host.deps.supabase.client.rpc).toHaveBeenCalledTimes(1);
+    expect(host.pendingAccountExport).toBeNull();
+  });
+
+  it('opens the native share sheet for an iOS export', async () => {
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    const share = vi.fn().mockResolvedValue(undefined);
+    const canShare = vi.fn().mockReturnValue(true);
+    Object.defineProperty(navigator, 'share', { configurable: true, value: share });
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: canShare });
+
+    const result = await saveAccountExport('prayer-app-data-export-2026-09-21.json', {
+      ok: true,
+    });
+
+    expect(result).toBe('saved');
+    expect(share).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'prayer-app-data-export-2026-09-21.json',
+        files: [expect.any(File)],
+      })
+    );
+  });
+
+  it('asks for another tap when iOS blocks the share sheet after the export request', async () => {
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    const share = vi
+      .fn()
+      .mockRejectedValue(new DOMException('gesture', 'NotAllowedError'));
+    Object.defineProperty(navigator, 'share', { configurable: true, value: share });
+    Object.defineProperty(navigator, 'canShare', {
+      configurable: true,
+      value: () => true,
+    });
+
+    await expect(
+      saveAccountExport('prayer-app-data-export-2026-09-21.json', { ok: true })
+    ).resolves.toBe('needs-gesture');
   });
 });
 

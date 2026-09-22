@@ -95,7 +95,7 @@ type FeedbackType = "suggestion" | "feature" | "bug";
               [disabled]="isLoading"
               required
               maxlength="100"
-              class="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              class="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-inset-surface text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {{ feedbackTitle.length }}/100
@@ -119,7 +119,7 @@ type FeedbackType = "suggestion" | "feature" | "bug";
               required
               rows="4"
               maxlength="1000"
-              class="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+              class="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-inset-surface text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
             ></textarea>
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {{ feedbackDescription.length }}/1000
