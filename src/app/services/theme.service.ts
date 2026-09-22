@@ -53,6 +53,9 @@ export class ThemeService {
     } else {
       root.classList.remove('dark');
     }
+    // Keep the iOS WebView canvas in sync. The safe-area bands use this color
+    // before the page background paints, so a stale light scheme flashes white.
+    root.style.colorScheme = effectiveTheme;
     
     // Save preference to localStorage
     localStorage.setItem('theme', theme);

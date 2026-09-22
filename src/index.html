@@ -9,16 +9,47 @@
     <meta name="description" content="Prayer App — submit prayer requests, follow community prayers, and stay connected with your church community." />
     <!-- Align browser chrome/safe-area color with header background instead of green brand color -->
     <meta name="theme-color" content="#F8F7F5" />
-    
+    <script>
+      // Run before first paint. iOS paints the top and bottom safe areas from the
+      // WebView canvas, which stays white unless color-scheme is already dark.
+      (function() {
+        var theme = localStorage.getItem('theme') || 'system';
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var isDark = theme === 'dark' || (theme === 'system' && prefersDark);
+        var root = document.documentElement;
+        root.classList.toggle('dark', isDark);
+        root.style.colorScheme = isDark ? 'dark' : 'light';
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) {
+          meta.setAttribute('content', isDark ? '#111827' : '#F8F7F5');
+        }
+      })();
+    </script>
+
     <!-- Resource hints for performance -->
     <link rel="preconnect" href="https://eqiafsygvfaifhoaewxi.supabase.co" />
     <!-- Inline critical CSS for faster FCP -->
     <style>
-      :root { color-scheme: light dark; }
-      body { background-color: #f9fafb; margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
-      /* Align dark body background with app shell container so header and safe-area overlay blend consistently */
-      html.dark body { background-color: #2B2B2B; }
-      
+      html { background-color: #F8F7F5; color-scheme: light; }
+      html.dark { background-color: #111827; color-scheme: dark; }
+      body { background-color: #F8F7F5; margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
+      html.dark body { background-color: #111827; }
+      /* Cover the notch and home-indicator bands before the main stylesheet loads. */
+      body::before,
+      body::after {
+        content: '';
+        position: fixed;
+        left: 0;
+        right: 0;
+        z-index: 9999;
+        background-color: #F8F7F5;
+        pointer-events: none;
+      }
+      body::before { top: 0; height: env(safe-area-inset-top, 0px); }
+      body::after { bottom: 0; height: env(safe-area-inset-bottom, 0px); }
+      html.dark body::before,
+      html.dark body::after { background-color: #111827; }
+
       /* Prevent iOS zoom on input focus */
       input[type="text"], input[type="email"], textarea, select {
         font-size: 16px;
@@ -26,23 +57,6 @@
     </style>
     <title>Prayer App</title>
     <script>
-      // Apply theme immediately to prevent flash and sync theme-color with header
-      (function() {
-        const theme = localStorage.getItem('theme') || 'system';
-        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const isDark = theme === 'dark' || (theme === 'system' && prefersDark);
-
-        if (isDark) {
-          document.documentElement.classList.add('dark');
-        }
-
-        // Update theme-color meta to match header background in light/dark
-        var meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) {
-          meta.setAttribute('content', isDark ? '#1F2937' : '#F8F7F5');
-        }
-      })();
-      
       // Load cached logo URLs immediately to prevent flash (tenant-scoped)
       (function() {
         const tenantId = localStorage.getItem('active_tenant_id');
