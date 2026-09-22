@@ -859,6 +859,26 @@ html, body {
   .native-app .home-sticky-header-shell > header {
     padding-top: env(safe-area-inset-top);
   }
+  /* Web: stick the org switcher below the safe-area strip, same as sticky headers. */
+  html:not(.native-app) .tenant-switcher-bar {
+    top: env(safe-area-inset-top);
+  }
+  /* Native: body inset is removed, so the switcher owns the status-bar / Dynamic Island gap.
+     Keep the 0.5rem from py-2 so the label is not flush with the status bar. */
+  .native-app .tenant-switcher-bar {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
+  }
+  /* Pages below the switcher already start under that chrome. */
+  .native-app:has(.tenant-switcher-bar) header.sticky,
+  .native-app:has(.tenant-switcher-bar) .home-sticky-header-shell > header,
+  .native-app:has(.tenant-switcher-bar) .home-sticky-header-shell header,
+  .native-app:has(.tenant-switcher-bar) .safe-area-container {
+    padding-top: 0;
+  }
+  .native-app:has(.tenant-switcher-bar) .presentation-page-shell {
+    top: calc(env(safe-area-inset-top, 0px) + 3rem);
+    padding-top: 0;
+  }
   /* Utility class for full-screen overlays/modals to respect safe area */
   .safe-area-overlay {
     padding-top: env(safe-area-inset-top);
@@ -917,9 +937,10 @@ html, body {
     min-height: 0;
     height: calc(100vh - env(safe-area-inset-top));
   }
-  /* Multi-tenant switcher bar sits above home; reserve its height in the shell. */
-  html:not(.native-app) app-root > div:has(> app-tenant-switcher-bar) .main-page-shell {
-    height: calc(100vh - env(safe-area-inset-top) - 2.75rem);
+  /* Visible org switcher sits above home. 3rem matches the bar (py-2 + control).
+     Native adds the status-bar inset inside the bar, so the same subtraction fits both. */
+  app-shell > div:has(> app-tenant-switcher-bar .tenant-switcher-bar) .main-page-shell {
+    height: calc(100vh - env(safe-area-inset-top, 0px) - 3rem);
   }
   html:not(.native-app) .main-page-shell .safe-area-viewport {
     height: 100%;

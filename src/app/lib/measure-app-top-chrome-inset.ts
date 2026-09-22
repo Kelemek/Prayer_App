@@ -20,6 +20,11 @@ export function appTopChromeOverlayPaddingTop(): string | null {
 }
 
 export function appTopChromeOverlayPaddingTopFromPx(chromePx: number): string {
+  // Native switcher padding already includes the status-bar inset, so measuring
+  // the bar and adding env() again would push modals down twice.
+  if (document.documentElement.classList.contains('native-app')) {
+    return `calc(${chromePx}px + ${APP_TOP_CHROME_OVERLAY_GAP})`;
+  }
   return `calc(env(safe-area-inset-top, 0px) + ${chromePx}px + ${APP_TOP_CHROME_OVERLAY_GAP})`;
 }
 

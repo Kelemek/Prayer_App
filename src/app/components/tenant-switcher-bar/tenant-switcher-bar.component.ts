@@ -28,7 +28,7 @@ import type { Tenant } from '../../types/tenant';
         ></div>
       }
       <div
-        class="sticky top-0 z-[60] border-b border-gray-200 bg-white/95 px-4 py-2 backdrop-blur-md dark:border-gray-700 dark:bg-gray-800/95"
+        class="tenant-switcher-bar sticky top-0 z-[60] border-b border-gray-200 bg-white/95 px-4 py-2 backdrop-blur-md dark:border-gray-700 dark:bg-gray-800/95"
       >
         <div
           class="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-2 sm:justify-center"
