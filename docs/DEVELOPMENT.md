@@ -25,7 +25,7 @@ Church-scoped configuration lives on **`tenant_settings`** (keyed by `tenant_id`
 
 Personal-only users (no church membership) use safe defaults and do not read another church's `tenant_settings`.
 
-**Outbound mail identity:** `get_tenant_mail_identity(p_tenant_id, p_email)` / `update_tenant_mail_identity(...)` (same MFA `p_email` pattern as reminder settings). Stores display name + DNS-safe local-part (not a full From address) so From always stays on the `MAIL_SENDER_ADDRESS` domain; optional `mail_reply_to` can be any church inbox. Resolution lives in `src/lib/mail-identity.ts` (unit tests) and is inlined in `send-email`, `trigger-email-processor`, and `scripts/process-email-queue.ts`. Admin UI: Email → Sending identity. Member invites (`tenant_invite` template) pass the church `tenantId` so From identity applies.
+**Outbound mail identity:** `get_tenant_mail_identity(p_tenant_id, p_email)` / `update_tenant_mail_identity(...)` (same MFA `p_email` pattern as reminder settings). Stores display name + DNS-safe local-part (not a full From address) so From always stays on the `MAIL_SENDER_ADDRESS` domain; optional `mail_reply_to` can be any church inbox. Resolution lives in `src/lib/mail-identity.ts` (unit tests) and is inlined in `send-email` and `trigger-email-processor`. Admin UI: Email → Sending identity. Member invites (`tenant_invite` template) pass the church `tenantId` so From identity applies.
 
 ### Project Structure
 
@@ -640,9 +640,9 @@ prayers$ = this.prayersSubject.asObservable();
 ### API Communication
 
 - **Database**: Supabase client (REST API under the hood)
-- **Email**: Resend API via `send-email` Edge Function and GitHub Actions / `trigger-email-processor`. Platform `MAIL_SENDER_ADDRESS` / `MAIL_FROM_NAME` are the fallback; per-church From name, local-part, and optional Reply-To live on `tenant_settings` (`get_tenant_mail_identity` / `update_tenant_mail_identity`). Callers pass `tenantId` so Church A does not send as Church B.
+- **Email**: Resend API via `send-email` and `trigger-email-processor` Edge Functions. Queue drain uses `/emails/batch` (one recipient per message). Platform `MAIL_SENDER_ADDRESS` / `MAIL_FROM_NAME` are the fallback; per-church From name, local-part, and optional Reply-To live on `tenant_settings` (`get_tenant_mail_identity` / `update_tenant_mail_identity`). Callers pass `tenantId` so Church A does not send as Church B.
 - **Admin Auth**: check-admin-status Edge Function (verifies admin status using service role)
-- **Rate Limiting**: Email processor paces sends to respect Resend plan limits
+- **Rate limiting**: Queue processor pauses between batch requests and honors Resend **429** `Retry-After`
 
 ### Removed/Deprecated Features
 

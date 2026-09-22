@@ -1,6 +1,10 @@
 /**
- * Processes pending rows in public.email_queue via Resend.
+ * Processes pending rows in public.email_queue via Resend POST /emails/batch.
+ * One recipient per message (no BCC / multi-recipient To). Up to RESEND_BATCH_SIZE
+ * per request; RESEND_INTER_BATCH_PAUSE_MS between batch HTTP calls.
+ *
  * Replaces the previous GitHub Actions dispatch so mass / approval emails work without GITHUB_PAT.
+ * Payload helpers aligned with src/lib/resend-batch.ts (inlined for Edge deploy).
  *
  * Env (same as send-email): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY,
  * MAIL_SENDER_ADDRESS, optional MAIL_FROM_NAME.
@@ -16,8 +20,13 @@ const corsHeaders = {
   "Access-Control-Max-Age": "86400",
 };
 
-const BATCH_SIZE = 20;
-/** Cap work per invocation to stay within Edge timeouts */
+/** Resend batch endpoint: max emails per request */
+const RESEND_BATCH_SIZE = 100;
+/** Pause between batch HTTP requests */
+const RESEND_INTER_BATCH_PAUSE_MS = 250;
+/** Default wait when Resend returns 429 without Retry-After */
+const RESEND_429_DEFAULT_WAIT_MS = 5000;
+/** Cap batch HTTP rounds per invocation to stay within Edge timeouts */
 const MAX_BATCHES_PER_INVOCATION = 12;
 const MAX_RETRIES = 5;
 const RESEND_API = "https://api.resend.com";
@@ -36,6 +45,105 @@ interface EmailTemplate {
   subject: string;
   html_body: string;
   text_body: string;
+}
+
+interface ResendBatchItemError {
+  index: number;
+  message: string;
+}
+
+type BatchIndexOutcome = "success" | "failure";
+
+interface ClassifiedBatchResult {
+  outcomes: BatchIndexOutcome[];
+  requestLevelFailure: boolean;
+  message?: string;
+}
+
+function buildResendEmailObject(input: {
+  fromHeader: string;
+  recipient: string;
+  subject: string;
+  htmlBody: string;
+  textBody: string;
+  replyTo?: string;
+  listUnsubscribeHeaders: Record<string, string>;
+}): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    from: input.fromHeader,
+    to: [input.recipient],
+    subject: input.subject,
+    headers: input.listUnsubscribeHeaders,
+  };
+  if (input.replyTo) payload.reply_to = input.replyTo;
+  if (input.htmlBody) {
+    payload.html = input.htmlBody;
+    if (input.textBody) payload.text = input.textBody;
+  } else {
+    payload.text = input.textBody || "";
+  }
+  return payload;
+}
+
+function classifyResendBatchResult(params: {
+  httpOk: boolean;
+  status: number;
+  chunkLength: number;
+  errors?: ResendBatchItemError[] | null;
+  responseBody?: string;
+}): ClassifiedBatchResult {
+  const { httpOk, chunkLength, errors, responseBody } = params;
+
+  if (chunkLength <= 0) {
+    return { outcomes: [], requestLevelFailure: false };
+  }
+
+  if (!httpOk) {
+    return {
+      outcomes: Array.from({ length: chunkLength }, () => "failure"),
+      requestLevelFailure: true,
+      message: responseBody?.trim() || `HTTP ${params.status}`,
+    };
+  }
+
+  if (!errors?.length) {
+    return {
+      outcomes: Array.from({ length: chunkLength }, () => "success"),
+      requestLevelFailure: false,
+    };
+  }
+
+  const failed = new Set<number>();
+  for (const err of errors) {
+    if (
+      Number.isInteger(err.index) &&
+      err.index >= 0 &&
+      err.index < chunkLength
+    ) {
+      failed.add(err.index);
+    }
+  }
+
+  const outcomes: BatchIndexOutcome[] = [];
+  for (let i = 0; i < chunkLength; i++) {
+    outcomes.push(failed.has(i) ? "failure" : "success");
+  }
+
+  return {
+    outcomes,
+    requestLevelFailure: false,
+    message: errors.map((e) => `[${e.index}] ${e.message}`).join("; "),
+  };
+}
+
+function resend429DelayMs(retryAfterHeader: string | null): number {
+  if (retryAfterHeader) {
+    const seconds = parseInt(retryAfterHeader, 10);
+    if (!Number.isNaN(seconds) && seconds >= 0) {
+      return seconds * 1000;
+    }
+  }
+  return RESEND_429_DEFAULT_WAIT_MS;
 }
 
 function applyTemplateVariables(
@@ -167,45 +275,6 @@ function oneClickUnsubscribeUrl(supabaseUrl: string, token: string): string {
   }`;
 }
 
-async function sendViaResend(
-  recipient: string,
-  subject: string,
-  htmlBody: string,
-  textBody: string,
-  resendKey: string,
-  mailSender: string,
-  identity: MailIdentity,
-  listUnsubscribeHttpsUrl?: string,
-): Promise<void> {
-  const payload: Record<string, unknown> = {
-    from: identity.fromHeader,
-    to: [recipient],
-    subject,
-    headers: listUnsubscribeHeaders(mailSender, listUnsubscribeHttpsUrl),
-  };
-  if (identity.replyTo) payload.reply_to = identity.replyTo;
-  if (htmlBody) {
-    payload.html = htmlBody;
-    if (textBody) payload.text = textBody;
-  } else {
-    payload.text = textBody || "";
-  }
-
-  const response = await fetch(`${RESEND_API}/emails`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${resendKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Resend send failed: ${response.status} ${error}`);
-  }
-}
-
 async function lockEmails(
   supabase: ReturnType<typeof createClient>,
   emailIds: string[],
@@ -297,97 +366,229 @@ async function prefetchTemplatesForBatch(
   }
 }
 
-async function processOne(
+async function handleQueueItemFailure(
   supabase: ReturnType<typeof createClient>,
   email: EmailQueueItem,
+  errorMessage: string,
+): Promise<void> {
+  const attempts = email.attempts + 1;
+  console.error(`Queue item ${email.id} failed:`, errorMessage);
+
+  if (attempts < MAX_RETRIES) {
+    await supabase
+      .from("email_queue")
+      .update({
+        status: "pending",
+        attempts,
+        last_error: errorMessage,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", email.id);
+    return;
+  }
+
+  await supabase.from("email_queue").delete().eq("id", email.id);
+}
+
+async function prepareQueueItemPayload(
+  email: EmailQueueItem,
   cache: Map<string, EmailTemplate>,
-  resendKey: string,
-  mailSender: string,
+  supabase: ReturnType<typeof createClient>,
   mailFromName: string,
+  mailSender: string,
   supabaseUrl: string,
   defaultTenantId: string | null,
   identityCache: Map<string, MailIdentity>,
-): Promise<boolean> {
-  try {
-    const tid = email.tenant_id ?? defaultTenantId;
-    if (!tid) {
-      throw new Error(`No tenant for queue item ${email.id}`);
-    }
-    const cacheKey = templateCacheKey(tid, email.template_key);
-    const template = cache.get(cacheKey);
-    if (!template) {
-      throw new Error(`Template not in cache: ${cacheKey}`);
-    }
-
-    const subject = applyTemplateVariables(
-      template.subject,
-      email.template_variables,
-    );
-    const htmlBody = applyTemplateVariables(
-      template.html_body,
-      email.template_variables,
-    );
-    const textBody = applyTemplateVariables(
-      template.text_body,
-      email.template_variables,
-    );
-
-    const rawTok = email.template_variables?.unsubscribe_token;
-    const token =
-      rawTok !== null && rawTok !== undefined && String(rawTok).trim() !== ""
-        ? String(rawTok).trim()
-        : undefined;
-    const listUnsubscribeHttpsUrl =
-      token && supabaseUrl
-        ? oneClickUnsubscribeUrl(supabaseUrl, token)
-        : undefined;
-
-    const identity = await resolveQueueMailIdentity(
-      supabase,
-      tid,
-      mailFromName,
-      mailSender,
-      identityCache,
-    );
-
-    await sendViaResend(
-      email.recipient,
-      subject,
-      htmlBody,
-      textBody,
-      resendKey,
-      mailSender,
-      identity,
-      listUnsubscribeHttpsUrl,
-    );
-
-    const { error: delErr } = await supabase
-      .from("email_queue")
-      .delete()
-      .eq("id", email.id);
-    if (delErr) throw delErr;
-    return true;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const attempts = email.attempts + 1;
-    console.error(`Queue item ${email.id} failed:`, message);
-
-    if (attempts < MAX_RETRIES) {
-      await supabase
-        .from("email_queue")
-        .update({
-          status: "pending",
-          attempts,
-          last_error: message,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", email.id);
-      return false;
-    }
-
-    await supabase.from("email_queue").delete().eq("id", email.id);
-    return false;
+): Promise<Record<string, unknown>> {
+  const tid = email.tenant_id ?? defaultTenantId;
+  if (!tid) {
+    throw new Error(`No tenant for queue item ${email.id}`);
   }
+  const cacheKey = templateCacheKey(tid, email.template_key);
+  const template = cache.get(cacheKey);
+  if (!template) {
+    throw new Error(`Template not in cache: ${cacheKey}`);
+  }
+
+  const subject = applyTemplateVariables(
+    template.subject,
+    email.template_variables,
+  );
+  const htmlBody = applyTemplateVariables(
+    template.html_body,
+    email.template_variables,
+  );
+  const textBody = applyTemplateVariables(
+    template.text_body,
+    email.template_variables,
+  );
+
+  const rawTok = email.template_variables?.unsubscribe_token;
+  const token =
+    rawTok !== null && rawTok !== undefined && String(rawTok).trim() !== ""
+      ? String(rawTok).trim()
+      : undefined;
+  const listUnsubscribeHttpsUrl =
+    token && supabaseUrl
+      ? oneClickUnsubscribeUrl(supabaseUrl, token)
+      : undefined;
+
+  const identity = await resolveQueueMailIdentity(
+    supabase,
+    tid,
+    mailFromName,
+    mailSender,
+    identityCache,
+  );
+
+  return buildResendEmailObject({
+    fromHeader: identity.fromHeader,
+    recipient: email.recipient,
+    subject,
+    htmlBody,
+    textBody,
+    replyTo: identity.replyTo,
+    listUnsubscribeHeaders: listUnsubscribeHeaders(
+      mailSender,
+      listUnsubscribeHttpsUrl,
+    ),
+  });
+}
+
+async function postResendBatch(
+  payloads: Record<string, unknown>[],
+  resendKey: string,
+): Promise<{
+  httpOk: boolean;
+  status: number;
+  bodyText: string;
+  errors?: ResendBatchItemError[];
+}> {
+  const response = await fetch(`${RESEND_API}/emails/batch`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendKey}`,
+      "Content-Type": "application/json",
+      "x-batch-validation": "permissive",
+    },
+    body: JSON.stringify(payloads),
+  });
+
+  const bodyText = await response.text();
+
+  if (response.status === 429) {
+    const delay = resend429DelayMs(response.headers.get("Retry-After"));
+    console.log(`⏳ Rate limited. Waiting ${delay}ms before retry path`);
+    await new Promise((r) => setTimeout(r, delay));
+    return { httpOk: false, status: 429, bodyText };
+  }
+
+  if (!response.ok) {
+    console.error(`❌ Resend batch failed: ${response.status}`, bodyText);
+    return { httpOk: false, status: response.status, bodyText };
+  }
+
+  let errors: ResendBatchItemError[] | undefined;
+  try {
+    const json = JSON.parse(bodyText) as { errors?: ResendBatchItemError[] };
+    if (Array.isArray(json.errors)) {
+      errors = json.errors;
+    }
+  } catch {
+    /* non-JSON success body */
+  }
+
+  console.log(`✅ Resend batch accepted (${payloads.length} email(s))`);
+  return { httpOk: true, status: response.status, bodyText, errors };
+}
+
+async function processLockedBatch(
+  supabase: ReturnType<typeof createClient>,
+  queueItems: EmailQueueItem[],
+  templateCache: Map<string, EmailTemplate>,
+  resendKey: string,
+  mailSender: string,
+  mailFromName: string,
+  supabasePublicUrl: string,
+  defaultTenantId: string | null,
+  identityCache: Map<string, MailIdentity>,
+): Promise<{ sent: number; failedOrRetry: number }> {
+  let sent = 0;
+  let failedOrRetry = 0;
+
+  const prepared: { email: EmailQueueItem; payload: Record<string, unknown> }[] =
+    [];
+
+  for (const row of queueItems) {
+    try {
+      const payload = await prepareQueueItemPayload(
+        row,
+        templateCache,
+        supabase,
+        mailFromName,
+        mailSender,
+        supabasePublicUrl,
+        defaultTenantId,
+        identityCache,
+      );
+      prepared.push({ email: row, payload });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await handleQueueItemFailure(supabase, row, message);
+      failedOrRetry++;
+    }
+  }
+
+  if (prepared.length === 0) {
+    return { sent, failedOrRetry };
+  }
+
+  const batchResult = await postResendBatch(
+    prepared.map((p) => p.payload),
+    resendKey,
+  );
+
+  const classified = classifyResendBatchResult({
+    httpOk: batchResult.httpOk,
+    status: batchResult.status,
+    chunkLength: prepared.length,
+    errors: batchResult.errors,
+    responseBody: batchResult.bodyText,
+  });
+
+  for (let i = 0; i < prepared.length; i++) {
+    const { email } = prepared[i];
+    if (classified.outcomes[i] === "success") {
+      const { error: delErr } = await supabase
+        .from("email_queue")
+        .delete()
+        .eq("id", email.id);
+      if (delErr) {
+        await handleQueueItemFailure(
+          supabase,
+          email,
+          delErr.message ?? "Delete after send failed",
+        );
+        failedOrRetry++;
+      } else {
+        sent++;
+      }
+    } else {
+      let message: string;
+      if (batchResult.status === 429) {
+        message = "Resend rate limited (429)";
+      } else if (classified.requestLevelFailure) {
+        message = classified.message ?? "Resend batch request failed";
+      } else {
+        const itemErr = batchResult.errors?.find((e) => e.index === i);
+        message = itemErr?.message ?? classified.message ?? "Resend batch item failed";
+      }
+      await handleQueueItemFailure(supabase, email, message);
+      failedOrRetry++;
+    }
+  }
+
+  return { sent, failedOrRetry };
 }
 
 serve(async (req) => {
@@ -445,7 +646,7 @@ serve(async (req) => {
         .eq("status", "pending")
         .lt("attempts", MAX_RETRIES)
         .order("created_at", { ascending: true })
-        .limit(BATCH_SIZE);
+        .limit(RESEND_BATCH_SIZE);
 
       if (fetchError) {
         throw new Error(`Queue fetch failed: ${fetchError.message}`);
@@ -465,25 +666,24 @@ serve(async (req) => {
         defaultTenantId,
       );
 
-      for (const row of queueItems as EmailQueueItem[]) {
-        const ok = await processOne(
-          supabase,
-          row,
-          templateCache,
-          resendKey,
-          mailSender,
-          mailFromName,
-          supabasePublicUrl,
-          defaultTenantId,
-          identityCache,
-        );
-        if (ok) totalSent++;
-        else totalFailed++;
-        await new Promise((r) => setTimeout(r, 100));
-      }
+      const batchResult = await processLockedBatch(
+        supabase,
+        queueItems as EmailQueueItem[],
+        templateCache,
+        resendKey,
+        mailSender,
+        mailFromName,
+        supabasePublicUrl,
+        defaultTenantId,
+        identityCache,
+      );
 
-      if (queueItems.length < BATCH_SIZE) break;
-      await new Promise((r) => setTimeout(r, 500));
+      totalSent += batchResult.sent;
+      totalFailed += batchResult.failedOrRetry;
+
+      if (queueItems.length < RESEND_BATCH_SIZE) break;
+
+      await new Promise((r) => setTimeout(r, RESEND_INTER_BATCH_PAUSE_MS));
     }
 
     const { count: pendingAfter } = await supabase

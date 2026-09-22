@@ -124,7 +124,7 @@ Do not put the Secret key in any `VITE_*` variable or client bundles.
 
 ### GitHub Secrets
 
-For GitHub Actions to work, add these secrets (still required for workflows that invoke Supabase, e.g. `process-email-queue`, backup/restore):
+For GitHub Actions to work, add these secrets (still required for workflows that invoke Supabase, e.g. backup/restore):
 
 ```
 SUPABASE_URL
@@ -299,9 +299,7 @@ Apply migration `supabase/migrations/20260920120000_planning_center_vault.sql` b
 
 2. **API key**
    - Create an API key in the Resend dashboard.
-   - Store it as **`RESEND_API_KEY`** in:
-     - **Supabase** → Project Settings → Edge Functions → Secrets (required for the `send-email` function)
-     - **GitHub** repository secrets (required for the `process-email-queue` workflow)
+   - Store it as **`RESEND_API_KEY`** in **Supabase** → Project Settings → Edge Functions → Secrets (required for `send-email` and `trigger-email-processor`).
 
 3. **From address**
    - Set **`MAIL_SENDER_ADDRESS`** to a sender address on your verified domain (e.g. `noreply@yourdomain.com`). This is the **platform fallback** From address.
@@ -310,7 +308,7 @@ Apply migration `supabase/migrations/20260920120000_planning_center_vault.sql` b
    - Leave a tenant’s fields blank to keep sending as `MAIL_FROM_NAME` / `MAIL_SENDER_ADDRESS`.
 
 4. **Deploy**
-   - After changing secrets, redeploy the `send-email` Edge Function so it picks up `RESEND_API_KEY`.
+   - After changing secrets, redeploy **`send-email`** and **`trigger-email-processor`** Edge Functions so they pick up `RESEND_API_KEY` and mail env vars.
 
 5. **HTTPS unsubscribe (one-click)**
    - Run migrations so `tenant_memberships` has `unsubscribe_token` and `email_templates` footers include `{{unsubscribe_url}}` where applicable.
@@ -333,14 +331,7 @@ Templates are stored in Supabase `email_templates` table:
 
 ### Email Queue Processing
 
-Email queue is processed by GitHub Actions workflow:
-
-```yaml
-# .github/workflows/process-email-queue.yml
-# Runs every 5 minutes
-# Processes up to 20 emails per run
-# Uses Resend; pacing helps stay within plan rate limits
-```
+Pending rows in `email_queue` are drained by the **`trigger-email-processor`** Edge Function (invoked from the app after enqueue). It sends via Resend **`POST /emails/batch`**: up to **100** messages per request, **one recipient per message** (no BCC), with a short pause between batch requests. Honor **`RESEND_API_KEY`** and **`MAIL_SENDER_ADDRESS`** on Edge Function secrets; redeploy `trigger-email-processor` after changing them.
 
 ---
 
@@ -588,9 +579,9 @@ npm run build
 
 ### Email Not Sending
 
-1. Check email queue: `SELECT * FROM email_queue WHERE status = 'failed'`
-2. Check logs: GitHub Actions > process-email-queue workflow
-3. Verify **Resend** (`RESEND_API_KEY`) and **`MAIL_SENDER_ADDRESS`** in Supabase Edge secrets and GitHub Actions secrets
+1. Check pending queue: `SELECT id, recipient, attempts, last_error, created_at FROM email_queue WHERE status = 'pending' ORDER BY created_at LIMIT 50;`
+2. Check logs: Supabase Dashboard → Edge Functions → **`trigger-email-processor`**
+3. Verify **Resend** (`RESEND_API_KEY`) and **`MAIL_SENDER_ADDRESS`** in Supabase Edge Function secrets
 4. Check email templates exist in database
 
 ---
