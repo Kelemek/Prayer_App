@@ -855,8 +855,10 @@ html, body {
     top: 0;
     padding-top: env(safe-area-inset-top);
   }
-  /* Home shell: sticky wrapper holds header + search panel (header itself is not sticky). */
-  .native-app .home-sticky-header-shell > header {
+  /* Home shell: sticky wrapper holds header + search panel (header itself is not sticky).
+     The header lives inside app-home-header, so a direct-child selector misses it.
+     When the org switcher is hidden, this header owns the status-bar inset. */
+  .native-app .home-sticky-header-shell header {
     padding-top: env(safe-area-inset-top);
   }
   /* Web: stick the org switcher below the safe-area strip, same as sticky headers. */
