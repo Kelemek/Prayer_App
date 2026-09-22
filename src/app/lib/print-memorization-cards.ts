@@ -10,7 +10,14 @@ export type MemorizationPrintCard = {
 export type MemorizationPrintSheetStyle = 'duplex' | 'foldable';
 
 /** Bumped when print CSS changes — visible in tab title and data-print-layout-version. */
-export const MEMORIZATION_PRINT_LAYOUT_VERSION = 13;
+export const MEMORIZATION_PRINT_LAYOUT_VERSION = 14;
+
+/**
+ * Row height for iOS `printHtml` duplex. The web layout row (~228pt) plus cell padding
+ * overflows UIMarkupTextPrintFormatter, so each side spills onto a second sheet.
+ * 200pt × 3 rows stays on one letter page and still fills most of it.
+ */
+export const IOS_DUPLEX_ROW_HEIGHT_PT = 200;
 
 export type MemorizationPrintBuildOptions = {
   /** iOS Capacitor `printHtml` uses UIMarkupTextPrintFormatter — use tables, not CSS grid/@page. */
@@ -97,6 +104,7 @@ export function computeMemorizationPrintLayout(
 function memorizationCardsPrintStylesIosDuplex(rowHeightPt: number): string {
   const rowH = formatPt(rowHeightPt);
   return `
+    * { box-sizing: border-box; }
     body {
       font-family: Georgia, 'Times New Roman', serif;
       color: #111;
@@ -105,8 +113,7 @@ function memorizationCardsPrintStylesIosDuplex(rowHeightPt: number): string {
     .no-print { display: none; }
     .card-grid-table {
       width: 100%;
-      border-collapse: separate;
-      border-spacing: 4pt;
+      border-collapse: collapse;
     }
     .card-cell {
       width: 50%;
@@ -553,8 +560,10 @@ function buildDuplexSheetParts(
     const isLastSheet = sheetIndex === sheets.length - 1;
 
     if (iosNativeDuplex) {
-      parts.push(renderIosDuplexPage(frontGrid, 'front', sheetIndex > 0, layout.rowHeightPt));
-      parts.push(renderIosDuplexPage(backGrid, 'back', true, layout.rowHeightPt));
+      parts.push(
+        renderIosDuplexPage(frontGrid, 'front', sheetIndex > 0, IOS_DUPLEX_ROW_HEIGHT_PT)
+      );
+      parts.push(renderIosDuplexPage(backGrid, 'back', true, IOS_DUPLEX_ROW_HEIGHT_PT));
     } else {
       parts.push(renderPage(frontGrid, 'front', layout));
       parts.push(SHEET_BREAK);
@@ -618,7 +627,7 @@ export function buildMemorizationCardsPrintHtml(
   const styleLabel = sheetStyle === 'foldable' ? 'Foldable' : 'Duplex';
   const title = `Print v${MEMORIZATION_PRINT_LAYOUT_VERSION} — verses (${styleLabel})`;
   const styles = iosNativeDuplex
-    ? memorizationCardsPrintStylesIosDuplex(layout.rowHeightPt)
+    ? memorizationCardsPrintStylesIosDuplex(IOS_DUPLEX_ROW_HEIGHT_PT)
     : memorizationCardsPrintStyles(layout, sheetStyle);
   const iosAttr = iosNativeDuplex ? ' data-print-ios-native-duplex="true"' : '';
 

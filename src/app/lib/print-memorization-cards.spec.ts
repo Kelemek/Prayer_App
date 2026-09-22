@@ -6,6 +6,7 @@ import {
   MEMORIZATION_PRINT_LAYOUT_VERSION,
   MEMORIZATION_PRINT_PAGE_HEIGHT_PT,
   MEMORIZATION_PRINT_PAGE_MARGIN_PT,
+  IOS_DUPLEX_ROW_HEIGHT_PT,
   buildMemorizationCardsPrintHtml,
   chunkMemorizationCardsForSheets,
   computeMemorizationPrintLayout,
@@ -59,8 +60,10 @@ describe('print-memorization-cards', () => {
     expect(html).not.toContain('display: grid');
     expect(html).not.toContain('page-break-after');
     expect(html).toContain('page-break-before: always');
-    const layout = computeMemorizationPrintLayout('duplex');
-    expect(html).toContain(`height:${layout.rowHeightPt.toFixed(2)}pt`);
+    expect(html).toContain(`height:${IOS_DUPLEX_ROW_HEIGHT_PT.toFixed(2)}pt`);
+    expect(IOS_DUPLEX_ROW_HEIGHT_PT * 3).toBeLessThan(
+      computeMemorizationPrintLayout('duplex').contentHeightPt
+    );
   });
 
   it('embeds layout version and duplex sheet breaks', () => {
