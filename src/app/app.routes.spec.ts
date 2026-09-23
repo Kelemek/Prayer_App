@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { routes, routerConfig } from './app.routes';
+import { routes } from './app.routes';
 import { adminGuard } from './guards/admin.guard';
 import { siteAuthGuard } from './guards/site-auth.guard';
 
@@ -127,18 +127,6 @@ describe('AppRoutes', () => {
     expect(churchSetup?.canActivate).not.toContain(adminGuard);
   });
 
-  it('should have admin route with preload hint', () => {
-    const adminRoute = routes.find(r => r.path === 'admin');
-    expect(adminRoute?.data).toBeDefined();
-    expect(adminRoute?.data?.['preload']).toBe(true);
-  });
-
-  it('should have presentation route with no preload', () => {
-    const presentationRoute = routes.find(r => r.path === 'presentation');
-    expect(presentationRoute?.data).toBeDefined();
-    expect(presentationRoute?.data?.['preload']).toBe(false);
-  });
-
   it('should lazy load home component successfully', async () => {
     const rootRoute = routes.find(r => r.path === '');
     expect(rootRoute?.loadComponent).toBeDefined();
@@ -210,14 +198,4 @@ describe('AppRoutes', () => {
       expect(loaded).toBeDefined();
     }
   }, 10000);
-});
-
-describe('routerConfig', () => {
-  it('should have scrollPositionRestoration as top', () => {
-    expect(routerConfig.scrollPositionRestoration).toBe('top');
-  });
-
-  it('should have scrollOffset as [0, 0]', () => {
-    expect(routerConfig.scrollOffset).toEqual([0, 0]);
-  });
 });

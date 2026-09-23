@@ -63,15 +63,6 @@
         (save)="handlers.onPersonalUpdateSaved()"
       ></app-personal-prayer-update-edit-modal>
 
-      <!-- Member Prayer Update Edit Modal (unused in multi-tenant; kept for shell parity) -->
-      <app-personal-prayer-update-edit-modal
-        [isOpen]="showEditMemberUpdate"
-        [update]="editingMemberUpdate"
-        [prayerId]="editingMemberUpdatePrayerId"
-        (close)="handlers.closeEditMemberUpdate()"
-        (save)="handlers.onMemberUpdateSaved()"
-      ></app-personal-prayer-update-edit-modal>
-
   <app-add-memorized-verse-modal
     [isOpen]="showAddMemorizedVerse"
     (onClose)="handlers.closeAddMemorizedVerse()"

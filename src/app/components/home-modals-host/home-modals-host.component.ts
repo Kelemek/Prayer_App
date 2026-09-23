@@ -58,10 +58,6 @@ export class HomeModalsHostComponent {
   @Input({ required: true }) showEditPersonalUpdate!: boolean;
   @Input({ required: true }) editingUpdate!: PrayerUpdate | null;
   @Input({ required: true }) editingUpdatePrayerId!: string;
-  @Input({ required: true }) showEditMemberUpdate!: boolean;
-  @Input({ required: true }) editingMemberUpdate!: PrayerUpdate | null;
-  @Input({ required: true }) editingMemberUpdatePrayerId!: string;
-  @Input({ required: true }) planningCenterListId!: string | null;
   @Input({ required: true }) showAddMemorizedVerse!: boolean;
   @Input({ required: true }) showAddMemorizedBibleBooks!: boolean;
   @Input({ required: true }) showMemorizationRecommendations!: boolean;

@@ -1241,66 +1241,6 @@ describe('HomeComponent', () => {
     expect(mocks.router.navigate).toHaveBeenCalledWith(['/admin']);
   });
 
-  it('shows tenant switcher for multi-tenant email subscribers on home', () => {
-    mocks.tenantContextService.getTenantSwitcherOptions.mockReturnValue([
-      { id: 'tenant-a', name: 'Alpha Church', slug: 'alpha', plan_tier: 'churches', plan_status: 'active' },
-      { id: 'tenant-b', name: 'Beta Church', slug: 'beta', plan_tier: 'churches', plan_status: 'active' }
-    ]);
-    mocks.tenantContextService.getActiveTenant.mockReturnValue({
-      id: 'tenant-a',
-      name: 'Alpha Church',
-      slug: 'alpha',
-      plan_tier: 'churches',
-      plan_status: 'active'
-    });
-    const comp = createHomeComponent(
-      mocks.prayerService,
-      mocks.promptService,
-      mocks.adminAuthService,
-      mocks.userSessionService,
-      mocks.badgeService,
-      mocks.toastService,
-      mocks.analyticsService,
-      mocks.cdr,
-      mocks.router,
-      mocks.route,
-      mocks.supabaseService
-    );
-    comp.tenantContextLoading = false;
-
-    expect(comp.showTenantSwitcher).toBe(true);
-    expect(comp.tenantSwitchOptions).toHaveLength(2);
-  });
-
-  it('hides tenant switcher on home when user belongs to one tenant', () => {
-    mocks.tenantContextService.getTenantSwitcherOptions.mockReturnValue([
-      { id: 'tenant-a', name: 'Alpha Church', slug: 'alpha', plan_tier: 'churches', plan_status: 'active' }
-    ]);
-    mocks.tenantContextService.getActiveTenant.mockReturnValue({
-      id: 'tenant-a',
-      name: 'Alpha Church',
-      slug: 'alpha',
-      plan_tier: 'churches',
-      plan_status: 'active'
-    });
-    const comp = createHomeComponent(
-      mocks.prayerService,
-      mocks.promptService,
-      mocks.adminAuthService,
-      mocks.userSessionService,
-      mocks.badgeService,
-      mocks.toastService,
-      mocks.analyticsService,
-      mocks.cdr,
-      mocks.router,
-      mocks.route,
-      mocks.supabaseService
-    );
-    comp.tenantContextLoading = false;
-
-    expect(comp.showTenantSwitcher).toBe(false);
-  });
-
   it('navigateToAdmin shows error when tenant member lacks admin access', () => {
     mocks.tenantPermissionService.canAccessAdmin.mockReturnValue(false);
     mocks.tenantContextService.getMemberships.mockReturnValue([

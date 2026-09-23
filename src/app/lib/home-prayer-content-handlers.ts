@@ -20,7 +20,6 @@ export interface HomePrayerContentHandlers {
   ): void;
   requestDeletion(request: PrayerCardDeletionRequest): void;
   requestUpdateDeletion(request: PrayerCardUpdateDeletionRequest): void;
-  editMemberUpdate(event: { update: PrayerUpdate; prayerId: string }): void;
   toggleMemberUpdateAnswered(event: PrayerCardToggleAnsweredEvent): void;
   editPersonalPrayer(prayer: PrayerRequest): void;
   editPersonalUpdate(event: { update: PrayerUpdate; prayerId: string }): void;

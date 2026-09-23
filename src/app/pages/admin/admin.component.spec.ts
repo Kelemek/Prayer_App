@@ -85,7 +85,6 @@ describe('AdminComponent', () => {
 
     adminAuthService = {
       user$: of({ email: 'admin@example.com' }),
-      recordActivity: vi.fn()
     };
 
     userSessionService = {
@@ -113,55 +112,6 @@ describe('AdminComponent', () => {
       ngZone,
       cdr
     );
-  });
-
-  it('shows tenant switcher for super admin with multiple tenants', () => {
-    tenantContextService.getTenantSwitcherOptions.mockReturnValue([
-      { id: 'tenant-a', name: 'Alpha Church', slug: 'alpha', plan_tier: 'churches', plan_status: 'active' },
-      { id: 'tenant-b', name: 'Beta Church', slug: 'beta', plan_tier: 'churches', plan_status: 'active' }
-    ]);
-    tenantContextService.getActiveTenant.mockReturnValue({
-      id: 'tenant-a',
-      name: 'Alpha Church',
-      plan_tier: 'churches',
-      plan_status: 'active'
-    });
-    component.tenantContextLoading = false;
-
-    expect(component.showTenantSwitcher).toBe(true);
-    expect(component.tenantSwitchOptions).toHaveLength(2);
-  });
-
-  it('shows tenant switcher for multi-tenant members', () => {
-    tenantContextService.getTenantSwitcherOptions.mockReturnValue([
-      { id: 'tenant-a', name: 'Alpha Church', slug: 'alpha', plan_tier: 'churches', plan_status: 'active' },
-      { id: 'tenant-b', name: 'Beta Church', slug: 'beta', plan_tier: 'churches', plan_status: 'active' }
-    ]);
-    tenantContextService.getActiveTenant.mockReturnValue({
-      id: 'tenant-a',
-      name: 'Alpha Church',
-      plan_tier: 'churches',
-      plan_status: 'active'
-    });
-    component.tenantContextLoading = false;
-
-    expect(component.showTenantSwitcher).toBe(true);
-    expect(component.tenantSwitchOptions).toHaveLength(2);
-  });
-
-  it('hides tenant switcher when user has only one tenant', () => {
-    tenantContextService.getTenantSwitcherOptions.mockReturnValue([
-      { id: 'tenant-a', name: 'Alpha Church', slug: 'alpha', plan_tier: 'churches', plan_status: 'active' }
-    ]);
-    tenantContextService.getActiveTenant.mockReturnValue({
-      id: 'tenant-a',
-      name: 'Alpha Church',
-      plan_tier: 'churches',
-      plan_status: 'active'
-    });
-    component.tenantContextLoading = false;
-
-    expect(component.showTenantSwitcher).toBe(false);
   });
 
   it('subscribes and fetches admin data on init', async () => {
@@ -392,11 +342,6 @@ describe('AdminComponent', () => {
     component.ngOnDestroy();
     expect(next).toHaveBeenCalled();
     expect(complete).toHaveBeenCalled();
-  });
-
-  it('recordActivity calls adminAuthService.recordActivity', () => {
-    component.recordActivity();
-    expect(adminAuthService.recordActivity).toHaveBeenCalled();
   });
 
   it('handles service errors in various async methods without throwing', async () => {

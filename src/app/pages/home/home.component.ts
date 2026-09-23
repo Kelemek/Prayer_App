@@ -68,7 +68,7 @@ import {
   BRANDING_CACHE_KEYS,
   getBrandingCacheKey,
 } from "../../utils/branding-cache-keys";
-import type { Tenant, TenantMembership } from "../../types/tenant";
+import type { TenantMembership } from "../../types/tenant";
 import {
   parseHomeReturnContextFromState,
   HOME_RETURN_CONTEXT_STATE_KEY,
@@ -222,8 +222,6 @@ export class HomeComponent
   membersGroupIdToOpen: string | null = null;
   groupPrayers: PrayerRequest[] = [];
   tenantMemberships: TenantMembership[] = [];
-  availableTenants: Tenant[] = [];
-  tenantContextLoading = true;
   personalCategoryPickerPrayerId: string | null = null;
 
   memorizedItems: MemorizedItem[] = [];
@@ -263,34 +261,8 @@ export class HomeComponent
     return this.tenantPermissionService.canAccessAdmin();
   }
 
-  get activeTenantId(): string | null {
-    return this.tenantContextService.getActiveTenant()?.id ?? null;
-  }
-
   get isSuperAdmin(): boolean {
     return this.tenantContextService.getIsSuperAdmin();
-  }
-
-  get showTenantSwitcher(): boolean {
-    return (
-      !this.tenantContextLoading &&
-      !!this.activeTenantId &&
-      this.tenantSwitchOptions.length > 1
-    );
-  }
-
-  get tenantSwitchOptions(): Tenant[] {
-    const ctx = this.tenantContextService;
-    const options = ctx.getTenantSwitcherOptions();
-    const unique = new Map(options.map((tenant) => [tenant.id, tenant]));
-    const activeTenant = ctx.getActiveTenant();
-    if (activeTenant?.id && !unique.has(activeTenant.id)) {
-      unique.set(activeTenant.id, activeTenant);
-    }
-
-    return Array.from(unique.values()).sort((a, b) =>
-      a.name.localeCompare(b.name)
-    );
   }
 
   constructor(
@@ -396,7 +368,6 @@ export class HomeComponent
       adminNav: this.adminNav,
       presentationNav: this.presentationNav,
       memorizationRecommendationsService: this.memorizationRecommendationsService,
-      planningCenterListId: () => this.planningCenter.planningCenterListId,
       catalog: this.catalog,
       getActiveFilter: () => this.activeFilter,
       getPersonalPrayers: () => this.personalPrayers,
@@ -495,22 +466,7 @@ export class HomeComponent
         this.tenantMemberships = memberships;
         this.cdr.markForCheck();
       });
-    tenant.loading$
-      ?.pipe(takeUntil(this.destroy$))
-      .subscribe((loading) => {
-        this.tenantContextLoading = loading;
-        this.cdr.markForCheck();
-      });
-    tenant.availableTenants$
-      ?.pipe(takeUntil(this.destroy$))
-      .subscribe((tenants) => {
-        this.availableTenants = tenants;
-        this.cdr.markForCheck();
-      });
     tenant.isSuperAdmin$
-      ?.pipe(takeUntil(this.destroy$))
-      .subscribe(() => this.cdr.markForCheck());
-    tenant.subscriberTenants$
       ?.pipe(takeUntil(this.destroy$))
       .subscribe(() => this.cdr.markForCheck());
   }

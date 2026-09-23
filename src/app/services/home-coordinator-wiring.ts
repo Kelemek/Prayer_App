@@ -250,9 +250,6 @@ export function wireHomeCoordinators(
     { markForCheck: () => cdr.markForCheck() },
     {
       adminAuthService: deps.adminAuthService,
-      reloadMemberPrayerUpdates: (personId) => {
-        void deps.planningCenter.reloadMemberPrayerUpdates(personId);
-      },
     }
   );
 

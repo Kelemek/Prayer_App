@@ -20,13 +20,11 @@ export const routes: Routes = [
     path: 'admin',
     loadComponent: () => import('./pages/admin/admin.component').then(m => m.AdminComponent),
     canActivate: [siteAuthGuard, adminGuard],
-    data: { preload: true } // Hint for preloading strategy if implemented
   },
   {
     path: 'presentation',
     loadComponent: () => import('./pages/presentation/presentation.component').then(m => m.PresentationComponent),
     canActivate: [siteAuthGuard],
-    data: { preload: false }
   },
   {
     path: 'privacy',
@@ -60,9 +58,3 @@ export const routes: Routes = [
     redirectTo: ''
   }
 ];
-
-// Configure router to scroll to top on navigation and disable scroll position restoration
-export const routerConfig = {
-  scrollPositionRestoration: 'top' as const,
-  scrollOffset: [0, 0] as [number, number]
-};

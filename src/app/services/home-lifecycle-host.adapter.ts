@@ -6,7 +6,7 @@ import type { HomeActiveFilter } from "./home-deep-link-host.adapter";
 import type { HomeLifecycleHost, HomeObservableStreams } from "./home-lifecycle.coordinator";
 import type { MemorizedItem } from "../types/memorization";
 import { groupItemsByMasterLevel } from "../lib/memorization/memorization-mastery";
-import type { Tenant, TenantMembership } from "../types/tenant";
+import type { TenantMembership } from "../types/tenant";
 import type { HomeDefaultPrayerView } from "../lib/home-default-view-preference";
 
 export interface HomeLifecyclePageBindings {
@@ -32,8 +32,6 @@ export interface HomeLifecyclePageBindings {
   viewReady: boolean;
   isOnline?: boolean;
   tenantMemberships?: TenantMembership[];
-  tenantContextLoading?: boolean;
-  availableTenants?: Tenant[];
   canAccessShared?: boolean;
   memorizedItems?: MemorizedItem[];
   memorizedItemsCount?: number;

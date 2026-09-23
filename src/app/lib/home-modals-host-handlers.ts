@@ -22,8 +22,6 @@ export interface HomeModalsHostHandlers {
   saveRenamedPersonalCategory(name: string): void;
   closeEditPersonalUpdate(): void;
   onPersonalUpdateSaved(): void;
-  closeEditMemberUpdate(): void;
-  onMemberUpdateSaved(): void;
   closeAddMemorizedVerse(): void;
   onMemorizedVerseAdded(): void;
   closeAddMemorizedBibleBooks(): void;

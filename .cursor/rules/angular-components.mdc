@@ -30,7 +30,7 @@ alwaysApply: false
 
 - Use **lazy loading**: `loadComponent: () => import('./pages/...').then(m => m.SomeComponent)`.
 - Use **functional guards**: `canActivate: [siteAuthGuard]`, `canActivate: [adminGuard]`.
-- Route config is in `src/app/app.routes.ts`; optional `data: { preload: true }` for preload hints.
+- Route config is in `src/app/app.routes.ts`. Scroll restoration is configured in `src/main.ts`.
 
 ## Types
 

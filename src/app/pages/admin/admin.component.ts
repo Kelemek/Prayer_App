@@ -2,7 +2,6 @@ import {
   Component,
   OnInit,
   OnDestroy,
-  HostListener,
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   NgZone,
@@ -20,7 +19,6 @@ import {
 import { ConfirmationDialogComponent } from '../../components/confirmation-dialog/confirmation-dialog.component';
 import { TenantContextService } from '../../services/tenant-context.service';
 import { ToastService } from '../../services/toast.service';
-import type { Tenant } from '../../types/tenant';
 import { AdminNavTilesComponent } from '../../components/admin-nav-tiles/admin-nav-tiles.component';
 import { AdminApprovalsPanelComponent } from '../../components/admin-approvals-panel/admin-approvals-panel.component';
 import { AdminDeletionsPanelComponent } from '../../components/admin-deletions-panel/admin-deletions-panel.component';
@@ -90,7 +88,6 @@ export class AdminComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
   private hasFetchStarted = false;
   isSuperAdmin = false;
-  tenantContextLoading = true;
   approvingAccountRequestId: string | null = null;
   denyingAccountRequestId: string | null = null;
 
@@ -106,14 +103,6 @@ export class AdminComponent implements OnInit, OnDestroy {
     private ngZone: NgZone,
     public cdr: ChangeDetectorRef,
   ) {}
-
-  @HostListener('document:click')
-  @HostListener('document:keypress')
-  @HostListener('document:mousemove')
-  @HostListener('document:touchstart')
-  recordActivity(): void {
-    this.adminAuthService.recordActivity();
-  }
 
   ngOnInit(): void {
     void this.handleChurchCheckoutQuery();
@@ -134,13 +123,6 @@ export class AdminComponent implements OnInit, OnDestroy {
       .subscribe((isSuperAdmin) => {
         this.isSuperAdmin = isSuperAdmin;
         this.ensureSettingsTabAllowed();
-        this.cdr.markForCheck();
-      });
-
-    this.tenantContextService.loading$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((loading) => {
-        this.tenantContextLoading = loading;
         this.cdr.markForCheck();
       });
 
@@ -321,29 +303,6 @@ export class AdminComponent implements OnInit, OnDestroy {
     this.showLogoutConfirmation = false;
     this.cdr.markForCheck();
     await this.adminAuthService.logout();
-  }
-
-  get activeTenantId(): string | null {
-    return this.tenantContextService.getActiveTenant()?.id ?? null;
-  }
-
-  get showTenantSwitcher(): boolean {
-    return (
-      !this.tenantContextLoading &&
-      !!this.activeTenantId &&
-      this.tenantSwitchOptions.length > 1
-    );
-  }
-
-  get tenantSwitchOptions(): Tenant[] {
-    const options = this.tenantContextService.getTenantSwitcherOptions();
-    const unique = new Map(options.map((tenant) => [tenant.id, tenant]));
-    const activeTenant = this.tenantContextService.getActiveTenant();
-    if (activeTenant?.id && !unique.has(activeTenant.id)) {
-      unique.set(activeTenant.id, activeTenant);
-    }
-
-    return Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   refresh(): void {

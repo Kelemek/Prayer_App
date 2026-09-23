@@ -30,7 +30,6 @@ export interface HomePageShellDeps {
   adminNav: HomeAdminNavigationController;
   presentationNav: HomePresentationNavigationController;
   memorizationRecommendationsService: MemorizationRecommendationsService;
-  planningCenterListId: () => string | null;
   catalog: HomeCatalogStore;
   getActiveFilter: () => HomeActiveFilter;
   getPersonalPrayers: () => PrayerRequest[];
@@ -77,10 +76,6 @@ export interface HomePageShell {
     readonly showEditPersonalUpdate: boolean;
     readonly editingUpdate: PrayerUpdate | null;
     readonly editingUpdatePrayerId: string;
-    readonly showEditMemberUpdate: boolean;
-    readonly editingMemberUpdate: PrayerUpdate | null;
-    readonly editingMemberUpdatePrayerId: string;
-    readonly planningCenterListId: string | null;
     readonly showAddMemorizedVerse: boolean;
     readonly showAddMemorizedBibleBooks: boolean;
     readonly showMemorizationRecommendations: boolean;
@@ -175,18 +170,6 @@ export function createHomePageShell(deps: HomePageShellDeps): HomePageShell {
     },
     get editingUpdatePrayerId() {
       return deps.modals.editingUpdatePrayerId;
-    },
-    get showEditMemberUpdate() {
-      return deps.modals.showEditMemberUpdate;
-    },
-    get editingMemberUpdate() {
-      return deps.modals.editingMemberUpdate;
-    },
-    get editingMemberUpdatePrayerId() {
-      return deps.modals.editingMemberUpdatePrayerId;
-    },
-    get planningCenterListId() {
-      return deps.planningCenterListId();
     },
     get showAddMemorizedVerse() {
       return deps.memorizationPanel.showAddMemorizedVerse;
@@ -333,10 +316,6 @@ export function createHomePageShellHandlers(
         deps.modals.showEditPersonalUpdate = false;
       },
       onPersonalUpdateSaved: () => deps.modals.onPersonalUpdateSaved(),
-      closeEditMemberUpdate: () => {
-        deps.modals.showEditMemberUpdate = false;
-      },
-      onMemberUpdateSaved: () => deps.modals.onMemberUpdateSaved(),
       closeAddMemorizedVerse: () => {
         deps.memorizationPanel.showAddMemorizedVerse = false;
       },
@@ -381,8 +360,6 @@ export function createHomePageShellHandlers(
         void deps.prayerCardActions.requestDeletion(request),
       requestUpdateDeletion: (request) =>
         void deps.prayerCardActions.requestUpdateDeletion(request),
-      editMemberUpdate: (event) =>
-        deps.modals.openEditMemberUpdateModal(event),
       toggleMemberUpdateAnswered: (event) =>
         void deps.memberCardActions.toggleMemberUpdateAnswered(event),
       editPersonalPrayer: (prayer) => deps.modals.openEditModal(prayer),
