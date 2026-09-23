@@ -1322,8 +1322,7 @@ export class LoginComponent implements OnInit, OnDestroy {
         normalized
       );
 
-      // Use the signed-in client. directQuery uses the publishable key, so RLS
-      // hides tenant_memberships and approved subscribers look like new users.
+      // Signed-in client so RLS evaluates current_user_email() on this membership row.
       const { data, error } = await this.supabaseService.client
         .from("tenant_memberships")
         .select("id, user_email, is_blocked")

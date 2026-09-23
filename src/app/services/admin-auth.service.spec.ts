@@ -97,6 +97,7 @@ describe('AdminAuthService', () => {
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
       }),
       functions: {
@@ -526,28 +527,46 @@ describe('AdminAuthService', () => {
 
     it('should reload site protection setting from database', async () => {
       mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-a' });
-      mockSupabaseService.directQuery = vi.fn().mockResolvedValue({
-        data: [{ require_site_login: false }],
-        error: null
+      mockSupabaseClient.from.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { require_site_login: false },
+          error: null
+        })
       });
 
       await service.reloadSiteProtectionSetting();
 
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('tenant_settings');
+      expect(mockSupabaseService.directQuery).not.toHaveBeenCalled();
       const requireSiteLogin = await firstValueFrom(service.requireSiteLogin$);
       expect(requireSiteLogin).toBe(false);
     });
 
     it('should handle reload error', async () => {
-      mockSupabaseService.directQuery = vi.fn().mockResolvedValue({
-        data: null,
-        error: { message: 'Database error' }
+      mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-a' });
+      mockSupabaseClient.from.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: null,
+          error: { message: 'Database error' }
+        })
       });
 
       await expect(service.reloadSiteProtectionSetting()).resolves.not.toThrow();
+      expect(mockSupabaseService.directQuery).not.toHaveBeenCalled();
     });
 
     it('should handle reload exception', async () => {
-      mockSupabaseService.directQuery = vi.fn().mockRejectedValue(new Error('Network error'));
+      mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-a' });
+      mockSupabaseClient.from.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockRejectedValue(new Error('Network error'))
+      });
 
       await expect(service.reloadSiteProtectionSetting()).resolves.not.toThrow();
     });
@@ -559,9 +578,8 @@ describe('AdminAuthService', () => {
     });
 
     it('should throttle blocked status checks', async () => {
-      // Clear any previous calls from initialization
+      service.userSubject.next({ email: 'user@example.com' });
       vi.clearAllMocks();
-      const directQuerySpy = vi.spyOn(mockSupabaseService, 'directQuery');
 
       service.checkBlockedStatusInBackground();
       service.checkBlockedStatusInBackground();
@@ -569,13 +587,21 @@ describe('AdminAuthService', () => {
       await vi.advanceTimersByTimeAsync(100);
 
       // Should only call once due to throttling (within 60 second window)
-      expect(directQuerySpy).toHaveBeenCalledTimes(1);
+      expect(mockSupabaseClient.from).toHaveBeenCalledTimes(1);
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('tenant_memberships');
+      expect(mockSupabaseService.directQuery).not.toHaveBeenCalled();
     });
 
     it('should handle blocked check error gracefully', async () => {
-      mockSupabaseService.directQuery = vi.fn().mockResolvedValue({
-        data: null,
-        error: { message: 'Database error' }
+      service.userSubject.next({ email: 'user@example.com' });
+      mockSupabaseClient.from.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: null,
+          error: { message: 'Database error' }
+        })
       });
 
       service.checkBlockedStatusInBackground();
@@ -586,7 +612,13 @@ describe('AdminAuthService', () => {
     });
 
     it('should handle blocked check exception gracefully', async () => {
-      mockSupabaseService.directQuery = vi.fn().mockRejectedValue(new Error('Network error'));
+      service.userSubject.next({ email: 'user@example.com' });
+      mockSupabaseClient.from.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockRejectedValue(new Error('Network error'))
+      });
 
       service.checkBlockedStatusInBackground();
       await vi.advanceTimersByTimeAsync(100);
@@ -623,9 +655,14 @@ describe('AdminAuthService', () => {
 
       // Now check blocked status and user should be blocked
       vi.clearAllMocks();
-      mockSupabaseService.directQuery = vi.fn().mockResolvedValue({
-        data: [{ is_blocked: true }],
-        error: null
+      mockSupabaseClient.from.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { is_blocked: true },
+          error: null
+        })
       });
 
       service.checkBlockedStatusInBackground('/admin/users');
@@ -1076,8 +1113,9 @@ describe('AdminAuthService', () => {
       newService.checkBlockedStatusInBackground();
       await vi.advanceTimersByTimeAsync(100);
 
-      // Should call directQuery with empty email
-      expect(mockSupabaseService.directQuery).toHaveBeenCalled();
+      // No email means no membership read. Do not query as anon.
+      expect(mockSupabaseClient.from).not.toHaveBeenCalled();
+      expect(mockSupabaseService.directQuery).not.toHaveBeenCalled();
     });
 
     it('should handle user without email on init', async () => {
@@ -1312,7 +1350,7 @@ describe('AdminAuthService', () => {
       const newService = new AdminAuthService(mockSupabaseService, mockCacheService, mockTenantContext as any, mockAuthIdentity as any);
       await vi.advanceTimersByTimeAsync(100);
 
-      const initialCallCount = mockSupabaseService.directQuery.mock.calls.length;
+      const initialInvokeCount = mockSupabaseClient.functions.invoke.mock.calls.length;
 
       // Trigger visibilitychange event while page is still hidden
       if (visibilityChangeHandler) {
@@ -1320,8 +1358,9 @@ describe('AdminAuthService', () => {
         await vi.advanceTimersByTimeAsync(100);
       }
 
-      // No additional directQuery calls should happen when page stays hidden
-      expect(mockSupabaseService.directQuery.mock.calls.length).toBe(initialCallCount);
+      // Staying hidden must not re-read membership or re-check admin status
+      expect(mockSupabaseClient.functions.invoke.mock.calls.length).toBe(initialInvokeCount);
+      expect(mockSupabaseClient.from).not.toHaveBeenCalled();
     });
 
   });

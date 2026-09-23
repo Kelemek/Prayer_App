@@ -3,8 +3,13 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 // Ensure we can mock modules before importing the service
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => ({
-    auth: { getSession: vi.fn(() => ({ data: null, error: null })) }
-  }))
+    auth: {
+      getSession: vi.fn(async () => ({
+        data: { session: { access_token: 'user-access-token' } },
+        error: null,
+      })),
+    },
+  })),
 }));
 
 describe('SupabaseService', () => {
@@ -13,6 +18,15 @@ describe('SupabaseService', () => {
 
   beforeEach(async () => {
     vi.resetModules();
+    const { createClient } = await import('@supabase/supabase-js');
+    (createClient as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      auth: {
+        getSession: vi.fn(async () => ({
+          data: { session: { access_token: 'user-access-token' } },
+          error: null,
+        })),
+      },
+    }));
     env = await import('../../environments/environment');
     // default valid env
     env.environment.supabaseUrl = 'https://supabase.example';
@@ -329,6 +343,111 @@ describe('SupabaseService', () => {
     expect(capturedUrl).toContain('user=eq.3');
     expect(capturedHeaders).toBeDefined();
     expect(capturedHeaders!['Prefer']).toBe('count=exact');
+    expect(capturedHeaders!['apikey']).toBe('anon-key');
+    expect(capturedHeaders!['Authorization']).toBe('Bearer user-access-token');
+    expect(capturedHeaders!['Authorization']).not.toContain('anon-key');
+  });
+
+  it('directMutation sends the session access token, not the publishable key', async () => {
+    let capturedHeaders: Record<string, string> | undefined;
+    globalThis.fetch = vi.fn((_url: string, opts: any) => {
+      capturedHeaders = opts.headers;
+      return Promise.resolve({ ok: true, status: 201, json: async () => [{ id: 1 }], text: async () => '' } as any);
+    });
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+    const res = await svc.directMutation('tenant_memberships', {
+      method: 'POST',
+      body: { name: 'x' },
+      returning: true,
+    });
+
+    expect(res.error).toBeNull();
+    expect(capturedHeaders!['apikey']).toBe('anon-key');
+    expect(capturedHeaders!['Authorization']).toBe('Bearer user-access-token');
+    expect(capturedHeaders!['Authorization']).not.toContain('anon-key');
+    expect(capturedHeaders!['Prefer']).toBe('return=representation');
+  });
+
+  it('directQuery does not call PostgREST as anon when signed out', async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+    const createClient = (await import('@supabase/supabase-js')).createClient as any;
+    createClient.mockImplementation(() => ({
+      auth: {
+        getSession: vi.fn(async () => ({ data: { session: null }, error: null })),
+      },
+    }));
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+    const res = await svc.directQuery('tenant_memberships', { select: 'is_blocked' });
+
+    expect(res.data).toBeNull();
+    expect(String(res.error)).toContain('Sign in is required');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('directMutation does not call PostgREST as anon when signed out', async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+    const createClient = (await import('@supabase/supabase-js')).createClient as any;
+    createClient.mockImplementation(() => ({
+      auth: {
+        getSession: vi.fn(async () => ({ data: { session: null }, error: null })),
+      },
+    }));
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+    const res = await svc.directMutation('tenant_memberships', { method: 'POST', body: {} });
+
+    expect(res.data).toBeNull();
+    expect(String(res.error)).toContain('Sign in is required');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('directQuery returns an error when the session cannot be read', async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+    const createClient = (await import('@supabase/supabase-js')).createClient as any;
+    createClient.mockImplementation(() => ({
+      auth: {
+        getSession: vi.fn(async () => ({ data: { session: null }, error: new Error('boom') })),
+      },
+    }));
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+    const res = await svc.directQuery('tenant_settings');
+
+    expect(String(res.error)).toContain('Signed-in session is unavailable');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('directQuery clears the abort timer when fetch throws', async () => {
+    const clearSpy = vi.spyOn(globalThis, 'clearTimeout');
+    globalThis.fetch = vi.fn(() => Promise.reject(new Error('network fail')));
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+    const res = await svc.directQuery('table');
+
+    expect(String(res.error)).toContain('network fail');
+    expect(clearSpy).toHaveBeenCalled();
+  });
+
+  it('directMutation clears the abort timer when fetch throws', async () => {
+    const clearSpy = vi.spyOn(globalThis, 'clearTimeout');
+    globalThis.fetch = vi.fn(() => Promise.reject(new Error('boom')));
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+    const res = await svc.directMutation('t', { method: 'POST', body: {} });
+
+    expect(res.error).toBeInstanceOf(Error);
+    expect(clearSpy).toHaveBeenCalled();
   });
 
   it('directMutation returns null data for 204 responses', async () => {
