@@ -32,6 +32,34 @@ describe("prayer-personal-load-wire", () => {
     expect(setPersonalPrayers).toHaveBeenCalledWith(cached);
   });
 
+  it("runPersonalPrayerCatalogLoad hits the DB when a live refresh bypasses warm cache", async () => {
+    const fetchFromDb = vi.fn().mockResolvedValue([]);
+    const cached = [{ id: "1" } as PrayerRequest];
+
+    await runPersonalPrayerCatalogLoad(
+      {
+        getUserEmail: vi.fn().mockResolvedValue("me@test.com"),
+        readCache: () => cached,
+        invalidateCache: vi.fn(),
+        setLoading: vi.fn(),
+        markFetchComplete: vi.fn(),
+        setPersonalPrayers: vi.fn(),
+        clearPersonalPrayersInMemory: vi.fn(),
+        cacheSnapshotActions: () => ({
+          normalize: (prayers) => prayers,
+          setPersonalPrayers: vi.fn(),
+          dropAnsweredReminders: vi.fn(),
+        }),
+        fetchFromDb,
+        dropAnsweredReminders: vi.fn(),
+      },
+      true,
+      { bypassWarmCache: true }
+    );
+
+    expect(fetchFromDb).toHaveBeenCalledWith("me@test.com");
+  });
+
   it("runPersonalPrayerCatalogLoad fetches from DB when cache miss", async () => {
     const prayers = [{ id: "1" } as PrayerRequest];
     const fetchFromDb = vi.fn().mockResolvedValue(prayers);

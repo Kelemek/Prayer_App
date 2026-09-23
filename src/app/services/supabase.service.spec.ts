@@ -152,6 +152,27 @@ describe('SupabaseService', () => {
     expect(createClient).toHaveBeenCalled();
   });
 
+  it('reconnect notifies listeners with the previous client', async () => {
+    const previous = { auth: { getSession: vi.fn(async () => ({ data: null, error: new Error('boom') })) } };
+    const next = { auth: { getSession: vi.fn(async () => ({ data: { session: true }, error: null })) } };
+    const createClient = (await import('@supabase/supabase-js')).createClient as any;
+    let created = 0;
+    createClient.mockImplementation(() => {
+      created += 1;
+      return created === 1 ? previous : next;
+    });
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+    const listener = vi.fn();
+    svc.onClientReplaced(listener);
+
+    await svc.ensureConnected();
+
+    expect(listener).toHaveBeenCalledWith(previous);
+    expect(svc.client).toBe(next);
+  });
+
   it('ensureConnected does not reconnect when session is healthy', async () => {
     const supabaseMock = { auth: { getSession: vi.fn(async () => ({ data: { session: true }, error: null })) } };
     const createClient = (await import('@supabase/supabase-js')).createClient as any;

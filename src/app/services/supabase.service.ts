@@ -9,6 +9,9 @@ import { describeFunctionInvokeFailure as formatFunctionInvokeFailure } from '..
 })
 export class SupabaseService {
   private supabase: SupabaseClient;
+  private readonly clientReplacedListeners = new Set<
+    (previousClient: SupabaseClient) => void
+  >();
 
   constructor() {
     const supabaseUrl = environment.supabaseUrl;
@@ -38,6 +41,19 @@ export class SupabaseService {
 
   get client(): SupabaseClient {
     return this.supabase;
+  }
+
+  /**
+   * Fires after `reconnect()` replaces the client. Listeners must drop channels
+   * opened on `previousClient`; later `client` reads return the new instance.
+   */
+  onClientReplaced(
+    listener: (previousClient: SupabaseClient) => void
+  ): () => void {
+    this.clientReplacedListeners.add(listener);
+    return () => {
+      this.clientReplacedListeners.delete(listener);
+    };
   }
 
   getConfig() {
@@ -91,15 +107,11 @@ export class SupabaseService {
    */
   async ensureConnected(): Promise<void> {
     try {
-      console.log('[SupabaseService] Checking connection health...');
-      // Attempt a simple auth check to verify connection
-      const { data, error } = await this.supabase.auth.getSession();
-      
+      const { error } = await this.supabase.auth.getSession();
+
       if (error) {
         console.warn('[SupabaseService] Connection health check failed:', error);
         await this.reconnect();
-      } else {
-        console.log('[SupabaseService] Connection is healthy');
       }
     } catch (err) {
       console.error('[SupabaseService] Connection check error:', err);
@@ -113,8 +125,6 @@ export class SupabaseService {
    */
   private async reconnect(): Promise<void> {
     try {
-      console.log('[SupabaseService] Reconnecting to Supabase...');
-      
       const supabaseUrl = environment.supabaseUrl;
       const supabasePublishableKey = environment.supabasePublishableKey;
 
@@ -122,8 +132,7 @@ export class SupabaseService {
         throw new Error('Missing Supabase environment variables');
       }
 
-      // Create a new client instance to reset all connections
-      this.supabase = createClient(
+      const nextClient = createClient(
         supabaseUrl,
         supabasePublishableKey,
         buildSupabaseClientOptions(
@@ -132,11 +141,22 @@ export class SupabaseService {
           (input, options) => this.fetchWithNativeCompat(input, options)
         )
       );
-      
-      console.log('[SupabaseService] Reconnected successfully');
+      const previousClient = this.supabase;
+      this.supabase = nextClient;
+      this.notifyClientReplaced(previousClient);
     } catch (err) {
       console.error('[SupabaseService] Reconnection failed:', err);
       throw err;
+    }
+  }
+
+  private notifyClientReplaced(previousClient: SupabaseClient): void {
+    for (const listener of this.clientReplacedListeners) {
+      try {
+        listener(previousClient);
+      } catch (err) {
+        console.error('[SupabaseService] Client replaced listener failed:', err);
+      }
     }
   }
 
@@ -217,16 +237,13 @@ export class SupabaseService {
 
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
-        console.log('[SupabaseService] App becoming visible, ensuring connection health');
         this.ensureConnected().catch(err => {
           console.error('[SupabaseService] Failed to ensure connection on visibility:', err);
         });
       }
     });
 
-    // Also listen for the custom app-became-visible event
     window.addEventListener('app-became-visible', () => {
-      console.log('[SupabaseService] App became visible event, ensuring connection health');
       this.ensureConnected().catch(err => {
         console.error('[SupabaseService] Failed to ensure connection:', err);
       });

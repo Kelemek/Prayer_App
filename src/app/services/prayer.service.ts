@@ -22,21 +22,24 @@ import {
 import { PrayerCommunityService } from './prayer-community.service';
 import { PrayerPersonalService } from './prayer-personal.service';
 import type { Tenant } from '../types/tenant';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import {
-  clearTimeoutIdMap,
   mergePrayerResumeListenerSubscriptions,
   runResumeCommunityPrayerRefresh,
   scheduleDebouncedResumeRefresh,
   unsubscribePrayerResumeListeners,
   wirePrayerResumeListeners,
 } from '../lib/prayer-service-resume';
-import { subscribePrayerCatalogRealtime } from '../lib/prayer-service-realtime';
-import { isRealtimeSubscriptionDisconnectedStatus } from '../lib/prayer-service-realtime';
 import {
-  PRAYER_SERVICE_INACTIVITY_THRESHOLD_MS,
+  handlePrayerRealtimeSubscribeStatus,
+  subscribePrayerCatalogRealtime,
+} from '../lib/prayer-service-realtime';
+import {
+  PRAYER_REALTIME_MAX_RESUBSCRIBE_ATTEMPTS,
+  PRAYER_REALTIME_RESUBSCRIBE_DELAY_MS,
   PRAYER_SERVICE_RESUME_REFRESH_DEBOUNCE_MS,
 } from '../lib/prayer-service-constants';
+import type { PrayerCatalogRefreshOptions } from '../lib/prayer-catalog-load';
 import {
   personalPrayerSessionAction,
   userSessionEmailDistinctEqual,
@@ -63,10 +66,10 @@ export class PrayerService {
   private readonly personal: PrayerPersonalService;
 
   private realtimeChannel: RealtimeChannel | null = null;
-  private inactivityTimeout: ReturnType<typeof setTimeout> | null = null;
-  private inactivityThresholdMs = PRAYER_SERVICE_INACTIVITY_THRESHOLD_MS;
-  private backgroundRecoveryTimeouts: Map<string, number> = new Map();
-  private isInBackground = document.hidden;
+  private realtimeResubscribeTimer: ReturnType<typeof setTimeout> | null = null;
+  private consecutiveRealtimeDisconnects = 0;
+  private unsubscribeClientReplaced: (() => void) | null = null;
+  private tornDown = false;
   private resumeRefreshTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private resumeListenerSubscriptions: Subscription[] = [];
   private static readonly RESUME_REFRESH_DEBOUNCE_MS =
@@ -113,6 +116,7 @@ export class PrayerService {
         loadPersonalPrayers: () => this.loadPersonalPrayers(),
       }
     );
+    this.bindSupabaseClientReplaced();
     this.initializePrayers();
     this.attachPrayedForSyncListeners();
   }
@@ -290,12 +294,18 @@ export class PrayerService {
     }
   }
 
-  async loadPrayers(silentRefresh = false): Promise<void> {
-    return this.community.loadPrayers(silentRefresh);
+  async loadPrayers(
+    silentRefresh = false,
+    options?: PrayerCatalogRefreshOptions
+  ): Promise<void> {
+    return this.community.loadPrayers(silentRefresh, options);
   }
 
-  async loadPersonalPrayers(silentRefresh = false): Promise<void> {
-    return this.personal.loadPersonalPrayers(silentRefresh);
+  async loadPersonalPrayers(
+    silentRefresh = false,
+    options?: PrayerCatalogRefreshOptions
+  ): Promise<void> {
+    return this.personal.loadPersonalPrayers(silentRefresh, options);
   }
 
   async getPrayersByMonth(
@@ -308,45 +318,14 @@ export class PrayerService {
   private setupResumeListeners(): void {
     const added = wirePrayerResumeListeners({
       scheduleResumeRefresh: () => this.scheduleResumeRefresh(),
-      onEnterBackground: () => {
-        this.isInBackground = true;
-        console.log(
-          '[PrayerService] App going to background - pausing aggressive operations'
-        );
-        clearTimeoutIdMap(this.backgroundRecoveryTimeouts);
-      },
       onLeaveBackground: () => {
-        this.isInBackground = false;
-        console.log(
-          '[PrayerService] App returning from background - triggering recovery'
-        );
         this.triggerBackgroundRecovery();
-      },
-      inactivityThresholdMs: this.inactivityThresholdMs,
-      getInactivityTimeout: () => this.inactivityTimeout,
-      setInactivityTimeout: (id) => {
-        this.inactivityTimeout = id;
-      },
-      clearBackgroundRecoveryTimeouts: () => {
-        clearTimeoutIdMap(this.backgroundRecoveryTimeouts);
       },
     });
     this.resumeListenerSubscriptions = mergePrayerResumeListenerSubscriptions(
       this.resumeListenerSubscriptions,
       added
     );
-  }
-
-  private setupInactivityListener(): void {
-    this.setupResumeListeners();
-  }
-
-  private setupBackgroundRecoveryListener(): void {
-    this.setupResumeListeners();
-  }
-
-  private setupVisibilityListener(): void {
-    this.setupResumeListeners();
   }
 
   private scheduleResumeRefresh(): void {
@@ -370,8 +349,10 @@ export class PrayerService {
         this.community.showCachedCommunityPrayers(cached);
       },
       ensureConnected: () => this.supabase.ensureConnected(),
-      loadPrayersSilent: () => this.loadPrayers(true),
+      loadPrayersSilent: () =>
+        this.loadPrayers(true, { bypassWarmCache: true }),
       reconnectRealtimeIfNeeded: () => {
+        this.consecutiveRealtimeDisconnects = 0;
         if (this.connectivity.isOnline() && !this.realtimeChannel) {
           this.setupRealtimeSubscription();
         }
@@ -491,44 +472,60 @@ export class PrayerService {
     return this.community.getFilteredPrayers(filters);
   }
 
+  private bindSupabaseClientReplaced(): void {
+    const notify = this.supabase.onClientReplaced;
+    if (typeof notify !== 'function') {
+      return;
+    }
+    this.unsubscribeClientReplaced = notify.call(this.supabase, (previous) => {
+      this.handleSupabaseClientReplaced(previous);
+    });
+  }
+
+  private handleSupabaseClientReplaced(previousClient: SupabaseClient): void {
+    const channel = this.realtimeChannel;
+    this.realtimeChannel = null;
+    this.consecutiveRealtimeDisconnects = 0;
+    if (channel) {
+      this.removeRealtimeChannel(channel, previousClient);
+    }
+    this.scheduleRealtimeResubscribe();
+  }
+
+  private reloadCommunityCatalogFromLiveEvent(): void {
+    this.loadPrayers(true, { bypassWarmCache: true }).catch((err) => {
+      console.error(
+        '[PrayerService] Error reloading prayers after realtime change:',
+        err
+      );
+    });
+  }
+
   private setupRealtimeSubscription(): void {
-    if (!this.connectivity.isOnline()) {
-      console.log('[PrayerService] Skipping realtime subscription while offline');
+    if (this.tornDown || this.realtimeChannel || !this.connectivity.isOnline()) {
       return;
     }
     try {
-      console.log('[PrayerService] Setting up realtime subscription...');
-      this.realtimeChannel = subscribePrayerCatalogRealtime(
-        this.supabase.client,
-        {
-          onPrayersChange: (payload) => {
-            console.log('[PrayerService] Prayer changed:', payload);
-            this.loadPrayers(true).catch((err) => {
-              console.error(
-                '[PrayerService] Error reloading after prayer change:',
-                err
-              );
-            });
-          },
-          onPrayerUpdatesChange: (payload) => {
-            console.log('[PrayerService] Prayer update changed:', payload);
-            this.loadPrayers(true).catch((err) => {
-              console.error(
-                '[PrayerService] Error reloading after update change:',
-                err
-              );
-            });
-          },
-          onSubscribeStatus: (status) => {
-            console.log('[PrayerService] Realtime subscription status:', status);
-            if (isRealtimeSubscriptionDisconnectedStatus(status)) {
-              console.warn(
-                '[PrayerService] Realtime subscription disconnected, will retry on next activity'
-              );
-            }
-          },
-        }
-      );
+      const channelHolder: { current: RealtimeChannel | null } = { current: null };
+      const channel = subscribePrayerCatalogRealtime(this.supabase.client, {
+        onPrayersChange: () => {
+          this.reloadCommunityCatalogFromLiveEvent();
+        },
+        onPrayerUpdatesChange: () => {
+          this.reloadCommunityCatalogFromLiveEvent();
+        },
+        onSubscribeStatus: (status) => {
+          if (status === 'SUBSCRIBED') {
+            this.consecutiveRealtimeDisconnects = 0;
+            return;
+          }
+          handlePrayerRealtimeSubscribeStatus(status, () => {
+            queueMicrotask(() => this.dropAndResubscribe(channelHolder.current));
+          });
+        },
+      });
+      channelHolder.current = channel;
+      this.realtimeChannel = channel;
     } catch (error) {
       console.error(
         '[PrayerService] Error setting up realtime subscription:',
@@ -537,9 +534,73 @@ export class PrayerService {
     }
   }
 
-  async cleanup(): Promise<void> {
-    console.log('[PrayerService] Cleaning up...');
+  private dropAndResubscribe(channel: RealtimeChannel | null): void {
+    if (this.tornDown || !channel || this.realtimeChannel !== channel) {
+      return;
+    }
+    this.realtimeChannel = null;
+    this.removeRealtimeChannel(channel, this.supabase.client);
+    this.consecutiveRealtimeDisconnects += 1;
+    if (
+      this.consecutiveRealtimeDisconnects >
+      PRAYER_REALTIME_MAX_RESUBSCRIBE_ATTEMPTS
+    ) {
+      console.warn(
+        '[PrayerService] Realtime resubscribe paused until the app resumes'
+      );
+      return;
+    }
+    this.scheduleRealtimeResubscribe();
+  }
+
+  private scheduleRealtimeResubscribe(): void {
+    if (this.tornDown || this.realtimeResubscribeTimer != null) {
+      return;
+    }
+    this.realtimeResubscribeTimer = setTimeout(() => {
+      this.realtimeResubscribeTimer = null;
+      if (this.tornDown || this.realtimeChannel) {
+        return;
+      }
+      this.setupRealtimeSubscription();
+    }, PRAYER_REALTIME_RESUBSCRIBE_DELAY_MS);
+  }
+
+  private removeRealtimeChannel(
+    channel: RealtimeChannel,
+    client: SupabaseClient
+  ): void {
+    if (typeof client.removeChannel !== 'function') {
+      return;
+    }
     try {
+      const result = client.removeChannel(channel) as unknown;
+      if (
+        result &&
+        typeof (result as Promise<unknown>).then === 'function'
+      ) {
+        void (result as Promise<unknown>).catch((err) => {
+          console.error('[PrayerService] Failed to remove realtime channel:', err);
+        });
+      }
+    } catch (err) {
+      console.error('[PrayerService] Failed to remove realtime channel:', err);
+    }
+  }
+
+  private clearRealtimeResubscribeTimer(): void {
+    if (this.realtimeResubscribeTimer != null) {
+      clearTimeout(this.realtimeResubscribeTimer);
+      this.realtimeResubscribeTimer = null;
+    }
+  }
+
+  async cleanup(): Promise<void> {
+    this.tornDown = true;
+    try {
+      this.unsubscribeClientReplaced?.();
+      this.unsubscribeClientReplaced = null;
+      this.clearRealtimeResubscribeTimer();
       unsubscribePrayerResumeListeners(this.resumeListenerSubscriptions);
       this.resumeListenerSubscriptions = [];
       if (this.resumeRefreshTimeoutId != null) {
@@ -549,10 +610,6 @@ export class PrayerService {
       if (this.realtimeChannel) {
         await this.supabase.client.removeChannel(this.realtimeChannel);
         this.realtimeChannel = null;
-      }
-      if (this.inactivityTimeout) {
-        clearTimeout(this.inactivityTimeout);
-        this.inactivityTimeout = null;
       }
     } catch (error) {
       console.error('[PrayerService] Error during cleanup:', error);
@@ -709,6 +766,10 @@ export class PrayerService {
   }
 
   ngOnDestroy(): void {
+    this.tornDown = true;
+    this.unsubscribeClientReplaced?.();
+    this.unsubscribeClientReplaced = null;
+    this.clearRealtimeResubscribeTimer();
     unsubscribePrayerResumeListeners(this.resumeListenerSubscriptions);
     this.resumeListenerSubscriptions = [];
     if (this.resumeRefreshTimeoutId != null) {
@@ -717,6 +778,7 @@ export class PrayerService {
     }
     if (this.realtimeChannel) {
       this.supabase.client.removeChannel(this.realtimeChannel);
+      this.realtimeChannel = null;
     }
   }
 }

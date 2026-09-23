@@ -32,6 +32,34 @@ describe('prayer-community-load-wire', () => {
     expect(setAllPrayersInMemory).toHaveBeenCalledWith(cached);
   });
 
+  it('runCommunityPrayerCatalogLoad hits the DB when a live refresh bypasses warm cache', async () => {
+    const fetchApprovedFromDb = vi.fn().mockResolvedValue([]);
+    const cached = [{ id: '1' } as PrayerRequest];
+
+    await runCommunityPrayerCatalogLoad(
+      {
+        readCache: () => cached,
+        setFetchInFlight: vi.fn(),
+        markDbFetchComplete: vi.fn(),
+        setAllPrayersInMemory: vi.fn(),
+        setCache: vi.fn(),
+        reapplyFilters: vi.fn(),
+        setLoading: vi.fn(),
+        setError: vi.fn(),
+        refreshBadges: vi.fn(),
+        emitErrorToast: vi.fn(),
+        getLastErrorToastTime: () => 0,
+        loadErrorToastCooldownMs: 60_000,
+        isFetchInFlight: () => false,
+        fetchApprovedFromDb,
+      },
+      true,
+      { bypassWarmCache: true }
+    );
+
+    expect(fetchApprovedFromDb).toHaveBeenCalled();
+  });
+
   it('runCommunityPrayerCatalogLoad fetches from DB when cache miss', async () => {
     const prayers = [{ id: '1' } as PrayerRequest];
     const fetchApprovedFromDb = vi.fn().mockResolvedValue(prayers);

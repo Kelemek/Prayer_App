@@ -83,6 +83,10 @@ import {
 } from '../lib/prayer-prayed-for-increment';
 import { PRAYER_SERVICE_LOAD_ERROR_TOAST_COOLDOWN_MS } from '../lib/prayer-service-constants';
 import {
+  shouldSkipCommunityPrayersDbOnSilentRefresh,
+  type PrayerCatalogRefreshOptions,
+} from '../lib/prayer-catalog-load';
+import {
   sharedPrayersCacheKeyForTenant,
   shouldUseSuperAdminTenantPrayerRpc,
 } from '../lib/prayer-tenant';
@@ -239,33 +243,31 @@ export class PrayerCommunityService {
     this.facadeHooks.applyFilters(this.currentFilters);
   }
 
-  async loadPrayers(silentRefresh = false): Promise<void> {
+  async loadPrayers(
+    silentRefresh = false,
+    options?: PrayerCatalogRefreshOptions
+  ): Promise<void> {
     try {
-      console.log('[PrayerService] Loading prayers...');
       const tenantId = this.getActiveTenantId();
       if (!tenantId) {
-        console.log(
-          '[PrayerService] No active tenant yet — deferring shared prayer load'
-        );
         this.errorSubject.next(null);
         return;
       }
 
       const cachedPrayers = this.getCachedSharedPrayers(tenantId);
+      const skipDbOnWarmCache = shouldSkipCommunityPrayersDbOnSilentRefresh(
+        silentRefresh,
+        cachedPrayers,
+        options?.bypassWarmCache === true
+      );
       if (cachedPrayers && cachedPrayers.length > 0) {
-        console.log(
-          `[PrayerService] Using cached prayers (${cachedPrayers.length} items)`
-        );
         this.seedCommunityServerCounts(cachedPrayers);
         this.allPrayersSubject.next(
           this.withCommunityDisplayCounts(cachedPrayers)
         );
         this.facadeHooks.applyFilters(this.currentFilters);
 
-        if (silentRefresh) {
-          console.log(
-            '[PrayerService] Cache hit for silent refresh - skipping database query'
-          );
+        if (skipDbOnWarmCache) {
           return;
         }
       }
@@ -273,14 +275,10 @@ export class PrayerCommunityService {
       if (!this.connectivity.isOnline()) {
         const stale = this.getStaleSharedPrayers(tenantId);
         if (stale) {
-          console.log(
-            `[PrayerService] Offline — showing ${stale.length} stale cached prayers`
-          );
           this.seedCommunityServerCounts(stale);
           this.allPrayersSubject.next(this.withCommunityDisplayCounts(stale));
           this.facadeHooks.applyFilters(this.currentFilters);
         } else {
-          console.log('[PrayerService] Offline with no cached prayers');
           this.allPrayersSubject.next([]);
           this.facadeHooks.applyFilters(this.currentFilters);
         }
@@ -306,10 +304,6 @@ export class PrayerCommunityService {
         }
       );
       if (error) throw error;
-
-      console.log(
-        `[PrayerService] Loaded ${prayersData?.length || 0} approved prayers from database`
-      );
 
       const prayerIds = (prayersData || []).map((p: any) => p.id).filter(Boolean);
       let updatesByPrayerId = new Map<string, any[]>();
@@ -357,9 +351,6 @@ export class PrayerCommunityService {
           this.getStaleSharedPrayers(fallbackTenantId)
         : null;
       if (cachedPrayers && cachedPrayers.length > 0) {
-        console.log(
-          `[PrayerService] Showing ${cachedPrayers.length} cached prayers (error fallback)`
-        );
         this.seedCommunityServerCounts(cachedPrayers);
         this.allPrayersSubject.next(
           this.withCommunityDisplayCounts(cachedPrayers)

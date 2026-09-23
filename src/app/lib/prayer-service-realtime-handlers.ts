@@ -1,6 +1,6 @@
 import {
   communityPrayerReminderDropFromPayload,
-  isRealtimeSubscriptionDisconnectedStatus,
+  handlePrayerRealtimeSubscribeStatus,
   personalPrayerReminderDropFromPayload,
   shouldReloadPersonalPrayersAfterRealtimePayload,
   type PostgresChangePayload,
@@ -13,8 +13,11 @@ export type PrayerCatalogRealtimeHandlerDeps = {
     prayerId: string,
     kind: PrayerRealtimeReminderKind
   ) => void;
+  /** Must bypass the warm catalog cache. A silent skip leaves the list stale. */
   reloadCommunityPrayers: () => Promise<void>;
+  /** Must bypass the warm catalog cache. Not subscribed unless the caller opts in. */
   reloadPersonalPrayers: () => Promise<void>;
+  onDisconnected?: () => void;
 };
 
 export function buildPrayerCatalogRealtimeHandlers(
@@ -22,7 +25,6 @@ export function buildPrayerCatalogRealtimeHandlers(
 ): PrayerCatalogRealtimeHandlers {
   return {
     onPrayersChange: (payload: PostgresChangePayload) => {
-      console.log('[PrayerService] Prayer changed:', payload);
       const reminderDrop = communityPrayerReminderDropFromPayload(payload);
       if (reminderDrop) {
         deps.dropRemindersForPrayer?.(reminderDrop.prayerId, reminderDrop.kind);
@@ -31,8 +33,7 @@ export function buildPrayerCatalogRealtimeHandlers(
         console.error('[PrayerService] Error reloading after prayer change:', err);
       });
     },
-    onPrayerUpdatesChange: (payload: PostgresChangePayload) => {
-      console.log('[PrayerService] Prayer update changed:', payload);
+    onPrayerUpdatesChange: (_payload: PostgresChangePayload) => {
       deps.reloadCommunityPrayers().catch((err) => {
         console.error('[PrayerService] Error reloading after update change:', err);
       });
@@ -50,12 +51,9 @@ export function buildPrayerCatalogRealtimeHandlers(
       });
     },
     onSubscribeStatus: (status: string) => {
-      console.log('[PrayerService] Realtime subscription status:', status);
-      if (isRealtimeSubscriptionDisconnectedStatus(status)) {
-        console.warn(
-          '[PrayerService] Realtime subscription disconnected, will retry on next activity'
-        );
-      }
+      handlePrayerRealtimeSubscribeStatus(status, () => {
+        deps.onDisconnected?.();
+      });
     },
   };
 }
