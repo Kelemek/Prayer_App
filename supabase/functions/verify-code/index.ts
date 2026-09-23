@@ -4,6 +4,13 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: unknown): value is string {
+  return typeof value === 'string' && UUID_PATTERN.test(value);
+}
+
 serve(async (req) => {
   // Handle CORS
   if (req.method === 'OPTIONS') {
@@ -67,11 +74,28 @@ serve(async (req) => {
       });
     }
 
+    // codeId is interpolated into a PostgREST URL. Reject anything that is not a UUID.
+    if (!isUuid(codeId)) {
+      return new Response(JSON.stringify({
+        error: 'Invalid verification code',
+        details: 'The code you entered is incorrect'
+      }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    }
+
+    const codeIdFilter = encodeURIComponent(codeId);
+    const codeFilter = encodeURIComponent(code);
+
     console.log(`🔍 Looking up verification code: ${codeId}`);
 
     // Fetch the verification code from database
     const fetchResponse = await fetch(
-      `${SUPABASE_URL}/rest/v1/verification_codes?id=eq.${codeId}&code=eq.${code}&select=*`,
+      `${SUPABASE_URL}/rest/v1/verification_codes?id=eq.${codeIdFilter}&code=eq.${codeFilter}&select=*`,
       {
         headers: {
           'apikey': SUPABASE_SERVICE_ROLE_KEY,
@@ -142,7 +166,7 @@ serve(async (req) => {
 
     // Mark code as used
     const updateResponse = await fetch(
-      `${SUPABASE_URL}/rest/v1/verification_codes?id=eq.${codeId}`,
+      `${SUPABASE_URL}/rest/v1/verification_codes?id=eq.${codeIdFilter}`,
       {
         method: 'PATCH',
         headers: {
@@ -267,8 +291,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('❌ Error in verify-code:', error);
     return new Response(JSON.stringify({
-      error: error instanceof Error ? error.message : 'Unknown error',
-      details: error instanceof Error ? error.stack : String(error)
+      error: 'Internal server error'
     }), {
       status: 500,
       headers: {

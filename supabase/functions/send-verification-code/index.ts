@@ -4,6 +4,33 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
+
+const RATE_WINDOW_MS = 15 * 60 * 1000;
+const RATE_MAX_ATTEMPTS = 5;
+const recentCodeSends = new Map<string, number[]>();
+
+function isRateLimited(key: string): boolean {
+  const now = Date.now();
+  const times = (recentCodeSends.get(key) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
+  if (!recentCodeSends.has(key) && recentCodeSends.size >= 5000) {
+    const oldest = recentCodeSends.keys().next().value;
+    if (oldest) recentCodeSends.delete(oldest);
+  }
+  recentCodeSends.set(key, times);
+  return times.length >= RATE_MAX_ATTEMPTS;
+}
+
+function recordAttempt(key: string): void {
+  const times = recentCodeSends.get(key) ?? [];
+  times.push(Date.now());
+  recentCodeSends.set(key, times);
+}
+
+function bearerToken(req: Request): string {
+  const authHeader = req.headers.get('Authorization') ?? '';
+  return authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+}
 
 // Generate a random code of specified length
 function generateCode(length: number = 6): string {
@@ -97,6 +124,81 @@ serve(async (req) => {
       });
     }
 
+    if (typeof actionData !== 'object' || actionData === null || Array.isArray(actionData)) {
+      return new Response(JSON.stringify({
+        error: 'Invalid action data'
+      }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    }
+
+    if (JSON.stringify(actionData).length > 8192) {
+      return new Response(JSON.stringify({
+        error: 'Invalid action data',
+        details: 'actionData is too large'
+      }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    }
+
+    const emailNormalized = email.toLowerCase().trim();
+    const token = bearerToken(req);
+    const trusted = token.length > 0 && token === SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!trusted) {
+      if (!token || !SUPABASE_ANON_KEY) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      }
+
+      const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data: userData, error: userError } = await userClient.auth.getUser();
+      const userEmail = userData?.user?.email?.toLowerCase().trim() ?? '';
+      if (userError || !userEmail || userEmail !== emailNormalized) {
+        return new Response(JSON.stringify({
+          error: 'Unauthorized',
+          details: 'Sign in and request a code for your own email address'
+        }), {
+          status: 401,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      }
+    }
+
+    const rateKey = `email:${emailNormalized}`;
+    if (isRateLimited(rateKey)) {
+      return new Response(JSON.stringify({
+        error: 'Too many requests',
+        details: 'Wait a few minutes before requesting another code'
+      }), {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    }
+    recordAttempt(rateKey);
+
     // Get code length from settings (default: 6)
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -124,7 +226,6 @@ serve(async (req) => {
       .maybeSingle();
 
     const codeLength = 6;
-    const emailNormalized = email.toLowerCase().trim();
     const testAccountEmail = (settings?.test_account_email || '').trim().toLowerCase();
     const isTestAccount = testAccountEmail !== '' && emailNormalized === testAccountEmail;
 
