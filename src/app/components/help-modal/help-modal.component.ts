@@ -59,7 +59,7 @@ import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-ov
               id="help-modal-guided-tour"
               (click)="onTakeGuidedTour()"
               [disabled]="sections.length === 0"
-              class="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              class="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-600 text-blue-700 dark:text-blue-300 dark:border-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-xs sm:text-sm font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <svg
                 class="w-4 h-4"
