@@ -1,3 +1,6 @@
+// Not loaded by CI. This config still targets React (react-hooks,
+// react-refresh), and those plugins are not dependencies of this Angular app.
+// angular.json has no lint architect target, so `ng lint` cannot succeed.
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'

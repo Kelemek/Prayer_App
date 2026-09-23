@@ -40,9 +40,12 @@ deploy_function() {
 # Deploy based on argument
 case $FUNCTION_NAME in
     "send-notification")
-        echo "❌ send-notification is not a function in this repo."
-        echo "   Use send-email (service-role bearer required). Refusing to deploy a missing slug."
-        exit 1
+        if [[ ! -f supabase/functions/send-notification/index.ts ]]; then
+            echo "❌ send-notification is not in this repo. Use send-email."
+            exit 1
+        fi
+        deploy_function "send-notification" "--no-verify-jwt"
+        echo "💡 send-notification runs without JWT verification"
         ;;
     "send-prayer-reminders")
         deploy_function "send-prayer-reminders" "--no-verify-jwt"
@@ -175,9 +178,36 @@ case $FUNCTION_NAME in
         echo "💡 Drains email_queue via Resend. Gateway JWT is off."
         echo "   Service-role secret, or a signed-in tenant admin / super admin. Angular keeps the session JWT."
         ;;
+    "verify-code")
+        deploy_function "verify-code" "--no-verify-jwt"
+        echo "💡 Gateway JWT is off (deno.json verify_jwt false). Checks a stored email code."
+        ;;
+    "check-admin-status")
+        deploy_function "check-admin-status" ""
+        echo "💡 Admin role lookup. Gateway JWT stays on."
+        ;;
+    "test-account-auth")
+        deploy_function "test-account-auth" "--no-verify-jwt"
+        echo "💡 Login calls this before a session exists, so gateway JWT is off."
+        ;;
+    "scripture")
+        deploy_function "scripture" ""
+        echo "📋 Secrets: ESV_API_TOKEN, API_BIBLE_KEY, API_BIBLE_BIBLE_ID_*"
+        ;;
+    "scripture-audio")
+        deploy_function "scripture-audio" ""
+        echo "📋 Secrets: ESV_API_TOKEN, API_BIBLE_KEY, optional API_BIBLE_AUDIO_BIBLE_ID_*"
+        ;;
     "all")
         echo "Deploying all functions..."
         echo ""
+        # Missing slug must not abort `all` (set -e). Deploy only when the folder exists.
+        if [[ -f supabase/functions/send-notification/index.ts ]]; then
+            deploy_function "send-notification" "--no-verify-jwt"
+        else
+            echo "⏭️  Skipping send-notification (not in this repo)."
+            echo ""
+        fi
         deploy_function "send-email" "--no-verify-jwt"
         deploy_function "email-unsubscribe" "--no-verify-jwt"
         deploy_function "trigger-email-processor" "--no-verify-jwt"
@@ -203,6 +233,11 @@ case $FUNCTION_NAME in
         deploy_function "stripe-webhook" "--no-verify-jwt"
         deploy_function "reconcile-church-billing" "--no-verify-jwt"
         deploy_function "send-billing-signup-email" ""
+        deploy_function "verify-code" "--no-verify-jwt"
+        deploy_function "check-admin-status" ""
+        deploy_function "test-account-auth" "--no-verify-jwt"
+        deploy_function "scripture" ""
+        deploy_function "scripture-audio" ""
         echo "🎉 All functions deployed successfully!"
         ;;
     *)
@@ -211,7 +246,8 @@ case $FUNCTION_NAME in
         echo "Usage: ./deploy-functions.sh [function-name]"
         echo ""
         echo "Available functions:"
-        echo "  send-email               - Resend email API (no JWT; service-role bearer required)"
+        echo "  send-notification        - not in this repo (use send-email)"
+        echo "  send-email               - Resend email API (no JWT; called from app + other functions)"
         echo "  email-unsubscribe        - Public unsubscribe (no JWT; token in URL/body)"
         echo "  trigger-email-processor  - Drain email_queue via Resend (no JWT; service-role bearer)"
         echo "  send-verification-code   - Email verification codes (no JWT; user session or service role)"
@@ -236,6 +272,11 @@ case $FUNCTION_NAME in
         echo "  stripe-webhook           - Stripe webhooks (no JWT)"
         echo "  reconcile-church-billing - Hourly grace/period-end downgrades (no JWT; cron)"
         echo "  send-billing-signup-email - Native tour signup emails (JWT; platform From)"
+        echo "  verify-code              - Check a stored email code (no JWT)"
+        echo "  check-admin-status       - Admin role lookup (JWT)"
+        echo "  test-account-auth        - Platform test-account login (no JWT; no session yet)"
+        echo "  scripture                - Bible passage text (JWT)"
+        echo "  scripture-audio          - Bible passage audio (JWT)"
         echo "  all                      - Deploy all functions (default)"
         echo ""
         exit 1

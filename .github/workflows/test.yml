@@ -6,61 +6,43 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+# Tests only. The previous job commented on the PR and 403'd
+# ("Resource not accessible by integration"). That comment always said
+# "all passed" and did not read the coverage artifact.
+permissions:
+  contents: read
+
 jobs:
   test:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-      fail-fast: false
-    runs-on: ${{ matrix.os }}
+    # Ubuntu only. The app ships on Linux (Vercel). macOS and Windows jobs
+    # ran `npm test`, which is watch-mode vitest and never exits.
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci
-      
-      - name: Run linter
-        if: matrix.os == 'ubuntu-latest'
-        run: npm run lint
-        continue-on-error: true
 
-      - name: Run tests (with coverage on Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      # Lint is not a CI step. angular.json has no lint target, and
+      # eslint.config.js still imports React plugins that are not installed.
+      # `npm run lint` exits 1 with that explanation. Do not paper over it
+      # with continue-on-error.
+
+      - name: Run tests with coverage
         run: npm run test:coverage
 
-      - name: Run tests (fast, no coverage)
-        if: matrix.os != 'ubuntu-latest'
-        run: npm run test
-      
       - name: Upload coverage to artifacts
         uses: actions/upload-artifact@v4
-        if: always() && matrix.os == 'ubuntu-latest'
+        if: always()
         with:
           name: coverage-report
           path: coverage/
           retention-days: 7
-      
-      - name: Comment PR with test results
-        uses: actions/github-script@v7
-        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
-        with:
-          script: |
-            const fs = require('fs');
-            let comment = '## 🧪 Test Results\n\n';
-            comment += '✅ All tests passed!\n\n';
-            comment += '[View detailed coverage report in artifacts]';
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
