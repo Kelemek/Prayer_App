@@ -10,6 +10,12 @@ describe('PushNotificationService', () => {
   let pushTokenCallback: (t: any) => void;
   let sessionCallback: (s: any) => void;
 
+  function mockJwt(email: string): void {
+    mockSupabase.client.auth.getSession.mockResolvedValue({
+      data: { session: { user: { email } } },
+    });
+  }
+
   beforeEach(() => {
     mockSupabase = {
       client: {
@@ -194,7 +200,7 @@ describe('PushNotificationService', () => {
   describe('setupDeviceTokenHandling', () => {
     it('calls storeDeviceToken when pushToken$ emits a token and isNative is true', async () => {
       mockCapacitor.isNative.mockReturnValue(true);
-      mockUserSession.getCurrentSession.mockReturnValue({ email: 'user@test.com' });
+      mockJwt('user@test.com');
       const token = { token: 'dev-token-1', platform: 'android' as const };
       const selectMock = vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
@@ -231,7 +237,7 @@ describe('PushNotificationService', () => {
     it('calls storeDeviceToken when session has email and getPushToken returns token', async () => {
       mockCapacitor.isNative.mockReturnValue(true);
       mockCapacitor.getPushToken.mockReturnValue({ token: 'tok', platform: 'ios' });
-      mockUserSession.getCurrentSession.mockReturnValue({ email: 'session@test.com' });
+      mockJwt('session@test.com');
       mockSupabase.client.from = vi.fn((table: string) => {
         if (table === 'device_tokens') {
           return {
@@ -271,30 +277,17 @@ describe('PushNotificationService', () => {
       expect(mockSupabase.client.from).not.toHaveBeenCalled();
     });
 
-    it('uses getCurrentSession email when available', async () => {
+    it('does not store a token from the user session without a JWT', async () => {
       mockUserSession.getCurrentSession.mockReturnValue({ email: 'current@test.com' });
-      mockSupabase.client.from = vi.fn((table: string) => {
-        if (table === 'device_tokens') {
-          return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-                }),
-              }),
-            }),
-            insert: vi.fn().mockResolvedValue({ error: null }),
-          };
-        }
-        return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) };
-      });
       await service.storeDeviceToken(token);
-      expect(mockSupabase.client.from).toHaveBeenCalledWith('device_tokens');
+      expect(mockSupabase.client.from).not.toHaveBeenCalled();
     });
 
-    it('uses localStorage prayerapp_user_email when session has no email', async () => {
+    it('stores a token for the JWT email', async () => {
+      mockUserSession.getCurrentSession.mockReturnValue({ email: 'other@test.com' });
       localStorage.setItem('prayerapp_user_email', 'stored@test.com');
-      mockUserSession.getCurrentSession.mockReturnValue(null);
+      mockJwt('jwt@test.com');
+      const insertMock = vi.fn().mockResolvedValue({ error: null });
       mockSupabase.client.from = vi.fn((table: string) => {
         if (table === 'device_tokens') {
           return {
@@ -305,17 +298,26 @@ describe('PushNotificationService', () => {
                 }),
               }),
             }),
-            insert: vi.fn().mockResolvedValue({ error: null }),
+            insert: insertMock,
           };
         }
         return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) };
       });
       await service.storeDeviceToken(token);
-      expect(mockSupabase.client.from).toHaveBeenCalledWith('device_tokens');
+      expect(insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({ user_email: 'jwt@test.com', token: 't1' })
+      );
+    });
+
+    it('does not store a token from localStorage without a JWT', async () => {
+      localStorage.setItem('prayerapp_user_email', 'stored@test.com');
+      mockUserSession.getCurrentSession.mockReturnValue(null);
+      await service.storeDeviceToken(token);
+      expect(mockSupabase.client.from).not.toHaveBeenCalled();
     });
 
     it('returns early when fetchError and code is not PGRST116', async () => {
-      mockUserSession.getCurrentSession.mockReturnValue({ email: 'u@test.com' });
+      mockJwt('u@test.com');
       mockSupabase.client.from = vi.fn(() => ({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -330,7 +332,7 @@ describe('PushNotificationService', () => {
     });
 
     it('updates existing token and calls setReceivePushForEmail on success', async () => {
-      mockUserSession.getCurrentSession.mockReturnValue({ email: 'u@test.com' });
+      mockJwt('u@test.com');
       const updateEq = vi.fn().mockResolvedValue({ error: null });
       const updateChain = vi.fn().mockReturnValue({ eq: updateEq });
       mockSupabase.client.from = vi.fn((table: string) => {
@@ -354,7 +356,7 @@ describe('PushNotificationService', () => {
     });
 
     it('does not call setReceivePushForEmail when update fails', async () => {
-      mockUserSession.getCurrentSession.mockReturnValue({ email: 'u@test.com' });
+      mockJwt('u@test.com');
       mockSupabase.client.from = vi.fn((table: string) => {
         if (table === 'device_tokens') {
           return {
@@ -376,7 +378,7 @@ describe('PushNotificationService', () => {
     });
 
     it('inserts new token and calls setReceivePushForEmail on success', async () => {
-      mockUserSession.getCurrentSession.mockReturnValue({ email: 'newuser@test.com' });
+      mockJwt('newuser@test.com');
       const insertMock = vi.fn().mockResolvedValue({ error: null });
       mockSupabase.client.from = vi.fn((table: string) => {
         if (table === 'device_tokens') {
@@ -404,7 +406,7 @@ describe('PushNotificationService', () => {
     });
 
     it('handles insert error without throwing', async () => {
-      mockUserSession.getCurrentSession.mockReturnValue({ email: 'u@test.com' });
+      mockJwt('u@test.com');
       mockSupabase.client.from = vi.fn((table: string) => {
         if (table === 'device_tokens') {
           return {
@@ -449,7 +451,7 @@ describe('PushNotificationService', () => {
     });
 
     it('catches and logs when storeDeviceToken throws', async () => {
-      mockUserSession.getCurrentSession.mockReturnValue({ email: 'u@test.com' });
+      mockJwt('u@test.com');
       mockSupabase.client.from = vi.fn(() => {
         throw new Error('unexpected db error');
       });
@@ -458,7 +460,7 @@ describe('PushNotificationService', () => {
     });
 
     it('logs warn when setReceivePushForEmail (tenant_memberships update) fails', async () => {
-      mockUserSession.getCurrentSession.mockReturnValue({ email: 'u@test.com' });
+      mockJwt('u@test.com');
       mockSupabase.client.from = vi.fn((table: string) => {
         if (table === 'device_tokens') {
           return {

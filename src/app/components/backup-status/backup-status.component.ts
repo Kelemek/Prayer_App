@@ -7,6 +7,9 @@ import { AdminSectionLoadingComponent } from "../admin-section-loading/admin-sec
 import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/admin-collapsible-section.component";
 import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
 
+/** Publishable-key backups must not read or restore verification codes. */
+const BACKUP_SKIP_TABLES = new Set(["verification_codes"]);
+
 interface BackupLog {
   id: string;
   backup_date: string;
@@ -671,9 +674,10 @@ export class BackupStatusComponent {
           "prayers",
           "update_deletion_requests",
           "user_preferences",
-          "verification_codes",
         ];
       }
+
+      tables = tables.filter((table) => !BACKUP_SKIP_TABLES.has(table));
 
       console.log(`Backing up ${tables.length} tables:`, tables);
 
@@ -813,7 +817,7 @@ export class BackupStatusComponent {
       const tablesInBackup = Object.keys(backup.tables);
 
       // Tables to skip during restore (operational data that shouldn't be restored)
-      const skipTables = ["analytics", "backup_logs"];
+      const skipTables = ["analytics", "backup_logs", "verification_codes"];
 
       // Define dependency order for known tables (for proper foreign key handling)
       const knownOrder = [
