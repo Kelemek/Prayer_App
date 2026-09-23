@@ -16,7 +16,7 @@
     <app-home-sub-filter-chip
       [active]="filterMode === 'current'"
       [activeClass]="personalCategoryActiveClass"
-      [inactiveClass]="namedChipInactiveClass"
+      [inactiveClass]="statusChipInactiveClass"
       (chipClick)="selectFilterMode.emit('current')"
     >
       <app-home-sub-filter-count label="Current" [count]="personalCurrentCount" />
@@ -25,7 +25,7 @@
     <app-home-sub-filter-chip
       [active]="filterMode === 'answered'"
       [activeClass]="personalCategoryActiveClass"
-      [inactiveClass]="namedChipInactiveClass"
+      [inactiveClass]="statusChipInactiveClass"
       (chipClick)="selectFilterMode.emit('answered')"
     >
       <app-home-sub-filter-count label="Answered" [count]="personalAnsweredCount" />
@@ -34,7 +34,7 @@
     <app-home-sub-filter-chip
       [active]="filterMode === 'total'"
       [activeClass]="personalCategoryActiveClass"
-      [inactiveClass]="namedChipInactiveClass"
+      [inactiveClass]="statusChipInactiveClass"
       (chipClick)="selectFilterMode.emit('total')"
     >
       <app-home-sub-filter-count label="Total" [count]="personalPrayersCount" />

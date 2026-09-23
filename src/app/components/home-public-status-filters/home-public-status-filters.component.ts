@@ -56,6 +56,8 @@ export class HomePublicStatusFiltersComponent {
   readonly chipThemes = HOME_PUBLIC_STATUS_CHIP_THEMES;
   readonly addChipGhostInactiveClass =
     HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS;
+  /** Status chips rest in the same ghost chrome as Add. */
+  readonly statusChipInactiveClass = HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS;
   readonly chipHostClass = HOME_PUBLIC_STATUS_CHIP_HOST_CLASS;
   readonly chipButtonClass = HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS;
   readonly chipRowClass = HOME_PUBLIC_STATUS_CHIP_ROW_CLASS;

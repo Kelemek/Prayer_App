@@ -58,7 +58,7 @@ describe('MemorizationActionBarComponent', () => {
     expect(bibleBooks.getAttribute('aria-pressed')).toBe('true');
 
     expect(recommended.className).not.toMatch(/(?:^|\s)ring(?:\s|$)/);
-    expect(recommended.className).toContain('bg-church-surface-inactive');
+    expect(recommended.className).toContain('bg-church-surface-inactive/40');
     expect(recommended.getAttribute('aria-pressed')).toBe('false');
   });
 

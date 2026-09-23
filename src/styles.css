@@ -179,7 +179,7 @@ html.dark {
 }
 
 @utility ui-motion-interactive {
-  @apply transition-colors transition-transform duration-150 ease-out;
+  @apply transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-150 ease-out;
 }
 @utility ui-press {
   @apply active:scale-[0.96] active:disabled:scale-100;

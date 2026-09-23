@@ -99,6 +99,22 @@ describe("HomePublicStatusFiltersComponent", () => {
     ).toBeTruthy();
   });
 
+  it("rests unselected Church status chips in the same ghost chrome as Add", () => {
+    const answered = fixture.nativeElement.querySelector(
+      "#tour-filter-answered"
+    ) as HTMLButtonElement;
+    const archived = fixture.nativeElement.querySelector(
+      "#tour-filter-archived"
+    ) as HTMLButtonElement;
+    const total = fixture.nativeElement.querySelector(
+      "#tour-filter-total"
+    ) as HTMLButtonElement;
+    for (const chip of [answered, archived, total]) {
+      expect(chip.className).toContain("bg-church-surface-inactive/40");
+      expect(chip.className).toContain("border-church-surface-inactive-border/70");
+    }
+  });
+
   it("emits addChurch when the Add chip is clicked", () => {
     const emitSpy = vi.spyOn(fixture.componentInstance.addChurch, "emit");
 

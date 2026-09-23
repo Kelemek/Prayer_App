@@ -23,7 +23,7 @@
       [active]="activeFilter === 'current'"
       [badgeOverlay]="true"
       [activeClass]="chipThemes.current.active"
-      [inactiveClass]="chipThemes.current.inactive"
+      [inactiveClass]="statusChipInactiveClass"
       (chipClick)="selectFilter.emit('current')"
     >
       <app-home-sub-filter-count label="Current" [count]="currentPrayersCount" />
@@ -42,7 +42,7 @@
       [active]="activeFilter === 'answered'"
       [badgeOverlay]="true"
       [activeClass]="chipThemes.answered.active"
-      [inactiveClass]="chipThemes.answered.inactive"
+      [inactiveClass]="statusChipInactiveClass"
       (chipClick)="selectFilter.emit('answered')"
     >
       <app-home-sub-filter-count label="Answered" [count]="answeredPrayersCount" />
@@ -60,7 +60,7 @@
       chipId="tour-filter-archived"
       [active]="activeFilter === 'archived'"
       [activeClass]="chipThemes.archived.active"
-      [inactiveClass]="chipThemes.archived.inactive"
+      [inactiveClass]="statusChipInactiveClass"
       (chipClick)="selectFilter.emit('archived')"
     >
       <app-home-sub-filter-count label="Archived" [count]="archivedPrayersCount" />
@@ -74,7 +74,7 @@
       [layoutClass]="chipButtonClass"
       [active]="activeFilter === 'total'"
       [activeClass]="chipThemes.total.active"
-      [inactiveClass]="chipThemes.total.inactive"
+      [inactiveClass]="statusChipInactiveClass"
       (chipClick)="selectFilter.emit('total')"
     >
       <app-home-sub-filter-count label="Total" [count]="totalPrayersCount" />
@@ -88,7 +88,7 @@
       [badgeOverlay]="true"
       [layoutClass]="chipButtonClass"
       [activeClass]="chipThemes.prompts.active"
-      [inactiveClass]="chipThemes.prompts.inactive"
+      [inactiveClass]="statusChipInactiveClass"
       (chipClick)="selectFilter.emit('prompts')"
     >
       <app-home-sub-filter-count label="Prompts" [count]="promptsCount" />
@@ -111,7 +111,7 @@
       [active]="activeFilter === 'planning_center_list'"
       [busy]="planningCenterMembersLoading"
       [activeClass]="chipThemes.prompts.active"
-      [inactiveClass]="chipThemes.prompts.inactive"
+      [inactiveClass]="statusChipInactiveClass"
       (chipClick)="selectFilter.emit('planning_center_list')"
     >
       <app-home-sub-filter-count label="Members" [count]="planningCenterMembersDisplayCount" />

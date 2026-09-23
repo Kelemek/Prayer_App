@@ -104,6 +104,18 @@ describe("HomeGroupFiltersComponent", () => {
     expect(current.textContent?.replace(/\s+/g, " ").trim()).toBe("Current 2");
     expect(answered.textContent?.replace(/\s+/g, " ").trim()).toBe("Answered 1");
     expect(total.textContent?.replace(/\s+/g, " ").trim()).toBe("Total 3");
+    expect(answered.className).toContain("bg-church-surface-inactive/40");
+    expect(total.className).toContain("bg-church-surface-inactive/40");
+  });
+
+  it("rests an unselected group chip in the same ghost chrome as Add", () => {
+    fixture.componentRef.setInput("filterMode", "current");
+    fixture.detectChanges();
+    const shell = fixture.nativeElement.querySelector(
+      "[data-group-filter-chip='g1'] > div"
+    ) as HTMLElement;
+    expect(shell.className).toContain("bg-church-surface-inactive/40");
+    expect(shell.className).toContain("hover:bg-home-panel-blue-chip-active");
   });
 
   it("keeps Add on the status row and group chips on a following drop list", () => {

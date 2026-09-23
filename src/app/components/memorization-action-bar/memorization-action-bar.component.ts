@@ -14,7 +14,7 @@ import { HomeSubFilterStackedLabelComponent } from '../home-sub-filter-stacked-l
 
 /** Matches two-line Home sub-filter chips (`min-h-9`) on Public, Personal, and Groups tabs. */
 const ACTION_BTN_BASE =
-  `flex flex-1 items-center justify-center border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer sm:flex-none ${HOME_SUB_FILTER_CHIP_SIZE_CLASS}`;
+  `flex flex-1 items-center justify-center border transition-[color,background-color,border-color,box-shadow] duration-150 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer sm:flex-none ${HOME_SUB_FILTER_CHIP_SIZE_CLASS}`;
 
 /** Outlined blue — lighter fill than the Memorize panel (`bg-blue-200`). */
 const MEMORIZE_TAB_CHIP =
@@ -24,7 +24,7 @@ const SOFT_BLUE_BTN = `border ${MEMORIZE_TAB_CHIP}`;
 
 /** Hover/active on inactive buttons — same outlined blue as Add Verses. */
 const MEMORIZE_TAB_CHIP_HOVER =
-  'hover:border hover:!border-[#0047AB] hover:!bg-home-panel-blue-chip-active hover:!text-gray-700 hover:ring hover:ring-[#0047AB] hover:ring-offset-0 dark:hover:!border-[#0047AB] dark:hover:!bg-home-panel-blue-chip-active-dark dark:hover:!text-gray-300 dark:hover:ring-[#0047AB]';
+  'hover:border hover:!border-[#0047AB] hover:!bg-home-panel-blue-chip-active hover:!text-gray-700 hover:shadow-[0_6px_16px_-6px_rgb(0_71_171/0.55)] hover:ring hover:ring-[#0047AB] hover:ring-offset-0 dark:hover:!border-[#0047AB] dark:hover:!bg-home-panel-blue-chip-active-dark dark:hover:!text-gray-300 dark:hover:ring-[#0047AB]';
 
 const MEMORIZE_TAB_CHIP_ACTIVE =
   'active:border active:!border-[#0047AB] active:!bg-home-panel-blue-chip-active active:!text-gray-700 active:ring active:ring-[#0047AB] active:ring-offset-0 dark:active:!border-[#0047AB] dark:active:!bg-home-panel-blue-chip-active-dark dark:active:!text-gray-300 dark:active:ring-[#0047AB]';
@@ -34,7 +34,7 @@ const MEMORIZE_TAB_CHIP_ACTIVE =
  * Dark hover uses `!` because theme `@utility` classes (e.g. bg-gray-800) set `!important`.
  */
 const SECONDARY_BTN =
-  `border-church-surface-inactive-border ${HOME_INACTIVE_SURFACE_BG_CLASS} text-gray-600 dark:border-gray-600 dark:text-gray-400 ${MEMORIZE_TAB_CHIP_HOVER} ${MEMORIZE_TAB_CHIP_ACTIVE}`;
+  `border-church-surface-inactive-border/70 bg-church-surface-inactive/40 text-gray-800 shadow-none dark:border-gray-600/80 dark:bg-gray-800/45 dark:text-gray-200 ${MEMORIZE_TAB_CHIP_HOVER} ${MEMORIZE_TAB_CHIP_ACTIVE}`;
 
 /** Divider between Cards / Table segments — same church green as card shells. */
 const VIEW_TOGGLE_DIVIDER_CLASS =

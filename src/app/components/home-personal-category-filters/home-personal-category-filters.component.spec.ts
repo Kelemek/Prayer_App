@@ -86,6 +86,12 @@ describe("HomePersonalCategoryFiltersComponent", () => {
     expect(chip.querySelector("div")?.className).toContain(
       HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS.split(" ")[0]
     );
+    expect(chip.querySelector("div")?.className).toContain(
+      "bg-church-surface-inactive/40"
+    );
+    expect(chip.querySelector("div")?.className).toContain(
+      "hover:bg-home-panel-personal-chip-active"
+    );
   });
 
   it("shows an overflow menu with rename and delete on category chips", () => {
@@ -105,6 +111,30 @@ describe("HomePersonalCategoryFiltersComponent", () => {
     );
     fixture.componentInstance.overflowItems("Health")[0]?.onSelect();
     expect(emitted).toEqual(["Health"]);
+  });
+
+  it("rests Answered and Total in the same ghost chrome as Add", () => {
+    const answered = Array.from(
+      fixture.nativeElement.querySelectorAll("button")
+    ).find((button) => button.textContent?.includes("Answered")) as
+      | HTMLButtonElement
+      | undefined;
+    const total = Array.from(
+      fixture.nativeElement.querySelectorAll("button")
+    ).find((button) => button.textContent?.includes("Total")) as
+      | HTMLButtonElement
+      | undefined;
+    expect(answered).toBeTruthy();
+    expect(total).toBeTruthy();
+    for (const token of [
+      "bg-church-surface-inactive/40",
+      "border-church-surface-inactive-border/70",
+      "hover:bg-home-panel-personal-chip-active",
+      "hover:shadow-[0_6px_16px_-6px_rgb(47_95_84/0.5)]",
+    ]) {
+      expect(answered!.className).toContain(token);
+      expect(total!.className).toContain(token);
+    }
   });
 
   it("shows an Add chip first on the status row and emits addCategory", () => {

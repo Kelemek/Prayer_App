@@ -5,6 +5,7 @@ import { CommonModule } from "@angular/common";
 import {
   HOME_GROUPS_SUB_FILTER_GROUP_CLASS,
   HOME_MEMORIZE_SUB_FILTER_GROUP_CLASS,
+  HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS,
   HOME_PUBLIC_STATUS_CHIP_HOST_CLASS,
   HOME_PUBLIC_STATUS_CHIP_ROW_CLASS,
   HOME_PUBLIC_STATUS_CHIP_THEMES,
@@ -120,7 +121,7 @@ export class InfoHomeFilterPreviewTabsComponent {
       base: HOME_SUB_FILTER_CHIP_BASE_CLASS,
       active: false,
       activeClass: theme.active,
-      inactiveClass: theme.inactive,
+      inactiveClass: HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS,
     });
   }
 
@@ -131,13 +132,19 @@ export class InfoHomeFilterPreviewTabsComponent {
         base: HOME_SUB_FILTER_CHIP_BASE_CLASS,
         active,
         activeClass: theme.active,
-        inactiveClass: theme.inactive,
+        inactiveClass: HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS,
       }) + " flex-1"
     );
   }
 
   memorizeChipClass(active: boolean): string {
-    return this.groupChipClass(active);
+    const theme = this.chipThemes.members;
+    return buildHomeSubFilterChipButtonClass({
+      base: this.chipButtonClass,
+      active,
+      activeClass: theme.active,
+      inactiveClass: HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS,
+    });
   }
 
   churchAddChipClass(): string {
@@ -146,7 +153,7 @@ export class InfoHomeFilterPreviewTabsComponent {
       base: HOME_SUB_FILTER_CHIP_BASE_CLASS,
       active: false,
       activeClass: theme.active,
-      inactiveClass: theme.inactive,
+      inactiveClass: HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS,
     });
   }
 
@@ -160,7 +167,7 @@ export class InfoHomeFilterPreviewTabsComponent {
         base: HOME_SUB_FILTER_CHIP_BASE_CLASS,
         active,
         activeClass: theme.active,
-        inactiveClass: theme.inactive,
+        inactiveClass: HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS,
       }) + " flex-1"
     );
   }
@@ -182,7 +189,7 @@ export class InfoHomeFilterPreviewTabsComponent {
       base: this.chipButtonClass,
       active,
       activeClass: theme.active,
-      inactiveClass: theme.inactive,
+      inactiveClass: HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS,
     });
   }
 

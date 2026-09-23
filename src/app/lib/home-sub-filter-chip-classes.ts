@@ -95,6 +95,10 @@ export function homeFilterTabClass(options: {
   return `${HOME_FILTER_TAB_BASE_CLASS} ${shape} ${fill} ${border}`;
 }
 
+/** Color plus the hover lift shadow. */
+const HOME_SUB_FILTER_CHIP_MOTION_CLASS =
+  "transition-[color,background-color,border-color,box-shadow] duration-150 ease-out";
+
 /** Shared sizing for Home secondary filter chips (Public status, Personal, Prompt types). */
 export const HOME_SUB_FILTER_CHIP_SIZE_CLASS =
   "min-h-9 px-3 py-2 rounded-lg text-xs font-medium tabular-nums";
@@ -105,58 +109,69 @@ export const HOME_SUB_FILTER_ADD_CHIP_LAYOUT_CLASS = [
   "min-h-9 min-w-9 px-0 py-0 rounded-lg text-xs font-medium shrink-0",
 ].join(" ");
 
-/** Resting add control: icon only; chip chrome appears on hover / focus-visible. */
+/** Resting ghost chip: translucent until hover lifts it into the tab accent. */
 const HOME_SUB_FILTER_ADD_CHIP_GHOST_REST_CLASS = [
   "border border-church-surface-inactive-border/70 dark:border-gray-600/80 shadow-none",
   "bg-church-surface-inactive/40 dark:bg-gray-800/45",
   "text-gray-800 dark:text-gray-200",
-  "hover:bg-church-surface-inactive dark:hover:bg-gray-800",
-  "hover:border-church-surface-inactive-border dark:hover:border-gray-600",
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800",
-  "focus-visible:bg-church-surface-inactive dark:focus-visible:bg-gray-800",
-  "focus-visible:border-church-surface-inactive-border dark:focus-visible:border-gray-600",
 ].join(" ");
 
-const HOME_SUB_FILTER_ADD_CHIP_GHOST_BLUE_ACCENT =
-  "hover:border-[#0047AB] dark:hover:border-[#0047AB] focus-visible:border-[#0047AB] dark:focus-visible:border-[#0047AB]";
+/** Hover previews the selected fill and lifts; the ring stays on the selected chip. */
+const HOME_SUB_FILTER_HOVER_BLUE_CLASS = [
+  "hover:border-[#0047AB] dark:hover:border-[#0047AB]",
+  "hover:bg-home-panel-blue-chip-active dark:hover:!bg-home-panel-blue-chip-active-dark",
+  "hover:shadow-[0_6px_16px_-6px_rgb(0_71_171/0.55)]",
+  "focus-visible:border-[#0047AB] dark:focus-visible:border-[#0047AB]",
+  "focus-visible:bg-home-panel-blue-chip-active dark:focus-visible:!bg-home-panel-blue-chip-active-dark",
+].join(" ");
 
-const HOME_SUB_FILTER_ADD_CHIP_GHOST_GREEN_ACCENT =
-  "hover:border-[#2F5F54] dark:hover:border-[#2F5F54] focus-visible:border-[#2F5F54] dark:focus-visible:border-[#2F5F54]";
+const HOME_SUB_FILTER_HOVER_GREEN_CLASS = [
+  "hover:border-[#2F5F54] dark:hover:border-[#2F5F54]",
+  "hover:bg-home-panel-personal-chip-active dark:hover:!bg-home-panel-personal-chip-active-dark",
+  "hover:shadow-[0_6px_16px_-6px_rgb(47_95_84/0.5)]",
+  "focus-visible:border-[#2F5F54] dark:focus-visible:border-[#2F5F54]",
+  "focus-visible:bg-home-panel-personal-chip-active dark:focus-visible:!bg-home-panel-personal-chip-active-dark",
+].join(" ");
 
 /** Public + Groups filter rows (church blue accent). */
 export const HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS = [
   HOME_SUB_FILTER_ADD_CHIP_GHOST_REST_CLASS,
-  HOME_SUB_FILTER_ADD_CHIP_GHOST_BLUE_ACCENT,
+  HOME_SUB_FILTER_HOVER_BLUE_CLASS,
 ].join(" ");
 
 /** Personal category filter row (sage accent). */
 export const HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_GREEN_CLASS = [
   HOME_SUB_FILTER_ADD_CHIP_GHOST_REST_CLASS,
-  HOME_SUB_FILTER_ADD_CHIP_GHOST_GREEN_ACCENT,
+  HOME_SUB_FILTER_HOVER_GREEN_CLASS,
 ].join(" ");
 
 /** Button styles for equal-width chips; host uses flex-1 via HomeSubFilterChipComponent.stretch. */
 export const HOME_SUB_FILTER_CHIP_BASE_CLASS = [
-  "whitespace-nowrap inline-flex items-center justify-center transition-colors duration-150 ease-out",
+  "whitespace-nowrap inline-flex items-center justify-center",
+  HOME_SUB_FILTER_CHIP_MOTION_CLASS,
   HOME_SUB_FILTER_CHIP_SIZE_CLASS,
 ].join(" ");
 
 /** Content-sized chip for wrapping sub-filter rows (e.g. prompt types). */
 export const HOME_SUB_FILTER_CHIP_WRAP_CLASS = [
-  "inline-flex items-center justify-center whitespace-nowrap transition-colors duration-150 ease-out",
+  "inline-flex items-center justify-center whitespace-nowrap",
+  HOME_SUB_FILTER_CHIP_MOTION_CLASS,
   HOME_SUB_FILTER_CHIP_SIZE_CLASS,
 ].join(" ");
 
 /** Full-width chip button inside a shared wrap row (no drag handle). */
 export const HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS = [
-  "relative flex min-h-9 w-full min-w-max items-center justify-center gap-1 text-center transition-colors duration-150 ease-out",
+  "relative flex min-h-9 w-full min-w-max items-center justify-center gap-1 text-center",
+  HOME_SUB_FILTER_CHIP_MOTION_CLASS,
   HOME_SUB_FILTER_CHIP_SIZE_CLASS,
   "whitespace-nowrap",
 ].join(" ");
 
 /** Content-sized chip with left padding for a drag handle (personal categories). */
 export const HOME_SUB_FILTER_CHIP_DRAG_WRAP_CLASS = [
-  "relative inline-flex items-center justify-center whitespace-nowrap transition-colors duration-150 ease-out pl-7 pr-3",
+  "relative inline-flex items-center justify-center whitespace-nowrap pl-7 pr-3",
+  HOME_SUB_FILTER_CHIP_MOTION_CLASS,
   "min-h-9 py-2 rounded-lg text-xs font-medium",
 ].join(" ");
 
@@ -193,13 +208,15 @@ export const HOME_PERSONAL_CATEGORY_CHIP_SOLO_FLEX_CLASS =
 
 /** Chip shell with left padding for a drag handle and room for the overflow menu. */
 export const HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS = [
-  "relative flex min-h-9 w-full min-w-max items-center gap-0.5 text-center transition-colors duration-150 ease-out pl-7 pr-0.5",
+  "relative flex min-h-9 w-full min-w-max items-center gap-0.5 text-center pl-7 pr-0.5",
+  HOME_SUB_FILTER_CHIP_MOTION_CLASS,
   "py-2 rounded-lg text-xs font-medium whitespace-nowrap",
 ].join(" ");
 
 /** Full-width solo-row chip button; label may truncate when constrained. */
 export const HOME_SUB_FILTER_CHIP_DRAG_SOLO_STRETCH_CLASS = [
-  "relative flex w-full min-w-0 items-center gap-1 overflow-hidden text-center transition-colors duration-150 ease-out pl-7 pr-3",
+  "relative flex w-full min-w-0 items-center gap-1 overflow-hidden text-center pl-7 pr-3",
+  HOME_SUB_FILTER_CHIP_MOTION_CLASS,
   "min-h-9 py-2 rounded-lg text-xs font-medium whitespace-nowrap",
 ].join(" ");
 
@@ -227,9 +244,9 @@ export const HOME_PROMPTS_PANEL_CHIP_ACTIVE_FILL_CLASS =
 export const HOME_CHURCH_BLUE_CHIP_ACTIVE_CLASS =
   `border !border-[#0047AB] dark:!border-[#0047AB] ${HOME_PUBLIC_PANEL_CHIP_ACTIVE_FILL_CLASS} ring ring-[#0047AB] dark:ring-[#0047AB] ring-offset-0 text-gray-700 dark:text-gray-300 shadow-md`;
 
+/** Unselected Church, Groups, and Prompts chips — same ghost rest and hover as Add. */
 export const HOME_CHURCH_BLUE_CHIP_INACTIVE_CLASS =
-  HOME_SUB_FILTER_CHIP_INACTIVE_CLASS +
-  " hover:border-[#0047AB] dark:hover:border-[#0047AB]";
+  HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS;
 
 /** Church tab sub-filters share the same blue accent as Current. */
 const HOME_PUBLIC_STATUS_CHIP_BLUE_THEME = {
@@ -247,9 +264,9 @@ export const HOME_PUBLIC_STATUS_CHIP_THEMES = {
   members: HOME_PUBLIC_STATUS_CHIP_BLUE_THEME,
 } as const;
 
+/** Unselected personal category chips — same ghost rest and hover as Add. */
 export const HOME_PERSONAL_NAMED_CHIP_INACTIVE_CLASS =
-  HOME_SUB_FILTER_CHIP_INACTIVE_CLASS +
-  " hover:border-[#2F5F54] dark:hover:border-[#2F5F54]";
+  HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_GREEN_CLASS;
 
 /** Personal sub-filters: selected chip (matches Personal tab accent). */
 export const HOME_PERSONAL_SUB_FILTER_CHIP_ACTIVE_CLASS =

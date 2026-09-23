@@ -106,6 +106,8 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
   readonly chipThemes = HOME_PUBLIC_STATUS_CHIP_THEMES;
   readonly addChipGhostInactiveClass =
     HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS;
+  /** Current / Answered / Total rest in the same ghost chrome as Add. */
+  readonly statusChipInactiveClass = HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS;
 
   ngOnInit(): void {
     this.prayerGroupService.groupPrayerCounts$

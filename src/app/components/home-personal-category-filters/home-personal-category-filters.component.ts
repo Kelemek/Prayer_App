@@ -65,6 +65,9 @@ export class HomePersonalCategoryFiltersComponent {
   readonly chipHostClass = HOME_WRAP_FILTER_CHIP_FLEX_CLASS;
   readonly chipButtonClass = HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS;
   readonly namedChipInactiveClass = HOME_PERSONAL_NAMED_CHIP_INACTIVE_CLASS;
+  /** Current / Answered / Total rest state matches the add control. */
+  readonly statusChipInactiveClass =
+    HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_GREEN_CLASS;
   readonly addChipGhostInactiveClass =
     HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_GREEN_CLASS;
   readonly chipRowClass = HOME_SUB_FILTER_CHIP_ROW_CLASS;

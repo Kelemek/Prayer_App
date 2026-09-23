@@ -101,6 +101,11 @@ describe("HomePromptTypeFiltersComponent", () => {
     );
     expect(allTypesButton.className).toContain("ring-[#0047AB]");
     expect(allTypesButton.className).not.toContain("underline");
+    const typeChip = fixture.nativeElement.querySelectorAll(
+      "button"
+    )[1] as HTMLButtonElement;
+    expect(typeChip.className).toContain("bg-church-surface-inactive/40");
+    expect(typeChip.className).toContain("hover:bg-home-panel-blue-chip-active");
   });
 
   it("emits toggleType when a type chip is clicked", () => {

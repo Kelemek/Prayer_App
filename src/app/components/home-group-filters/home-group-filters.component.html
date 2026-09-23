@@ -19,7 +19,7 @@
         chipId="tour-filter-groups-current"
         [active]="filterMode === 'current'"
         [activeClass]="chipThemes.members.active"
-        [inactiveClass]="chipThemes.members.inactive"
+        [inactiveClass]="statusChipInactiveClass"
         (chipClick)="selectFilterMode.emit('current')"
       >
         <app-home-sub-filter-count label="Current" [count]="currentCount" />
@@ -28,7 +28,7 @@
         chipId="tour-filter-groups-answered"
         [active]="filterMode === 'answered'"
         [activeClass]="chipThemes.members.active"
-        [inactiveClass]="chipThemes.members.inactive"
+        [inactiveClass]="statusChipInactiveClass"
         (chipClick)="selectFilterMode.emit('answered')"
       >
         <app-home-sub-filter-count label="Answered" [count]="answeredCount" />
@@ -37,7 +37,7 @@
         chipId="tour-filter-groups-total"
         [active]="filterMode === 'total'"
         [activeClass]="chipThemes.members.active"
-        [inactiveClass]="chipThemes.members.inactive"
+        [inactiveClass]="statusChipInactiveClass"
         (chipClick)="selectFilterMode.emit('total')"
       >
         <app-home-sub-filter-count label="Total" [count]="totalCount" />
