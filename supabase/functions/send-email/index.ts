@@ -7,13 +7,15 @@
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { classifyBearer, decideUserAdmin } from './dual-auth.ts'
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 const MAIL_SENDER_ADDRESS = Deno.env.get('MAIL_SENDER_ADDRESS')!
 const MAIL_FROM_NAME = Deno.env.get('MAIL_FROM_NAME') || 'Prayer Ministry'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')
 
 const RESEND_API = 'https://api.resend.com'
 /** Resend max recipients per `to` / `bcc` / `cc` on a single email */
@@ -322,6 +324,99 @@ async function sendBulkToSubscribers(
   return { sent, failed, errors }
 }
 
+const authJsonHeaders = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+}
+
+function bearerToken(req: Request): string {
+  const authHeader = req.headers.get('Authorization') ?? ''
+  return authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
+}
+
+async function readJsonObject(req: Request): Promise<Record<string, unknown> | null> {
+  try {
+    const body = await req.clone().json()
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return null
+    return body as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
+function tenantIdFrom(body: Record<string, unknown> | null): string {
+  if (!body) return ''
+  if (typeof body.tenantId === 'string') return body.tenantId.trim()
+  if (typeof body.tenant_id === 'string') return body.tenant_id.trim()
+  return ''
+}
+
+function isSelfAddressed(body: Record<string, unknown> | null, email: string): boolean {
+  if (!body) return false
+  const raw = body.to
+  const list = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : []
+  const recipients = list
+    .map((value) => (typeof value === 'string' ? value.trim().toLowerCase() : ''))
+    .filter((value) => value.length > 0)
+  return recipients.length > 0 && recipients.every((value) => value === email)
+}
+
+async function callerIsAdmin(
+  admin: SupabaseClient,
+  email: string,
+  tenantId: string,
+): Promise<boolean> {
+  if (tenantId) {
+    const { data, error } = await admin.rpc('is_tenant_admin', {
+      tenant_to_check: tenantId,
+      email_to_check: email,
+    })
+    return !error && Boolean(data)
+  }
+  const { data: isSuper, error: superError } = await admin.rpc('is_super_admin', {
+    email_to_check: email,
+  })
+  if (superError) return false
+  if (isSuper) return true
+  const { data: row, error } = await admin
+    .from('tenant_memberships')
+    .select('user_email')
+    .eq('user_email', email)
+    .eq('role', 'tenant_admin')
+    .limit(1)
+    .maybeSingle()
+  return !error && Boolean(row)
+}
+
+function authError(status: 401 | 403): Response {
+  return new Response(
+    JSON.stringify({ error: status === 401 ? 'Unauthorized' : 'Forbidden' }),
+    { status, headers: authJsonHeaders },
+  )
+}
+
+async function rejectUnlessServiceOrAdmin(req: Request): Promise<Response | null> {
+  const token = bearerToken(req)
+  const kind = classifyBearer(token, SUPABASE_SERVICE_ROLE_KEY ?? '', SUPABASE_ANON_KEY ?? '')
+  if (kind === 'service_role') return null
+  if (kind === 'anonymous' || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
+    return authError(401)
+  }
+  const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+  const { data, error } = await userClient.auth.getUser()
+  const email = data?.user?.email?.toLowerCase().trim() ?? ''
+  if (error || !email) return authError(401)
+  const body = await readJsonObject(req)
+  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+  const isAdmin = await callerIsAdmin(admin, email, tenantIdFrom(body))
+  const decision = decideUserAdmin(email, isAdmin, isSelfAddressed(body, email))
+  if (!decision.ok) return authError(decision.status)
+  return null
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -343,19 +438,9 @@ serve(async (req) => {
       throw new Error('Supabase not configured')
     }
 
-    // Anon/publishable JWTs pass the gateway (--no-verify-jwt). Only the service-role
-    // secret may send mail (other Edge Functions and trusted jobs).
-    const authHeader = req.headers.get('Authorization') ?? ''
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
-    if (token !== SUPABASE_SERVICE_ROLE_KEY) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      })
-    }
+    // Service-key equality runs before getUser because the secret is not a user JWT.
+    const rejected = await rejectUnlessServiceOrAdmin(req)
+    if (rejected) return rejected
 
     if (!RESEND_API_KEY) {
       throw new Error(

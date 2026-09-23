@@ -115,7 +115,8 @@ case $FUNCTION_NAME in
         ;;
     "send-push-notification")
         deploy_function "send-push-notification" "--no-verify-jwt"
-        echo "💡 Service-role bearer only. Browser invokes with the publishable key are rejected."
+        echo "💡 Gateway JWT is off. Service-role secret, or a signed-in tenant admin / super admin."
+        echo "   sendToAll stays service-role only. Browser calls use the session JWT, not the secret."
         echo "📋 Secrets: FCM_SERVICE_ACCOUNT_JSON, APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID (iOS), SUPABASE_SERVICE_ROLE_KEY"
         ;;
     "stripe-church-checkout")
@@ -158,8 +159,9 @@ case $FUNCTION_NAME in
         ;;
     "send-email")
         deploy_function "send-email" "--no-verify-jwt"
-        echo "💡 send-email does not use gateway JWT. Authorization must equal SUPABASE_SERVICE_ROLE_KEY."
-        echo "   Other Edge Functions call it with the admin client. The Angular app's user JWT is rejected."
+        echo "💡 send-email does not use gateway JWT."
+        echo "   Service-role secret, or a signed-in tenant admin / super admin (self-addressed mail is also allowed)."
+        echo "   Other Edge Functions keep calling it with the admin client. Do not put the secret in Angular."
         echo ""
         echo "📋 Secrets: RESEND_API_KEY, MAIL_SENDER_ADDRESS, MAIL_FROM_NAME (optional), SUPABASE_*"
         ;;
@@ -170,8 +172,8 @@ case $FUNCTION_NAME in
         ;;
     "trigger-email-processor")
         deploy_function "trigger-email-processor" "--no-verify-jwt"
-        echo "💡 Drains email_queue via Resend. Authorization must equal SUPABASE_SERVICE_ROLE_KEY."
-        echo "   The Angular app's user JWT is rejected until a follow-up client path exists."
+        echo "💡 Drains email_queue via Resend. Gateway JWT is off."
+        echo "   Service-role secret, or a signed-in tenant admin / super admin. Angular keeps the session JWT."
         ;;
     "all")
         echo "Deploying all functions..."
