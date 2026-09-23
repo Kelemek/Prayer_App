@@ -339,6 +339,24 @@ serve(async (req) => {
   try {
     console.log('📧 Email service: Received request')
 
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error('Supabase not configured')
+    }
+
+    // Anon/publishable JWTs pass the gateway (--no-verify-jwt). Only the service-role
+    // secret may send mail (other Edge Functions and trusted jobs).
+    const authHeader = req.headers.get('Authorization') ?? ''
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
+    if (token !== SUPABASE_SERVICE_ROLE_KEY) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      })
+    }
+
     if (!RESEND_API_KEY) {
       throw new Error(
         'Resend not configured. Set RESEND_API_KEY for the send-email function.'
@@ -349,10 +367,6 @@ serve(async (req) => {
       throw new Error(
         'MAIL_SENDER_ADDRESS not configured. Use a verified domain address in Resend.'
       )
-    }
-
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('Supabase not configured')
     }
 
     const body = await req.json()

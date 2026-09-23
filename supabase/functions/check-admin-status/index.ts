@@ -28,25 +28,61 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Create Supabase client with service role key (has full access)
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") || "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""
-    );
-
-    const { email, tenantId } = (await req.json()) as CheckAdminRequest;
-
-    if (!email) {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+    if (!supabaseUrl || !serviceKey || !anonKey) {
       return new Response(
-        JSON.stringify({ success: false, error: "Email is required", is_admin: false }),
+        JSON.stringify({ success: false, error: "Server configuration error", is_admin: false }),
         {
-          status: 400,
+          status: 503,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Unauthorized", is_admin: false }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: userData, error: userError } = await userClient.auth.getUser();
+    const userEmail = userData?.user?.email?.toLowerCase().trim() ?? "";
+    if (userError || !userEmail) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Unauthorized", is_admin: false }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const body = (await req.json()) as CheckAdminRequest;
+    const requestedEmail = typeof body.email === "string" ? body.email.toLowerCase().trim() : "";
+    if (requestedEmail && requestedEmail !== userEmail) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Forbidden", is_admin: false }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, serviceKey);
+    const { tenantId } = body;
+    const normalizedEmail = userEmail;
 
     const [superAdminResult, tenantAdminResult, anyTenantAdminResult] = await Promise.all([
       supabase

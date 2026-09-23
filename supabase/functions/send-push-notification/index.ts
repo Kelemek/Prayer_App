@@ -4,7 +4,7 @@
  * - Android: FCM HTTP v1 API (Firebase service account). Token from device is FCM token.
  * - iOS: APNs HTTP/2 API (.p8 key). Token from Capacitor is APNs device token (not FCM).
  *
- * Deploy: supabase functions deploy send-push-notification
+ * Deploy: supabase functions deploy send-push-notification --no-verify-jwt
  *
  * Usage example:
  * const result = await supabase.functions.invoke('send-push-notification', {
@@ -151,6 +151,23 @@ serve(async (req) => {
   if (req.method !== 'POST') {
     return new Response('Method not allowed', {
       status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Reminder jobs invoke this with the service-role secret. The publishable key must
+  // not choose arbitrary emails or sendToAll.
+  if (!supabaseKey) {
+    return new Response(JSON.stringify({ error: 'Not configured' }), {
+      status: 503,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+  const authHeader = req.headers.get('Authorization') ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  if (token !== supabaseKey) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

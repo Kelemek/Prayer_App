@@ -612,6 +612,18 @@ serve(async (req) => {
         },
       );
     }
+
+    // Anon/publishable JWTs pass the gateway (--no-verify-jwt). Only the service-role
+    // secret may drain email_queue.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (token !== serviceKey) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (!resendKey || !mailSender) {
       return new Response(
         JSON.stringify({
