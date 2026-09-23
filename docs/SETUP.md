@@ -329,6 +329,18 @@ Templates are stored in Supabase `email_templates` table:
 - `subscriber_welcome` - Welcome to email list
 - `tenant_invite` - Transactional member invite with `/join/:token` link (Admin → Tenant Manager). Seeded by `20260910220000_tenant_invite_email.sql` (apply that migration before relying on the DB template; the app falls back to inline copy if the row is missing). Uses per-tenant Sending identity when `tenantId` is passed to `send-email`.
 
+### Supabase Auth login OTP (Magic Link template)
+
+Site login uses **`auth.signInWithOtp`** (not `send-verification-code`). Customize the message in **Supabase Dashboard → Authentication → Email Templates → Magic Link**.
+
+- **Subject:** `Your verification code`
+- **Body:** copy from [`supabase/templates/auth-magic-link.html`](../supabase/templates/auth-magic-link.html) (green header `#10b981`, matches Cross Pointe `verification_code` styling). Use Supabase variable **`{{ .Token }}`** for the OTP — not `{{code}}`.
+- **OTP length must be 6:** Dashboard → **Authentication** → **Sign In / Providers** → **Email** → set **Email OTP length** to **6**. The login UI and `verifyAdminLoginCode` only accept six digits; a shorter Auth setting (e.g. 4) will send codes that fail verification. This is separate from tenant `verification_code_expiry_minutes` / `send-verification-code`.
+- Expiry: **Email OTP expiration** on the same Email provider panel (your template can say “expires in 1 hour” if that matches the setting).
+- Optional: add `<p><a href="{{ .ConfirmationURL }}">Or sign in with this link</a></p>` under the code if you want a magic link; the app normally expects the user to enter the code.
+
+Prayer / MFA flows that call **`send-verification-code`** still use tenant `email_templates` (`verification_code`) or the indigo fallback in that Edge Function.
+
 ### Email Queue Processing
 
 Pending rows in `email_queue` are drained by the **`trigger-email-processor`** Edge Function (invoked from the app after enqueue). It sends via Resend **`POST /emails/batch`**: up to **100** messages per request, **one recipient per message** (no BCC), with a short pause between batch requests. Honor **`RESEND_API_KEY`** and **`MAIL_SENDER_ADDRESS`** on Edge Function secrets; redeploy `trigger-email-processor` after changing them.
