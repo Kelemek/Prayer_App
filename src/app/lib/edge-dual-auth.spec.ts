@@ -38,4 +38,10 @@ describe('decideUserAdmin', () => {
   it('allows a signed-in user to email only their own address', () => {
     expect(decideUserAdmin('member@church.test', false, true)).toEqual({ ok: true });
   });
+
+  it('allows a signed-in member when tenant membership checks passed', () => {
+    expect(decideUserAdmin('member@church.test', false, { memberAllowed: true })).toEqual({
+      ok: true,
+    });
+  });
 });

@@ -351,14 +351,92 @@ function tenantIdFrom(body: Record<string, unknown> | null): string {
   return ''
 }
 
-function isSelfAddressed(body: Record<string, unknown> | null, email: string): boolean {
-  if (!body) return false
+function recipientsFromSendBody(body: Record<string, unknown> | null): string[] {
+  if (!body) return []
   const raw = body.to
   const list = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : []
   const recipients = list
     .map((value) => (typeof value === 'string' ? value.trim().toLowerCase() : ''))
     .filter((value) => value.length > 0)
+  return [...new Set(recipients)]
+}
+
+function isSelfAddressed(body: Record<string, unknown> | null, email: string): boolean {
+  const recipients = recipientsFromSendBody(body)
   return recipients.length > 0 && recipients.every((value) => value === email)
+}
+
+async function recipientsAreTenantAdminsForTenant(
+  admin: SupabaseClient,
+  tenantId: string,
+  recipients: string[],
+): Promise<boolean> {
+  if (!tenantId || recipients.length === 0) return false
+  const { data, error } = await admin
+    .from('tenant_memberships')
+    .select('user_email')
+    .eq('tenant_id', tenantId)
+    .eq('role', 'tenant_admin')
+    .in('user_email', recipients)
+  if (error) return false
+  const found = new Set((data ?? []).map((row) => row.user_email.toLowerCase()))
+  return recipients.every((email) => found.has(email))
+}
+
+async function callerCanSendToTenantRecipients(
+  admin: SupabaseClient,
+  callerEmail: string,
+  tenantId: string,
+  recipients: string[],
+): Promise<boolean> {
+  if (!tenantId || recipients.length === 0) return false
+  const { data: callerRow, error: callerErr } = await admin
+    .from('tenant_memberships')
+    .select('user_email')
+    .eq('tenant_id', tenantId)
+    .eq('user_email', callerEmail)
+    .eq('is_blocked', false)
+    .maybeSingle()
+  if (callerErr || !callerRow) return false
+  const { data: rows, error } = await admin
+    .from('tenant_memberships')
+    .select('user_email')
+    .eq('tenant_id', tenantId)
+    .eq('is_blocked', false)
+    .in('user_email', recipients)
+  if (error) return false
+  const found = new Set((rows ?? []).map((row) => row.user_email.toLowerCase()))
+  return recipients.every((email) => found.has(email))
+}
+
+/** Prayer groups are separate from tenant membership; invitees live in prayer_group_members. */
+async function callerCanSendToGroupInviteRecipients(
+  admin: SupabaseClient,
+  callerEmail: string,
+  recipients: string[],
+): Promise<boolean> {
+  if (recipients.length === 0) return false
+
+  const { data: callerGroups, error: callerErr } = await admin
+    .from('prayer_group_members')
+    .select('group_id')
+    .eq('user_email', callerEmail)
+    .eq('is_active', true)
+  if (callerErr || !callerGroups?.length) return false
+  const callerGroupIds = new Set(callerGroups.map((row) => row.group_id))
+
+  for (const recipient of recipients) {
+    const { data: inviteRows, error } = await admin
+      .from('prayer_group_members')
+      .select('group_id')
+      .eq('user_email', recipient)
+      .eq('is_active', true)
+      .eq('invited_by_email', callerEmail)
+    if (error || !inviteRows?.length) return false
+    const sharesGroup = inviteRows.some((row) => callerGroupIds.has(row.group_id))
+    if (!sharesGroup) return false
+  }
+  return true
 }
 
 async function callerIsAdmin(
@@ -396,12 +474,26 @@ function authError(status: 401 | 403): Response {
 }
 
 async function rejectUnlessServiceOrAdmin(req: Request): Promise<Response | null> {
-  const token = bearerToken(req)
-  const kind = classifyBearer(token, SUPABASE_SERVICE_ROLE_KEY ?? '', SUPABASE_ANON_KEY ?? '')
-  if (kind === 'service_role') return null
-  if (kind === 'anonymous' || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
     return authError(401)
   }
+  const token = bearerToken(req)
+  const kind = classifyBearer(token, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY)
+  const body = await readJsonObject(req)
+  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+  if (kind === 'service_role') return null
+
+  if (kind === 'anonymous') {
+    if (!body || body.action === 'send_to_all_subscribers') return authError(403)
+    const tenantId = tenantIdFrom(body)
+    const recipients = recipientsFromSendBody(body)
+    if (!tenantId || recipients.length === 0) return authError(401)
+    const adminsOnly = await recipientsAreTenantAdminsForTenant(admin, tenantId, recipients)
+    if (!adminsOnly) return authError(403)
+    return null
+  }
+
   const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { autoRefreshToken: false, persistSession: false },
@@ -409,10 +501,27 @@ async function rejectUnlessServiceOrAdmin(req: Request): Promise<Response | null
   const { data, error } = await userClient.auth.getUser()
   const email = data?.user?.email?.toLowerCase().trim() ?? ''
   if (error || !email) return authError(401)
-  const body = await readJsonObject(req)
-  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-  const isAdmin = await callerIsAdmin(admin, email, tenantIdFrom(body))
-  const decision = decideUserAdmin(email, isAdmin, isSelfAddressed(body, email))
+
+  const tenantId = tenantIdFrom(body)
+  const isAdmin = await callerIsAdmin(admin, email, tenantId)
+  if (body?.action === 'send_to_all_subscribers' && !isAdmin) return authError(403)
+
+  let memberAllowed = false
+  if (!isAdmin && body?.action !== 'send_to_all_subscribers') {
+    const recipients = recipientsFromSendBody(body)
+    if (recipients.length > 0) {
+      const tenantOk = tenantId
+        ? await callerCanSendToTenantRecipients(admin, email, tenantId, recipients)
+        : false
+      const groupInviteOk = await callerCanSendToGroupInviteRecipients(admin, email, recipients)
+      memberAllowed = tenantOk || groupInviteOk
+    }
+  }
+
+  const decision = decideUserAdmin(email, isAdmin, {
+    selfAddressed: isSelfAddressed(body, email),
+    memberAllowed,
+  })
   if (!decision.ok) return authError(decision.status)
   return null
 }

@@ -16,12 +16,25 @@ export function classifyBearer(
   return 'user';
 }
 
+export type DecideUserAdminOptions = {
+  selfAddressed?: boolean;
+  memberAllowed?: boolean;
+};
+
+function normalizeDecideOptions(
+  options: boolean | DecideUserAdminOptions | undefined,
+): DecideUserAdminOptions {
+  if (typeof options === 'boolean') return { selfAddressed: options };
+  return options ?? {};
+}
+
 export function decideUserAdmin(
   userEmail: string | null,
   isAdmin: boolean,
-  selfAddressed = false,
+  options: boolean | DecideUserAdminOptions = {},
 ): { ok: true } | { ok: false; status: 401 | 403 } {
+  const { selfAddressed, memberAllowed } = normalizeDecideOptions(options);
   if (!userEmail) return { ok: false, status: 401 };
-  if (!isAdmin && !selfAddressed) return { ok: false, status: 403 };
-  return { ok: true };
+  if (isAdmin || selfAddressed || memberAllowed) return { ok: true };
+  return { ok: false, status: 403 };
 }

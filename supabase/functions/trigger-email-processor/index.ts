@@ -11,7 +11,7 @@
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { classifyBearer, decideUserAdmin } from "./dual-auth.ts";
+import { classifyBearer } from "./dual-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -597,50 +597,6 @@ function bearerToken(req: Request): string {
   return authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
 }
 
-async function readJsonObject(req: Request): Promise<Record<string, unknown> | null> {
-  try {
-    const body = await req.clone().json();
-    if (!body || typeof body !== "object" || Array.isArray(body)) return null;
-    return body as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-function tenantIdFrom(body: Record<string, unknown> | null): string {
-  if (!body) return "";
-  if (typeof body.tenantId === "string") return body.tenantId.trim();
-  if (typeof body.tenant_id === "string") return body.tenant_id.trim();
-  return "";
-}
-
-async function callerIsAdmin(
-  admin: SupabaseClient,
-  email: string,
-  tenantId: string,
-): Promise<boolean> {
-  if (tenantId) {
-    const { data, error } = await admin.rpc("is_tenant_admin", {
-      tenant_to_check: tenantId,
-      email_to_check: email,
-    });
-    return !error && Boolean(data);
-  }
-  const { data: isSuper, error: superError } = await admin.rpc("is_super_admin", {
-    email_to_check: email,
-  });
-  if (superError) return false;
-  if (isSuper) return true;
-  const { data: row, error } = await admin
-    .from("tenant_memberships")
-    .select("user_email")
-    .eq("user_email", email)
-    .eq("role", "tenant_admin")
-    .limit(1)
-    .maybeSingle();
-  return !error && Boolean(row);
-}
-
 function authError(status: 401 | 403): Response {
   return new Response(
     JSON.stringify({ error: status === 401 ? "Unauthorized" : "Forbidden" }),
@@ -648,7 +604,7 @@ function authError(status: 401 | 403): Response {
   );
 }
 
-async function rejectUnlessServiceOrAdmin(
+async function rejectUnlessServiceOrAuthenticated(
   req: Request,
   supabaseUrl: string,
   serviceKey: string,
@@ -665,10 +621,6 @@ async function rejectUnlessServiceOrAdmin(
   const { data, error } = await userClient.auth.getUser();
   const email = data?.user?.email?.toLowerCase().trim() ?? "";
   if (error || !email) return authError(401);
-  const admin = createClient(supabaseUrl, serviceKey);
-  const isAdmin = await callerIsAdmin(admin, email, tenantIdFrom(await readJsonObject(req)));
-  const decision = decideUserAdmin(email, isAdmin, false);
-  if (!decision.ok) return authError(decision.status);
   return null;
 }
 
@@ -695,7 +647,7 @@ serve(async (req) => {
     }
 
     // Service-key equality runs before getUser because the secret is not a user JWT.
-    const rejected = await rejectUnlessServiceOrAdmin(req, supabaseUrl, serviceKey);
+    const rejected = await rejectUnlessServiceOrAuthenticated(req, supabaseUrl, serviceKey);
     if (rejected) return rejected;
 
     if (!resendKey || !mailSender) {

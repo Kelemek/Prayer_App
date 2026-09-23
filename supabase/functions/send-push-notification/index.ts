@@ -202,6 +202,38 @@ function authError(status: 401 | 403): Response {
   );
 }
 
+function pushRecipientsFromBody(body: Record<string, unknown> | null): string[] {
+  if (!body || !Array.isArray(body.emails)) return [];
+  const emails = body.emails
+    .map((value) => (typeof value === 'string' ? value.trim().toLowerCase() : ''))
+    .filter((value) => value.length > 0);
+  return [...new Set(emails)];
+}
+
+async function callerCanPushToRecipients(
+  admin: SupabaseClient,
+  callerEmail: string,
+  recipients: string[],
+): Promise<boolean> {
+  if (recipients.length === 0) return false;
+  const { data: callerTenants, error: callerErr } = await admin
+    .from('tenant_memberships')
+    .select('tenant_id')
+    .eq('user_email', callerEmail)
+    .eq('is_blocked', false);
+  if (callerErr || !callerTenants?.length) return false;
+  const tenantIds = callerTenants.map((row) => row.tenant_id);
+  const { data: recipientRows, error } = await admin
+    .from('tenant_memberships')
+    .select('user_email')
+    .eq('is_blocked', false)
+    .in('tenant_id', tenantIds)
+    .in('user_email', recipients);
+  if (error) return false;
+  const found = new Set((recipientRows ?? []).map((row) => row.user_email.toLowerCase()));
+  return recipients.every((email) => found.has(email));
+}
+
 async function rejectUnlessServiceOrAdmin(req: Request): Promise<Response | null> {
   const token = bearerToken(req);
   const kind = classifyBearer(token, supabaseKey, anonKey);
@@ -215,9 +247,14 @@ async function rejectUnlessServiceOrAdmin(req: Request): Promise<Response | null
   const email = data?.user?.email?.toLowerCase().trim() ?? '';
   if (error || !email) return authError(401);
   const body = await readJsonObject(req);
-  if (body?.sendToAll === true) return authError(403);
   const isAdmin = await callerIsAdmin(supabase, email, tenantIdFrom(body));
-  const decision = decideUserAdmin(email, isAdmin, false);
+  if (body?.sendToAll === true && !isAdmin) return authError(403);
+  const recipients = pushRecipientsFromBody(body);
+  const memberAllowed =
+    !isAdmin && recipients.length > 0
+      ? await callerCanPushToRecipients(supabase, email, recipients)
+      : false;
+  const decision = decideUserAdmin(email, isAdmin, { memberAllowed });
   if (!decision.ok) return authError(decision.status);
   return null;
 }
