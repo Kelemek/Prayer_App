@@ -17,6 +17,9 @@ import { AdminDataService } from "./services/admin-data.service";
 import { PosthogService } from "./services/posthog.service";
 import { filter, firstValueFrom, take } from "rxjs";
 
+/** Survives login redirect when the approval `code` is dropped from the URL. */
+const PENDING_ACCOUNT_APPROVAL_CODE_KEY = "prayerapp_pending_account_approval_code";
+
 @Component({
   selector: "app-shell",
   standalone: true,
@@ -44,6 +47,9 @@ import { filter, firstValueFrom, take } from "rxjs";
 })
 export class AppShellComponent implements OnInit {
   title = "prayerapp";
+  private accountApprovalProcessing = false;
+  /** Avoid repeating the unsigned-admin toast on every NavigationEnd. */
+  private accountApprovalPromptedForLoginCode: string | null = null;
 
   constructor(
     private router: Router,
@@ -135,7 +141,61 @@ export class AppShellComponent implements OnInit {
 
   ngOnInit() {
     this.handleApprovalCode();
+    this.setupAccountApprovalOnNavigation();
     this.setupPushRefreshListener();
+  }
+
+  private isAccountApprovalCode(code: string): boolean {
+    return (
+      code.startsWith("account_approve_") || code.startsWith("account_deny_")
+    );
+  }
+
+  private readAccountApprovalCode(): string | null {
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get("code");
+    if (fromUrl && this.isAccountApprovalCode(fromUrl)) {
+      return fromUrl;
+    }
+    try {
+      const stored = sessionStorage.getItem(PENDING_ACCOUNT_APPROVAL_CODE_KEY);
+      if (stored && this.isAccountApprovalCode(stored)) {
+        return stored;
+      }
+    } catch {
+      // sessionStorage may be unavailable in some embedded contexts
+    }
+    return null;
+  }
+
+  private clearPendingAccountApprovalCode(): void {
+    try {
+      sessionStorage.removeItem(PENDING_ACCOUNT_APPROVAL_CODE_KEY);
+    } catch {
+      // ignore
+    }
+  }
+
+  /** Stop re-processing the same email link on every navigation. */
+  private dismissAccountApprovalLink(): void {
+    this.accountApprovalPromptedForLoginCode = null;
+    this.clearPendingAccountApprovalCode();
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = params.get("code");
+      if (!fromUrl || !this.isAccountApprovalCode(fromUrl)) {
+        return;
+      }
+      params.delete("code");
+      const qs = params.toString();
+      window.history.replaceState(
+        {},
+        "",
+        window.location.pathname + (qs ? `?${qs}` : "")
+      );
+    } catch {
+      // ignore
+    }
   }
 
   /**
@@ -143,17 +203,17 @@ export class AppShellComponent implements OnInit {
    * (`detectSessionInUrl`) and must be left on the URL.
    */
   private async handleApprovalCode() {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
+    const code = this.readAccountApprovalCode();
+    if (!code || this.accountApprovalProcessing) return;
+    await this.handleAccountApprovalCode(code);
+  }
 
-    if (!code) return;
-
-    if (
-      code.startsWith("account_approve_") ||
-      code.startsWith("account_deny_")
-    ) {
-      await this.handleAccountApprovalCode(code);
-    }
+  private setupAccountApprovalOnNavigation(): void {
+    this.router.events
+      .pipe(filter((event) => event instanceof NavigationEnd))
+      .subscribe(() => {
+        void this.handleApprovalCode();
+      });
   }
 
   /**
@@ -174,18 +234,37 @@ export class AppShellComponent implements OnInit {
   }
 
   private async handleAccountApprovalCode(code: string) {
+    if (this.accountApprovalProcessing) return;
+    this.accountApprovalProcessing = true;
     try {
       const { ToastService } = await import("./services/toast.service");
       const toast = this.injector.get(ToastService);
 
       if (!(await this.currentSessionIsAdmin())) {
-        toast.showToast(
-          "Sign in as a church admin to use this approval link",
-          "error"
-        );
-        this.router.navigate(["/login"]);
+        try {
+          sessionStorage.setItem(PENDING_ACCOUNT_APPROVAL_CODE_KEY, code);
+        } catch {
+          // ignore
+        }
+        const alreadyPrompted =
+          this.accountApprovalPromptedForLoginCode === code;
+        if (!alreadyPrompted) {
+          this.accountApprovalPromptedForLoginCode = code;
+          toast.showToast(
+            "Sign in as a church admin to use this approval link",
+            "error"
+          );
+          const returnUrl = `${window.location.pathname}${window.location.search}`;
+          if (!this.router.url.startsWith("/login")) {
+            await this.router.navigate(["/login"], {
+              queryParams: { returnUrl },
+            });
+          }
+        }
         return;
       }
+
+      this.accountApprovalPromptedForLoginCode = null;
 
       // Lazy load required services
       const { ApprovalLinksService } = await import(
@@ -205,6 +284,7 @@ export class AppShellComponent implements OnInit {
 
       if (!decoded) {
         console.error("Invalid account approval code format");
+        this.dismissAccountApprovalLink();
         toast.showToast("Invalid approval link", "error");
         this.router.navigate(["/login"]);
         return;
@@ -225,6 +305,7 @@ export class AppShellComponent implements OnInit {
         requests.length === 0
       ) {
         console.error("Account approval request not found:", fetchError);
+        this.dismissAccountApprovalLink();
         toast.showToast("Approval request not found", "error");
         this.router.navigate(["/login"]);
         return;
@@ -233,6 +314,7 @@ export class AppShellComponent implements OnInit {
       const request = requests[0];
 
       if (request.approval_status !== "pending") {
+        this.dismissAccountApprovalLink();
         toast.showToast(
           `This request has already been ${request.approval_status}`,
           "info"
@@ -246,6 +328,7 @@ export class AppShellComponent implements OnInit {
         const approvalTenantId = request.tenant_id;
         if (!approvalTenantId) {
           console.error("Approval request missing tenant_id");
+          this.dismissAccountApprovalLink();
           toast.showToast(
             "Cannot approve: missing organization on request",
             "error"
@@ -267,6 +350,7 @@ export class AppShellComponent implements OnInit {
 
         if (insertError) {
           console.error("Failed to create subscriber:", insertError);
+          this.dismissAccountApprovalLink();
           toast.showToast("Failed to approve account", "error");
           this.router.navigate(["/login"]);
           return;
@@ -379,11 +463,11 @@ export class AppShellComponent implements OnInit {
         );
       }
 
-      // Clear URL params and navigate
-      window.history.replaceState({}, "", window.location.pathname);
+      this.dismissAccountApprovalLink();
       this.router.navigate(["/login"]);
     } catch (error) {
       console.error("Error handling account approval code:", error);
+      this.dismissAccountApprovalLink();
       try {
         const { ToastService } = await import("./services/toast.service");
         const toast = this.injector.get(ToastService) as {
@@ -396,6 +480,8 @@ export class AppShellComponent implements OnInit {
         console.error("Failed to show approval error toast:", toastError);
       }
       this.router.navigate(["/login"]);
+    } finally {
+      this.accountApprovalProcessing = false;
     }
   }
 

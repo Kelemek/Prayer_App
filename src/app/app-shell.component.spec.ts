@@ -129,11 +129,13 @@ describe('AppShellComponent', () => {
   let routerEventsSubject: Subject<any>;
 
   beforeEach(() => {
+    sessionStorage.clear();
     // Create mock router with events subject
     routerEventsSubject = new Subject();
     mockRouter = {
       events: routerEventsSubject.asObservable(),
-      navigate: vi.fn().mockResolvedValue(true)
+      navigate: vi.fn().mockResolvedValue(true),
+      url: '/',
     };
 
     // Create mock NgZone
@@ -1161,6 +1163,7 @@ describe('AppShellComponent', () => {
     it('does not insert a membership without an admin session', async () => {
       adminGetIsAdminMock.mockReturnValue(false);
       adminGetUserMock.mockReturnValue(null);
+      window.location.search = '?code=account_approve_test';
 
       await callHandler();
 
@@ -1170,7 +1173,48 @@ describe('AppShellComponent', () => {
         'Sign in as a church admin to use this approval link',
         'error'
       );
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/login']);
+      expect(sessionStorage.getItem('prayerapp_pending_account_approval_code')).toBe(
+        'account_approve_test'
+      );
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/login'], {
+        queryParams: { returnUrl: '/test?code=account_approve_test' },
+      });
+    });
+
+    it('does not repeat the unsigned-admin toast on subsequent navigations', async () => {
+      adminGetIsAdminMock.mockReturnValue(false);
+      adminGetUserMock.mockReturnValue(null);
+      window.location.search = '';
+      sessionStorage.setItem('prayerapp_pending_account_approval_code', 'account_approve_test');
+      mockRouter.url = '/login';
+
+      await callHandler();
+      expect(toastShowToastMock).toHaveBeenCalledTimes(1);
+
+      toastShowToastMock.mockClear();
+      mockRouter.navigate.mockClear();
+      await callHandler();
+
+      expect(toastShowToastMock).not.toHaveBeenCalled();
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+      expect(sessionStorage.getItem('prayerapp_pending_account_approval_code')).toBe(
+        'account_approve_test'
+      );
+    });
+
+    it('resumes a pending approval code after the admin signs in', async () => {
+      adminGetIsAdminMock.mockReturnValue(true);
+      adminGetUserMock.mockReturnValue({
+        id: 'admin-1',
+        email: 'admin@example.com',
+      });
+      window.location.search = '';
+      sessionStorage.setItem('prayerapp_pending_account_approval_code', 'account_approve_test');
+
+      await (component as any).handleApprovalCode();
+
+      expect(supabaseDirectQueryMock).toHaveBeenCalled();
+      expect(sessionStorage.getItem('prayerapp_pending_account_approval_code')).toBeNull();
     });
 
     it('approves a pending request and notifies success', async () => {
@@ -1212,10 +1256,11 @@ describe('AppShellComponent', () => {
     });
 
     it('notifies when the request has already been processed', async () => {
-      supabaseDirectQueryMock.mockResolvedValueOnce({
+      supabaseDirectQueryMock.mockResolvedValue({
         data: [createRequest('approved')],
         error: null
       });
+      sessionStorage.setItem('prayerapp_pending_account_approval_code', 'account_approve_test');
 
       await callHandler();
 
@@ -1224,6 +1269,11 @@ describe('AppShellComponent', () => {
         'info'
       );
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/login']);
+      expect(sessionStorage.getItem('prayerapp_pending_account_approval_code')).toBeNull();
+
+      toastShowToastMock.mockClear();
+      await (component as any).handleApprovalCode();
+      expect(toastShowToastMock).not.toHaveBeenCalled();
     });
 
     it('handles invalid approval codes gracefully', async () => {
