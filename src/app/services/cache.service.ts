@@ -3,6 +3,30 @@ import { Observable, of, throwError } from 'rxjs';
 import { tap, shareReplay, catchError } from 'rxjs/operators';
 
 /**
+ * User-scoped CacheService keys cleared on logout and rehydrated at startup.
+ * Configured aliases (`prayers` → `prayers_cache`, etc.) are cleared with these.
+ *
+ * - `tenant_` — `tenant_${id}_prayers`
+ * - `personalTenant_` — personal prayers, including unaffiliated
+ * - `personalCategoryColors_` — per-tenant personal category colors
+ * - `prompts:` — `prompts:${tenantId}`
+ * - `groupPrayers:` — `groupPrayers:${groupId}`
+ * - `memorizationRecommendations:` — `memorizationRecommendations:${tenantId}`
+ * - `memberPrayedForCounts` — member pray-for counts
+ * - `memberPrayerUpdates` — member prayer update counts
+ */
+export const USER_SCOPED_CACHE_PREFIXES = [
+  'tenant_',
+  'personalTenant_',
+  'personalCategoryColors_',
+  'prompts:',
+  'groupPrayers:',
+  'memorizationRecommendations:',
+  'memberPrayedForCounts',
+  'memberPrayerUpdates',
+] as const;
+
+/**
  * Cache configuration for different data types
  */
 export interface CacheConfig {
@@ -74,18 +98,11 @@ export class CacheService {
         this.hydrateKeyFromLocalStorage(config.key);
       }
 
-      // Tenant-scoped prayer/prompt caches are stored under dynamic keys
+      // Dynamic user-scoped keys (same prefixes logout wipes).
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (!key) continue;
-        if (
-          key.startsWith('tenant_') ||
-          key.startsWith('personalTenant_') ||
-          key.startsWith('personalCategoryColors_') ||
-          key.startsWith('prompts:') ||
-          key.startsWith('groupPrayers:') ||
-          key.startsWith('memorizationRecommendations:')
-        ) {
+        if (this.isUserScopedCacheKey(key)) {
           this.hydrateKeyFromLocalStorage(key);
         }
       }
@@ -219,17 +236,21 @@ export class CacheService {
   }
 
   /**
-   * Invalidate cache for a specific key
+   * Invalidate cache for a specific key.
+   * Uses the same storage key as get/set (`prayers` → `prayers_cache`).
    */
   invalidate(key: string): void {
-    this.inMemoryCache.delete(key);
-    this.observableCache.delete(key);
-
-    if (this.localStorageEnabled) {
-      try {
-        localStorage.removeItem(key);
-      } catch (error) {
-        console.warn('Failed to remove cache from localStorage:', error);
+    const storageKey = this.resolveStorageKey(key);
+    const keys = storageKey === key ? [key] : [key, storageKey];
+    for (const cacheKey of keys) {
+      this.inMemoryCache.delete(cacheKey);
+      this.observableCache.delete(cacheKey);
+      if (this.localStorageEnabled) {
+        try {
+          localStorage.removeItem(cacheKey);
+        } catch (error) {
+          console.warn('Failed to remove cache from localStorage:', error);
+        }
       }
     }
   }
@@ -256,18 +277,90 @@ export class CacheService {
   }
 
   /**
-   * Invalidate cache by category
+   * Invalidate cache by category.
+   * Matches the category prefix and the resolved storage key (`prayers` → `prayers_cache`),
+   * including entries that exist only in localStorage.
    */
   invalidateCategory(category: string): void {
-    const keysToInvalidate: string[] = [];
+    const resolved = this.resolveStorageKey(category);
+    const matches = (key: string): boolean =>
+      key.startsWith(category) ||
+      key === resolved ||
+      (resolved !== category && key.startsWith(resolved));
 
+    const keysToInvalidate = new Set<string>();
     this.inMemoryCache.forEach((_, key) => {
-      if (key.startsWith(category)) {
-        keysToInvalidate.push(key);
+      if (matches(key)) {
+        keysToInvalidate.add(key);
       }
     });
 
+    if (this.localStorageEnabled) {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && matches(key)) {
+            keysToInvalidate.add(key);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to scan localStorage for cache invalidation:', error);
+      }
+    }
+
     keysToInvalidate.forEach(key => this.invalidate(key));
+    this.invalidate(category);
+  }
+
+  /**
+   * Drop every user-scoped cache entry from memory and localStorage.
+   * Logout and signed-out auth state both call this so the next startup
+   * cannot rehydrate another user's tenant or prayer caches.
+   */
+  clearUserScopedCaches(): void {
+    for (const key of [...this.inMemoryCache.keys()]) {
+      if (this.isUserScopedCacheKey(key)) {
+        this.inMemoryCache.delete(key);
+      }
+    }
+    for (const key of [...this.observableCache.keys()]) {
+      if (this.isUserScopedCacheKey(key) || this.isUserScopedCacheKey(this.resolveStorageKey(key))) {
+        this.observableCache.delete(key);
+      }
+    }
+
+    if (!this.localStorageEnabled) {
+      return;
+    }
+
+    try {
+      const toRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && this.isUserScopedCacheKey(key)) {
+          toRemove.push(key);
+        }
+      }
+      for (const key of toRemove) {
+        localStorage.removeItem(key);
+      }
+    } catch (error) {
+      console.warn('Failed to clear user-scoped cache from localStorage:', error);
+    }
+  }
+
+  private isUserScopedCacheKey(key: string): boolean {
+    if (this.cacheConfigs.has(key)) {
+      return true;
+    }
+    for (const config of this.cacheConfigs.values()) {
+      if (key === config.key) {
+        return true;
+      }
+    }
+    return USER_SCOPED_CACHE_PREFIXES.some(
+      (prefix) => key === prefix || key.startsWith(prefix)
+    );
   }
 
   /**

@@ -127,6 +127,7 @@ describe('UserSessionService', () => {
     });
 
     it('should handle database errors gracefully', async () => {
+      await service.loadUserSession('test@example.com');
       mockSupabaseService.client.from.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -139,14 +140,39 @@ describe('UserSessionService', () => {
       });
 
       service.clearSession();
+      localStorage.removeItem('userSession');
+      await service.loadUserSession('missing@example.com');
+
+      expect(service.getCurrentSession()).toBeNull();
+      expect(localStorage.getItem('userSession')).toBeNull();
+    });
+
+    it('should keep a cached session when the membership query errors', async () => {
+      await service.loadUserSession('test@example.com');
+      await service.updateUserSession({
+        fullName: 'Kept Name',
+        receiveNotifications: false,
+        receiveAdminEmails: true,
+      });
+
+      mockSupabaseService.client.from.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: null,
+              error: { code: 'PGRST116', message: 'multiple rows' },
+            }),
+          }),
+        }),
+      });
+
       await service.loadUserSession('test@example.com');
 
       const session = service.getCurrentSession();
-      // When there's an error, we create a fallback session with empty name
-      expect(session).not.toBeNull();
-      expect(session?.email).toBe('test@example.com');
-      expect(session?.fullName).toBe('');
-      expect(session?.isActive).toBe(true);
+      expect(session?.fullName).toBe('Kept Name');
+      expect(session?.receiveNotifications).toBe(false);
+      expect(session?.receiveAdminEmails).toBe(true);
+      expect(JSON.parse(localStorage.getItem('userSession')!).fullName).toBe('Kept Name');
     });
 
     it('should ignore empty email', async () => {
@@ -169,14 +195,27 @@ describe('UserSessionService', () => {
       expect(service.getUserFullName()).toBe('John Doe');
     });
 
-    it('should return user first name as null (deprecated)', async () => {
+    it('should return the first name from the display name', async () => {
       await service.loadUserSession('test@example.com');
-      expect(service.getUserFirstName()).toBeNull();
+      expect(service.getUserFirstName()).toBe('John');
     });
 
-    it('should return user last name as null (deprecated)', async () => {
+    it('should return the last name from the display name', async () => {
       await service.loadUserSession('test@example.com');
-      expect(service.getUserLastName()).toBeNull();
+      expect(service.getUserLastName()).toBe('Doe');
+    });
+
+    it('should keep a multi-word remainder as the last name', async () => {
+      mockSupabaseService.client.from.mockReturnValue(
+        mockTenantMembershipsQuery({
+          user_email: 'test@example.com',
+          name: 'Mary Anne Smith',
+          is_active: true,
+        })
+      );
+      await service.loadUserSession('test@example.com');
+      expect(service.getUserFirstName()).toBe('Mary');
+      expect(service.getUserLastName()).toBe('Anne Smith');
     });
 
     it('should return null when no session loaded', () => {
@@ -212,7 +251,7 @@ describe('UserSessionService', () => {
       expect(prefs?.receiveAdminEmails).toBe(false);
     });
 
-    it('should handle disabled notifications', async () => {
+    it('should read notification flags from the membership row', async () => {
       mockSupabaseService.client.from.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -220,7 +259,8 @@ describe('UserSessionService', () => {
               data: {
                 user_email: 'test@example.com',
                 name: 'John Doe',
-                is_active: true,
+                is_active: false,
+                receive_admin_emails: true,
               },
               error: null
             })
@@ -231,30 +271,14 @@ describe('UserSessionService', () => {
       await service.loadUserSession('test@example.com');
 
       const session = service.getCurrentSession();
-      // Note: notification preferences are hardcoded defaults since they're not stored on tenant_memberships
-      expect(session?.receiveNotifications).toBe(true);
-    });
-
-    it('should handle admin emails enabled', async () => {
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'test@example.com',
-                name: 'John Doe',
-                is_active: true,
-              },
-              error: null
-            })
-          })
-        })
+      expect(session?.receiveNotifications).toBe(false);
+      expect(session?.receiveAdminEmails).toBe(true);
+      expect(service.isNotificationsEnabled()).toBe(false);
+      expect(service.isAdminEmailsEnabled()).toBe(true);
+      expect(service.getNotificationPreferences()).toEqual({
+        receiveNotifications: false,
+        receiveAdminEmails: true,
       });
-
-      await service.loadUserSession('test@example.com');
-
-      const session = service.getCurrentSession();
-      expect(session?.receiveAdminEmails).toBe(false);
     });
   });
 
@@ -661,6 +685,7 @@ describe('UserSessionService', () => {
 
   describe('loadUserSession - exception handling', () => {
     it('should handle exception thrown during database query', async () => {
+      await service.loadUserSession('test@example.com');
       mockSupabaseService.client.from.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -670,12 +695,47 @@ describe('UserSessionService', () => {
       });
 
       service.clearSession();
-      await service.loadUserSession('test@example.com');
+      localStorage.removeItem('userSession');
+      await service.loadUserSession('missing@example.com');
 
-      const session = service.getCurrentSession();
-      expect(session).not.toBeNull();
-      expect(session?.email).toBe('test@example.com');
-      expect(session?.fullName).toBe('');
+      expect(service.getCurrentSession()).toBeNull();
+      expect(localStorage.getItem('userSession')).toBeNull();
+    });
+
+    it('should clear the membership timeout when the query wins', async () => {
+      vi.useFakeTimers();
+      try {
+        const pending = service.loadUserSession('test@example.com');
+        await pending;
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('should keep the cached row when the membership query times out', async () => {
+      await service.loadUserSession('test@example.com');
+      await service.updateUserSession({ fullName: 'Kept Name' });
+
+      mockSupabaseService.client.from.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockReturnValue(new Promise(() => undefined)),
+          }),
+        }),
+      });
+
+      vi.useFakeTimers();
+      try {
+        const pending = service.loadUserSession('test@example.com');
+        await vi.advanceTimersByTimeAsync(5000);
+        await pending;
+        expect(service.getCurrentSession()?.fullName).toBe('Kept Name');
+        expect(JSON.parse(localStorage.getItem('userSession')!).fullName).toBe('Kept Name');
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 
@@ -1003,6 +1063,43 @@ describe('UserSessionService', () => {
       const session = service.getCurrentSession();
       expect(session).not.toBeNull();
       expect(session?.email).toBe('test@example.com');
+    });
+
+    it('should scope membership by tenant id or limit to one row', async () => {
+      const eq = vi.fn();
+      const limit = vi.fn();
+      const chain = {
+        eq,
+        limit,
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: {
+            user_email: 'test@example.com',
+            name: 'Ada Lovelace',
+            is_active: true,
+            receive_admin_emails: true,
+          },
+          error: null,
+        }),
+      };
+      eq.mockReturnValue(chain);
+      limit.mockReturnValue(chain);
+      mockSupabaseService.client.from.mockReturnValue({
+        select: vi.fn().mockReturnValue(chain),
+      });
+
+      mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-9' });
+      await service.loadUserSession('test@example.com');
+      expect(eq).toHaveBeenCalledWith('user_email', 'test@example.com');
+      expect(eq).toHaveBeenCalledWith('tenant_id', 'tenant-9');
+      expect(limit).not.toHaveBeenCalled();
+
+      eq.mockClear();
+      limit.mockClear();
+      mockTenantContext.getActiveTenant.mockReturnValue(null);
+      await service.loadUserSession('test@example.com');
+      expect(eq).toHaveBeenCalledWith('user_email', 'test@example.com');
+      expect(eq).not.toHaveBeenCalledWith('tenant_id', 'tenant-9');
+      expect(limit).toHaveBeenCalledWith(1);
     });
 
     it('should ignore whitespace-only email', async () => {
@@ -1435,26 +1532,66 @@ describe('UserSessionService', () => {
       expect(elapsed).toBeLessThan(100); // Should be instant
     });
 
-    it('should timeout waiting for initialization after 10 seconds', async () => {
-      // Create new service with never-authenticating auth
-      const authSubject = new BehaviorSubject(false);
-      const mockAuth = { isAuthenticated$: authSubject };
-      
-      // Clear any cached session from localStorage
-      localStorage.removeItem('userSession');
-      
-      const timeoutService = new UserSessionService(mockSupabaseService, mockAuth, mockAuthIdentity, mockTenantContext);
-      
-      // Call waitForSession with a timeout test
-      // This will wait up to 10 seconds
-      const start = Date.now();
-      const result = await timeoutService.waitForSession();
-      const elapsed = Date.now() - start;
-      
-      // Should wait less than 10 seconds in test but have timeout logic
-      expect(result).toBeNull(); // No session was set
-      // Note: actual timeout is 10 seconds, so we won't test the full wait
-    }, 15000); // Extend test timeout
+    it('should unsubscribe when the 10s initialization wait times out', async () => {
+      vi.useFakeTimers();
+      try {
+        const authSubject = new BehaviorSubject(false);
+        const mockAuth = { isAuthenticated$: authSubject };
+        localStorage.removeItem('userSession');
+        const timeoutService = new UserSessionService(
+          mockSupabaseService,
+          mockAuth,
+          mockAuthIdentity,
+          mockTenantContext
+        );
+        const subject = (
+          timeoutService as unknown as {
+            hasInitializedSubject: { observers: unknown[] };
+          }
+        ).hasInitializedSubject;
+
+        const pending = timeoutService.waitForSession();
+        expect(subject.observers.length).toBeGreaterThan(0);
+        await vi.advanceTimersByTimeAsync(10000);
+        await expect(pending).resolves.toBeNull();
+        expect(subject.observers.length).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('should unsubscribe when the 10s loading wait times out', async () => {
+      vi.useFakeTimers();
+      try {
+        const authSubject = new BehaviorSubject(false);
+        localStorage.removeItem('userSession');
+        const timeoutService = new UserSessionService(
+          mockSupabaseService,
+          { isAuthenticated$: authSubject },
+          mockAuthIdentity,
+          mockTenantContext
+        );
+        const internals = timeoutService as unknown as {
+          hasInitializedSubject: { next: (value: boolean) => void };
+          isLoadingSubject: {
+            next: (value: boolean) => void;
+            observers: unknown[];
+          };
+          userSessionSubject: { next: (value: null) => void };
+        };
+        internals.userSessionSubject.next(null);
+        internals.hasInitializedSubject.next(true);
+        internals.isLoadingSubject.next(true);
+
+        const pending = timeoutService.waitForSession();
+        expect(internals.isLoadingSubject.observers.length).toBeGreaterThan(0);
+        await vi.advanceTimersByTimeAsync(10000);
+        await expect(pending).resolves.toBeNull();
+        expect(internals.isLoadingSubject.observers.length).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe('concurrent operations and state consistency', () => {

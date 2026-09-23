@@ -112,15 +112,7 @@ export class AdminAuthService {
         this.sessionStart = null;
         this.persistSessionStart(null);
 
-        this.cacheService.invalidateCategory('personalTenant_');
-        this.cacheService.invalidateCategory('prayers');
-        this.cacheService.invalidateCategory('prompts');
-        localStorage.removeItem('read_prayers_data');
-        localStorage.removeItem('read_prompts_data');
-
-        if (userEmail) {
-          localStorage.removeItem(`last_activity_update_${userEmail}`);
-        }
+        this.wipeUserScopedCaches(userEmail);
       }
     });
 
@@ -543,14 +535,8 @@ export class AdminAuthService {
       localStorage.removeItem('mfa_code_id');
       localStorage.removeItem('mfa_user_email');
 
-      // Clear user-specific caches to prevent next user from seeing previous user's data
-      this.cacheService.invalidateCategory('personalTenant_');
-      this.cacheService.invalidateCategory('prayers');
-      this.cacheService.invalidateCategory('prompts');
-      
-      // Clear badge read tracking (which prayers/prompts user has read)
-      localStorage.removeItem('read_prayers_data');
-      localStorage.removeItem('read_prompts_data');
+      // Clear user-specific caches so the next account cannot rehydrate them.
+      this.wipeUserScopedCaches(userEmail);
 
       // Clear Pray For modal "do not show again" preference so next user sees the modal if desired
       localStorage.removeItem('prayer_encouragement_modal_do_not_show');
@@ -562,12 +548,7 @@ export class AdminAuthService {
       } catch {
         // Ignore if service not available
       }
-      
-      // Clear analytics activity tracking for this user
-      if (userEmail) {
-        localStorage.removeItem(`last_activity_update_${userEmail}`);
-      }
-      
+
       // Always redirect to login page after logout
       if (loginQueryParams && Object.keys(loginQueryParams).length > 0) {
         this.router.navigate(['/login'], { queryParams: loginQueryParams });
@@ -576,6 +557,19 @@ export class AdminAuthService {
       }
     } catch (error) {
       console.error('Error during logout:', error);
+    }
+  }
+
+  /**
+   * One logout/sign-out wipe for every user-scoped CacheService prefix,
+   * plus badge read-state and per-email activity keys.
+   */
+  private wipeUserScopedCaches(userEmail?: string | null): void {
+    this.cacheService.clearUserScopedCaches();
+    localStorage.removeItem('read_prayers_data');
+    localStorage.removeItem('read_prompts_data');
+    if (userEmail) {
+      localStorage.removeItem(`last_activity_update_${userEmail}`);
     }
   }
 
