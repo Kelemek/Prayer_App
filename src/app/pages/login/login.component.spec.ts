@@ -49,9 +49,7 @@ const makeMocks = () => {
   const router: any = { navigate: vi.fn() };
 
   const route: any = {
-    queryParams: {
-      subscribe: (cb: any) => cb({})
-    }
+    queryParams: of({}),
   };
 
   const cdr: any = { markForCheck: vi.fn() };
@@ -735,9 +733,7 @@ describe('LoginComponent', () => {
   it('ngOnInit handles sessionExpired query param and sets error message', async () => {
     const queryMocks = makeMocks();
     queryMocks.route = {
-      queryParams: {
-        subscribe: (cb: any) => cb({ sessionExpired: 'true' })
-      }
+      queryParams: of({ sessionExpired: 'true' }),
     } as any;
     const comp = makeComponentWithMocks(
       queryMocks.adminAuthService,
@@ -758,9 +754,7 @@ describe('LoginComponent', () => {
   it('ngOnInit handles blocked query param and displays blocked message', async () => {
     const queryMocks = makeMocks();
     queryMocks.route = {
-      queryParams: {
-        subscribe: (cb: any) => cb({ blocked: 'true' })
-      }
+      queryParams: of({ blocked: 'true' }),
     } as any;
     const comp = makeComponentWithMocks(
       queryMocks.adminAuthService,
@@ -781,9 +775,7 @@ describe('LoginComponent', () => {
   it('ngOnInit handles email query param and prefills email', async () => {
     const queryMocks = makeMocks();
     queryMocks.route = {
-      queryParams: {
-        subscribe: (cb: any) => cb({ email: 'prefilled@example.com' })
-      }
+      queryParams: of({ email: 'prefilled@example.com' }),
     } as any;
     const comp = makeComponentWithMocks(
       queryMocks.adminAuthService,
@@ -804,9 +796,7 @@ describe('LoginComponent', () => {
   it('ngOnInit shows join invite banner and prefills invited email', async () => {
     const queryMocks = makeMocks();
     queryMocks.route = {
-      queryParams: {
-        subscribe: (cb: any) => cb({ returnUrl: '/join/invite-token-123' }),
-      },
+      queryParams: of({ returnUrl: '/join/invite-token-123' }),
     } as any;
     const getInvitePreview = vi.fn(async () => ({
       tenantName: 'Alpha Church',
@@ -845,7 +835,7 @@ describe('LoginComponent', () => {
   it('ngOnInit subscribes to requireSiteLogin$ and updates component state', async () => {
     const queryMocks = makeMocks();
     queryMocks.route = {
-      queryParams: { subscribe: (cb: any) => cb({}) }
+      queryParams: of({})
     } as any;
     const comp = makeComponentWithMocks(
       queryMocks.adminAuthService,
@@ -870,7 +860,7 @@ describe('LoginComponent', () => {
     sessionStorage.setItem('login_email_sent', 'true');
     sessionStorage.setItem('login_email', 'session@example.com');
     const queryMocks = makeMocks();
-    queryMocks.route.queryParams = { subscribe: (cb: any) => cb({}) };
+    queryMocks.route.queryParams = of({});
     const comp = makeComponentWithMocks(
       queryMocks.adminAuthService,
       queryMocks.supabaseService,
@@ -894,7 +884,7 @@ describe('LoginComponent', () => {
 
   it('ngOnInit navigates to home when user is already authenticated', async () => {
     const authMocks = makeMocks();
-    authMocks.route.queryParams = { subscribe: (cb: any) => cb({}) };
+    authMocks.route.queryParams = of({});
     const comp = makeComponentWithMocks(
       authMocks.adminAuthService,
       authMocks.supabaseService,
@@ -913,6 +903,146 @@ describe('LoginComponent', () => {
     expect(authMocks.router.navigate).toHaveBeenCalledWith(['/']);
   });
 
+  it('ngOnInit sends an already signed-in admin to returnUrl', async () => {
+    const authMocks = makeMocks();
+    authMocks.route.queryParams = of({ returnUrl: '/presentation' });
+    const comp = makeComponentWithMocks(
+      authMocks.adminAuthService,
+      authMocks.supabaseService,
+      authMocks.emailNotificationService,
+      authMocks.userSessionService,
+      authMocks.themeService,
+      authMocks.tenantContextService,
+      authMocks.router,
+      authMocks.route,
+      authMocks.cdr
+    );
+    comp.codeInputs = { toArray: () => [] } as any;
+    await comp.ngOnInit();
+    authMocks.isAdmin$.next(true);
+    expect(authMocks.router.navigate).toHaveBeenCalledWith(['/presentation']);
+    expect(authMocks.router.navigate).not.toHaveBeenCalledWith(['/']);
+  });
+
+  it('already signed-in admin with returnUrl /admin still goes home', async () => {
+    const authMocks = makeMocks();
+    authMocks.route.queryParams = of({ returnUrl: '/admin' });
+    const comp = makeComponentWithMocks(
+      authMocks.adminAuthService,
+      authMocks.supabaseService,
+      authMocks.emailNotificationService,
+      authMocks.userSessionService,
+      authMocks.themeService,
+      authMocks.tenantContextService,
+      authMocks.router,
+      authMocks.route,
+      authMocks.cdr
+    );
+    comp.codeInputs = { toArray: () => [] } as any;
+    await comp.ngOnInit();
+    authMocks.isAdmin$.next(true);
+    expect(authMocks.router.navigate).toHaveBeenCalledWith(['/']);
+  });
+
+  it('OTP success keeps returnUrl when isAdmin$ flips true during verify', async () => {
+    const authMocks = makeMocks();
+    authMocks.route.queryParams = of({ returnUrl: '/presentation' });
+    authMocks.adminAuthService.verifyMfaCode = vi.fn(async () => {
+      authMocks.isAdmin$.next(true);
+      return { success: true, isAdmin: true };
+    });
+    const comp = makeComponentWithMocks(
+      authMocks.adminAuthService,
+      authMocks.supabaseService,
+      authMocks.emailNotificationService,
+      authMocks.userSessionService,
+      authMocks.themeService,
+      authMocks.tenantContextService,
+      authMocks.router,
+      authMocks.route,
+      authMocks.cdr
+    );
+    comp.codeInputs = { toArray: () => [] } as any;
+    await comp.ngOnInit();
+    authMocks.router.navigate.mockClear();
+    comp.email = 'admin@example.com';
+    comp.waitingForMfaCode = true;
+    comp.codeLength = 4;
+    comp.mfaCode = ['1', '2', '3', '4'];
+    comp.mfaCodeInput = '1234';
+    vi.spyOn(comp as any, 'checkEmailSubscriber').mockResolvedValue(true);
+    vi.spyOn(comp as any, 'checkPendingApprovalRequest').mockResolvedValue(false);
+
+    await comp.verifyMfaCode();
+    expect(authMocks.router.navigate).not.toHaveBeenCalled();
+
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    expect(authMocks.router.navigate).toHaveBeenCalledTimes(1);
+    expect(authMocks.router.navigate).toHaveBeenCalledWith(['/presentation']);
+  });
+
+  it('ngOnDestroy stops queryParams and isAdmin$ updates', async () => {
+    const authMocks = makeMocks();
+    const params$ = new BehaviorSubject<Record<string, string>>({});
+    authMocks.route.queryParams = params$;
+    const comp = makeComponentWithMocks(
+      authMocks.adminAuthService,
+      authMocks.supabaseService,
+      authMocks.emailNotificationService,
+      authMocks.userSessionService,
+      authMocks.themeService,
+      authMocks.tenantContextService,
+      authMocks.router,
+      authMocks.route,
+      authMocks.cdr
+    );
+    comp.codeInputs = { toArray: () => [] } as any;
+    await comp.ngOnInit();
+    comp.ngOnDestroy();
+    authMocks.router.navigate.mockClear();
+    params$.next({ email: 'late@example.com', returnUrl: '/presentation' });
+    authMocks.isAdmin$.next(true);
+    expect(comp.email).not.toBe('late@example.com');
+    expect(authMocks.router.navigate).not.toHaveBeenCalled();
+  });
+
+  it('does not log email or OTP on the sign-in path', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const secretEmail = 'secret-user@example.com';
+    const secretCode = '654321';
+    const comp = makeComponent(mocks);
+    comp.email = secretEmail;
+    mocks.adminAuthService.sendMfaCode = vi.fn(async () => ({ success: true }));
+    await comp.handleSubmit(new Event('submit'));
+    await comp.handleResendCode();
+    comp.codeLength = 6;
+    comp.mfaCodeInput = secretCode;
+    comp.mfaCode = secretCode.split('');
+    mocks.adminAuthService.verifyMfaCode = vi.fn(async () => ({ success: false, error: 'nope' }));
+    await comp.verifyMfaCode();
+    await (comp as any).checkEmailSubscriber(secretEmail);
+    await (comp as any).checkPendingApprovalRequest(secretEmail);
+    const dumped = log.mock.calls.map((args) => args.map(String).join(' ')).join('\n');
+    expect(dumped).not.toContain(secretEmail);
+    expect(dumped).not.toContain(secretCode);
+    log.mockRestore();
+  });
+
+  it('ngOnDestroy disconnects the theme observer and media query listener', async () => {
+    const media = mockMatchMedia();
+    vi.stubGlobal('matchMedia', () => media);
+    const disconnect = vi.spyOn(MutationObserver.prototype, 'disconnect');
+    const comp = makeComponent(mocks);
+    await comp.ngOnInit();
+    const changeHandler = media.addEventListener.mock.calls.find(
+      (call: unknown[]) => call[0] === 'change'
+    )?.[1];
+    comp.ngOnDestroy();
+    expect(disconnect).toHaveBeenCalled();
+    expect(media.removeEventListener).toHaveBeenCalledWith('change', changeHandler);
+    disconnect.mockRestore();
+  });
+
   it('handleSingleCodeInput delegates to sanitizeCodeInput', () => {
     const comp = makeComponent(mocks);
     comp.codeLength = 4;
@@ -924,7 +1054,7 @@ describe('LoginComponent', () => {
 
   it('watchThemeChanges responds to MutationObserver on document class changes', async () => {
     const themeMocks = makeMocks();
-    themeMocks.route.queryParams = { subscribe: (cb: any) => cb({}) };
+    themeMocks.route.queryParams = of({});
     const comp = makeComponentWithMocks(
       themeMocks.adminAuthService,
       themeMocks.supabaseService,
@@ -950,7 +1080,7 @@ describe('LoginComponent', () => {
 
   it('watchThemeChanges responds to ThemeService theme$ observable changes', async () => {
     const themeMocks = makeMocks();
-    themeMocks.route.queryParams = { subscribe: (cb: any) => cb({}) };
+    themeMocks.route.queryParams = of({});
     themeMocks.themeService.theme$ = new BehaviorSubject('light');
     themeMocks.themeService.getTheme = vi.fn(() => 'dark');
     const comp = makeComponentWithMocks(
@@ -977,7 +1107,7 @@ describe('LoginComponent', () => {
 
   it('watchThemeChanges responds to ThemeService theme$ observable changes (observable variant)', async () => {
     const themeMocks = makeMocks();
-    themeMocks.route.queryParams = { subscribe: (cb: any) => cb({}) };
+    themeMocks.route.queryParams = of({});
     themeMocks.themeService.theme$ = new BehaviorSubject('light');
     themeMocks.themeService.getTheme = vi.fn(() => 'dark');
     const comp = makeComponentWithMocks(
@@ -1188,7 +1318,7 @@ describe('LoginComponent', () => {
   it('watchThemeChanges listens to mediaQuery change when theme is system', async () => {
     const themeMocks = makeMocks();
     themeMocks.route = {
-      queryParams: { subscribe: (cb: any) => cb({}) }
+      queryParams: of({})
     } as any;
     themeMocks.themeService.getTheme = vi.fn(() => 'system');
     

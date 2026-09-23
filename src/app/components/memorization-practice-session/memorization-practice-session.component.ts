@@ -331,6 +331,9 @@ export class MemorizationPracticeSessionComponent
   private strictModeSessionSub: Subscription | null = null;
   private reciteTenantSub: Subscription | null = null;
   private viewportListenersAttached = false;
+  private viewportTarget: VisualViewport | null = null;
+  private viewportInsetListener: (() => void) | null = null;
+  private viewportInsetRaf = 0;
   private androidScrollListener: (() => void) | null = null;
   private verseTouchMoved = false;
   private verseTouchStart = { x: 0, y: 0 };
@@ -2537,7 +2540,6 @@ export class MemorizationPracticeSessionComponent
     const vv = window.visualViewport;
     if (!vv) return;
     const coalesceAndroid = isMemorizeAndroidWebHost();
-    let insetRaf = 0;
     const applyInset = () => {
       const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
       this.keyboardInsetPx = inset;
@@ -2548,15 +2550,31 @@ export class MemorizationPracticeSessionComponent
         applyInset();
         return;
       }
-      if (insetRaf) return;
-      insetRaf = window.requestAnimationFrame(() => {
-        insetRaf = 0;
+      if (this.viewportInsetRaf) return;
+      this.viewportInsetRaf = window.requestAnimationFrame(() => {
+        this.viewportInsetRaf = 0;
         applyInset();
       });
     };
     applyInset();
+    this.viewportTarget = vv;
+    this.viewportInsetListener = updateInset;
     vv.addEventListener('resize', updateInset);
     vv.addEventListener('scroll', updateInset);
+  }
+
+  private detachViewportListeners(): void {
+    if (this.viewportTarget && this.viewportInsetListener) {
+      this.viewportTarget.removeEventListener('resize', this.viewportInsetListener);
+      this.viewportTarget.removeEventListener('scroll', this.viewportInsetListener);
+    }
+    if (this.viewportInsetRaf) {
+      cancelAnimationFrame(this.viewportInsetRaf);
+      this.viewportInsetRaf = 0;
+    }
+    this.viewportTarget = null;
+    this.viewportInsetListener = null;
+    this.viewportListenersAttached = false;
   }
 
   private attachPracticeListeners(): void {
@@ -2663,6 +2681,7 @@ export class MemorizationPracticeSessionComponent
     }
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    this.detachViewportListeners();
     this.typeCaptureListenersAttached = false;
     this.hintCaptureListenersAttached = false;
   }

@@ -1544,7 +1544,42 @@ describe('MemorizationPracticeSessionComponent', () => {
       });
 
       await renderSession();
-      expect(addListener).toHaveBeenCalled();
+      expect(addListener).toHaveBeenCalledWith('resize', expect.any(Function));
+      expect(addListener).toHaveBeenCalledWith('scroll', expect.any(Function));
+    });
+
+    it('removes visualViewport listeners when the session is destroyed', async () => {
+      const addListener = vi.fn();
+      const removeListener = vi.fn();
+      const previous = Object.getOwnPropertyDescriptor(window, 'visualViewport');
+      Object.defineProperty(window, 'visualViewport', {
+        configurable: true,
+        value: {
+          height: 500,
+          offsetTop: 0,
+          addEventListener: addListener,
+          removeEventListener: removeListener,
+        },
+      });
+
+      try {
+        const { fixture } = await renderSession();
+        const resizeHandler = addListener.mock.calls.find(
+          (call: unknown[]) => call[0] === 'resize'
+        )?.[1];
+        const scrollHandler = addListener.mock.calls.find(
+          (call: unknown[]) => call[0] === 'scroll'
+        )?.[1];
+        fixture.destroy();
+        expect(removeListener).toHaveBeenCalledWith('resize', resizeHandler);
+        expect(removeListener).toHaveBeenCalledWith('scroll', scrollHandler);
+      } finally {
+        if (previous) {
+          Object.defineProperty(window, 'visualViewport', previous);
+        } else {
+          delete (window as unknown as { visualViewport?: unknown }).visualViewport;
+        }
+      }
     });
 
     it('startRoundAndFocusInput starts a new round', async () => {

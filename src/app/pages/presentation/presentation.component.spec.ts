@@ -1000,6 +1000,36 @@ describe('PresentationComponent', () => {
       expect(duration).toBeLessThanOrEqual(120);
     });
 
+    it('calculateCurrentDuration does not reorder prayer_updates in place', () => {
+      component.smartMode = true;
+      component.displayDuration = 5;
+      component.contentTypes = ['prayers'];
+      const updates = [
+        { id: 'oldest', content: 'y'.repeat(5000), created_at: '2020-01-01T00:00:00.000Z' },
+        { id: 'mid', content: 'a', created_at: '2024-01-01T00:00:00.000Z' },
+        { id: 'newer', content: 'b', created_at: '2024-06-01T00:00:00.000Z' },
+        { id: 'newest', content: 'c', created_at: '2025-01-01T00:00:00.000Z' },
+      ];
+      component.prayers = [{
+        id: 'p1',
+        prayer_for: 'Alex',
+        description: 'Pray',
+        prayer_updates: updates,
+      } as any];
+      component.currentIndex = 0;
+
+      const duration = component.calculateCurrentDuration();
+
+      // Newest three short updates only — the long oldest update stays in place and is ignored.
+      expect(duration).toBe(10);
+      expect(component.prayers[0]?.prayer_updates?.map((update) => update.id)).toEqual([
+        'oldest',
+        'mid',
+        'newer',
+        'newest',
+      ]);
+    });
+
     it('calculates duration for prayer with updates', () => {
       component.smartMode = true;
       component.displayDuration = 5;

@@ -688,6 +688,19 @@ export class LoginComponent implements OnInit, OnDestroy {
   joinInvite: { tenantName: string; inviteeEmail: string } | null = null;
 
   private destroy$ = new Subject<void>();
+  /** OTP / registration owns navigation so isAdmin$ cannot race it to "/". */
+  private ownsPostLoginNavigation = false;
+  private signedInAdmin = false;
+  private returnUrlReady = false;
+  private signedInRedirectStarted = false;
+  private destroyed = false;
+  private themeClassObserver: MutationObserver | null = null;
+  private themeMediaQuery: MediaQueryList | null = null;
+  private readonly onThemeMediaChange = (): void => {
+    if (this.themeService.getTheme() === "system") {
+      this.detectDarkMode();
+    }
+  };
 
   constructor(
     private adminAuthService: AdminAuthService,
@@ -788,26 +801,30 @@ export class LoginComponent implements OnInit, OnDestroy {
       });
 
     // Get returnUrl and sessionExpired flag from query params
-    this.route.queryParams.subscribe((params) => {
-      this.returnUrl = params["returnUrl"] || "/";
+    this.route.queryParams
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((params) => {
+        this.returnUrl = params["returnUrl"] || "/";
+        this.returnUrlReady = true;
 
-      // If session expired, pre-fill email and show message
-      if (params["email"]) {
-        this.email = params["email"];
-      }
+        // If session expired, pre-fill email and show message
+        if (params["email"]) {
+          this.email = params["email"];
+        }
 
-      if (params["sessionExpired"] === "true") {
-        this.error =
-          "Your admin session has expired. Please re-authenticate with MFA.";
-      }
+        if (params["sessionExpired"] === "true") {
+          this.error =
+            "Your admin session has expired. Please re-authenticate with MFA.";
+        }
 
-      // If user was blocked and logged out
-      if (params["blocked"] === "true") {
-        this.showBlockedMessage = true;
-      }
+        // If user was blocked and logged out
+        if (params["blocked"] === "true") {
+          this.showBlockedMessage = true;
+        }
 
-      void this.loadJoinInviteBanner();
-    });
+        void this.loadJoinInviteBanner();
+        this.queueSignedInRedirect();
+      });
 
     // Subscribe to site protection status
     this.adminAuthService.requireSiteLogin$
@@ -836,34 +853,78 @@ export class LoginComponent implements OnInit, OnDestroy {
       }, 100);
     }
 
-    // Check if user is already authenticated
+    // Already-signed-in admins leave login. OTP success sets
+    // ownsPostLoginNavigation first so this cannot steal returnUrl.
     this.adminAuthService.isAdmin$
       .pipe(takeUntil(this.destroy$))
-      .subscribe(async (isAdmin) => {
-        if (isAdmin) {
-          try {
-            const {
-              data: { session },
-            } = await this.supabaseService.client.auth.getSession();
-            const email = session?.user?.email;
-            if (email) {
-              await this.userSessionService.loadUserSession(email);
-            }
-          } catch (sessionError) {
-            console.warn(
-              "[AdminLogin] Failed to load user session:",
-              sessionError
-            );
-            // Continue anyway - session might load asynchronously
-          }
-          this.router.navigate(["/"]);
-        }
+      .subscribe((isAdmin) => {
+        this.signedInAdmin = isAdmin;
+        this.queueSignedInRedirect();
       });
   }
 
   ngOnDestroy() {
+    this.destroyed = true;
+    this.themeClassObserver?.disconnect();
+    this.themeClassObserver = null;
+    this.themeMediaQuery?.removeEventListener("change", this.onThemeMediaChange);
+    this.themeMediaQuery = null;
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  /** Same destination rules as a completed OTP login. */
+  private postLoginDestination(): string {
+    if (this.returnUrl && this.returnUrl !== "/" && this.returnUrl !== "/admin") {
+      return this.returnUrl;
+    }
+    return "/";
+  }
+
+  private queueSignedInRedirect(): void {
+    if (
+      !this.returnUrlReady ||
+      !this.signedInAdmin ||
+      this.ownsPostLoginNavigation ||
+      this.signedInRedirectStarted ||
+      this.destroyed
+    ) {
+      return;
+    }
+    this.signedInRedirectStarted = true;
+    void this.redirectAlreadySignedInUser();
+  }
+
+  private async redirectAlreadySignedInUser(): Promise<void> {
+    if (this.shouldAbortSignedInRedirect()) {
+      return;
+    }
+    try {
+      const {
+        data: { session },
+      } = await this.supabaseService.client.auth.getSession();
+      const email = session?.user?.email;
+      if (email) {
+        await this.userSessionService.loadUserSession(email);
+      }
+    } catch (sessionError) {
+      console.warn("[AdminLogin] Failed to load user session:", sessionError);
+    }
+    if (this.shouldAbortSignedInRedirect()) {
+      return;
+    }
+    this.router.navigate([this.postLoginDestination()]);
+  }
+
+  private shouldAbortSignedInRedirect(): boolean {
+    if (this.destroyed) {
+      return true;
+    }
+    if (this.ownsPostLoginNavigation) {
+      this.signedInRedirectStarted = false;
+      return true;
+    }
+    return false;
   }
 
   async handleSubmit(event: Event) {
@@ -887,9 +948,6 @@ export class LoginComponent implements OnInit, OnDestroy {
         return;
       }
 
-      // Otherwise, send MFA code
-      console.log("[AdminLogin] Starting MFA code send for:", this.email);
-
       const timeoutId = setTimeout(() => {
         console.warn("[AdminLogin] MFA code request timed out");
         this.loading = false;
@@ -901,10 +959,7 @@ export class LoginComponent implements OnInit, OnDestroy {
 
       clearTimeout(timeoutId);
 
-      console.log("[AdminLogin] MFA code send result:", result);
-
       if (result.success) {
-        console.log("[AdminLogin] Login code send result:", result);
         this.success = true;
         this.waitingForMfaCode = true;
         this.isTestAccountLogin = result.isTestAccount === true;
@@ -961,8 +1016,8 @@ export class LoginComponent implements OnInit, OnDestroy {
         return;
       }
 
-      console.log("[AdminLogin] Verifying MFA code");
-
+      // Claim navigation before verifyMfaCode flips isAdmin$.
+      this.ownsPostLoginNavigation = true;
       const result = await this.adminAuthService.verifyMfaCode(
         this.mfaCode.join("")
       );
@@ -994,6 +1049,8 @@ export class LoginComponent implements OnInit, OnDestroy {
           }
         }, 1000);
       } else {
+        this.ownsPostLoginNavigation = false;
+        this.queueSignedInRedirect();
         this.loading = false;
         console.error("[AdminLogin] MFA verification failed:", result.error);
         this.error = result.error || "Invalid code. Please try again.";
@@ -1002,6 +1059,8 @@ export class LoginComponent implements OnInit, OnDestroy {
         this.cdr?.markForCheck?.();
       }
     } catch (err) {
+      this.ownsPostLoginNavigation = false;
+      this.queueSignedInRedirect();
       this.loading = false;
       console.error("[AdminLogin] Exception in verifyMfaCode:", err);
       this.error =
@@ -1018,13 +1077,9 @@ export class LoginComponent implements OnInit, OnDestroy {
       this.error = "";
       this.cdr?.markForCheck?.();
 
-      console.log("[AdminLogin] Resending MFA code to:", this.email);
-
-      // Use the same method as the initial send
       const result = await this.adminAuthService.sendMfaCode(this.email);
 
       if (result.success) {
-        console.log("[AdminLogin] Code resent successfully");
         // Clear current code entry for fresh attempt
         this.mfaCode = new Array(this.codeLength).fill("");
         this.error = "";
@@ -1117,20 +1172,7 @@ export class LoginComponent implements OnInit, OnDestroy {
       // Continue anyway - session might load asynchronously
     }
 
-    // Route to the appropriate page
-    // Only use returnUrl if it's NOT /admin (which would be from the admin guard redirect)
-    // This ensures admins only go to /admin if they explicitly request it, not from a guard redirect
-    const destination =
-      this.returnUrl && this.returnUrl !== "/" && this.returnUrl !== "/admin"
-        ? this.returnUrl
-        : "/";
-    console.log(
-      "[AdminLogin] Routing to:",
-      destination,
-      "(returnUrl:",
-      this.returnUrl,
-      ")"
-    );
+    const destination = this.postLoginDestination();
     this.router.navigate([destination]);
   }
 
@@ -1285,15 +1327,18 @@ export class LoginComponent implements OnInit, OnDestroy {
   }
 
   private watchThemeChanges() {
+    this.themeClassObserver?.disconnect();
+    this.themeMediaQuery?.removeEventListener("change", this.onThemeMediaChange);
+
     // Watch for document class changes (when theme is applied)
-    const observer = new MutationObserver(() => {
+    this.themeClassObserver = new MutationObserver(() => {
       const isDark = document.documentElement.classList.contains("dark");
       if (isDark !== this.isDarkMode) {
         this.isDarkMode = isDark;
       }
     });
 
-    observer.observe(document.documentElement, {
+    this.themeClassObserver.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["class"],
     });
@@ -1301,28 +1346,21 @@ export class LoginComponent implements OnInit, OnDestroy {
     // Also listen to ThemeService changes for when user selects a theme
     this.themeService.theme$
       .pipe(takeUntil(this.destroy$))
-      .subscribe((theme) => {
+      .subscribe(() => {
         this.detectDarkMode();
       });
 
     // Listen for system theme changes when user has system theme selected
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    mediaQuery.addEventListener("change", () => {
-      if (this.themeService.getTheme() === "system") {
-        this.detectDarkMode();
-      }
-    });
+    this.themeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    this.themeMediaQuery.addEventListener("change", this.onThemeMediaChange);
   }
 
   private async checkEmailSubscriber(email: string): Promise<boolean> {
     const normalized = email.toLowerCase().trim();
     try {
-      console.log(
-        "[AdminLogin] Checking if user is already a subscriber:",
-        normalized
-      );
-
-      // Signed-in client so RLS evaluates current_user_email() on this membership row.
+      // Use the signed-in client so RLS evaluates current_user_email() on this membership row.
+      // directQuery uses the publishable key, so RLS hides tenant_memberships and approved
+      // subscribers look like new users.
       const { data, error } = await this.supabaseService.client
         .from("tenant_memberships")
         .select("id, user_email, is_blocked")
@@ -1339,7 +1377,6 @@ export class LoginComponent implements OnInit, OnDestroy {
               "This account has been blocked. Please contact an administrator."
             );
           }
-          console.log("[AdminLogin] Subscriber check result:", true);
           return true;
         }
       }
@@ -1353,7 +1390,6 @@ export class LoginComponent implements OnInit, OnDestroy {
         return false;
       }
 
-      console.log("[AdminLogin] Subscriber check result (rpc):", allowed === true);
       return allowed === true;
     } catch (err) {
       console.error("[AdminLogin] Exception checking subscriber:", err);
@@ -1367,7 +1403,6 @@ export class LoginComponent implements OnInit, OnDestroy {
 
   private async checkPendingApprovalRequest(email: string): Promise<boolean> {
     try {
-      console.log("[AdminLogin] Checking for pending approval request:", email);
       const { data, error } = await this.supabaseService.directQuery<{
         id: string;
         approval_status: string;
@@ -1383,7 +1418,6 @@ export class LoginComponent implements OnInit, OnDestroy {
       }
 
       const hasPending = data && Array.isArray(data) && data.length > 0;
-      console.log("[AdminLogin] Pending approval check result:", hasPending);
       return hasPending || false;
     } catch (err) {
       console.error("[AdminLogin] Exception checking pending approval:", err);
@@ -1402,25 +1436,10 @@ export class LoginComponent implements OnInit, OnDestroy {
       this.loading = true;
       this.cdr?.markForCheck?.();
 
-      console.log(
-        "[AdminLogin] Saving new subscriber or approval request:",
-        this.email,
-        { requiresApproval: this.requiresApproval }
-      );
-
       if (this.requiresApproval) {
-        // User requires admin approval - create approval request instead
-        console.log("[AdminLogin] Creating account approval request");
-        console.log("[AdminLogin] Request params:", {
-          email: this.email.toLowerCase(),
-          firstName: this.firstName.trim(),
-          lastName: this.lastName.trim(),
-          affiliationReason: this.affiliationReason.trim(),
-        });
-
         const signupTenantId = await this.getTenantIdForSignup();
 
-        const { data, error } = await this.supabaseService.client.rpc(
+        const { error } = await this.supabaseService.client.rpc(
           "create_account_approval_request",
           {
             p_email: this.email.toLowerCase(),
@@ -1430,8 +1449,6 @@ export class LoginComponent implements OnInit, OnDestroy {
             p_tenant_id: signupTenantId,
           }
         );
-
-        console.log("[AdminLogin] RPC result:", { data, error });
 
         if (error) {
           console.error("[AdminLogin] Error creating approval request:", error);
@@ -1462,8 +1479,6 @@ export class LoginComponent implements OnInit, OnDestroy {
           return false;
         }
 
-        console.log("[AdminLogin] Approval request created with ID:", data);
-
         // Send admin notification email
         try {
           await this.emailNotificationService.sendAccountApprovalNotification(
@@ -1473,7 +1488,6 @@ export class LoginComponent implements OnInit, OnDestroy {
             this.affiliationReason.trim(),
             signupTenantId
           );
-          console.log("[AdminLogin] Admin notification email sent");
         } catch (emailError) {
           console.error(
             "[AdminLogin] Failed to send admin notification:",
@@ -1519,11 +1533,7 @@ export class LoginComponent implements OnInit, OnDestroy {
           console.warn("[AdminLogin] Failed to load user session:", sessionError);
         }
 
-        const groupDestination =
-          this.returnUrl && this.returnUrl !== "/" && this.returnUrl !== "/admin"
-            ? this.returnUrl
-            : "/";
-        this.router.navigate([groupDestination]);
+        this.router.navigate([this.postLoginDestination()]);
         this.cdr?.markForCheck?.();
         return true;
       }
@@ -1556,11 +1566,7 @@ export class LoginComponent implements OnInit, OnDestroy {
           console.warn("[AdminLogin] Failed to load user session:", sessionError);
         }
 
-        const destination =
-          this.returnUrl && this.returnUrl !== "/" && this.returnUrl !== "/admin"
-            ? this.returnUrl
-            : "/";
-        this.router.navigate([destination]);
+        this.router.navigate([this.postLoginDestination()]);
         this.cdr?.markForCheck?.();
         return true;
       }
@@ -1603,14 +1609,11 @@ export class LoginComponent implements OnInit, OnDestroy {
         return false;
       }
 
-      console.log("[AdminLogin] Subscriber saved successfully");
-
       // Send welcome email to the new subscriber
       try {
         await this.emailNotificationService.sendSubscriberWelcomeNotification(
           this.email
         );
-        console.log("[AdminLogin] Welcome email sent to new subscriber");
       } catch (emailError) {
         console.error("[AdminLogin] Failed to send welcome email:", emailError);
         // Don't fail the request if email fails
@@ -1630,21 +1633,7 @@ export class LoginComponent implements OnInit, OnDestroy {
         // Continue anyway - session might load asynchronously
       }
 
-      // Now route to the appropriate page
-      // Only use returnUrl if it's NOT /admin (which would be from the admin guard redirect)
-      // This ensures admins only go to /admin if they explicitly request it, not from a guard redirect
-      const destination =
-        this.returnUrl && this.returnUrl !== "/" && this.returnUrl !== "/admin"
-          ? this.returnUrl
-          : "/";
-      console.log(
-        "[AdminLogin] Routing to:",
-        destination,
-        "(returnUrl:",
-        this.returnUrl,
-        ")"
-      );
-      this.router.navigate([destination]);
+      this.router.navigate([this.postLoginDestination()]);
 
       return true;
     } catch (err) {

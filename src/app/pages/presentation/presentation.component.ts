@@ -1033,7 +1033,7 @@ export class PresentationComponent implements OnInit, OnDestroy {
       let totalChars = markdownToPlainText(item.description).length;
 
       if (item.prayer_updates && item.prayer_updates.length > 0) {
-        const recentUpdates = item.prayer_updates
+        const recentUpdates = [...item.prayer_updates]
           .sort(
             (a, b) =>
               new Date(b.created_at).getTime() -
