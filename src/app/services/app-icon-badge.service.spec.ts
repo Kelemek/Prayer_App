@@ -82,7 +82,7 @@ describe('AppIconBadgeService', () => {
     expect(native.set).toHaveBeenCalledWith(2);
 
     native.set.mockClear();
-    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new CustomEvent('app-became-visible'));
     await Promise.resolve();
     await Promise.resolve();
     expect(native.set).not.toHaveBeenCalledWith(0);

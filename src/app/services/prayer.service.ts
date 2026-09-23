@@ -307,19 +307,12 @@ export class PrayerService {
 
   private setupResumeListeners(): void {
     const added = wirePrayerResumeListeners({
-      scheduleResumeRefresh: () => this.scheduleResumeRefresh(),
       onEnterBackground: () => {
         this.isInBackground = true;
-        console.log(
-          '[PrayerService] App going to background - pausing aggressive operations'
-        );
         clearTimeoutIdMap(this.backgroundRecoveryTimeouts);
       },
       onLeaveBackground: () => {
         this.isInBackground = false;
-        console.log(
-          '[PrayerService] App returning from background - triggering recovery'
-        );
         this.triggerBackgroundRecovery();
       },
       inactivityThresholdMs: this.inactivityThresholdMs,
@@ -493,16 +486,13 @@ export class PrayerService {
 
   private setupRealtimeSubscription(): void {
     if (!this.connectivity.isOnline()) {
-      console.log('[PrayerService] Skipping realtime subscription while offline');
       return;
     }
     try {
-      console.log('[PrayerService] Setting up realtime subscription...');
       this.realtimeChannel = subscribePrayerCatalogRealtime(
         this.supabase.client,
         {
-          onPrayersChange: (payload) => {
-            console.log('[PrayerService] Prayer changed:', payload);
+          onPrayersChange: () => {
             this.loadPrayers(true).catch((err) => {
               console.error(
                 '[PrayerService] Error reloading after prayer change:',
@@ -510,8 +500,7 @@ export class PrayerService {
               );
             });
           },
-          onPrayerUpdatesChange: (payload) => {
-            console.log('[PrayerService] Prayer update changed:', payload);
+          onPrayerUpdatesChange: () => {
             this.loadPrayers(true).catch((err) => {
               console.error(
                 '[PrayerService] Error reloading after update change:',
@@ -520,7 +509,6 @@ export class PrayerService {
             });
           },
           onSubscribeStatus: (status) => {
-            console.log('[PrayerService] Realtime subscription status:', status);
             if (isRealtimeSubscriptionDisconnectedStatus(status)) {
               console.warn(
                 '[PrayerService] Realtime subscription disconnected, will retry on next activity'
@@ -538,7 +526,6 @@ export class PrayerService {
   }
 
   async cleanup(): Promise<void> {
-    console.log('[PrayerService] Cleaning up...');
     try {
       unsubscribePrayerResumeListeners(this.resumeListenerSubscriptions);
       this.resumeListenerSubscriptions = [];

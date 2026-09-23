@@ -143,8 +143,9 @@ describe('PrayerService extra coverage', () => {
 
     vi.spyOn(service as any, 'loadPrayers').mockImplementation(() => Promise.reject(new Error('silent')));
 
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true });
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
-    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new CustomEvent('app-became-visible'));
     await vi.advanceTimersByTimeAsync(500);
 
     expect(Array.isArray((service as any).allPrayersSubject.value)).toBe(true);

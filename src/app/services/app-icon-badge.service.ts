@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
 import { merge } from 'rxjs';
 import { BadgeService } from './badge.service';
+import { APP_BECAME_VISIBLE_EVENT } from '../lib/app-foreground';
 import { shouldClearAppIconBadgeOnAppOpen } from '../lib/in-app-prayer-badge-count';
 
 export interface AppIconBadgeNativeApi {
@@ -91,10 +92,8 @@ export class AppIconBadgeService {
       void this.sync();
     });
 
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        void this.sync();
-      }
+    window.addEventListener(APP_BECAME_VISIBLE_EVENT, () => {
+      void this.sync();
     });
 
     void this.sync();

@@ -1,4 +1,5 @@
-import { fromEvent, type Subscription } from 'rxjs';
+import { fromEvent, Subscription } from 'rxjs';
+import { APP_BECAME_VISIBLE_EVENT } from './app-foreground';
 import type { PrayerRequest } from './prayer-types';
 
 export const PRAYER_SERVICE_INACTIVITY_ACTIVITY_EVENTS = [
@@ -8,7 +9,7 @@ export const PRAYER_SERVICE_INACTIVITY_ACTIVITY_EVENTS = [
   'scroll',
 ] as const;
 
-export const PRAYER_APP_BECAME_VISIBLE_EVENT = 'app-became-visible';
+export const PRAYER_APP_BECAME_VISIBLE_EVENT = APP_BECAME_VISIBLE_EVENT;
 
 export const PRAYER_SERVICE_INACTIVITY_DETECTED_LOG =
   '[PrayerService] Inactivity detected, next activity will trigger refresh';
@@ -21,12 +22,14 @@ export function isPrayerAppDocumentVisible(): boolean {
   return document.visibilityState === 'visible';
 }
 
-export function registerPrayerAppBecameVisibleListener(onVisible: () => void): void {
-  window.addEventListener(PRAYER_APP_BECAME_VISIBLE_EVENT, () => {
+export function registerPrayerAppBecameVisibleListener(onVisible: () => void): () => void {
+  const handler = () => {
     if (shouldSchedulePrayerResumeRefresh()) {
       onVisible();
     }
-  });
+  };
+  window.addEventListener(PRAYER_APP_BECAME_VISIBLE_EVENT, handler);
+  return () => window.removeEventListener(PRAYER_APP_BECAME_VISIBLE_EVENT, handler);
 }
 
 export function scheduleDebouncedResumeRefresh(
@@ -83,7 +86,6 @@ export async function runResumeCommunityPrayerRefresh(
   ctx: ResumeCommunityPrayerRefreshContext
 ): Promise<void> {
   try {
-    console.log('[PrayerService] Resume refresh: ensuring connection then loading prayers');
     const cached = readNonEmptyPrayerCache(ctx.readCachedPrayers);
     if (cached) {
       ctx.onShowCachedPrayers(cached);
@@ -105,7 +107,6 @@ export async function runResumeCommunityPrayerRefresh(
 }
 
 export type WirePrayerResumeListenersContext = {
-  scheduleResumeRefresh: () => void;
   onEnterBackground: () => void;
   onLeaveBackground: () => void;
   inactivityThresholdMs: number;
@@ -115,20 +116,13 @@ export type WirePrayerResumeListenersContext = {
 };
 
 /**
- * Single wiring point for focus, inactivity, visibility, and app-became-visible resume triggers.
+ * Inactivity plus one foreground edge (`app-became-visible`).
+ * Focus and a visible `visibilitychange` must not schedule a second refresh.
  */
 export function wirePrayerResumeListeners(
   ctx: WirePrayerResumeListenersContext
 ): Subscription[] {
   const subs: Subscription[] = [];
-
-  subs.push(
-    fromEvent(window, 'focus').subscribe(() => {
-      if (shouldSchedulePrayerResumeRefresh()) {
-        ctx.scheduleResumeRefresh();
-      }
-    })
-  );
 
   const resetInactivityTimer = () => {
     ctx.setInactivityTimeout(
@@ -148,19 +142,14 @@ export function wirePrayerResumeListeners(
     fromEvent(document, 'visibilitychange').subscribe(() => {
       if (document.hidden) {
         ctx.onEnterBackground();
-      } else {
-        ctx.onLeaveBackground();
-        if (shouldSchedulePrayerResumeRefresh()) {
-          ctx.scheduleResumeRefresh();
-        }
       }
     })
   );
 
-  registerPrayerAppBecameVisibleListener(() => {
-    console.log('[PrayerService] Received app-became-visible event, triggering recovery');
+  const unsubscribeVisible = registerPrayerAppBecameVisibleListener(() => {
     ctx.onLeaveBackground();
   });
+  subs.push(new Subscription(unsubscribeVisible));
 
   return subs;
 }

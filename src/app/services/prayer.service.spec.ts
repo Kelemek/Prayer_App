@@ -2557,6 +2557,13 @@ describe('PrayerService - Integration Tests', () => {
     });
 
     it('background recovery listener triggers when app comes to foreground', async () => {
+      let visibleHandler: (() => void) | undefined;
+      vi.spyOn(window, 'addEventListener').mockImplementation((event: string, handler: EventListener) => {
+        if (event === 'app-became-visible') {
+          visibleHandler = handler as () => void;
+        }
+      });
+
       service = new PrayerService(
         mockSupabaseService,
         mockToastService,
@@ -2569,17 +2576,10 @@ describe('PrayerService - Integration Tests', () => {
 
       const triggerSpy = vi.spyOn(service as any, 'triggerBackgroundRecovery').mockImplementation(() => {});
 
-      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
-      Object.defineProperty(document, 'hidden', { value: true, configurable: true });
-
-      (service as any).setupBackgroundRecoveryListener();
-      
-      // Simulate transition to visible
-      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
       Object.defineProperty(document, 'hidden', { value: false, configurable: true });
-
-      document.dispatchEvent(new Event('visibilitychange'));
-      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(visibleHandler).toBeTypeOf('function');
+      visibleHandler!();
+      expect(triggerSpy).toHaveBeenCalledTimes(1);
 
       triggerSpy.mockRestore();
     });

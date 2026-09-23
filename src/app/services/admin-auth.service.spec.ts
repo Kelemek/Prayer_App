@@ -1165,11 +1165,11 @@ describe('AdminAuthService', () => {
   });
 
   describe('Focus/Visibility Change Handler - iOS Edge Fix', () => {
-    it('should re-validate admin status on window focus after background suspension', async () => {
-      let focusHandler: any;
+    it('should re-validate admin status on app-became-visible after background suspension', async () => {
+      let visibleHandler: any;
       vi.spyOn(window, 'addEventListener').mockImplementation((event: any, handler: any) => {
-        if (event === 'focus') {
-          focusHandler = handler;
+        if (event === 'app-became-visible') {
+          visibleHandler = handler;
         }
       });
 
@@ -1208,12 +1208,9 @@ describe('AdminAuthService', () => {
       let isAdmin = await firstValueFrom(newService.isAdmin$);
       expect(isAdmin).toBe(true);
 
-      // Trigger focus event (simulating app return from background)
-      expect(focusHandler).toBeDefined();
-      if (focusHandler) {
-        focusHandler();
-        await vi.advanceTimersByTimeAsync(200); // Wait longer for async operations
-      }
+      expect(visibleHandler).toBeTypeOf('function');
+      visibleHandler();
+      await vi.advanceTimersByTimeAsync(200);
 
       expect(mockSupabaseClient.functions.invoke).toHaveBeenCalledWith(
         'check-admin-status',
@@ -1223,7 +1220,7 @@ describe('AdminAuthService', () => {
       );
     });
 
-    it('should re-validate admin status on visibilitychange when page becomes visible', async () => {
+    it('should not re-validate admin status from a raw visibilitychange', async () => {
       let visibilityChangeHandler: any;
       vi.spyOn(document, 'addEventListener').mockImplementation((event: any, handler: any) => {
         if (event === 'visibilitychange') {
@@ -1265,22 +1262,15 @@ describe('AdminAuthService', () => {
       const newService = new AdminAuthService(mockSupabaseService, mockCacheService, mockTenantContext as any, mockAuthIdentity as any);
       await vi.advanceTimersByTimeAsync(100);
 
-      let isAdmin = await firstValueFrom(newService.isAdmin$);
+      const isAdmin = await firstValueFrom(newService.isAdmin$);
       expect(isAdmin).toBe(true);
 
-      // Trigger visibilitychange event (page becomes visible)
-      expect(visibilityChangeHandler).toBeDefined();
-      if (visibilityChangeHandler) {
-        visibilityChangeHandler();
-        await vi.advanceTimersByTimeAsync(200); // Wait for async operations
-      }
+      const invokeCount = mockSupabaseClient.functions.invoke.mock.calls.length;
+      expect(visibilityChangeHandler).toBeUndefined();
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(200);
 
-      expect(mockSupabaseClient.functions.invoke).toHaveBeenCalledWith(
-        'check-admin-status',
-        expect.objectContaining({
-          body: expect.objectContaining({ email: 'admin@example.com' })
-        })
-      );
+      expect(mockSupabaseClient.functions.invoke.mock.calls.length).toBe(invokeCount);
     });
 
     it('should not trigger re-validation if page stays hidden on visibilitychange', async () => {
@@ -1424,11 +1414,11 @@ describe('AdminAuthService', () => {
   });
 
   describe('Event listener callbacks', () => {
-    it('should handle focus events', async () => {
-      let focusHandler: (() => void) | undefined;
+    it('should handle app-became-visible events', async () => {
+      let visibleHandler: (() => void) | undefined;
       vi.spyOn(window, 'addEventListener').mockImplementation((event: string, handler: any) => {
-        if (event === 'focus') {
-          focusHandler = handler;
+        if (event === 'app-became-visible') {
+          visibleHandler = handler;
         }
       });
 
@@ -1437,10 +1427,9 @@ describe('AdminAuthService', () => {
       
       await vi.advanceTimersByTimeAsync(100);
 
-      if (focusHandler) {
-        focusHandler();
-        await vi.advanceTimersByTimeAsync(100);
-      }
+      expect(visibleHandler).toBeTypeOf('function');
+      visibleHandler!();
+      await vi.advanceTimersByTimeAsync(100);
 
       expect(newService).toBeTruthy();
     });
@@ -1647,11 +1636,11 @@ describe('AdminAuthService', () => {
   });
 
   describe('Focus event handler complete flow', () => {
-    it('should handle focus event without crashing when user exists', async () => {
-      let focusHandler: (() => void) | undefined;
+    it('should handle app-became-visible without crashing when user exists', async () => {
+      let visibleHandler: (() => void) | undefined;
       vi.spyOn(window, 'addEventListener').mockImplementation((event: string, handler: any) => {
-        if (event === 'focus') {
-          focusHandler = handler;
+        if (event === 'app-became-visible') {
+          visibleHandler = handler;
         }
       });
 
@@ -1663,11 +1652,10 @@ describe('AdminAuthService', () => {
         role: 'authenticated'
       } as any);
 
-      service.lastBlockedCheck = Date.now(); // Prevent blocked check from running
-      
-      // Call the focus handler if it was registered
-      if (focusHandler) {
-        focusHandler();
+      service.lastBlockedCheck = Date.now();
+
+      if (visibleHandler) {
+        visibleHandler();
         await vi.advanceTimersByTimeAsync(50);
       }
 

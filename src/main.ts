@@ -23,38 +23,21 @@ import {
   shouldAttemptLiveRedirect,
 } from "./lib/capacitor-live-boot";
 import { maybeAutoReloadWebOnce } from "./lib/client-version-gate";
+import { installAppForegroundSignal } from "./app/lib/app-foreground";
 
-// Add a global visibility check to ensure content stays visible during background refresh
+// One foreground signal: visibility → app-became-visible. Focus is not a second path.
 const setupVisibilityRecovery = () => {
-  const handleVisibilityChange = () => {
-    if (document.visibilityState === "visible") {
-      console.log("[AppInitialization] Page became visible");
-
-      // Verify router outlet exists
+  installAppForegroundSignal({
+    shouldDispatch: () => {
       const routerOutlet = document.querySelector("router-outlet");
       if (!routerOutlet) {
         console.warn(
           "[AppInitialization] Router outlet not found when page became visible"
         );
-        // Don't reload - let services handle the refresh
-      } else {
-        console.log(
-          "[AppInitialization] Page visible and router outlet intact"
-        );
-        // Dispatch event to services that the app became visible
-        window.dispatchEvent(new CustomEvent("app-became-visible"));
+        return false;
       }
-    }
-  };
-
-  document.addEventListener("visibilitychange", handleVisibilityChange);
-
-  // Also handle focus event which may fire before visibilitychange on some browsers
-  window.addEventListener("focus", () => {
-    if (!document.hidden) {
-      console.log("[AppInitialization] Focus event - app became visible");
-      window.dispatchEvent(new CustomEvent("app-became-visible"));
-    }
+      return true;
+    },
   });
 };
 

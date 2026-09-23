@@ -1,7 +1,12 @@
 import { Injectable } from '@angular/core';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { environment } from '../../environments/environment';
+import {
+  APP_BECAME_VISIBLE_EVENT,
+  FOREGROUND_CONNECTION_CHECK_WINDOW_MS,
+} from '../lib/app-foreground';
 import { buildSupabaseClientOptions } from '../lib/supabase-client-options';
+import { isDeadAuthSessionError } from '../lib/supabase-session-health';
 import { describeFunctionInvokeFailure as formatFunctionInvokeFailure } from '../utils/supabase-function-invoke-error';
 
 @Injectable({
@@ -9,6 +14,8 @@ import { describeFunctionInvokeFailure as formatFunctionInvokeFailure } from '..
 })
 export class SupabaseService {
   private supabase: SupabaseClient;
+  private connectionCheck: Promise<void> | null = null;
+  private lastHealthyConnectionAt: number | null = null;
 
   constructor() {
     const supabaseUrl = environment.supabaseUrl;
@@ -90,20 +97,47 @@ export class SupabaseService {
    * Critical for Edge on iOS which may lose connections during background suspension
    */
   async ensureConnected(): Promise<void> {
+    if (
+      this.lastHealthyConnectionAt != null &&
+      Date.now() - this.lastHealthyConnectionAt < FOREGROUND_CONNECTION_CHECK_WINDOW_MS
+    ) {
+      return;
+    }
+    if (this.connectionCheck) {
+      return this.connectionCheck;
+    }
+    this.connectionCheck = this.checkConnectionHealth().finally(() => {
+      this.connectionCheck = null;
+    });
+    return this.connectionCheck;
+  }
+
+  /**
+   * One getSession per in-flight check. Recreate the client only when the
+   * stored session is actually dead — not on a healthy or transient failure.
+   */
+  private async checkConnectionHealth(): Promise<void> {
     try {
-      console.log('[SupabaseService] Checking connection health...');
-      // Attempt a simple auth check to verify connection
-      const { data, error } = await this.supabase.auth.getSession();
-      
-      if (error) {
-        console.warn('[SupabaseService] Connection health check failed:', error);
-        await this.reconnect();
-      } else {
-        console.log('[SupabaseService] Connection is healthy');
+      const { error } = await this.supabase.auth.getSession();
+      if (!error) {
+        this.lastHealthyConnectionAt = Date.now();
+        return;
       }
-    } catch (err) {
-      console.error('[SupabaseService] Connection check error:', err);
+      if (!isDeadAuthSessionError(error)) {
+        console.warn('[SupabaseService] Connection health check failed:', error);
+        return;
+      }
+      console.warn('[SupabaseService] Auth session is dead, recreating client:', error);
       await this.reconnect();
+      this.lastHealthyConnectionAt = Date.now();
+    } catch (err) {
+      if (!isDeadAuthSessionError(err)) {
+        console.error('[SupabaseService] Connection check error:', err);
+        return;
+      }
+      console.warn('[SupabaseService] Auth session is dead, recreating client:', err);
+      await this.reconnect();
+      this.lastHealthyConnectionAt = Date.now();
     }
   }
 
@@ -113,8 +147,6 @@ export class SupabaseService {
    */
   private async reconnect(): Promise<void> {
     try {
-      console.log('[SupabaseService] Reconnecting to Supabase...');
-      
       const supabaseUrl = environment.supabaseUrl;
       const supabasePublishableKey = environment.supabasePublishableKey;
 
@@ -132,8 +164,6 @@ export class SupabaseService {
           (input, options) => this.fetchWithNativeCompat(input, options)
         )
       );
-      
-      console.log('[SupabaseService] Reconnected successfully');
     } catch (err) {
       console.error('[SupabaseService] Reconnection failed:', err);
       throw err;
@@ -213,20 +243,10 @@ export class SupabaseService {
    * Especially important for Edge on iOS
    */
   setupVisibilityRecovery(): void {
-    if (typeof document === 'undefined') return;
+    if (typeof window === 'undefined') return;
 
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) {
-        console.log('[SupabaseService] App becoming visible, ensuring connection health');
-        this.ensureConnected().catch(err => {
-          console.error('[SupabaseService] Failed to ensure connection on visibility:', err);
-        });
-      }
-    });
-
-    // Also listen for the custom app-became-visible event
-    window.addEventListener('app-became-visible', () => {
-      console.log('[SupabaseService] App became visible event, ensuring connection health');
+    // Raw visibility is handled by installAppForegroundSignal in main.ts.
+    window.addEventListener(APP_BECAME_VISIBLE_EVENT, () => {
       this.ensureConnected().catch(err => {
         console.error('[SupabaseService] Failed to ensure connection:', err);
       });
