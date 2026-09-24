@@ -21,9 +21,19 @@ describe('PlanningCenterListMapperComponent', () => {
   let toast: { error: ReturnType<typeof vi.fn>; success: ReturnType<typeof vi.fn> };
   let planningCenterListService: { invalidateForUser: ReturnType<typeof vi.fn> };
 
+  function mockMembersSelectChain(
+    result: { data: unknown; error: unknown } = { data: [], error: null }
+  ) {
+    return {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockResolvedValue(result),
+    };
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
-    supabaseFrom = vi.fn();
+    supabaseFrom = vi.fn(() => mockMembersSelectChain());
     toast = { error: vi.fn(), success: vi.fn() };
     planningCenterListService = { invalidateForUser: vi.fn() };
     component = new PlanningCenterListMapperComponent(

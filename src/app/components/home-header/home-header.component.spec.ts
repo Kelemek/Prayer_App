@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { ɵresolveComponentResources as resolveComponentResources } from '@angular/core';
@@ -10,6 +11,9 @@ import { HomeHeaderComponent } from './home-header.component';
 import { BRANDING_SERVICE_TOKEN } from '../app-logo/app-logo.component';
 
 const componentDir = dirname(fileURLToPath(import.meta.url));
+
+@Component({ template: '', standalone: true })
+class PresentationRouteStubComponent {}
 
 describe('HomeHeaderComponent', () => {
   const handlers = {
@@ -38,7 +42,9 @@ describe('HomeHeaderComponent', () => {
     TestBed.configureTestingModule({
       imports: [HomeHeaderComponent],
       providers: [
-        provideRouter([]),
+        provideRouter([
+          { path: 'presentation', component: PresentationRouteStubComponent },
+        ]),
         {
           provide: BRANDING_SERVICE_TOKEN,
           useValue: {
@@ -50,6 +56,10 @@ describe('HomeHeaderComponent', () => {
         },
       ],
     });
+  });
+
+  afterEach(() => {
+    TestBed.resetTestingModule();
   });
 
   function createFixture(showSearchPanel = false) {
@@ -81,7 +91,7 @@ describe('HomeHeaderComponent', () => {
     expect(handlers.openHelp).toHaveBeenCalled();
   });
 
-  it('wires settings, presentation, and prayer form actions', () => {
+  it('wires settings, presentation, and prayer form actions', async () => {
     const fixture = createFixture();
     const settings = fixture.nativeElement.querySelector(
       '#tour-btn-settings-desktop'
@@ -93,6 +103,7 @@ describe('HomeHeaderComponent', () => {
       '#tour-btn-prayer-mode-desktop'
     ) as HTMLAnchorElement;
     presentation?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await fixture.whenStable();
     expect(handlers.onPresentationLinkClick).toHaveBeenCalled();
 
     const request = fixture.nativeElement.querySelector(
@@ -100,6 +111,7 @@ describe('HomeHeaderComponent', () => {
     ) as HTMLButtonElement;
     request?.click();
     expect(handlers.openPrayerForm).toHaveBeenCalled();
+    fixture.destroy();
   });
 
   it('re-emits logo status changes', () => {
