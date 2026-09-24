@@ -29,7 +29,7 @@ const SCOPE_OPTIONS: {
     @if (isOpen) {
     <div
       appTopChromeOverlay
-      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4 safe-area-overlay"
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-memorized-bible-books-title"

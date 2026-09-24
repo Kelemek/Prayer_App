@@ -2,7 +2,7 @@
   @if (passageLoading) {
     <div
       appTopChromeOverlay
-      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4 safe-area-overlay"
       role="dialog"
       aria-modal="true"
       aria-label="Memorize practice"
@@ -18,7 +18,7 @@
   } @else if (passageLoadError) {
     <div
       appTopChromeOverlay
-      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4 safe-area-overlay"
       role="dialog"
       aria-modal="true"
       aria-label="Memorize practice"
@@ -40,7 +40,7 @@
   } @else if (typableIndices.length === 0) {
     <div
       appTopChromeOverlay
-      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4 safe-area-overlay"
       role="dialog"
       aria-modal="true"
       aria-label="Memorize practice"
@@ -62,7 +62,7 @@
   } @else {
     <div
       appTopChromeOverlay
-      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4 safe-area-overlay"
       role="dialog"
       aria-modal="true"
       [attr.aria-label]="phase === 'done' ? 'Finished' : 'Memorize practice'"
@@ -860,7 +860,7 @@
     @if (modePickerOpen && phase === 'intro') {
       <div
         appTopChromeOverlay
-        class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
+        class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4 safe-area-overlay"
         role="presentation"
         (click)="closeModePicker()"
       >

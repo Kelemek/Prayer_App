@@ -10,7 +10,7 @@ import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-ov
   template: `
     <div
       appTopChromeOverlay
-      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4 safe-area-overlay"
     >
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full modal-panel-edge">
         <!-- Header -->

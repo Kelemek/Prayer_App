@@ -43,7 +43,7 @@ const TESTAMENT_KEY = 'prayer_app_memorize_add_testament';
     @if (isOpen) {
     <div
       appTopChromeOverlay
-      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4 overscroll-none touch-none"
+      class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-4 overscroll-none touch-none safe-area-overlay"
       role="dialog"
       aria-modal="true"
       aria-labelledby="bible-passage-picker-title"
