@@ -3,7 +3,7 @@
  * sequentially so PostgREST is not stamped by parallel jobs.
  * Loads tenant_settings memorization template keys once (with retry) and passes them to the memorization phase.
  * Hourly prayer/memorization phases run only on the UTC :00 tick (minute < 15); item reminders every tick.
- * Deploy with: supabase functions deploy dispatch-user-reminders
+ * Deploy with: supabase functions deploy dispatch-user-reminders --no-verify-jwt
  */
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.110.0';
 
@@ -209,12 +209,24 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  // Cron sends Vault service_role_key. The publishable key is a valid JWT and must not
+  // dispatch reminders or honor forceHourly.
+  const authHeader = req.headers.get('Authorization') ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  if (token !== serviceKey) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   const supabase = createClient(supabaseUrl, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
   const requestBody = await readDispatchRequestBody(req);
   const now = new Date();
+  // forceHourly is only reachable after the service-role check above.
   const ranHourlyPhases = shouldRunHourlyPhases(now, requestBody.forceHourly === true);
 
   const results: PhaseResult[] = [];
