@@ -42,7 +42,12 @@ describe('AdminUserManagementComponent', () => {
       },
       rpc() {
         const r = this.responses.shift();
-        return Promise.resolve(r ?? { data: false, error: null });
+        return Promise.resolve(r ?? { data: null, error: null });
+      },
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { user: { email: 'admin@test.com' } } },
+        }),
       },
     };
     return client;
@@ -96,7 +101,8 @@ describe('AdminUserManagementComponent', () => {
     mockSupabase = { client: mockClient };
 
     mockToast = {
-      success: vi.fn()
+      success: vi.fn(),
+      error: vi.fn(),
     };
 
     mockEmailService = {
@@ -250,12 +256,47 @@ describe('AdminUserManagementComponent', () => {
 
     mockClient.setResponses([
       { data: false, error: null },
-      { data: { user_email: 'test@x.com' } },
+      { error: { message: 'This email is already an admin for this tenant' } },
     ]);
 
     await component.addAdmin();
 
     expect(component.error).toBe('This email is already an admin for this tenant');
+    expect(component.adding).toBe(false);
+  });
+
+  it('blocks admin add when typo email would duplicate an existing subscriber', async () => {
+    component.newAdminEmail = 'mdlarson11@gmai.com';
+    component.newAdminName = 'Mark Larson';
+
+    const rpcMock = vi.fn().mockResolvedValue({ data: false, error: null });
+    mockSupabase.client = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { user: { email: 'admin@test.com' } } },
+        }),
+      },
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({ data: { user_email: 'mdlarson11@gmail.com' }, error: null }),
+            }),
+          }),
+        }),
+      }),
+      rpc: rpcMock,
+    } as any;
+
+    await component.addAdmin();
+
+    expect(component.error).toContain('mdlarson11@gmail.com');
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+    expect(rpcMock).not.toHaveBeenCalledWith(
+      'grant_tenant_admin_membership',
+      expect.anything()
+    );
     expect(component.adding).toBe(false);
   });
 
@@ -271,20 +312,18 @@ describe('AdminUserManagementComponent', () => {
     expect(component.adding).toBe(false);
   });
 
-  it('handles upsert error when adding admin', async () => {
+  it('handles grant RPC error when adding admin', async () => {
     component.newAdminEmail = 'new@x.com';
     component.newAdminName = 'New';
 
-    // is_super_admin -> false, maybeSingle -> null, upsert -> error
     mockClient.setResponses([
       { data: false, error: null },
-      { data: null },
-      { error: { message: 'upsert failed' } }
+      { error: { message: 'upsert failed' } },
     ]);
 
     await component.addAdmin();
 
-    expect(component.error).toBe('Failed to add admin user');
+    expect(component.error).toBe('upsert failed');
     expect(component.adding).toBe(false);
   });
 
@@ -294,7 +333,6 @@ describe('AdminUserManagementComponent', () => {
 
     mockClient.setResponses([
       { data: false, error: null },
-      { data: null },
       { error: null },
       { data: [membershipRow({ user_email: 'ok@x.com', name: 'Ok' })], error: null },
       { data: false, error: null },
@@ -321,20 +359,18 @@ describe('AdminUserManagementComponent', () => {
 
     mockClient.setResponses([
       { data: false, error: null },
-      { data: null },
       { error: null },
       { data: [membershipRow({ user_email: 'f@x.com', name: 'FailEmail', receive_admin_emails: false, receive_admin_push: false })], error: null },
       { data: false, error: null },
     ]);
 
-    // let sendInvitationEmail reject so the component's internal .catch runs
     const sendSpy = vi.spyOn(component as any, 'sendInvitationEmail').mockRejectedValue(new Error('email fail'));
 
     await component.addAdmin();
 
     expect(sendSpy).toHaveBeenCalled();
-    expect(component.success).toContain('Admin added successfully');
-    expect(mockToast.success).toHaveBeenCalled();
+    expect(component.success).toContain('invitation email could not be sent');
+    expect(mockToast.error).toHaveBeenCalled();
   });
 
   it('sendInvitationEmail throws when sendEmail fails', async () => {
@@ -584,38 +620,42 @@ describe('AdminUserManagementComponent', () => {
     expect(mockToast.success).toHaveBeenCalled();
   });
 
-  it('addAdmin handles upsert rejection with object error', async () => {
+  it('addAdmin handles grant RPC error object', async () => {
     component.newAdminEmail = 'up@x.com';
     component.newAdminName = 'Up';
 
-    // maybeSingle resolves null, upsert rejects with an object error
     mockSupabase.client = {
-      from: (table: string) => {
-        if (table === 'tenant_memberships') {
-          return {
-            select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null }) }) }) }) }),
-            upsert: () => Promise.reject({ message: 'upsert-thrown' })
-          } as any;
-        }
-        return null as any;
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { user: { email: 'admin@test.com' } } },
+        }),
       },
-      rpc: () => Promise.resolve({ data: false, error: null }),
+      rpc: vi
+        .fn()
+        .mockResolvedValueOnce({ data: false, error: null })
+        .mockResolvedValueOnce({ error: { message: 'upsert-thrown' } }),
     } as any;
 
     await component.addAdmin();
 
-    expect(component.error).toBe('Failed to add admin user');
+    expect(component.error).toBe('upsert-thrown');
     expect(component.adding).toBe(false);
   });
 
-  it('addAdmin handles thrown object without message property', async () => {
+  it('addAdmin handles grant RPC error without message property', async () => {
     component.newAdminEmail = 'nomsg@x.com';
     component.newAdminName = 'NoMsg';
 
-    // maybeSingle rejects with object that lacks 'message' property
     mockSupabase.client = {
-      from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.reject({ code: 'NO_MSG' }) }) }) }) }) }),
-      rpc: () => Promise.resolve({ data: false, error: null }),
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { user: { email: 'admin@test.com' } } },
+        }),
+      },
+      rpc: vi
+        .fn()
+        .mockResolvedValueOnce({ data: false, error: null })
+        .mockResolvedValueOnce({ error: { code: 'NO_MSG' } }),
     } as any;
 
     await component.addAdmin();
@@ -624,46 +664,58 @@ describe('AdminUserManagementComponent', () => {
     expect(component.adding).toBe(false);
   });
 
-  it('addAdmin handles thrown undefined error', async () => {
+  it('addAdmin handles missing caller email', async () => {
     component.newAdminEmail = 'undef@x.com';
     component.newAdminName = 'Undef';
 
-    // maybeSingle rejects with undefined to exercise falsy error branch
     mockSupabase.client = {
-      from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.reject(undefined) }) }) }) }) }),
-      rpc: () => Promise.resolve({ data: false, error: null }),
+      auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+      },
+      rpc: vi.fn().mockResolvedValue({ data: false, error: null }),
     } as any;
 
     await component.addAdmin();
 
-    expect(component.error).toBe('Failed to add admin user');
+    expect(component.error).toBe('Sign in is required to add an admin');
     expect(component.adding).toBe(false);
   });
 
-  it('addAdmin handles synchronous throw inside try block', async () => {
+  it('addAdmin handles synchronous throw from RPC', async () => {
     component.newAdminEmail = 'sync@x.com';
     component.newAdminName = 'SyncErr';
 
-    // Simulate a synchronous throw when calling maybeSingle/select
     mockSupabase.client = {
-      from: () => ({ select: () => { throw new Error('sync-fail'); } }),
-      rpc: () => Promise.resolve({ data: false, error: null }),
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { user: { email: 'admin@test.com' } } },
+        }),
+      },
+      rpc: vi.fn().mockImplementation(() => {
+        throw new Error('sync-fail');
+      }),
     } as any;
 
     await component.addAdmin();
 
-    expect(component.error).toBe('Failed to add admin user');
+    expect(component.error).toBe('sync-fail');
     expect(component.adding).toBe(false);
   });
 
-  it('addAdmin handles null rejection error', async () => {
+  it('addAdmin handles rejected RPC promise', async () => {
     component.newAdminEmail = 'null@x.com';
     component.newAdminName = 'NullErr';
 
-    // maybeSingle rejects with null
     mockSupabase.client = {
-      from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.reject(null) }) }) }) }) }),
-      rpc: () => Promise.resolve({ data: false, error: null }),
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { user: { email: 'admin@test.com' } } },
+        }),
+      },
+      rpc: vi
+        .fn()
+        .mockResolvedValueOnce({ data: false, error: null })
+        .mockRejectedValueOnce(null),
     } as any;
 
     await component.addAdmin();
@@ -672,22 +724,20 @@ describe('AdminUserManagementComponent', () => {
     expect(component.adding).toBe(false);
   });
 
-  it('addAdmin handles non-object error (primitive)', async () => {
+  it('addAdmin handles grant RPC primitive error', async () => {
     component.newAdminEmail = 'prim@x.com';
     component.newAdminName = 'Prim';
 
-    // Simulate maybeSingle -> null, upsert rejects with primitive
     mockSupabase.client = {
-      from: (table: string) => {
-        if (table === 'tenant_memberships') {
-          return {
-            select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null }) }) }) }) }),
-            upsert: () => Promise.reject('upsert-prim'),
-          };
-        }
-        return null as any;
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { user: { email: 'admin@test.com' } } },
+        }),
       },
-      rpc: () => Promise.resolve({ data: false, error: null }),
+      rpc: vi
+        .fn()
+        .mockResolvedValueOnce({ data: false, error: null })
+        .mockResolvedValueOnce({ error: 'grant-prim' }),
     } as any;
 
     await component.addAdmin();
@@ -754,32 +804,6 @@ describe('AdminUserManagementComponent', () => {
     expect(component.admins).toEqual([]);
     expect(component.loading).toBe(false);
     expect(component.error).toBeNull();
-  });
-
-  it('addAdmin handles thrown object error from maybeSingle', async () => {
-    component.newAdminEmail = 'throw@x.com';
-    component.newAdminName = 'Throw';
-
-    // Simulate maybeSingle rejecting with an object (different error path)
-    mockSupabase.client = {
-      from: () => ({
-        select: () => ({
-          eq: () => ({
-            eq: () => ({
-              eq: () => ({
-                maybeSingle: () => Promise.reject({ message: 'maybe failed' }),
-              }),
-            }),
-          }),
-        }),
-      }),
-      rpc: () => Promise.resolve({ data: false, error: null }),
-    } as any;
-
-    await component.addAdmin();
-
-    expect(component.error).toBe('Failed to add admin user');
-    expect(component.adding).toBe(false);
   });
 
   it('toggleReceivePush updates receive_admin_push and reloads admins', async () => {

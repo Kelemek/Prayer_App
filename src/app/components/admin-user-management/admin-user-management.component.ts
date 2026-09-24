@@ -14,6 +14,8 @@ import { SupabaseService } from "../../services/supabase.service";
 import { ToastService } from "../../services/toast.service";
 import { EmailNotificationService } from "../../services/email-notification.service";
 import { TenantContextService } from "../../services/tenant-context.service";
+import { resolvePrayerServiceUserEmail } from "../../lib/prayer-service-user-email";
+import { suggestEmailDomainCorrection } from "../../lib/email-domain-typo";
 import { ConfirmationDialogComponent } from "../confirmation-dialog/confirmation-dialog.component";
 import { AdminSectionLoadingComponent } from "../admin-section-loading/admin-section-loading.component";
 import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/admin-collapsible-section.component";
@@ -697,6 +699,20 @@ export class AdminUserManagementComponent implements OnInit, OnDestroy {
     return this.tenantContext.getActiveTenant()?.id ?? null;
   }
 
+  private async getCallerEmail(): Promise<string | null> {
+    return resolvePrayerServiceUserEmail(() => this.supabase.client.auth.getSession());
+  }
+
+  private mapAddAdminError(err: unknown): string {
+    if (err && typeof err === "object" && "message" in err) {
+      const message = String((err as { message: string }).message);
+      if (message.trim()) {
+        return message;
+      }
+    }
+    return "Failed to add admin user";
+  }
+
   private mapMembershipToAdmin(row: {
     user_email: string;
     name: string;
@@ -790,6 +806,7 @@ export class AdminUserManagementComponent implements OnInit, OnDestroy {
   async addAdmin() {
     if (!this.newAdminEmail.trim() || !this.newAdminName.trim()) {
       this.error = "Email and name are required";
+      this.cdr.markForCheck();
       return;
     }
 
@@ -797,84 +814,119 @@ export class AdminUserManagementComponent implements OnInit, OnDestroy {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(this.newAdminEmail)) {
       this.error = "Please enter a valid email address";
+      this.cdr.markForCheck();
       return;
     }
 
     const tenantId = this.getActiveTenantId();
     if (!tenantId) {
       this.error = "No active tenant selected";
+      this.cdr.markForCheck();
       return;
     }
+
+    const email = this.newAdminEmail.toLowerCase().trim();
+    const name = this.newAdminName.trim();
 
     this.adding = true;
     this.error = null;
     this.clearSuccess();
+    this.cdr.markForCheck();
 
     try {
-      const email = this.newAdminEmail.toLowerCase().trim();
-      const name = this.newAdminName.trim();
-
       if (await this.isSuperAdminEmail(email)) {
         this.error =
           "Super admins are managed at the platform level and are not listed here";
         return;
       }
 
-      // Check if admin already exists for this tenant
-      const { data: existing } = await this.supabase.client
-        .from("tenant_memberships")
-        .select("user_email")
-        .eq("tenant_id", tenantId)
-        .eq("user_email", email)
-        .eq("role", "tenant_admin")
-        .maybeSingle();
-
-      if (existing) {
-        this.error = "This email is already an admin for this tenant";
+      const callerEmail = await this.getCallerEmail();
+      if (!callerEmail) {
+        this.error = "Sign in is required to add an admin";
         return;
       }
 
-      // Insert or promote to tenant admin for this tenant only
-      const { error: upsertError } = await this.supabase.client
-        .from("tenant_memberships")
-        .upsert(
-          {
-            tenant_id: tenantId,
-            user_email: email,
-            name,
-            role: "tenant_admin",
-            is_active: true,
-            receive_admin_push: true,
-          },
-          {
-            onConflict: "tenant_id,user_email",
-          }
-        );
+      const typoConflict = await this.findTypoSubscriberConflict(tenantId, email);
+      if (typoConflict) {
+        this.error = typoConflict;
+        return;
+      }
 
-      if (upsertError) throw upsertError;
-
-      // Send invitation email in background (don't await)
-      this.sendInvitationEmail(email, name).catch((emailErr) => {
-        console.warn("Error sending invitation email:", emailErr);
-      });
-
-      this.showSuccessMessage(
-        `Admin added successfully! Invitation email sent to ${email}`
+      const { error: grantError } = await this.supabase.client.rpc(
+        "grant_tenant_admin_membership",
+        {
+          p_tenant_id: tenantId,
+          p_invitee_email: email,
+          p_invitee_name: name,
+          p_email: callerEmail,
+        }
       );
-      this.toast.success(`Admin ${name} added successfully`);
+
+      if (grantError) {
+        throw grantError;
+      }
+
+      let emailSent = true;
+      try {
+        await this.sendInvitationEmail(email, name);
+      } catch (emailErr) {
+        emailSent = false;
+        console.warn("Error sending invitation email:", emailErr);
+      }
+
+      if (emailSent) {
+        this.showSuccessMessage(
+          `Admin added successfully! Invitation email sent to ${email}`
+        );
+        this.toast.success(`Admin ${name} added successfully`);
+      } else {
+        this.showSuccessMessage(
+          `Admin added successfully, but the invitation email could not be sent to ${email}.`
+        );
+        this.toast.error("Admin added, but invitation email could not be sent");
+      }
+
       this.newAdminEmail = "";
       this.newAdminName = "";
       this.showAddForm = false;
 
-      // Reload admins list
-      this.loadAdmins();
+      void this.loadAdmins();
       this.onSave.emit();
     } catch (err: unknown) {
       console.error("Error adding admin:", err);
-      this.error = "Failed to add admin user";
+      this.error = this.mapAddAdminError(err);
     } finally {
       this.adding = false;
+      this.cdr.markForCheck();
     }
+  }
+
+  private async findTypoSubscriberConflict(
+    tenantId: string,
+    inviteeEmail: string
+  ): Promise<string | null> {
+    const suggested = suggestEmailDomainCorrection(inviteeEmail);
+    if (!suggested || suggested === inviteeEmail) {
+      return null;
+    }
+
+    const { data, error } = await this.supabase.client
+      .from("tenant_memberships")
+      .select("user_email")
+      .eq("tenant_id", tenantId)
+      .eq("user_email", suggested)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("Typo subscriber lookup failed:", error);
+      return null;
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    return `Did you mean ${suggested}? That address is already a subscriber for this church. Enter it exactly to promote them to admin.`;
   }
 
   async sendInvitationEmail(email: string, name: string) {

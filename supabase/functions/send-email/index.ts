@@ -444,6 +444,11 @@ async function callerIsAdmin(
   email: string,
   tenantId: string,
 ): Promise<boolean> {
+  const { data: isSuper, error: superError } = await admin.rpc('is_super_admin', {
+    email_to_check: email,
+  })
+  if (!superError && isSuper) return true
+
   if (tenantId) {
     const { data, error } = await admin.rpc('is_tenant_admin', {
       tenant_to_check: tenantId,
@@ -451,11 +456,6 @@ async function callerIsAdmin(
     })
     return !error && Boolean(data)
   }
-  const { data: isSuper, error: superError } = await admin.rpc('is_super_admin', {
-    email_to_check: email,
-  })
-  if (superError) return false
-  if (isSuper) return true
   const { data: row, error } = await admin
     .from('tenant_memberships')
     .select('user_email')

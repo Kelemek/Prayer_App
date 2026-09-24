@@ -1195,7 +1195,7 @@ export class AdminDataService {
   async sendSubscriberWelcomeEmail(email: string): Promise<void> {
     try {
       const tenantId = this.getRequiredTenantId();
-      await this.emailNotification.sendSubscriberWelcomeNotification(email, tenantId);
+      await this.emailNotification.sendSubscriberWelcomeEmail(email, tenantId);
     } catch (error) {
       console.error('Error sending subscriber welcome email:', error);
       throw error;

@@ -351,8 +351,10 @@ describe('EmailSubscribersComponent', () => {
     fromChain.maybeSingle.mockResolvedValue({ data: null, error: null });
     fromChain.insert.mockResolvedValue({ error: null });
     vi.spyOn(component, 'handleSearch').mockResolvedValue(undefined);
+    mockAdminDataService.sendSubscriberWelcomeEmail.mockResolvedValue(undefined);
     await component.handleAddSubscriber();
-    expect(component.showSendWelcomeEmailDialog).toBe(true);
+    expect(mockAdminDataService.sendSubscriberWelcomeEmail).toHaveBeenCalledWith('test@example.com');
+    expect(component.csvSuccess).toContain('welcome email sent');
   });
 
   it('refreshes hidden super admin membership instead of duplicate error', async () => {
@@ -483,19 +485,7 @@ describe('EmailSubscribersComponent', () => {
     expect(component.error).toBe('Select an organization first');
   });
 
-  it('welcome email and confirmation dialog helpers', async () => {
-    component.pendingSubscriberEmail = 'new@test.com';
-    await component.onConfirmSendWelcomeEmail();
-    expect(mockAdminDataService.sendSubscriberWelcomeEmail).toHaveBeenCalledWith(
-      'new@test.com'
-    );
-    expect(component.showSendWelcomeEmailDialog).toBe(false);
-
-    component.showSendWelcomeEmailDialog = true;
-    component.pendingSubscriberEmail = 'x@test.com';
-    component.onDeclineSendWelcomeEmail();
-    expect(component.showSendWelcomeEmailDialog).toBe(false);
-
+  it('confirmation dialog helpers', async () => {
     const action = vi.fn().mockResolvedValue(undefined);
     component.confirmationAction = action;
     component.showConfirmationDialog = true;

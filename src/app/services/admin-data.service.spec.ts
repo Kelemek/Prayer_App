@@ -114,6 +114,7 @@ describe('AdminDataService', () => {
       }),
       getEmailBaseUrl: vi.fn(() => 'http://localhost:4200'),
       sendEmail: vi.fn(() => Promise.resolve()),
+      sendSubscriberWelcomeEmail: vi.fn(() => Promise.resolve()),
       sendSubscriberWelcomeNotification: vi.fn(() => Promise.resolve())
     } as unknown as EmailNotificationService;
 

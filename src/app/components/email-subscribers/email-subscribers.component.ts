@@ -7,7 +7,6 @@ import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
 import { AdminDataService } from '../../services/admin-data.service';
 import { TenantContextService } from '../../services/tenant-context.service';
-import { SendNotificationDialogComponent } from '../send-notification-dialog/send-notification-dialog.component';
 import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
 import { AdminSectionLoadingComponent } from '../admin-section-loading/admin-section-loading.component';
 import { AdminCollapsibleSectionComponent } from '../admin-collapsible-section/admin-collapsible-section.component';
@@ -48,7 +47,6 @@ interface CSVRow {
   imports: [
     CommonModule,
     FormsModule,
-    SendNotificationDialogComponent,
     ConfirmationDialogComponent,
     AdminSectionLoadingComponent,
     AdminCollapsibleSectionComponent,
@@ -646,14 +644,6 @@ interface CSVRow {
       }
     </app-admin-collapsible-section>
 
-    @if (showSendWelcomeEmailDialog) {
-      <app-send-notification-dialog
-        [notificationType]="'subscriber'"
-        (confirm)="onConfirmSendWelcomeEmail()"
-        (decline)="onDeclineSendWelcomeEmail()">
-      </app-send-notification-dialog>
-    }
-
     @if (showConfirmationDialog) {
       <app-confirmation-dialog
         [title]="confirmationTitle"
@@ -795,9 +785,6 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
   sortDirection: 'asc' | 'desc' = 'desc';
 
   // Send notification dialog properties
-  showSendWelcomeEmailDialog = false;
-  pendingSubscriberEmail = '';
-
   // Confirmation dialog properties
   showConfirmationDialog = false;
   confirmationTitle = '';
@@ -1501,16 +1488,24 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       if (error) throw error;
 
       const addedAsSuperAdmin = await this.isSuperAdminEmail(normalizedEmail);
-      this.csvSuccess = addedAsSuperAdmin
-        ? `Membership saved for this organization. ${this.superAdminHiddenListNotice}`
-        : 'Subscriber added successfully!';
-      this.pendingSubscriberEmail = normalizedEmail;
+      try {
+        await this.adminDataService.sendSubscriberWelcomeEmail(normalizedEmail);
+        this.csvSuccess = addedAsSuperAdmin
+          ? `Membership saved and welcome email sent. ${this.superAdminHiddenListNotice}`
+          : 'Subscriber added and welcome email sent.';
+      } catch (emailError) {
+        console.error('Error sending welcome email:', emailError);
+        this.toast.error('Subscriber added, but welcome email could not be sent');
+        this.csvSuccess = addedAsSuperAdmin
+          ? `Membership saved for this organization. Welcome email could not be sent. ${this.superAdminHiddenListNotice}`
+          : 'Subscriber added successfully, but welcome email could not be sent.';
+      }
       this.newName = '';
       this.newEmail = '';
       this.pendingInPlanningCenter = null;
       this.pcSearchResults = [];
       this.pcSearchQuery = '';
-      this.showSendWelcomeEmailDialog = !addedAsSuperAdmin;
+      this.showAddForm = false;
       this.cdr.markForCheck();
       this.cdr.detectChanges();
       await this.handleSearch({ preserveCsvSuccess: true });
@@ -1901,39 +1896,6 @@ export class EmailSubscribersComponent implements OnInit, OnDestroy {
       this.uploadingCSV = false;
       this.cdr.markForCheck();
     }
-  }
-
-  /**
-   * Handle send welcome email confirmation
-   */
-  async onConfirmSendWelcomeEmail() {
-    try {
-      if (!this.pendingSubscriberEmail) {
-        return;
-      }
-
-      // Send the welcome email
-      await this.adminDataService.sendSubscriberWelcomeEmail(this.pendingSubscriberEmail);
-      this.toast.success('Welcome email sent to subscriber');
-      
-      this.showSendWelcomeEmailDialog = false;
-      this.showAddForm = false;
-      this.pendingSubscriberEmail = '';
-      this.cdr.markForCheck();
-    } catch (error: any) {
-      console.error('Error sending welcome email:', error);
-      this.toast.error('Failed to send welcome email');
-    }
-  }
-
-  /**
-   * Handle decline sending welcome email
-   */
-  onDeclineSendWelcomeEmail() {
-    this.showSendWelcomeEmailDialog = false;
-    this.showAddForm = false;
-    this.pendingSubscriberEmail = '';
-    this.cdr.markForCheck();
   }
 
   /**

@@ -1965,54 +1965,61 @@ export class EmailNotificationService {
   }
 
   /**
-   * Send welcome email to a new subscriber
+   * Send welcome email to a new subscriber. Throws when delivery fails (admin flows).
+   */
+  async sendSubscriberWelcomeEmail(email: string, tenantId?: string | null): Promise<void> {
+    if (!email) {
+      console.warn('No email address provided for subscriber welcome email');
+      return;
+    }
+
+    const unsub = await this.listUnsubscribeForEmail(email, tenantId);
+    const unsubVars = { unsubscribe_url: unsub?.unsubscribe_url ?? '' };
+
+    const template = await this.getTemplate('subscriber_welcome', tenantId);
+    let subject: string;
+    let htmlContent: string;
+    let textContent: string;
+
+    if (template) {
+      const variables = {
+        appLink: `${this.getEmailBaseUrl()}/`,
+        ...unsubVars,
+      };
+      subject = this.applyTemplateVariables(template.subject, variables);
+      htmlContent = this.applyTemplateVariables(template.html_body, variables);
+      textContent = this.applyTemplateVariables(template.text_body, variables);
+    } else {
+      // Fallback content
+      subject = 'Welcome to Our Prayer Community! 🙏';
+      htmlContent = this.generateWelcomeEmailHTML();
+      textContent = 'Welcome to our prayer community! We are thrilled to have you join us. Visit the app to learn more about how you can participate.';
+      if (unsub) {
+        textContent += `\n\nUnsubscribe from these emails: ${unsub.unsubscribe_url}\n`;
+        const footer =
+          `<p style="margin-top:16px;font-size:12px;color:#6b7280;"><a href="${unsub.unsubscribe_url}" style="color:#2563eb;">Unsubscribe from these emails</a></p>`;
+        htmlContent = /<\/body>/i.test(htmlContent)
+          ? htmlContent.replace(/<\/body>/i, `${footer}</body>`)
+          : htmlContent + footer;
+      }
+    }
+
+    await this.sendEmail({
+      to: [email],
+      subject,
+      htmlBody: htmlContent,
+      textBody: textContent,
+      tenantId,
+      listUnsubscribeHttpsUrl: unsub?.listUnsubscribeHttpsUrl,
+    });
+  }
+
+  /**
+   * Send welcome email to a new subscriber without failing the caller when delivery fails.
    */
   async sendSubscriberWelcomeNotification(email: string, tenantId?: string | null): Promise<void> {
     try {
-      if (!email) {
-        console.warn('No email address provided for subscriber welcome notification');
-        return;
-      }
-
-      const unsub = await this.listUnsubscribeForEmail(email, tenantId);
-      const unsubVars = { unsubscribe_url: unsub?.unsubscribe_url ?? '' };
-
-      const template = await this.getTemplate('subscriber_welcome', tenantId);
-      let subject: string;
-      let htmlContent: string;
-      let textContent: string;
-
-      if (template) {
-        const variables = {
-          appLink: `${this.getEmailBaseUrl()}/`,
-          ...unsubVars,
-        };
-        subject = this.applyTemplateVariables(template.subject, variables);
-        htmlContent = this.applyTemplateVariables(template.html_body, variables);
-        textContent = this.applyTemplateVariables(template.text_body, variables);
-      } else {
-        // Fallback content
-        subject = 'Welcome to Our Prayer Community! 🙏';
-        htmlContent = this.generateWelcomeEmailHTML();
-        textContent = 'Welcome to our prayer community! We are thrilled to have you join us. Visit the app to learn more about how you can participate.';
-        if (unsub) {
-          textContent += `\n\nUnsubscribe from these emails: ${unsub.unsubscribe_url}\n`;
-          const footer =
-            `<p style="margin-top:16px;font-size:12px;color:#6b7280;"><a href="${unsub.unsubscribe_url}" style="color:#2563eb;">Unsubscribe from these emails</a></p>`;
-          htmlContent = /<\/body>/i.test(htmlContent)
-            ? htmlContent.replace(/<\/body>/i, `${footer}</body>`)
-            : htmlContent + footer;
-        }
-      }
-
-      await this.sendEmail({
-        to: [email],
-        subject,
-        htmlBody: htmlContent,
-        textBody: textContent,
-        tenantId,
-        listUnsubscribeHttpsUrl: unsub?.listUnsubscribeHttpsUrl,
-      });
+      await this.sendSubscriberWelcomeEmail(email, tenantId);
     } catch (error) {
       console.error('Error in sendSubscriberWelcomeNotification:', error);
       // Don't re-throw - let the error be logged but don't block subscriber addition
