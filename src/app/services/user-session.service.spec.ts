@@ -5,18 +5,21 @@ import { BehaviorSubject } from 'rxjs';
 
 function mockTenantMembershipsQuery(
   data: Record<string, unknown> | null,
-  error: unknown = null
+  error: unknown = null,
+  maybeSingleOverride?: ReturnType<typeof vi.fn>
 ) {
   const chain: {
     eq: ReturnType<typeof vi.fn>;
     maybeSingle: ReturnType<typeof vi.fn>;
   } = {
     eq: vi.fn(),
-    maybeSingle: vi.fn().mockResolvedValue({ data, error })
+    maybeSingle:
+      maybeSingleOverride ??
+      vi.fn().mockResolvedValue({ data, error }),
   };
   chain.eq.mockReturnValue(chain);
   return {
-    select: vi.fn().mockReturnValue(chain)
+    select: vi.fn().mockReturnValue(chain),
   };
 }
 
@@ -26,13 +29,18 @@ describe('UserSessionService', () => {
   let mockAdminAuthService: any;
   let mockAuthIdentity: any;
   let mockTenantContext: any;
+  let activeTenantSubject: BehaviorSubject<{ id: string } | null>;
 
   beforeEach(() => {
     mockAuthIdentity = {
       getEmail: vi.fn().mockResolvedValue('test@example.com')
     };
+    activeTenantSubject = new BehaviorSubject<{ id: string } | null>({
+      id: 'test-tenant',
+    });
     mockTenantContext = {
-      getActiveTenant: vi.fn(() => null)
+      getActiveTenant: vi.fn(() => activeTenantSubject.value),
+      activeTenant$: activeTenantSubject.asObservable(),
     };
 
     // Create mock for Supabase Service
@@ -106,21 +114,7 @@ describe('UserSessionService', () => {
     });
 
     it('should set receivePush from receive_push', async () => {
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'test@example.com',
-                name: 'User',
-                is_active: true,
-                receive_push: false,
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery({user_email:"test@example.com",name:"User",is_active:true,receive_push:false}))
       await service.loadUserSession('test@example.com');
       const session = service.getCurrentSession();
       expect(session?.receivePush).toBe(false);
@@ -128,16 +122,7 @@ describe('UserSessionService', () => {
 
     it('should handle database errors gracefully', async () => {
       await service.loadUserSession('test@example.com');
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: null,
-              error: new Error('Database error')
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery(null, new Error("Database error")))
 
       service.clearSession();
       localStorage.removeItem('userSession');
@@ -155,16 +140,7 @@ describe('UserSessionService', () => {
         receiveAdminEmails: true,
       });
 
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: null,
-              error: { code: 'PGRST116', message: 'multiple rows' },
-            }),
-          }),
-        }),
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery(null, {"code":"PGRST116","message":"multiple rows"}))
 
       await service.loadUserSession('test@example.com');
 
@@ -228,20 +204,7 @@ describe('UserSessionService', () => {
 
   describe('getNotificationPreferences', () => {
     it('should return notification preferences', async () => {
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'test@example.com',
-                name: 'John Doe',
-                is_active: true,
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery({user_email:"test@example.com",name:"John Doe",is_active:true}))
 
       await service.loadUserSession('test@example.com');
 
@@ -252,21 +215,7 @@ describe('UserSessionService', () => {
     });
 
     it('should read notification flags from the membership row', async () => {
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'test@example.com',
-                name: 'John Doe',
-                is_active: false,
-                receive_admin_emails: true,
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery({user_email:"test@example.com",name:"John Doe",is_active:false,receive_admin_emails:true}))
 
       await service.loadUserSession('test@example.com');
 
@@ -284,20 +233,7 @@ describe('UserSessionService', () => {
 
   describe('waitForSession', () => {
     it('should return session immediately if already loaded', async () => {
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'test@example.com',
-                name: 'John Doe',
-                is_active: true,
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery({user_email:"test@example.com",name:"John Doe",is_active:true}))
 
       await service.loadUserSession('test@example.com');
 
@@ -307,20 +243,7 @@ describe('UserSessionService', () => {
     });
 
     it('should wait for session to load', async () => {
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'test@example.com',
-                name: 'John Doe',
-                is_active: true,
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery({user_email:"test@example.com",name:"John Doe",is_active:true}))
 
       const session1 = service.getCurrentSession();
       expect(session1).not.toBeNull();
@@ -445,20 +368,7 @@ describe('UserSessionService', () => {
       mockSupabaseService.client.auth.getSession = vi.fn().mockResolvedValue({
         data: { session: { user: { email: 'cached@example.com' } } }
       });
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'cached@example.com',
-                name: 'Cached User',
-                is_active: true,
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery({user_email:"cached@example.com",name:"Cached User",is_active:true}))
 
       // Create new service instance
       const newService = new UserSessionService(mockSupabaseService, mockAdminAuthService, mockAuthIdentity, mockTenantContext);
@@ -620,20 +530,7 @@ describe('UserSessionService', () => {
       });
       
       // Mock database to return updated data
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'cached@example.com',
-                name: 'Updated User',
-                is_active: true,
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery({user_email:"cached@example.com",name:"Updated User",is_active:true}))
       
       // Create new service
       const newService = new UserSessionService(mockSupabaseService, mockAdminAuthService, mockAuthIdentity, mockTenantContext);
@@ -686,13 +583,13 @@ describe('UserSessionService', () => {
   describe('loadUserSession - exception handling', () => {
     it('should handle exception thrown during database query', async () => {
       await service.loadUserSession('test@example.com');
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockRejectedValue(new Error('Network timeout'))
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(
+        mockTenantMembershipsQuery(
+          null,
+          null,
+          vi.fn().mockRejectedValue(new Error('Network timeout'))
+        )
+      );
 
       service.clearSession();
       localStorage.removeItem('userSession');
@@ -717,13 +614,13 @@ describe('UserSessionService', () => {
       await service.loadUserSession('test@example.com');
       await service.updateUserSession({ fullName: 'Kept Name' });
 
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockReturnValue(new Promise(() => undefined)),
-          }),
-        }),
-      });
+      mockSupabaseService.client.from.mockReturnValue(
+        mockTenantMembershipsQuery(
+          null,
+          null,
+          vi.fn().mockReturnValue(new Promise(() => undefined))
+        )
+      );
 
       vi.useFakeTimers();
       try {
@@ -844,20 +741,13 @@ describe('UserSessionService', () => {
               data: { session: { user: { email: 'test@example.com' } } }
             })
           },
-          from: vi.fn().mockReturnValue({
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                maybeSingle: vi.fn().mockResolvedValue({
-                  data: {
-                    user_email: 'test@example.com',
-                    name: 'Cached User',
-                    is_active: true,
-                  },
-                  error: null
-                })
-              })
+          from: vi.fn().mockReturnValue(
+            mockTenantMembershipsQuery({
+              user_email: 'test@example.com',
+              name: 'Cached User',
+              is_active: true,
             })
-          })
+          ),
         }
       };
       
@@ -1065,24 +955,19 @@ describe('UserSessionService', () => {
       expect(session?.email).toBe('test@example.com');
     });
 
-    it('should scope membership by tenant id or limit to one row', async () => {
+    it('should scope membership by tenant id and defer until tenant is known', async () => {
       const eq = vi.fn();
-      const limit = vi.fn();
-      const chain = {
-        eq,
-        limit,
-        maybeSingle: vi.fn().mockResolvedValue({
-          data: {
-            user_email: 'test@example.com',
-            name: 'Ada Lovelace',
-            is_active: true,
-            receive_admin_emails: true,
-          },
-          error: null,
-        }),
-      };
+      const maybeSingle = vi.fn().mockResolvedValue({
+        data: {
+          user_email: 'test@example.com',
+          name: 'Ada Lovelace',
+          is_active: true,
+          receive_admin_emails: true,
+        },
+        error: null,
+      });
+      const chain = { eq, maybeSingle };
       eq.mockReturnValue(chain);
-      limit.mockReturnValue(chain);
       mockSupabaseService.client.from.mockReturnValue({
         select: vi.fn().mockReturnValue(chain),
       });
@@ -1091,15 +976,98 @@ describe('UserSessionService', () => {
       await service.loadUserSession('test@example.com');
       expect(eq).toHaveBeenCalledWith('user_email', 'test@example.com');
       expect(eq).toHaveBeenCalledWith('tenant_id', 'tenant-9');
-      expect(limit).not.toHaveBeenCalled();
+      expect(maybeSingle).toHaveBeenCalled();
 
       eq.mockClear();
-      limit.mockClear();
+      maybeSingle.mockClear();
       mockTenantContext.getActiveTenant.mockReturnValue(null);
+      localStorage.removeItem('active_tenant_id');
       await service.loadUserSession('test@example.com');
-      expect(eq).toHaveBeenCalledWith('user_email', 'test@example.com');
-      expect(eq).not.toHaveBeenCalledWith('tenant_id', 'tenant-9');
-      expect(limit).toHaveBeenCalledWith(1);
+      expect(maybeSingle).not.toHaveBeenCalled();
+    });
+
+    it('reloads membership when active tenant is set after a deferred load', async () => {
+      const maybeSingle = vi.fn().mockResolvedValue({
+        data: {
+          user_email: 'test@example.com',
+          name: 'After Tenant',
+          is_active: true,
+        },
+        error: null,
+      });
+      mockSupabaseService.client.from.mockReturnValue(
+        mockTenantMembershipsQuery(null, null, maybeSingle)
+      );
+
+      activeTenantSubject.next(null);
+      localStorage.removeItem('active_tenant_id');
+      service.clearSession();
+
+      await service.loadUserSession('test@example.com');
+      expect(maybeSingle).not.toHaveBeenCalled();
+
+      maybeSingle.mockClear();
+      activeTenantSubject.next({ id: 'tenant-resolved' });
+      await vi.waitFor(() => expect(maybeSingle).toHaveBeenCalled());
+
+      expect(service.getCurrentSession()?.fullName).toBe('After Tenant');
+    });
+
+    it('clears stale membership when reload fails after tenant switch', async () => {
+      await service.loadUserSession('test@example.com');
+      expect(service.getCurrentSession()?.fullName).toBe('John Doe');
+      localStorage.setItem('userSessionTenantId', 'tenant-a');
+      (service as { sessionMembershipTenantId?: string }).sessionMembershipTenantId =
+        'tenant-a';
+
+      activeTenantSubject.next({ id: 'tenant-b' });
+      localStorage.setItem('active_tenant_id', 'tenant-b');
+      mockSupabaseService.client.from.mockReturnValue(
+        mockTenantMembershipsQuery(null, new Error('db down'))
+      );
+
+      await service.loadUserSession('test@example.com');
+
+      expect(service.getCurrentSession()).toBeNull();
+      expect(localStorage.getItem('userSession')).toBeNull();
+    });
+
+    it('ignores stale in-flight load when a newer load completes first', async () => {
+      let resolveSlow: (value: {
+        data: Record<string, unknown> | null;
+        error: unknown;
+      }) => void;
+      const slowMaybeSingle = vi.fn().mockReturnValue(
+        new Promise((resolve) => {
+          resolveSlow = resolve;
+        })
+      );
+      mockSupabaseService.client.from.mockReturnValueOnce(
+        mockTenantMembershipsQuery(null, null, slowMaybeSingle)
+      );
+      mockSupabaseService.client.from.mockReturnValueOnce(
+        mockTenantMembershipsQuery({
+          user_email: 'test@example.com',
+          name: 'Fresh Name',
+          is_active: true,
+        })
+      );
+
+      const slow = service.loadUserSession('test@example.com');
+      await service.loadUserSession('test@example.com');
+      expect(service.getCurrentSession()?.fullName).toBe('Fresh Name');
+
+      resolveSlow!({
+        data: {
+          user_email: 'test@example.com',
+          name: 'Stale Name',
+          is_active: true,
+        },
+        error: null,
+      });
+      await slow;
+
+      expect(service.getCurrentSession()?.fullName).toBe('Fresh Name');
     });
 
     it('should ignore whitespace-only email', async () => {
@@ -1144,16 +1112,7 @@ describe('UserSessionService', () => {
 
   describe('comprehensive error and edge case coverage', () => {
     it('should handle user not in database', async () => {
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: null,
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery(null))
 
       service.clearSession();
       await service.loadUserSession('nonexistent@example.com');
@@ -1195,20 +1154,7 @@ describe('UserSessionService', () => {
     });
 
     it('should handle receiving user data with missing fields', async () => {
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'partial@example.com',
-                // name is missing
-                // is_active is missing
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery({user_email:"partial@example.com"}))
 
       service.clearSession();
       await service.loadUserSession('partial@example.com');
@@ -1221,20 +1167,7 @@ describe('UserSessionService', () => {
     });
 
     it('should handle is_active as null or false', async () => {
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'inactive@example.com',
-                name: 'Inactive User',
-                is_active: null
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery({user_email:"inactive@example.com",name:"Inactive User",is_active:null}))
 
       service.clearSession();
       await service.loadUserSession('inactive@example.com');
@@ -1245,20 +1178,7 @@ describe('UserSessionService', () => {
     });
 
     it('should handle is_active as false explicitly', async () => {
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'inactive@example.com',
-                name: 'Inactive User',
-                is_active: false
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery({user_email:"inactive@example.com",name:"Inactive User",is_active:false}))
 
       service.clearSession();
       await service.loadUserSession('inactive@example.com');
@@ -1422,20 +1342,7 @@ describe('UserSessionService', () => {
       localStorage.setItem('userSession', '"stringified"');
       
       // Mock returns for this test
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'different@example.com',
-                name: 'Test User',
-                is_active: true
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery({user_email:"different@example.com",name:"Test User",is_active:true}))
       
       // parseSession logic should handle non-object cache - skip cache
       await service.loadUserSession('different@example.com');
@@ -1491,17 +1398,17 @@ describe('UserSessionService', () => {
       
       // Mock a slow database call
       let resolveFn: any;
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockReturnValue(
-              new Promise(resolve => {
-                resolveFn = resolve;
-              })
-            )
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(
+        mockTenantMembershipsQuery(
+          null,
+          null,
+          vi.fn().mockReturnValue(
+            new Promise((resolve) => {
+              resolveFn = resolve;
+            })
+          )
+        )
+      );
       
       // Start loading
       const loadPromise = service.loadUserSession('different@example.com');
@@ -1599,21 +1506,30 @@ describe('UserSessionService', () => {
       const email1 = 'user1@example.com';
       const email2 = 'user2@example.com';
       
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn()
-              .mockResolvedValueOnce({
-                data: { email: email1, name: 'User 1', is_active: true },
-                error: null
-              })
-              .mockResolvedValueOnce({
-                data: { email: email2, name: 'User 2', is_active: true },
-                error: null
-              })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(
+        mockTenantMembershipsQuery(
+          null,
+          null,
+          vi
+            .fn()
+            .mockResolvedValueOnce({
+              data: {
+                user_email: email1,
+                name: 'User 1',
+                is_active: true,
+              },
+              error: null,
+            })
+            .mockResolvedValueOnce({
+              data: {
+                user_email: email2,
+                name: 'User 2',
+                is_active: true,
+              },
+              error: null,
+            })
+        )
+      );
 
       service.clearSession();
       
@@ -1655,20 +1571,7 @@ describe('UserSessionService', () => {
 
   describe('special case branch coverage', () => {
     it('should handle is_active with nullish values', async () => {
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'nullish@example.com',
-                name: 'Nullish Test',
-                is_active: undefined
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery({user_email:"nullish@example.com",name:"Nullish Test"}))
 
       service.clearSession();
       await service.loadUserSession('nullish@example.com');
@@ -1679,20 +1582,7 @@ describe('UserSessionService', () => {
     });
 
     it('should handle is_active as 0 (falsy number)', async () => {
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'zero@example.com',
-                name: 'Zero Test',
-                is_active: 0
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery({user_email:"zero@example.com",name:"Zero Test",is_active:0}))
 
       service.clearSession();
       await service.loadUserSession('zero@example.com');
@@ -1703,20 +1593,7 @@ describe('UserSessionService', () => {
     });
 
     it('should handle name as empty string', async () => {
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'empty-name@example.com',
-                name: '',
-                is_active: true
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery({user_email:"empty-name@example.com",name:"",is_active:true}))
 
       service.clearSession();
       await service.loadUserSession('empty-name@example.com');
@@ -1726,20 +1603,7 @@ describe('UserSessionService', () => {
     });
 
     it('should use email from response data when available', async () => {
-      mockSupabaseService.client.from.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'response@example.com',
-                name: 'Test',
-                is_active: true
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from.mockReturnValue(mockTenantMembershipsQuery({user_email:"response@example.com",name:"Test",is_active:true}))
 
       // Load with requested email
       await service.loadUserSession('requested@example.com');
@@ -2084,21 +1948,7 @@ describe('UserSessionService', () => {
 
   describe('Badge Functionality', () => {
     it('should load badge_functionality_enabled from database', async () => {
-      mockSupabaseService.client.from = vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'test@example.com',
-                name: 'John Doe',
-                is_active: true,
-                badge_functionality_enabled: true
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from = vi.fn().mockReturnValue(mockTenantMembershipsQuery({user_email:"test@example.com",name:"John Doe",is_active:true,badge_functionality_enabled:true}))
 
       await service.loadUserSession('test@example.com');
       
@@ -2107,20 +1957,7 @@ describe('UserSessionService', () => {
     });
 
     it('should default badge_functionality_enabled to false if not in database', async () => {
-      mockSupabaseService.client.from = vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'test@example.com',
-                name: 'John Doe',
-                is_active: true
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from = vi.fn().mockReturnValue(mockTenantMembershipsQuery({user_email:"test@example.com",name:"John Doe",is_active:true}))
 
       await service.loadUserSession('test@example.com');
       
@@ -2129,21 +1966,7 @@ describe('UserSessionService', () => {
     });
 
     it('should have isBadgeFunctionalityEnabled getter', async () => {
-      mockSupabaseService.client.from = vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'test@example.com',
-                name: 'John Doe',
-                is_active: true,
-                badge_functionality_enabled: true
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from = vi.fn().mockReturnValue(mockTenantMembershipsQuery({user_email:"test@example.com",name:"John Doe",is_active:true,badge_functionality_enabled:true}))
 
       await service.loadUserSession('test@example.com');
       
@@ -2155,21 +1978,7 @@ describe('UserSessionService', () => {
     });
 
     it('should update session cache with badge functionality', async () => {
-      mockSupabaseService.client.from = vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'test@example.com',
-                name: 'John Doe',
-                is_active: true,
-                badge_functionality_enabled: true
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from = vi.fn().mockReturnValue(mockTenantMembershipsQuery({user_email:"test@example.com",name:"John Doe",is_active:true,badge_functionality_enabled:true}))
 
       await service.loadUserSession('test@example.com');
       
@@ -2181,21 +1990,7 @@ describe('UserSessionService', () => {
     });
 
     it('should persist badge functionality through updateUserSession', async () => {
-      mockSupabaseService.client.from = vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'test@example.com',
-                name: 'John Doe',
-                is_active: true,
-                badge_functionality_enabled: false
-              },
-              error: null
-            })
-          })
-        })
-      });
+      mockSupabaseService.client.from = vi.fn().mockReturnValue(mockTenantMembershipsQuery({user_email:"test@example.com",name:"John Doe",is_active:true,badge_functionality_enabled:false}))
 
       await service.loadUserSession('test@example.com');
       
@@ -2221,22 +2016,7 @@ describe('UserSessionService', () => {
     });
 
     it('loads show_pray_for_button and show_praying_count from tenant_memberships', async () => {
-      mockSupabaseService.client.from = vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                user_email: 'test@example.com',
-                name: 'John Doe',
-                is_active: true,
-                show_pray_for_button: false,
-                show_praying_count: false,
-              },
-              error: null,
-            }),
-          }),
-        }),
-      });
+      mockSupabaseService.client.from = vi.fn().mockReturnValue(mockTenantMembershipsQuery({user_email:"test@example.com",name:"John Doe",is_active:true,show_pray_for_button:false,show_praying_count:false}))
 
       await service.loadUserSession('test@example.com');
       const session = service.getCurrentSession();

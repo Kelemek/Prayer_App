@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
-import { distinctUntilChanged, map } from 'rxjs/operators';
+import { distinctUntilChanged, filter, map } from 'rxjs/operators';
+import { ACTIVE_TENANT_STORAGE_KEY } from '../utils/branding-cache-keys';
 import { SupabaseService } from './supabase.service';
 import { AdminAuthService } from './admin-auth.service';
 import { AuthIdentityService } from './auth-identity.service';
@@ -114,6 +115,8 @@ export class UserSessionService {
     .pipe(distinctUntilChanged());
 
   private hasBeenAuthenticated = false; // Track if user was ever authenticated
+  private sessionLoadGeneration = 0;
+  private sessionMembershipTenantId: string | null = null;
 
   constructor(
     private supabase: SupabaseService,
@@ -127,7 +130,12 @@ export class UserSessionService {
       try {
         const session = JSON.parse(cachedUserSession);
         if (session && session.email) {
-          this.userSessionSubject.next(session);
+          const cachedTenantId = localStorage.getItem('userSessionTenantId');
+          const activeTenantId = localStorage.getItem(ACTIVE_TENANT_STORAGE_KEY);
+          if (!activeTenantId || cachedTenantId === activeTenantId) {
+            this.userSessionSubject.next(session);
+            this.sessionMembershipTenantId = cachedTenantId;
+          }
         }
       } catch (err) {
         console.warn('[UserSession] Failed to parse cached session:', err);
@@ -135,6 +143,35 @@ export class UserSessionService {
     }
     
     this.initializeSession();
+    this.bindTenantSessionReload();
+  }
+
+  private bindTenantSessionReload(): void {
+    this.tenantContext.activeTenant$
+      .pipe(
+        map((tenant) => tenant?.id ?? null),
+        distinctUntilChanged(),
+        filter((tenantId): tenantId is string => !!tenantId)
+      )
+      .subscribe(() => {
+        void this.reloadSessionForCurrentUser();
+      });
+  }
+
+  private async reloadSessionForCurrentUser(): Promise<void> {
+    if (!this.hasBeenAuthenticated) {
+      return;
+    }
+    const {
+      data: { session },
+    } = await this.supabase.client.auth.getSession();
+    const email =
+      session?.user?.email ??
+      this.userSessionSubject.value?.email ??
+      (await this.authIdentity.getEmail());
+    if (email) {
+      await this.loadUserSession(email);
+    }
   }
 
   /**
@@ -166,6 +203,8 @@ export class UserSessionService {
         }
       } else if (this.hasBeenAuthenticated) {
         // Only clear session on actual logout (not on initial false state)
+        this.sessionLoadGeneration++;
+        this.isLoadingSubject.next(false);
         this.userSessionSubject.next(null);
         this.clearCache();
         this.hasInitializedSubject.next(false);
@@ -182,6 +221,8 @@ export class UserSessionService {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    const loadGeneration = ++this.sessionLoadGeneration;
+    const tenantIdForLoad = this.resolveMembershipTenantId();
     this.isLoadingSubject.next(true);
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
@@ -196,44 +237,69 @@ export class UserSessionService {
         }),
       ]);
 
+      if (loadGeneration !== this.sessionLoadGeneration) {
+        return;
+      }
+
+      if (result.pendingTenant) {
+        this.retainCachedSession(normalizedEmail, tenantIdForLoad);
+        return;
+      }
+
       if (result.error) {
         console.error('Error loading user session from database:', result.error);
-        this.retainCachedSession(normalizedEmail);
+        this.retainCachedSession(normalizedEmail, tenantIdForLoad);
         return;
       }
 
       if (result.data) {
-        this.publishMembershipSession(normalizedEmail, result.data);
+        this.publishMembershipSession(
+          normalizedEmail,
+          result.data,
+          loadGeneration
+        );
         return;
       }
 
-      await this.publishUnaffiliatedSession(normalizedEmail);
+      await this.publishUnaffiliatedSession(normalizedEmail, loadGeneration);
     } catch (err) {
+      if (loadGeneration !== this.sessionLoadGeneration) {
+        return;
+      }
       console.error('Exception loading user session:', err);
-      this.retainCachedSession(normalizedEmail);
+      this.retainCachedSession(normalizedEmail, tenantIdForLoad);
     } finally {
       if (timeoutId !== undefined) {
         clearTimeout(timeoutId);
       }
-      this.isLoadingSubject.next(false);
+      if (loadGeneration === this.sessionLoadGeneration) {
+        this.isLoadingSubject.next(false);
+      }
     }
+  }
+
+  private resolveMembershipTenantId(): string | null {
+    return (
+      this.tenantContext.getActiveTenant()?.id ??
+      localStorage.getItem(ACTIVE_TENANT_STORAGE_KEY)
+    );
   }
 
   private async fetchMembershipRow(email: string): Promise<{
     data: MembershipSessionRow | null;
     error: unknown;
+    pendingTenant?: boolean;
   }> {
-    const tenantId = this.tenantContext.getActiveTenant()?.id;
-    let query = this.supabase.client
+    const tenantId = this.resolveMembershipTenantId();
+    if (!tenantId) {
+      return { data: null, error: null, pendingTenant: true };
+    }
+    const result = await this.supabase.client
       .from('tenant_memberships')
       .select(MEMBERSHIP_SESSION_COLUMNS)
-      .eq('user_email', email);
-    if (tenantId) {
-      query = query.eq('tenant_id', tenantId);
-    } else if (typeof query.limit === 'function') {
-      query = query.limit(1);
-    }
-    const result = await query.maybeSingle();
+      .eq('user_email', email)
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
     return {
       data: result.data,
       error: result.error,
@@ -242,8 +308,12 @@ export class UserSessionService {
 
   private publishMembershipSession(
     email: string,
-    data: MembershipSessionRow
+    data: MembershipSessionRow,
+    loadGeneration: number
   ): void {
+    if (loadGeneration !== this.sessionLoadGeneration) {
+      return;
+    }
     const isActive = data.is_active ?? true;
     const sessionData: UserSessionData = {
       email: data.user_email || email,
@@ -261,14 +331,24 @@ export class UserSessionService {
         data.personal_prayer_cooldown_hours
       ),
     };
+    this.sessionMembershipTenantId = this.resolveMembershipTenantId();
     this.userSessionSubject.next(sessionData);
     this.saveToCache(sessionData);
   }
 
   /** No membership row. Group or subscription display name only — not a failed load. */
-  private async publishUnaffiliatedSession(email: string): Promise<void> {
+  private async publishUnaffiliatedSession(
+    email: string,
+    loadGeneration: number
+  ): Promise<void> {
     const groupName = await this.fetchPrayerGroupMemberName(email);
+    if (loadGeneration !== this.sessionLoadGeneration) {
+      return;
+    }
     const subscriptionName = await this.fetchUserSubscriptionDisplayName(email);
+    if (loadGeneration !== this.sessionLoadGeneration) {
+      return;
+    }
     const sessionData: UserSessionData = {
       email,
       fullName: groupName || subscriptionName,
@@ -283,6 +363,7 @@ export class UserSessionService {
       showPrayingCount: true,
       personalPrayerCooldownHours: DEFAULT_PERSONAL_PRAYER_COOLDOWN_HOURS,
     };
+    this.sessionMembershipTenantId = this.resolveMembershipTenantId();
     this.userSessionSubject.next(sessionData);
     this.saveToCache(sessionData);
   }
@@ -291,15 +372,29 @@ export class UserSessionService {
    * Query error, timeout, or maybeSingle failure: keep a good cached row.
    * Do not replace it with an empty-name stub.
    */
-  private retainCachedSession(email: string): void {
+  private retainCachedSession(
+    email: string,
+    tenantIdForLoad: string | null
+  ): void {
+    const normalized = email.toLowerCase().trim();
     const current = this.userSessionSubject.value;
-    if (current && current.email.toLowerCase().trim() === email) {
+    if (current?.email.toLowerCase().trim() === normalized) {
+      if (
+        tenantIdForLoad &&
+        this.sessionMembershipTenantId !== tenantIdForLoad
+      ) {
+        this.userSessionSubject.next(null);
+        this.clearCache();
+      }
       return;
     }
-    const cached = this.loadFromCache(email);
+    const cached = this.loadFromCache(normalized, tenantIdForLoad);
     if (cached) {
       this.userSessionSubject.next(cached);
+      return;
     }
+    this.userSessionSubject.next(null);
+    this.clearCache();
   }
 
   private async fetchPrayerGroupMemberName(email: string): Promise<string> {
@@ -525,6 +620,13 @@ export class UserSessionService {
   private saveToCache(session: UserSessionData): void {
     try {
       localStorage.setItem('userSession', JSON.stringify(session));
+      const tenantId = this.resolveMembershipTenantId();
+      if (tenantId) {
+        localStorage.setItem('userSessionTenantId', tenantId);
+        this.sessionMembershipTenantId = tenantId;
+      } else {
+        localStorage.removeItem('userSessionTenantId');
+      }
     } catch (err) {
       console.warn('Failed to save session to cache:', err);
     }
@@ -533,13 +635,21 @@ export class UserSessionService {
   /**
    * Load session from localStorage
    */
-  private loadFromCache(email: string): UserSessionData | null {
+  private loadFromCache(
+    email: string,
+    tenantIdForLoad: string | null = this.resolveMembershipTenantId()
+  ): UserSessionData | null {
     try {
       const cached = localStorage.getItem('userSession');
       if (cached) {
         const session = JSON.parse(cached);
+        const cachedTenantId = localStorage.getItem('userSessionTenantId');
+        if (tenantIdForLoad && cachedTenantId !== tenantIdForLoad) {
+          return null;
+        }
         // Verify the cached session is for the current email to avoid stale data
         if (session && session.email === email) {
+          this.sessionMembershipTenantId = cachedTenantId;
           return session;
         }
       }
@@ -555,6 +665,8 @@ export class UserSessionService {
   private clearCache(): void {
     try {
       localStorage.removeItem('userSession');
+      localStorage.removeItem('userSessionTenantId');
+      this.sessionMembershipTenantId = null;
     } catch (err) {
       console.warn('[UserSession] Failed to clear session cache:', err);
     }
