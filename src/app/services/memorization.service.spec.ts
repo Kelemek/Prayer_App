@@ -47,6 +47,7 @@ describe('MemorizationService', () => {
   let tenantContext: any;
   let connectivity: any;
   let userSession$: BehaviorSubject<{ email: string } | null>;
+  let sessionInitialized$: BehaviorSubject<boolean>;
   let activeTenant$: BehaviorSubject<typeof TEST_TENANT | null>;
 
   beforeEach(() => {
@@ -54,6 +55,7 @@ describe('MemorizationService', () => {
     userSession$ = new BehaviorSubject<{ email: string } | null>({
       email: 'user@test.com',
     });
+    sessionInitialized$ = new BehaviorSubject<boolean>(true);
     activeTenant$ = new BehaviorSubject<typeof TEST_TENANT | null>(TEST_TENANT);
     supabase = {
       isNetworkError: vi.fn(() => false),
@@ -69,6 +71,7 @@ describe('MemorizationService', () => {
     toast = { success: vi.fn(), error: vi.fn() };
     userSession = {
       userSession$,
+      sessionInitialized$: sessionInitialized$.asObservable(),
       getCurrentSession: vi.fn(() => ({ email: 'user@test.com' })),
     };
     tenantContext = {
@@ -116,12 +119,13 @@ describe('MemorizationService', () => {
     });
   });
 
-  it('loadItems clears when user is missing', async () => {
+  it('loadItems no-ops when user is missing', async () => {
     tenantContext.getActiveTenant.mockReturnValue(TEST_TENANT);
     userSession.getCurrentSession.mockReturnValue(null);
     supabase.client.auth.getUser.mockResolvedValue({ data: { user: null } });
+    (service as any).itemsSubject.next([makeItem()]);
     await service.loadItems();
-    expect(service.items).toEqual([]);
+    expect(service.items).toHaveLength(1);
   });
 
   it('loadItems skips fetch when offline', async () => {

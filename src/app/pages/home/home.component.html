@@ -244,7 +244,7 @@
           groupFilterMode === 'named' &&
           !!(prayerGroupService.loadingPrayers$ | async));
       @let hasCachedContentForTab =
-        activeFilter === 'memorize' ||
+        (activeFilter === 'memorize' && memorizationPanel.memorizedItemsCount > 0) ||
         (viewReady &&
           !canAccessShared &&
           isPublicAreaFilter(activeFilter)) ||

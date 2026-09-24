@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, distinctUntilChanged } from 'rxjs';
+import { BehaviorSubject, combineLatest, distinctUntilChanged } from 'rxjs';
 import { SupabaseService } from './supabase.service';
 import { ToastService } from './toast.service';
 import { UserSessionService } from './user-session.service';
@@ -50,16 +50,21 @@ export class MemorizationService {
     private tenantContext: TenantContextService,
     private connectivity: ConnectivityService
   ) {
-    this.userSession.userSession$
-      .pipe(distinctUntilChanged((a, b) => a?.email === b?.email))
-      .subscribe((session) => {
-        if (session?.email) {
-          void this.loadItems();
-        } else {
-          this.itemsSubject.next([]);
-          this.loadingSubject.next(false);
-        }
-      });
+    combineLatest([
+      this.userSession.userSession$.pipe(
+        distinctUntilChanged((a, b) => a?.email === b?.email)
+      ),
+      this.userSession.sessionInitialized$,
+    ]).subscribe(([session, initialized]) => {
+      if (session?.email) {
+        void this.loadItems();
+        return;
+      }
+      if (initialized) {
+        this.itemsSubject.next([]);
+        this.loadingSubject.next(false);
+      }
+    });
 
     this.tenantContext.activeTenant$
       .pipe(distinctUntilChanged((prev, curr) => prev?.id === curr?.id))
@@ -94,8 +99,6 @@ export class MemorizationService {
     const tenantId = this.getActiveTenantId();
     const userEmail = await this.getUserEmail();
     if (!userEmail) {
-      this.itemsSubject.next([]);
-      this.loadingSubject.next(false);
       return;
     }
 
