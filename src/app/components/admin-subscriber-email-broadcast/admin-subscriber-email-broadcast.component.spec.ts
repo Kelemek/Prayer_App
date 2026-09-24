@@ -106,12 +106,35 @@ describe('AdminSubscriberEmailBroadcastComponent', () => {
     });
   });
 
+  describe('canSend', () => {
+    it('requires subject and body for html and markdown', () => {
+      const component = createComponent();
+      component.subject = 'Hi';
+      component.bodyHtml = 'Body';
+      expect(component.canSend).toBe(true);
+      component.bodyHtml = '   ';
+      expect(component.canSend).toBe(false);
+      component.setBodyFormat('markdown');
+      component.bodyMarkdown = '**x**';
+      expect(component.canSend).toBe(true);
+      component.subject = '';
+      expect(component.canSend).toBe(false);
+    });
+  });
+
   describe('setBodyFormat', () => {
     it('switches format and marks for check', () => {
       const component = createComponent();
       component.setBodyFormat('markdown');
       expect(component.bodyFormat).toBe('markdown');
       expect(mockCdr.markForCheck).toHaveBeenCalled();
+    });
+
+    it('no-ops when format unchanged', () => {
+      const component = createComponent();
+      mockCdr.markForCheck.mockClear();
+      component.setBodyFormat('html');
+      expect(mockCdr.markForCheck).not.toHaveBeenCalled();
     });
   });
 
@@ -126,6 +149,29 @@ describe('AdminSubscriberEmailBroadcastComponent', () => {
       expect(component.showConfirmDialog).toBe(true);
     });
 
+    it('does not open dialog when cannot send or no recipients', async () => {
+      const component = createComponent();
+      component.ngOnInit();
+      await flushMicrotasks();
+      component.recipientCount = 0;
+      component.subject = 'Hi';
+      component.bodyHtml = 'Body';
+      component.onSendClick();
+      expect(component.showConfirmDialog).toBe(false);
+
+      component.recipientCount = 3;
+      component.subject = '';
+      component.onSendClick();
+      expect(component.showConfirmDialog).toBe(false);
+    });
+
+    it('onCancelSend closes confirmation dialog', () => {
+      const component = createComponent();
+      component.showConfirmDialog = true;
+      component.onCancelSend();
+      expect(component.showConfirmDialog).toBe(false);
+    });
+
     it('queues emails on confirm', async () => {
       const component = createComponent();
       component.ngOnInit();
@@ -135,6 +181,43 @@ describe('AdminSubscriberEmailBroadcastComponent', () => {
       await component.onConfirmSend();
       expect(mockEmail.queueAdminManualBroadcastToSubscribers).toHaveBeenCalled();
       expect(mockToast.success).toHaveBeenCalled();
+    });
+
+    it('flushes markdown editor before confirm send', async () => {
+      const component = createComponent();
+      component.ngOnInit();
+      await flushMicrotasks();
+      component.setBodyFormat('markdown');
+      component.subject = 'Hello';
+      component.bodyMarkdown = 'Body';
+      const flush = vi.fn();
+      component.richTextEditor = { flushMarkdownToForm: flush } as never;
+      await component.onConfirmSend();
+      expect(flush).toHaveBeenCalled();
+    });
+
+    it('shows info toast when queue returns zero', async () => {
+      mockEmail.queueAdminManualBroadcastToSubscribers.mockResolvedValue({ queued: 0 });
+      const component = createComponent();
+      component.ngOnInit();
+      await flushMicrotasks();
+      component.subject = 'Hello';
+      component.bodyHtml = 'Body';
+      await component.onConfirmSend();
+      expect(mockToast.info).toHaveBeenCalled();
+    });
+
+    it('surfaces queue errors', async () => {
+      mockEmail.queueAdminManualBroadcastToSubscribers.mockRejectedValue(
+        new Error('queue failed')
+      );
+      const component = createComponent();
+      component.ngOnInit();
+      await flushMicrotasks();
+      component.subject = 'Hello';
+      component.bodyHtml = 'Body';
+      await component.onConfirmSend();
+      expect(mockToast.error).toHaveBeenCalledWith('queue failed');
     });
   });
 });

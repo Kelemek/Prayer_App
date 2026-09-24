@@ -11,7 +11,7 @@ describe("HomePrayerCardActionsController", () => {
     deletePersonalPrayerUpdate: vi.fn().mockResolvedValue(true),
     requestDeletion: vi.fn().mockResolvedValue(undefined),
     requestUpdateDeletion: vi.fn().mockResolvedValue(undefined),
-    deletePersonalPrayer: vi.fn().mockResolvedValue(undefined),
+    deletePersonalPrayer: vi.fn().mockResolvedValue(true),
   };
   const prayerGroupService = {
     deleteGroupPrayer: vi.fn(),
@@ -87,6 +87,62 @@ describe("HomePrayerCardActionsController", () => {
     );
     expect(prayerCardActions.addUpdateForCard).toHaveBeenCalled();
     expect(prayerService.addUpdate).not.toHaveBeenCalled();
+  });
+
+  it("skips delete for member cards and deletes group prayers", () => {
+    controller.deleteCard({ id: "pc-member-abc" } as any);
+    expect(prayerService.deletePrayer).not.toHaveBeenCalled();
+    controller.deleteCard({ id: "g1", group_id: "grp" } as any);
+    expect(prayerGroupService.deleteGroupPrayer).toHaveBeenCalledWith("g1");
+  });
+
+  it("routes group and member card updates", async () => {
+    await controller.onCardAddUpdate(
+      { id: "pc-member-abc" } as any,
+      { prayer_id: "pc-member-abc", content: "pray" } as any
+    );
+    expect(prayerCardActions.addUpdateForCard).toHaveBeenCalled();
+    expect(planningCenter.reloadMemberPrayerUpdates).toHaveBeenCalled();
+
+    await controller.onCardAddUpdate(
+      { id: "gp1", group_id: "grp" } as any,
+      { prayer_id: "gp1", content: "thanks", mark_as_answered: true } as any
+    );
+    expect(prayerGroupService.addGroupPrayerUpdate).toHaveBeenCalled();
+  });
+
+  it("handles delete update paths and errors", async () => {
+    await controller.onCardDeleteUpdate(
+      { id: "gp1", group_id: "grp" } as any,
+      { prayerId: "gp1", updateId: "u1" } as any
+    );
+    expect(prayerGroupService.deleteGroupPrayerUpdate).toHaveBeenCalled();
+
+    prayerService.addUpdate.mockRejectedValueOnce(new Error("fail"));
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await controller.addUpdate({ prayer_id: "p1", content: "x" } as any);
+    expect(toastService.error).toHaveBeenCalledWith("Failed to submit update");
+    errSpy.mockRestore();
+  });
+
+  it("addPersonalUpdate marks answered and deletePersonalPrayer", async () => {
+    await controller.addPersonalUpdate({
+      prayer_id: "pp1",
+      content: "done",
+      mark_as_answered: true,
+    });
+    expect(prayerService.updatePersonalPrayer).toHaveBeenCalled();
+    controller.deletePersonalPrayer("pp1");
+    await vi.waitFor(() => prayerService.deletePersonalPrayer.mock.calls.length > 0);
+  });
+
+  it("toggleMemberUpdateAnswered reloads planning center", async () => {
+    await controller.toggleMemberUpdateAnswered({
+      prayerId: "pc-member-abc",
+      updateId: "u1",
+      isAnswered: true,
+    });
+    expect(planningCenter.reloadMemberPrayerUpdates).toHaveBeenCalled();
   });
 
   it("dedupes concurrent identical card add-update submissions", async () => {

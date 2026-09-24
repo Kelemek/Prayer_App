@@ -34,6 +34,44 @@ describe('tenant-user-directory', () => {
     expect(compareTenantUserDirectoryRows(a, b, 'tenant', 'asc')).toBeGreaterThan(0);
   });
 
+  it('matches empty query and email/name substrings', () => {
+    const user = {
+      email: 'ada@example.com',
+      name: 'Ada',
+      tenants: [],
+      groups: [],
+    };
+    expect(tenantUserDirectoryMatchesQuery(user, '')).toBe(true);
+    expect(tenantUserDirectoryMatchesQuery(user, 'ada@')).toBe(true);
+  });
+
+  it('compareTenantUserDirectoryRows supports email and groups columns', () => {
+    const a = {
+      email: 'a@example.com',
+      name: 'A',
+      tenants: [],
+      groups: [{ id: 'g1', name: 'Zeta' }],
+    };
+    const b = {
+      email: 'b@example.com',
+      name: 'B',
+      tenants: [],
+      groups: [{ id: 'g2', name: 'Alpha' }],
+    };
+    expect(compareTenantUserDirectoryRows(a, b, 'email', 'asc')).toBeLessThan(0);
+    expect(compareTenantUserDirectoryRows(a, b, 'groups', 'desc')).toBeLessThan(0);
+    expect(compareTenantUserDirectoryRows(a, b, 'name', 'asc')).toBeLessThan(0);
+  });
+
+  it('skips rows without email when merging', () => {
+    expect(
+      mergeUsersWithTenantsAndGroups(
+        [{ user_email: null, name: 'Ghost', tenants: { id: 't1', name: 'Church' } }],
+        []
+      )
+    ).toEqual([]);
+  });
+
   it('prefers tenant membership name over group membership name', () => {
     const rows = mergeUsersWithTenantsAndGroups(
       [{ user_email: 'ada@example.com', name: 'Ada Lovelace', tenants: { id: 't-1', name: 'Church' } }],

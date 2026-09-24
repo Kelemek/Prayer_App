@@ -77,6 +77,19 @@ describe('supabase', () => {
     expect(asyncFn).toHaveBeenCalledOnce();
   });
 
+  it('should route global fetch through the native-compat wrapper', async () => {
+    const globalFetch = vi.fn().mockResolvedValue(new Response('ok'));
+    vi.stubGlobal('fetch', globalFetch);
+    const options = createClientCall[2] as {
+      global: { fetch: (input: string, init?: RequestInit) => Promise<Response> };
+    };
+    await options.global.fetch('https://example.com/test', { method: 'GET' });
+    expect(globalFetch).toHaveBeenCalledWith('https://example.com/test', {
+      method: 'GET',
+    });
+    vi.unstubAllGlobals();
+  });
+
   it('should pass through function errors from lock callback', async () => {
     const testError = new Error('Lock operation failed');
     const errorFn = vi.fn(async () => {

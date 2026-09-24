@@ -25,6 +25,30 @@ describe('planPersonalPrayerAdd', () => {
     });
   });
 
+  it('returns user message when ensureCategory fails', async () => {
+    const plan = await planPersonalPrayerAdd(
+      'Family',
+      'me@test.com',
+      (c) => c ?? null,
+      {
+        ensureCategory: vi.fn().mockRejectedValue(new Error('rpc down')),
+        queryMaxDisplayOrder: vi.fn(),
+      }
+    );
+    expect(plan).toEqual({ ok: false, userMessage: 'rpc down' });
+  });
+
+  it('returns user message when max order query fails', async () => {
+    const plan = await planPersonalPrayerAdd(null, 'me@test.com', () => null, {
+      ensureCategory: vi.fn(),
+      queryMaxDisplayOrder: vi.fn().mockResolvedValue({
+        data: null,
+        error: new Error('db'),
+      }),
+    });
+    expect(plan).toEqual({ ok: false, userMessage: 'Failed to determine prayer order' });
+  });
+
   it('starts uncategorized prayers at display order 0', async () => {
     const plan = await planPersonalPrayerAdd(
       null,

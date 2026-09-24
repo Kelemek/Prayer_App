@@ -605,6 +605,53 @@ describe('EmailSettingsComponent', () => {
       vi.useRealTimers();
     });
 
+    it('uses platform default preview when local-part is empty', () => {
+      component.mailFromLocalPart = '';
+      expect(component.mailFromPreview).toContain('Platform default');
+    });
+
+    it('onIdentityFieldChange clears success and error flags', () => {
+      component.successIdentity = true;
+      component.identityError = 'oops';
+      component.onIdentityFieldChange();
+      expect(component.successIdentity).toBe(false);
+      expect(component.identityError).toBeNull();
+      expect(mockChangeDetectorRef.markForCheck).toHaveBeenCalled();
+    });
+
+    it('onIdentityExpandedChange loads identity when expanded', async () => {
+      const loadSpy = vi.spyOn(component, 'loadMailIdentity').mockResolvedValue(undefined);
+      component.onIdentityExpandedChange(true);
+      expect(loadSpy).toHaveBeenCalled();
+      expect(mockChangeDetectorRef.markForCheck).toHaveBeenCalled();
+    });
+
+    it('onExpandedChange loads settings when expanded for tenant', async () => {
+      const loadSpy = vi.spyOn(component, 'loadSettings').mockResolvedValue(undefined);
+      component.onExpandedChange(true);
+      expect(loadSpy).toHaveBeenCalled();
+    });
+
+    it('ngOnInit reacts to tenant stream changes', () => {
+      const loadSettings = vi.spyOn(component, 'loadSettings').mockResolvedValue(undefined);
+      const loadIdentity = vi.spyOn(component, 'loadMailIdentity').mockResolvedValue(undefined);
+      component.sectionExpanded = true;
+      component.identitySectionExpanded = true;
+      component.ngOnInit();
+      mockTenantContext.activeTenant$.next({
+        ...MOCK_TENANT,
+        id: 'tenant-2',
+      });
+      expect(loadSettings).toHaveBeenCalled();
+      expect(loadIdentity).toHaveBeenCalled();
+    });
+
+    it('ngOnDestroy completes destroy subject', () => {
+      component.ngOnInit();
+      component.ngOnDestroy();
+      expect(component).toBeTruthy();
+    });
+
     it('rejects an invalid local-part before calling RPC', async () => {
       const rpcMock = vi.fn(() => Promise.resolve({ error: null }));
       mockSupabaseService.client.rpc = rpcMock;

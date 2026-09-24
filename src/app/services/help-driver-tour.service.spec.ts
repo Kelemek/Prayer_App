@@ -15,6 +15,13 @@ import {
   TOUR_FILTER_ANSWERED_ID,
   TOUR_FILTER_PROMPTS_ID,
   TOUR_FILTER_MEMORIZE_ID,
+  TOUR_MEMORIZE_ACTION_BAR_ID,
+  TOUR_MEMORIZE_RECOMMENDED_ID,
+  TOUR_MEMORIZE_SAMPLE_CARD_ID,
+  TOUR_MEMORIZE_EMPTY_STATE_ID,
+  TOUR_PROMPT_TYPE_FILTERS_ID,
+  TOUR_PROMPT_EMPTY_ID,
+  TOUR_PROMPT_CARD_SAMPLE_ID,
   TOUR_PRAYER_MODE_DESKTOP_ID,
   TOUR_PRAYER_MODE_MOBILE_ID,
   TOUR_PRAYER_SEARCH_ID,
@@ -603,6 +610,54 @@ describe('HelpDriverTourService', () => {
       vi.unstubAllGlobals();
     });
 
+    it('resolves prompt tour targets when prompt DOM nodes exist', () => {
+      const pf = document.createElement('button');
+      pf.id = TOUR_FILTER_PROMPTS_ID;
+      document.body.appendChild(pf);
+      mountPrayerModeButtons();
+      for (const id of [
+        TOUR_PROMPT_TYPE_FILTERS_ID,
+        TOUR_PROMPT_CARD_SAMPLE_ID,
+      ]) {
+        const el = document.createElement('div');
+        el.id = id;
+        document.body.appendChild(el);
+      }
+      service.startPrayerPromptsTour(
+        samplePromptsSection,
+        { hasPrompts: true },
+        { switchToPrompts: vi.fn(), clearPromptTypes: vi.fn() }
+      );
+      const config = vi.mocked(driver).mock.calls[0][0];
+      for (const step of config?.steps ?? []) {
+        if (typeof step.element === 'function') {
+          expect(step.element()).toBeTruthy();
+        }
+      }
+      vi.unstubAllGlobals();
+    });
+
+    it('resolves prompt empty state target when hasPrompts is false', () => {
+      const pf = document.createElement('button');
+      pf.id = TOUR_FILTER_PROMPTS_ID;
+      document.body.appendChild(pf);
+      mountPrayerModeButtons();
+      const empty = document.createElement('div');
+      empty.id = TOUR_PROMPT_EMPTY_ID;
+      document.body.appendChild(empty);
+      service.startPrayerPromptsTour(
+        samplePromptsSection,
+        { hasPrompts: false },
+        { switchToPrompts: vi.fn(), clearPromptTypes: vi.fn() }
+      );
+      const config = vi.mocked(driver).mock.calls[0][0];
+      const targets = (config?.steps ?? [])
+        .map((step) => (typeof step.element === 'function' ? step.element() : null))
+        .filter(Boolean);
+      expect(targets.length).toBeGreaterThan(0);
+      vi.unstubAllGlobals();
+    });
+
     it('step 0 onNext runs switchToPrompts then refresh and moveNext', () => {
       const pf = document.createElement('button');
       pf.id = TOUR_FILTER_PROMPTS_ID;
@@ -683,6 +738,30 @@ describe('HelpDriverTourService', () => {
       expect(driver).toHaveBeenCalledTimes(1);
       const config = vi.mocked(driver).mock.calls[0][0];
       expect(config?.steps?.length).toBe(5);
+    });
+
+    it('resolves memorize step targets when optional DOM nodes exist', () => {
+      for (const id of [
+        TOUR_FILTER_MEMORIZE_ID,
+        TOUR_MEMORIZE_ACTION_BAR_ID,
+        TOUR_MEMORIZE_RECOMMENDED_ID,
+        TOUR_MEMORIZE_SAMPLE_CARD_ID,
+      ]) {
+        const el = document.createElement('div');
+        el.id = id;
+        document.body.appendChild(el);
+      }
+      service.startMemorizeHelpSectionTour(
+        sampleMemorizeSection,
+        { hasMemorizedItems: true },
+        { switchToMemorize: vi.fn() }
+      );
+      const config = vi.mocked(driver).mock.calls[0][0];
+      for (const step of config?.steps ?? []) {
+        if (typeof step.element === 'function') {
+          expect(step.element()).toBeTruthy();
+        }
+      }
     });
 
     it('step 0 onNext runs switchToMemorize then refresh and moveNext', () => {
@@ -875,6 +954,33 @@ describe('HelpDriverTourService', () => {
       expect(driver).toHaveBeenCalledTimes(1);
       const config = vi.mocked(driver).mock.calls[0][0];
       expect(config?.steps?.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('resolves optional filter targets when all filter tiles exist', () => {
+      for (const id of [
+        TOUR_FILTER_CURRENT_ID,
+        TOUR_FILTER_ANSWERED_ID,
+        TOUR_FILTER_TOTAL_ID,
+        TOUR_FILTER_PROMPTS_ID,
+        TOUR_FILTER_PERSONAL_ID,
+      ]) {
+        const el = document.createElement('button');
+        el.id = id;
+        document.body.appendChild(el);
+      }
+      service.startFilteringHelpSectionTour(filteringSection as any, {
+        switchToCurrent,
+        switchToAnswered,
+        switchToTotal,
+        switchToPrompts,
+        switchToPersonal: switchToPersonalFilter,
+      });
+      const config = vi.mocked(driver).mock.calls[0][0];
+      for (const step of config?.steps ?? []) {
+        if (typeof step.element === 'function') {
+          expect(step.element()).toBeTruthy();
+        }
+      }
     });
   });
 
@@ -1571,5 +1677,16 @@ describe('parseFullGuidedTourQueue', () => {
 
   it('returns empty for invalid json', () => {
     expect(parseFullGuidedTourQueue('not json')).toEqual({ kind: 'empty' });
+  });
+
+  it('returns empty for legacy empty array and non-string ids', () => {
+    expect(parseFullGuidedTourQueue('[]')).toEqual({ kind: 'empty' });
+    expect(parseFullGuidedTourQueue(JSON.stringify([1, null]))).toEqual({ kind: 'empty' });
+  });
+
+  it('parses v1 resume with empty ids as closing', () => {
+    expect(
+      parseFullGuidedTourQueue(JSON.stringify({ v: 1, totalSteps: 4, ids: [] }))
+    ).toEqual({ kind: 'closing', totalSteps: 4 });
   });
 });

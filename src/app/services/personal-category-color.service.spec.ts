@@ -81,6 +81,21 @@ describe('PersonalCategoryColorService', () => {
     );
   });
 
+  it('getColor resolves from snapshot map', async () => {
+    await service.loadColors(true);
+    expect(service.getColor('Health')).toBe('#DC2626');
+    expect(service.getColor('Missing', { Other: '#111111' })).toBeTruthy();
+  });
+
+  it('returns cached colors without refetching', async () => {
+    await service.loadColors(true);
+    const callsBefore = eqMock.mock.calls.length;
+    cache.get.mockReturnValue({ Health: '#DC2626' });
+    await service.loadColors(false);
+    expect(eqMock.mock.calls.length).toBe(callsBefore);
+    expect(service.getColorsSnapshot().Health).toBe('#DC2626');
+  });
+
   it('loads colors into tenant-scoped cache and snapshot', async () => {
     const map = await service.loadColors(true);
     expect(map.Health).toBe('#DC2626');
@@ -185,6 +200,35 @@ describe('PersonalCategoryColorService', () => {
     cache.invalidateCategory.mockClear();
     userSessionSubject.next({ email: 'other@example.com' });
     expect(cache.invalidateCategory).toHaveBeenCalledWith('personalCategoryColors_');
+    expect(service.getColorsSnapshot()).toEqual({});
+  });
+
+  it('returns empty map when email or tenant missing', async () => {
+    userSessionService.getUserEmail.mockReturnValue(null);
+    expect(await service.loadColors(true)).toEqual({});
+    userSessionService.getUserEmail.mockReturnValue('user@example.com');
+    tenantContext.getActiveTenant.mockReturnValue(null);
+    expect(await service.loadColors(true)).toEqual({});
+  });
+
+  it('setColor rejects invalid input and missing session', async () => {
+    expect(await service.setColor('  ', '#fff')).toBe(false);
+    userSessionService.getUserEmail.mockReturnValue(null);
+    expect(await service.setColor('Health', '#DC2626')).toBe(false);
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it('uses cached colors when load fails', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    cache.get.mockReturnValue({ Health: '#DC2626' });
+    eqMock.mockResolvedValue({ data: null, error: { message: 'fail' } });
+    const map = await service.loadColors(true);
+    expect(map.Health).toBe('#DC2626');
+    errSpy.mockRestore();
+  });
+
+  it('invalidates when email or tenant cleared via subscription', () => {
+    userSessionSubject.next(null);
     expect(service.getColorsSnapshot()).toEqual({});
   });
 

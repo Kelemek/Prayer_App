@@ -48,4 +48,57 @@ describe('PostHogErrorHandler', () => {
 
     expect(capturePostHogExceptionMock).toHaveBeenCalledWith(innerError);
   });
+
+  it('unwraps Zone.js ngOriginalError', () => {
+    const original = new Error('zone wrapped');
+    handleError({ ngOriginalError: original });
+    expect(capturePostHogExceptionMock).toHaveBeenCalledWith(original);
+  });
+
+  it('captures string errors', () => {
+    handleError('string failure');
+    expect(capturePostHogExceptionMock).toHaveBeenCalledWith('string failure');
+  });
+
+  it('captures error-like objects', () => {
+    const like = { name: 'E', message: 'msg', stack: 'stack' };
+    handleError(like);
+    expect(capturePostHogExceptionMock).toHaveBeenCalledWith(like);
+  });
+
+  it('captures unknown errors as Unknown error', () => {
+    handleError({ foo: 'bar' });
+    expect(capturePostHogExceptionMock).toHaveBeenCalledWith('Unknown error');
+  });
+
+  it('formats HttpErrorResponse string bodies', () => {
+    const response = new HttpErrorResponse({
+      error: 'bad request',
+      status: 400,
+      statusText: 'Bad Request',
+    });
+    handleError(response);
+    expect(capturePostHogExceptionMock).toHaveBeenCalledWith(
+      'Server returned code 400 with body "bad request"'
+    );
+  });
+
+  it('uses HttpErrorResponse message when error body is not extractable', () => {
+    const response = new HttpErrorResponse({
+      error: { code: 'x' },
+      status: 502,
+      statusText: 'Bad Gateway',
+    });
+    handleError(response);
+    expect(capturePostHogExceptionMock).toHaveBeenCalledWith(
+      'Http failure response for (unknown url): 502 Bad Gateway'
+    );
+  });
+
+  it('extracts ErrorEvent message from HttpErrorResponse', () => {
+    const errorEvent = new ErrorEvent('error', { message: 'network down' });
+    const response = new HttpErrorResponse({ error: errorEvent, status: 0 });
+    handleError(response);
+    expect(capturePostHogExceptionMock).toHaveBeenCalledWith('network down');
+  });
 });

@@ -66,4 +66,45 @@ describe("HomeModalController", () => {
     expect(controller.showLogoutConfirmation).toBe(false);
     expect(adminAuthService.logout).toHaveBeenCalled();
   });
+
+  it("openSearchPanel focuses input; closeSearchPanel is idempotent", () => {
+    const input = document.createElement("input");
+    input.id = "tour-prayer-search";
+    document.body.appendChild(input);
+    const focusSpy = vi.spyOn(input, "focus");
+
+    vi.useFakeTimers();
+    controller.openSearchPanel();
+    expect(controller.showSearchPanel).toBe(true);
+    controller.openSearchPanel();
+    vi.advanceTimersByTime(320);
+    expect(focusSpy).toHaveBeenCalled();
+
+    controller.closeSearchPanel();
+    expect(controller.showSearchPanel).toBe(false);
+    controller.closeSearchPanel();
+    vi.useRealTimers();
+    focusSpy.mockRestore();
+    input.remove();
+  });
+
+  it("onPrayerFormClose and settings scroll helpers", () => {
+    controller.showPrayerForm = true;
+    controller.onPrayerFormClose();
+    expect(controller.showPrayerForm).toBe(false);
+
+    controller.openSettingsFromReciteFeedback();
+    expect(controller.settingsScrollToSectionId).toBe("tour-settings-feedback-section");
+    controller.onSettingsScrollToSectionComplete();
+    expect(controller.settingsScrollToSectionId).toBeNull();
+  });
+
+  it("opens and clears personal update edit modal", () => {
+    const update = { id: "u1", content: "c" } as PrayerRequest["updates"][number];
+    controller.openEditUpdateModal({ update, prayerId: "p1" });
+    expect(controller.showEditPersonalUpdate).toBe(true);
+    controller.onPersonalUpdateSaved();
+    expect(controller.showEditPersonalUpdate).toBe(false);
+    expect(controller.editingUpdate).toBeNull();
+  });
 });

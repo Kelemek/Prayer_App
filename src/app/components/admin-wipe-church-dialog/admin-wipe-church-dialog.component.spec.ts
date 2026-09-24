@@ -64,6 +64,62 @@ describe('AdminWipeChurchDialogComponent', () => {
     expect(TestBed.inject(Router).url).toBe('/');
   });
 
+  it('close clears state unless wipe in progress', async () => {
+    const openChange = vi.fn();
+    await TestBed.configureTestingModule({
+      imports: [AdminWipeChurchDialogComponent],
+      providers: [
+        provideRouter([]),
+        { provide: SupabaseService, useValue: { client: { functions: { invoke: vi.fn() } } } },
+        { provide: TenantContextService, useValue: { refresh: vi.fn() } },
+        { provide: ToastService, useValue: { success: vi.fn(), error: vi.fn() } },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AdminWipeChurchDialogComponent);
+    const component = fixture.componentInstance;
+    component.tenantId = 't-1';
+    component.tenantName = 'Church';
+    component.tenantSlug = 'slug';
+    component.openChange.subscribe(openChange);
+    component.confirmSlugInput = 'slug';
+    component.error = 'oops';
+    component.close();
+    expect(openChange).toHaveBeenCalledWith(false);
+    expect(component.confirmSlugInput).toBe('');
+    expect(component.error).toBeNull();
+
+    component.wiping = true;
+    component.close();
+    expect(openChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('confirmWipe surfaces invoke errors', async () => {
+    const invoke = vi.fn().mockResolvedValue({
+      data: { success: false, error: 'denied' },
+      error: null,
+      response: new Response(null, { status: 400 }),
+    });
+    await TestBed.configureTestingModule({
+      imports: [AdminWipeChurchDialogComponent],
+      providers: [
+        provideRouter([]),
+        { provide: SupabaseService, useValue: { client: { functions: { invoke } } } },
+        { provide: TenantContextService, useValue: { refresh: vi.fn() } },
+        { provide: ToastService, useValue: { success: vi.fn(), error: vi.fn() } },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(AdminWipeChurchDialogComponent);
+    const component = fixture.componentInstance;
+    component.tenantId = 't-1';
+    component.tenantName = 'Church';
+    component.tenantSlug = 'slug';
+    component.confirmSlugInput = 'slug';
+    await component.confirmWipe();
+    expect(component.error).toBe('denied');
+    expect(component.wiping).toBe(false);
+  });
+
   it('template requires typing slug to confirm', () => {
     const html = readFileSync(join(componentDir, 'admin-wipe-church-dialog.component.html'), 'utf-8');
     expect(html).toContain('confirmSlugInput');

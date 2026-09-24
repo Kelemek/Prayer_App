@@ -90,6 +90,84 @@ describe('TenantUsersComponent', () => {
     expect(adaRow?.textContent).toContain('Youth');
   });
 
+  it('sorts users and paginates results', async () => {
+    const component = fixture.componentInstance;
+    await component.onExpandedChange(true);
+    await fixture.whenStable();
+    component.toggleSort('email');
+    expect(component.sortBy).toBe('email');
+    component.pageSize = 1;
+    component.loadPageData();
+    expect(component.users).toHaveLength(1);
+    component.nextPage();
+    expect(component.currentPage).toBe(2);
+    expect(component.getSortIndicator('email')).toContain('↑');
+  });
+
+  it('shows an error when user load fails', async () => {
+    listUsers.mockRejectedValue(new Error('network down'));
+    const toast = TestBed.inject(ToastService) as { error: ReturnType<typeof vi.fn> };
+    const component = fixture.componentInstance;
+    await component.onExpandedChange(true);
+    await fixture.whenStable();
+    expect(component.error).toBe('network down');
+    expect(toast.error).toHaveBeenCalledWith('network down');
+  });
+
+  it('debounces short search queries', async () => {
+    vi.useFakeTimers();
+    const component = fixture.componentInstance;
+    await component.onExpandedChange(true);
+    await fixture.whenStable();
+    component.onListSearchQueryChange('a');
+    expect(component.users).toHaveLength(2);
+    vi.useRealTimers();
+  });
+
+  it('clears debounced search on destroy', async () => {
+    vi.useFakeTimers();
+    const component = fixture.componentInstance;
+    await component.onExpandedChange(true);
+    await fixture.whenStable();
+    component.onListSearchQueryChange('');
+    component.ngOnDestroy();
+    vi.runAllTimers();
+    vi.useRealTimers();
+    expect((component as { listSearchDebounceTimer: unknown }).listSearchDebounceTimer).toBeNull();
+  });
+
+  it('flushes search on Enter and clears list search', async () => {
+    const component = fixture.componentInstance;
+    await component.onExpandedChange(true);
+    await fixture.whenStable();
+    component.searchQuery = 'Alpha';
+    component.onListSearchKeydown({ key: 'Enter', preventDefault: vi.fn() } as KeyboardEvent);
+    expect(component.users).toHaveLength(1);
+    component.clearListSearch();
+    expect(component.searchQuery).toBe('');
+    expect(component.users).toHaveLength(2);
+  });
+
+  it('toggles sort direction and navigates pagination', async () => {
+    const component = fixture.componentInstance;
+    await component.onExpandedChange(true);
+    await fixture.whenStable();
+    component.toggleSort('name');
+    expect(component.sortDirection).toBe('desc');
+    expect(component.getSortIndicator('name')).toContain('↓');
+    component.pageSize = 1;
+    component.applyFilters();
+    expect(component.getPaginationRange().length).toBeGreaterThan(1);
+    component.goToPage(2);
+    expect(component.currentPage).toBe(2);
+    component.previousPage();
+    expect(component.currentPage).toBe(1);
+    component.onPageSizeChange('50');
+    expect(component.pageSize).toBe(50);
+    expect(component.isFirstPage).toBe(true);
+    expect(component.isLastPage).toBe(true);
+  });
+
   it('filters users by tenant name', async () => {
     const component = fixture.componentInstance;
     await component.onExpandedChange(true);

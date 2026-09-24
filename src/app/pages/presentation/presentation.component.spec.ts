@@ -545,6 +545,14 @@ describe('PresentationComponent', () => {
   let mockPrayerService: any;
   let mockCdr: any;
   let mockNgZone: any;
+  let mockTenantContext: {
+    getActiveTenant: ReturnType<typeof vi.fn>;
+    activeTenant$: BehaviorSubject<null>;
+  };
+  let mockUserSession: {
+    userSession$: BehaviorSubject<null>;
+    getUserEmail: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -564,9 +572,15 @@ describe('PresentationComponent', () => {
     mockNgZone = { run: (fn: Function) => fn() } as unknown as NgZone;
 
     const mockTenantPermissions = { canAccessShared: () => true };
-    const mockTenantContext = {
-      getActiveTenant: () => ({ id: 't1', name: 'T', slug: 't', plan_tier: 'churches' as const, plan_status: 'active' as const }),
-      activeTenant$: new BehaviorSubject(null)
+    mockTenantContext = {
+      getActiveTenant: vi.fn(() => ({
+        id: 't1',
+        name: 'T',
+        slug: 't',
+        plan_tier: 'churches' as const,
+        plan_status: 'active' as const,
+      })),
+      activeTenant$: new BehaviorSubject(null),
     };
     const mockRoute = { snapshot: { queryParamMap: { get: () => null } } };
     const mockPromptService = {
@@ -578,7 +592,7 @@ describe('PresentationComponent', () => {
       getPromptsSnapshot: vi.fn(() => []),
       getActivePromptCategories: vi.fn(() => []),
     };
-    const mockUserSession = {
+    mockUserSession = {
       userSession$: new BehaviorSubject(null),
       getUserEmail: vi.fn(() => null),
     };
@@ -2067,6 +2081,164 @@ describe('PresentationComponent', () => {
 
         expect(component.isPlaying).toBe(true);
         expect(component['loopOffPlaySessionActive']).toBe(true);
+      });
+
+      it('handleLoopChange persists loop setting', () => {
+        const persistSpy = vi.spyOn(component, 'persistSettings');
+        component.handleLoopChange(false);
+        expect(component.loop).toBe(false);
+        expect(persistSpy).toHaveBeenCalled();
+      });
+
+      it('fetchPrayers clears data when shared content is disabled or tenant is missing', async () => {
+        component.canAccessSharedContent = false;
+        component.prayers = [{ id: 'old' }] as any;
+        await component.fetchPrayers();
+        expect(component.prayers).toEqual([]);
+
+        component.canAccessSharedContent = true;
+        mockTenantContext.getActiveTenant = vi.fn(() => null);
+        await component.fetchPrayers();
+        expect(component.prayers).toEqual([]);
+      });
+
+      it('fetchPrompts clears prompts without tenant or shared access', async () => {
+        component.canAccessSharedContent = false;
+        component.prompts = [{ id: 'p' }] as any;
+        await component.fetchPrompts();
+        expect(component.prompts).toEqual([]);
+
+        component.canAccessSharedContent = true;
+        mockTenantContext.getActiveTenant = vi.fn(() => null);
+        await component.fetchPrompts();
+        expect(component.prompts).toEqual([]);
+      });
+
+      it('exposes loading and empty copy for each content type', () => {
+        component.contentTypes = [];
+        expect(component.getContentLoadingLabel()).toBe('all content');
+        expect(component.getEmptyContentMessage()).toBe('No content available');
+
+        component.contentTypes = ['prayers'];
+        expect(component.getContentLoadingLabel()).toBe('prayers');
+        expect(component.getEmptyContentMessage()).toContain('No prayers');
+
+        component.contentTypes = ['prompts', 'personal'];
+        expect(component.getContentLoadingLabel()).toBe('content');
+        expect(component.getEmptyContentMessage()).toContain('current filters');
+      });
+
+      it('resets index when category filters change', () => {
+        component.currentIndex = 4;
+        component.handlePersonalCategoriesChange(['Health']);
+        expect(component.selectedPersonalCategories).toEqual(['Health']);
+        expect(component.currentIndex).toBe(0);
+
+        component.currentIndex = 2;
+        component.handlePromptCategoriesChange(['Healing']);
+        expect(component.selectedPromptCategories).toEqual(['Healing']);
+        expect(component.currentIndex).toBe(0);
+      });
+
+      it('syncs prompt prayed-for counts from the prompt service stream', () => {
+        component.prompts = [{ id: 'p1', prayed_for_count: 0 }] as any;
+        component['applyPromptPrayedForCountsFromService']([
+          { id: 'p1', prayed_for_count: 5 },
+        ] as any);
+        expect(component.prompts[0]?.prayed_for_count).toBe(5);
+      });
+
+      it('fetchPrompts attaches prayed-for counts for signed-in users', async () => {
+        mockUserSession.getUserEmail = vi.fn(() => 'user@example.com');
+        component['promptService'].attachPrayedForCounts = vi.fn(async (prompts: any[]) =>
+          prompts.map((p) => ({ ...p, prayed_for_count: 7 }))
+        );
+        let call = 0;
+        mockSupabase.client.from = vi.fn(() => {
+          call += 1;
+          return call === 1
+            ? createQuery({
+                data: [{ name: 'Healing', display_order: 1 }],
+                error: null,
+              })
+            : createQuery({
+                data: [{ id: 'pr1', type: 'Healing', created_at: '2026-01-01' }],
+                error: null,
+              });
+        });
+
+        await component.fetchPrompts();
+
+        expect(component.prompts[0]?.prayed_for_count).toBe(7);
+      });
+
+      it('fetchPrompts zeroes counts when the session changes mid-fetch', async () => {
+        mockUserSession.getUserEmail = vi
+          .fn()
+          .mockReturnValueOnce('user@example.com')
+          .mockReturnValueOnce('other@example.com');
+        let call = 0;
+        mockSupabase.client.from = vi.fn(() => {
+          call += 1;
+          return call === 1
+            ? createQuery({
+                data: [{ name: 'Healing', display_order: 1 }],
+                error: null,
+              })
+            : createQuery({
+                data: [{ id: 'pr1', type: 'Healing', created_at: '2026-01-01' }],
+                error: null,
+              });
+        });
+
+        await component.fetchPrompts();
+
+        expect(component.prompts[0]?.prayed_for_count).toBe(0);
+      });
+
+      it('clears prompt counts when the session email is removed', async () => {
+        component.prompts = [{ id: 'p1', prayed_for_count: 4 }] as any;
+        await component['onPresentationPromptCountsSessionChange'](null);
+        expect(component.prompts[0]?.prayed_for_count).toBe(0);
+      });
+
+      it('exitPresentation returns home with saved return context', () => {
+        component.homeReturnContext = { filter: 'personal' } as any;
+        component.exitPresentation();
+        expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], {
+          state: expect.objectContaining({
+            homeReturnContext: { filter: 'personal' },
+          }),
+        });
+      });
+
+      it('fetchPrompts zeroes prayed_for counts when user is signed out', async () => {
+        component.canAccessSharedContent = true;
+        mockUserSession.getUserEmail = vi.fn(() => null);
+        mockSupabase.client.from = vi.fn(() =>
+          createQuery({
+            data: [{ name: 'Healing', display_order: 1 }],
+            error: null,
+          })
+        );
+        const promptsQuery = createQuery({
+          data: [{ id: 'pr1', type: 'Healing', created_at: '2026-01-01' }],
+          error: null,
+        });
+        let call = 0;
+        mockSupabase.client.from = vi.fn(() => {
+          call += 1;
+          return call === 1
+            ? createQuery({
+                data: [{ name: 'Healing', display_order: 1 }],
+                error: null,
+              })
+            : promptsQuery;
+        });
+
+        await component.fetchPrompts();
+
+        expect(component.prompts[0]?.prayed_for_count).toBe(0);
       });
     });
   });

@@ -6,11 +6,15 @@ import { setAnalyticsConsent } from './analytics-consent';
 import {
   applyAnalyticsConsent,
   applyPostHogAppContext,
+  applyPostHogTenantGroup,
   capturePostHogEvent,
   capturePostHogException,
   capturePostHogPageview,
+  getPostHogAnalyticsGeoRegion,
+  identifyPostHogUser,
   initializePostHog,
   resetPostHogForTesting,
+  resetPostHogUser,
 } from './posthog';
 
 vi.mock('@capacitor/core', () => ({
@@ -223,6 +227,74 @@ describe('posthog', () => {
         tenant_slug: 'acme',
       });
     });
+
+    it('applyPostHogAppContext logs when context application fails', () => {
+      const ph = {
+        register: vi.fn(() => {
+          throw new Error('register failed');
+        }),
+        setPersonProperties: vi.fn(),
+        setPersonPropertiesForFlags: vi.fn(),
+      };
+      applyPostHogAppContext(ph);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('applyPostHogTenantGroup', () => {
+    it('no-ops without tenant id', () => {
+      const ph = { group: vi.fn() };
+      applyPostHogTenantGroup(ph as never, null);
+      expect(ph.group).not.toHaveBeenCalled();
+    });
+
+    it('groups tenant with optional name', () => {
+      const ph = { group: vi.fn() };
+      applyPostHogTenantGroup(ph as never, {
+        id: 't-1',
+        slug: 'acme',
+        name: 'Acme Church',
+      });
+      expect(ph.group).toHaveBeenCalledWith('tenant', 't-1', {
+        slug: 'acme',
+        name: 'Acme Church',
+      });
+    });
+
+    it('logs when grouping fails', () => {
+      const ph = {
+        group: vi.fn(() => {
+          throw new Error('group failed');
+        }),
+      };
+      applyPostHogTenantGroup(ph as never, { id: 't-1', slug: 'acme' });
+      expect(consoleErrorSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('identify and reset user', () => {
+    it('identifies user in open region', () => {
+      initializePostHog('open');
+      identifyPostHogUser('user-123');
+      expect(posthog.identify).toHaveBeenCalledWith('user-123');
+    });
+
+    it('skips identify when capture is not allowed', () => {
+      initializePostHog('consent_required');
+      identifyPostHogUser('user-123');
+      expect(posthog.identify).not.toHaveBeenCalled();
+    });
+
+    it('resetPostHogUser clears identity after init', () => {
+      initializePostHog('open');
+      resetPostHogUser();
+      expect(posthog.reset).toHaveBeenCalled();
+    });
+
+    it('getPostHogAnalyticsGeoRegion reflects init region', () => {
+      initializePostHog('open');
+      expect(getPostHogAnalyticsGeoRegion()).toBe('open');
+    });
   });
 
   describe('initializePostHog edge cases', () => {
@@ -303,6 +375,62 @@ describe('posthog', () => {
       capturePostHogEvent('memorization_practice_started', { mode: 'type' });
 
       expect(posthog.capture).not.toHaveBeenCalled();
+    });
+
+    it('logs when event capture throws', () => {
+      initializePostHog('open');
+      vi.mocked(posthog.capture).mockImplementation(() => {
+        throw new Error('capture failed');
+      });
+      capturePostHogEvent('test_event');
+      expect(consoleErrorSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('capture error handling', () => {
+    beforeEach(() => {
+      initializePostHog('open');
+    });
+
+    it('logs when pageview capture throws', () => {
+      vi.mocked(posthog.capture).mockImplementation(() => {
+        throw new Error('pageview failed');
+      });
+      capturePostHogPageview('/x');
+      expect(consoleErrorSpy).toHaveBeenCalled();
+    });
+
+    it('logs when exception capture throws', () => {
+      vi.mocked(posthog.captureException).mockImplementation(() => {
+        throw new Error('exception failed');
+      });
+      capturePostHogException(new Error('inner'));
+      expect(consoleErrorSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('initializePostHog loaded callback (open)', () => {
+    it('opts in from loaded callback in open region', () => {
+      initializePostHog('open');
+      vi.mocked(posthog.opt_in_capturing).mockClear();
+      const initOptions = vi.mocked(posthog.init).mock.calls[0]?.[1];
+      const ph = {
+        register: vi.fn(),
+        setPersonProperties: vi.fn(),
+        setPersonPropertiesForFlags: vi.fn(),
+      };
+      initOptions?.loaded?.(ph as never);
+      expect(posthog.opt_in_capturing).toHaveBeenCalled();
+    });
+  });
+
+  describe('initializePostHog failure', () => {
+    it('logs when init throws', () => {
+      vi.mocked(posthog.init).mockImplementation(() => {
+        throw new Error('init failed');
+      });
+      initializePostHog('open');
+      expect(consoleErrorSpy).toHaveBeenCalled();
     });
   });
 });

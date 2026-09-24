@@ -22,7 +22,9 @@ const applyPostHogAppContextMock = vi.fn();
 const applyPostHogTenantGroupMock = vi.fn();
 const applyAnalyticsConsentMock = vi.fn();
 const identifyPostHogUserMock = vi.fn();
+const resetPostHogUserMock = vi.fn();
 const isAnalyticsCaptureAllowedMock = vi.fn(() => false);
+const isPostHogConfiguredMock = vi.fn(() => true);
 
 vi.mock('../../lib/posthog', () => ({
   initializePostHog: (...args: unknown[]) => initializePostHogMock(...args),
@@ -30,10 +32,10 @@ vi.mock('../../lib/posthog', () => ({
   applyPostHogAppContext: (...args: unknown[]) => applyPostHogAppContextMock(...args),
   applyPostHogTenantGroup: (...args: unknown[]) => applyPostHogTenantGroupMock(...args),
   applyAnalyticsConsent: (...args: unknown[]) => applyAnalyticsConsentMock(...args),
-  isPostHogConfigured: vi.fn(() => true),
+  isPostHogConfigured: () => isPostHogConfiguredMock(),
   isAnalyticsCaptureAllowed: () => isAnalyticsCaptureAllowedMock(),
   identifyPostHogUser: (...args: unknown[]) => identifyPostHogUserMock(...args),
-  resetPostHogUser: vi.fn(),
+  resetPostHogUser: (...args: unknown[]) => resetPostHogUserMock(...args),
   posthog: {},
 }));
 
@@ -41,6 +43,11 @@ describe('PosthogService', () => {
   let events$: Subject<Event>;
   let runOutsideAngularMock: ReturnType<typeof vi.fn>;
   let activeTenant$: Subject<{ id: string; slug: string; name: string } | null>;
+  let authStateCallback: (
+    event: string,
+    session: { user?: { id: string } } | null
+  ) => void;
+  let getActiveTenant: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     localStorage.clear();
@@ -56,6 +63,8 @@ describe('PosthogService', () => {
     applyPostHogAppContextMock.mockClear();
     applyPostHogTenantGroupMock.mockClear();
     runOutsideAngularMock = vi.fn((fn: () => void) => fn());
+    isPostHogConfiguredMock.mockReturnValue(true);
+    getActiveTenant = vi.fn(() => null);
 
     TestBed.configureTestingModule({
       providers: [
@@ -77,7 +86,10 @@ describe('PosthogService', () => {
           useValue: {
             client: {
               auth: {
-                onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
+                onAuthStateChange: vi.fn((callback) => {
+                  authStateCallback = callback;
+                  return { data: { subscription: { unsubscribe: vi.fn() } } };
+                }),
               },
             },
           },
@@ -86,7 +98,7 @@ describe('PosthogService', () => {
           provide: TenantContextService,
           useValue: {
             activeTenant$: activeTenant$.asObservable(),
-            getActiveTenant: vi.fn(() => null),
+            getActiveTenant,
           },
         },
       ],
@@ -146,5 +158,64 @@ describe('PosthogService', () => {
     expect(service.analyticsConsent()).toBe('accepted');
     expect(applyAnalyticsConsentMock).toHaveBeenCalledWith('accepted');
     expect(capturePostHogPageviewMock).toHaveBeenCalledWith('/home');
+  });
+
+  it('setUserAnalyticsConsent re-identifies user and applies tenant when accepted', () => {
+    isAnalyticsCaptureAllowedMock.mockReturnValue(true);
+    getActiveTenant.mockReturnValue({
+      id: 'tenant-2',
+      slug: 'grace',
+      name: 'Grace',
+    });
+    const service = TestBed.inject(PosthogService);
+    authStateCallback('SIGNED_IN', { user: { id: 'user-42' } });
+    identifyPostHogUserMock.mockClear();
+    applyPostHogAppContextMock.mockClear();
+    applyPostHogTenantGroupMock.mockClear();
+
+    service.setUserAnalyticsConsent('accepted');
+
+    expect(identifyPostHogUserMock).toHaveBeenCalledWith('user-42');
+    expect(applyPostHogAppContextMock).toHaveBeenCalledWith(
+      {},
+      { id: 'tenant-2', slug: 'grace', name: 'Grace' }
+    );
+    expect(applyPostHogTenantGroupMock).toHaveBeenCalled();
+  });
+
+  it('syncs tenant context on auth when capture is allowed', () => {
+    isAnalyticsCaptureAllowedMock.mockReturnValue(true);
+    getActiveTenant.mockReturnValue({
+      id: 'tenant-1',
+      slug: 'acme',
+      name: 'Acme',
+    });
+    TestBed.inject(PosthogService);
+    applyPostHogAppContextMock.mockClear();
+    applyPostHogTenantGroupMock.mockClear();
+
+    authStateCallback('SIGNED_IN', { user: { id: 'user-1' } });
+
+    expect(identifyPostHogUserMock).toHaveBeenCalledWith('user-1');
+    expect(applyPostHogAppContextMock).toHaveBeenCalledWith(
+      {},
+      { id: 'tenant-1', slug: 'acme' }
+    );
+    expect(applyPostHogTenantGroupMock).toHaveBeenCalled();
+  });
+
+  it('resets PostHog identity on sign-out', () => {
+    TestBed.inject(PosthogService);
+    resetPostHogUserMock.mockClear();
+    authStateCallback('SIGNED_OUT', null);
+    expect(resetPostHogUserMock).toHaveBeenCalled();
+  });
+
+  it('skips geo bootstrap when PostHog is not configured', async () => {
+    isPostHogConfiguredMock.mockReturnValue(false);
+    TestBed.inject(PosthogService);
+    await Promise.resolve();
+    expect(resolveAnalyticsGeoRegionMock).not.toHaveBeenCalled();
+    expect(initializePostHogMock).not.toHaveBeenCalled();
   });
 });

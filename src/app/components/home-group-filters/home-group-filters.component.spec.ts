@@ -65,6 +65,7 @@ describe("HomeGroupFiltersComponent", () => {
           renameGroup: vi.fn().mockResolvedValue(true),
           deleteGroup: vi.fn().mockResolvedValue(true),
           reorderGroups: vi.fn().mockResolvedValue(true),
+          loadGroupMembers: vi.fn().mockResolvedValue([]),
           groupPrayerCounts$,
         },
       })
@@ -366,6 +367,49 @@ describe("HomeGroupFiltersComponent", () => {
     } as any);
 
     expect(reorderGroups).toHaveBeenCalledWith(["g2", "g1"]);
+  });
+
+  it("opens manage members when membersGroupIdToOpen is set", () => {
+    fixture.componentRef.setInput("membersGroupIdToOpen", "g1");
+    fixture.detectChanges();
+    expect(fixture.componentInstance.membersTarget?.id).toBe("g1");
+  });
+
+  it("rename and delete flows call group service", async () => {
+    const groupsChanged = vi.fn();
+    fixture.componentInstance.groupsChanged.subscribe(groupsChanged);
+    fixture.componentInstance.openRename(familyGroup);
+    fixture.componentInstance.renameDraft = "Renamed";
+    await fixture.componentInstance.saveRename();
+    expect(TestBed.inject(PrayerGroupService).renameGroup).toHaveBeenCalledWith(
+      "g1",
+      "Renamed"
+    );
+    expect(groupsChanged).toHaveBeenCalled();
+
+    fixture.componentInstance.pendingDeleteGroup = familyGroup;
+    await fixture.componentInstance.confirmDelete();
+    expect(TestBed.inject(PrayerGroupService).deleteGroup).toHaveBeenCalledWith(
+      "g1"
+    );
+  });
+
+  it("skips drop when indices are unchanged", async () => {
+    const reorderGroups = vi.fn();
+    (TestBed.inject(PrayerGroupService) as { reorderGroups: typeof reorderGroups }).reorderGroups =
+      reorderGroups;
+    await fixture.componentInstance.onGroupDrop({
+      previousIndex: 0,
+      currentIndex: 0,
+    } as any);
+    expect(reorderGroups).not.toHaveBeenCalled();
+  });
+
+  it("locks scroll while dragging groups", () => {
+    fixture.componentInstance.onGroupDragStarted();
+    expect(document.body.style.cursor).toBe("grabbing");
+    fixture.componentInstance.onGroupDragEnded();
+    expect(document.body.style.cursor).toBe("");
   });
 
   it("uses the drag-stretch chip shell for group chips", () => {

@@ -78,7 +78,7 @@ describe('PrayerCardComponent', () => {
       {} as any,
       { getCanPrayFor$: vi.fn().mockReturnValue(of(true)) } as any,
       mockPrayerItemReminderService as any,
-      { markForCheck: vi.fn() } as any,
+      { markForCheck: vi.fn(), detectChanges: vi.fn() } as any,
       mockRichTextEditorsSettingsService as any
     );
 
@@ -1734,6 +1734,87 @@ describe('PrayerCardComponent', () => {
         });
         expect(component.showAddUpdateButton()).toBe(true);
       });
+    });
+  });
+
+  describe('reminders, category picker, and pray-for modal', () => {
+    it('exposes reminder and layout helpers', () => {
+      mockPrayerItemReminderService.remindersForPrayer.mockReturnValue([
+        { id: 'rem-1' },
+      ]);
+      component.variant = 'home';
+      expect(component.prayerUpdateList).toEqual([]);
+      expect(component.hasPrayerReminder).toBe(true);
+      expect(component.shellClasses()).toBeTruthy();
+      expect(component.showPrayedForBadge()).toBeDefined();
+    });
+
+    it('opens the reminder modal and loads reminders for signed-in users', async () => {
+      mockPrayerItemReminderService.ensureLoaded.mockResolvedValue([
+        { id: 'rem-1', prayer_id: 'p1' },
+      ]);
+      component.openReminderModal();
+      expect(component.showReminderModal).toBe(true);
+      await Promise.resolve();
+      expect(mockPrayerItemReminderService.ensureLoaded).toHaveBeenCalled();
+    });
+
+    it('skips reminder prefetch when there is no session email', async () => {
+      mockUserSessionService.getCurrentSession = vi.fn().mockReturnValue(null);
+      await component.prepareOverflowMenuOpen();
+      expect(mockPrayerItemReminderService.ensureLoaded).not.toHaveBeenCalled();
+    });
+
+    it('onPrayForClick opens the explanation modal by default', () => {
+      component.onPrayForClick();
+      expect(component.showPrayForModal).toBe(true);
+    });
+
+    it('onPrayForClick confirms immediately when the user dismissed the modal', () => {
+      localStorage.setItem('prayer_encouragement_modal_do_not_show', 'true');
+      const confirmSpy = vi
+        .spyOn(component, 'confirmPrayFor')
+        .mockResolvedValue(undefined);
+      component.onPrayForClick();
+      expect(confirmSpy).toHaveBeenCalled();
+      expect(component.showPrayForModal).toBe(false);
+    });
+
+    it('onConfirmPrayForFromModal persists preference and confirms', async () => {
+      const confirmSpy = vi
+        .spyOn(component, 'confirmPrayFor')
+        .mockResolvedValue(undefined);
+      component.onConfirmPrayForFromModal(true);
+      expect(component.showPrayForModal).toBe(false);
+      expect(confirmSpy).toHaveBeenCalled();
+    });
+
+    it('onCancelPrayForModal closes the modal', () => {
+      component.showPrayForModal = true;
+      component.onCancelPrayForModal();
+      expect(component.showPrayForModal).toBe(false);
+    });
+
+    it('onCategoryPickerOpenChange and onPrayerRemindersChanged update state', () => {
+      const openSpy = vi.fn();
+      component.categoryPickerOpenChange.subscribe(openSpy);
+      component.onCategoryPickerOpenChange(true);
+      expect(openSpy).toHaveBeenCalledWith(true);
+
+      component.onPrayerRemindersChanged([{ id: 'r2' } as any]);
+      expect(component.allPrayerItemReminders).toEqual([{ id: 'r2' }]);
+    });
+
+    it('getUpdateDisplayDate prefers updated_at over created_at', () => {
+      const formatted = component.getUpdateDisplayDate({
+        created_at: '2020-01-01T12:00:00.000Z',
+        updated_at: '2024-06-01T12:00:00.000Z',
+      } as any);
+      expect(formatted).not.toContain('2020');
+    });
+
+    it('ngOnDestroy completes without throwing', () => {
+      expect(() => component.ngOnDestroy()).not.toThrow();
     });
   });
 

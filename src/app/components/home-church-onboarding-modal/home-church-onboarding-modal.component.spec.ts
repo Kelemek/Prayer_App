@@ -9,6 +9,13 @@ import { TenantManagementService } from "../../services/tenant-management.servic
 import { TenantContextService } from "../../services/tenant-context.service";
 import { ToastService } from "../../services/toast.service";
 
+const switchTenantWithNavigation = vi.fn();
+
+vi.mock("../../lib/tenant-navigation", () => ({
+  switchTenantWithNavigation: (...args: unknown[]) =>
+    switchTenantWithNavigation(...args),
+}));
+
 const componentDir = dirname(fileURLToPath(import.meta.url));
 
 function readComponentResource(url: string): string {
@@ -34,6 +41,8 @@ describe("HomeChurchOnboardingModalComponent", () => {
   let toastError: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
+    switchTenantWithNavigation.mockReset();
+    switchTenantWithNavigation.mockResolvedValue("switched");
     createTenant = vi.fn();
     claimInvite = vi.fn().mockResolvedValue("tenant-join");
     switchTenant = vi.fn().mockResolvedValue(true);
@@ -93,8 +102,42 @@ describe("HomeChurchOnboardingModalComponent", () => {
     fixture.componentInstance.inviteToken = " token-abc ";
     await fixture.componentInstance.submitJoin();
     expect(claimInvite).toHaveBeenCalledWith("token-abc");
-    expect(switchTenant).toHaveBeenCalledWith("tenant-join");
+    expect(switchTenantWithNavigation).toHaveBeenCalled();
     expect(completedSpy).toHaveBeenCalled();
+  });
+
+  it("navigates to subdomain without toast when navigation starts", async () => {
+    switchTenantWithNavigation.mockResolvedValue("navigated");
+    const completedSpy = vi.spyOn(fixture.componentInstance.completed, "emit");
+    fixture.componentInstance.showJoin();
+    fixture.componentInstance.inviteToken = "token-abc";
+    await fixture.componentInstance.submitJoin();
+    expect(completedSpy).toHaveBeenCalled();
+    expect(toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("shows join title and blocks chooser while submitting", async () => {
+    fixture.componentInstance.showJoin();
+    expect(fixture.componentInstance.title).toBe("Join a church");
+    fixture.componentInstance.submitting = true;
+    fixture.componentInstance.showChooser();
+    expect(fixture.componentInstance.view).toBe("join");
+  });
+
+  it("resets form when reopened and surfaces join errors", async () => {
+    claimInvite.mockRejectedValueOnce(new Error("bad token"));
+    fixture.componentInstance.showJoin();
+    fixture.componentInstance.inviteToken = "x";
+    await fixture.componentInstance.submitJoin();
+    expect(toastError).toHaveBeenCalledWith("bad token");
+    expect(fixture.componentInstance.submitting).toBe(false);
+
+    fixture.componentRef.setInput("isOpen", false);
+    fixture.detectChanges();
+    fixture.componentRef.setInput("isOpen", true);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.view).toBe("chooser");
+    expect(fixture.componentInstance.inviteToken).toBe("");
   });
 
   it("closes from the header close button", () => {

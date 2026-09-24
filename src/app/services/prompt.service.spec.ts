@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { BehaviorSubject, firstValueFrom } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, Subject } from 'rxjs';
+import type { PrayedForSyncedEvent } from './prayed-for-sync.service';
 import { PromptService } from './prompt.service';
 import { SupabaseService } from './supabase.service';
 import { ToastService } from './toast.service';
@@ -750,6 +751,141 @@ describe('PromptService', () => {
       const filtered = service.filterByType('Guidance');
       expect(filtered).toHaveLength(1);
       expect(filtered[0].type).toBe('Guidance');
+    });
+  });
+
+  describe('snapshots and prayed-for helpers', () => {
+    it('getActivePromptCategories returns unique types in encounter order', () => {
+      service.promptsSubject.next([
+        { id: '1', type: 'B', title: 't' } as never,
+        { id: '2', type: 'A', title: 't' } as never,
+        { id: '3', type: 'B', title: 't2' } as never,
+      ]);
+      expect(service.getActivePromptCategories()).toEqual(['B', 'A']);
+    });
+
+    it('getPromptsSnapshot and isPromptsLoading reflect subject state', () => {
+      service.loadingSubject.next(true);
+      expect(service.isPromptsLoading()).toBe(true);
+      service.promptsSubject.next([{ id: '1', type: 'X', title: 't' } as never]);
+      expect(service.getPromptsSnapshot()).toHaveLength(1);
+    });
+
+    it('attachPrayedForCounts returns zeros without user email', async () => {
+      userSessionSubject.next(null);
+      const result = await service.attachPrayedForCounts([
+        { id: 'p1', type: 'Healing', title: 't', prayed_for_count: 2 } as never,
+      ]);
+      expect(result[0].prayed_for_count).toBe(0);
+    });
+
+    it('attachPrayedForCounts uses RPC batch counts', async () => {
+      userSessionSubject.next({ email: 'user@example.com' });
+      mockSupabaseService.client.rpc = vi.fn().mockResolvedValue({
+        data: [{ prompt_id: 'p1', prayed_for_count: 4 }],
+        error: null,
+      });
+      const result = await service.attachPrayedForCounts([
+        { id: 'p1', type: 'Healing', title: 't' } as never,
+      ]);
+      expect(result[0].prayed_for_count).toBe(4);
+    });
+
+    it('getPromptPrayedForCountsBatch handles empty input and RPC errors', async () => {
+      expect(await service.getPromptPrayedForCountsBatch([], 'user@example.com')).toEqual(
+        {}
+      );
+      expect(await service.getPromptPrayedForCountsBatch(['p1'], '   ')).toEqual({});
+      mockSupabaseService.client.rpc = vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'rpc fail' },
+      });
+      expect(await service.getPromptPrayedForCountsBatch(['p1'], 'user@example.com')).toEqual(
+        {}
+      );
+    });
+  });
+
+  describe('tenant context and prayed-for sync', () => {
+    const buildService = (
+      tenantContext?: {
+        activeTenant$: ReturnType<BehaviorSubject<{ id: string } | null>['asObservable']>;
+        getActiveTenant: () => { id: string } | null;
+      },
+      prayedForSync?: {
+        pendingChanged$: ReturnType<Subject<void>['asObservable']>;
+        synced$: ReturnType<Subject<PrayedForSyncedEvent>['asObservable']>;
+        getPendingCount: ReturnType<typeof vi.fn>;
+        displayCount: ReturnType<typeof vi.fn>;
+      }
+    ) =>
+      new PromptService(
+        mockSupabaseService,
+        mockToastService,
+        mockCacheService,
+        mockBadgeService,
+        mockConnectivity,
+        mockUserSessionService,
+        prayedForSync as never,
+        tenantContext as never
+      );
+
+    it('reloads prompts when active tenant id changes', async () => {
+      const activeTenant$ = new BehaviorSubject<{ id: string } | null>({
+        id: 'tenant-a',
+      });
+      const tenantContext = {
+        activeTenant$: activeTenant$.asObservable(),
+        getActiveTenant: () => activeTenant$.value,
+      };
+      mockSupabaseService.client.from.mockClear();
+      buildService(tenantContext);
+      const callsAfterInit = mockSupabaseService.client.from.mock.calls.length;
+      activeTenant$.next({ id: 'tenant-b' });
+      await Promise.resolve();
+      expect(mockSupabaseService.client.from.mock.calls.length).toBeGreaterThan(
+        callsAfterInit
+      );
+    });
+
+    it('ignores duplicate tenant emissions', async () => {
+      const activeTenant$ = new BehaviorSubject<{ id: string } | null>({
+        id: 'tenant-a',
+      });
+      const tenantContext = {
+        activeTenant$: activeTenant$.asObservable(),
+        getActiveTenant: () => activeTenant$.value,
+      };
+      buildService(tenantContext);
+      const callsAfterInit = mockSupabaseService.client.from.mock.calls.length;
+      activeTenant$.next({ id: 'tenant-a' });
+      await Promise.resolve();
+      expect(mockSupabaseService.client.from.mock.calls.length).toBe(callsAfterInit);
+    });
+
+    it('reprojects prompt counts when prayed-for sync events arrive', async () => {
+      const pendingChanged$ = new Subject<void>();
+      const synced$ = new Subject<PrayedForSyncedEvent>();
+      const prayedForSync = {
+        pendingChanged$: pendingChanged$.asObservable(),
+        synced$: synced$.asObservable(),
+        getPendingCount: vi.fn(() => 0),
+        displayCount: vi.fn((server: number) => server),
+      };
+      const svc = buildService(undefined, prayedForSync);
+      userSessionSubject.next({ email: 'user@example.com' });
+      svc.promptsSubject.next([
+        { id: 'p1', type: 'Healing', title: 't', prayed_for_count: 2 } as never,
+      ]);
+      synced$.next({ kind: 'prayer', itemId: 'p1', serverCount: 9 });
+      await Promise.resolve();
+      expect(svc.getPromptsSnapshot()[0]?.prayed_for_count).toBe(2);
+      synced$.next({ kind: 'prompt', itemId: 'p1', serverCount: 9 });
+      await Promise.resolve();
+      expect(svc.getPromptsSnapshot()[0]?.prayed_for_count).toBe(9);
+      pendingChanged$.next();
+      await Promise.resolve();
+      expect(prayedForSync.displayCount).toHaveBeenCalled();
     });
   });
 });

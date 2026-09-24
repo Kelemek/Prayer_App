@@ -15,6 +15,8 @@ vi.mock('@capacitor/core', () => ({
   },
 }));
 
+import { Capacitor } from '@capacitor/core';
+
 describe('analytics-geo-region', () => {
   it('treats EU, UK, and EEA as consent_required', () => {
     expect(isAnalyticsConsentRegion('DE')).toBe(true);
@@ -65,6 +67,52 @@ describe('resolveAnalyticsGeoRegion', () => {
     const result = await resolveAnalyticsGeoRegion();
 
     expect(result).toEqual({ region: 'open', country: null });
+  });
+
+  it('uses session cache when cookie is absent', async () => {
+    sessionStorage.setItem(
+      ANALYTICS_GEO_SESSION_KEY,
+      JSON.stringify({ region: 'open', country: 'US' })
+    );
+
+    const result = await resolveAnalyticsGeoRegion();
+
+    expect(result).toEqual({ region: 'open', country: 'US' });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(document.cookie).toContain(`${ANALYTICS_GEO_COOKIE}=open`);
+  });
+
+  it('ignores invalid session cache JSON', async () => {
+    sessionStorage.setItem(ANALYTICS_GEO_SESSION_KEY, 'not-json');
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ region: 'open', country: 'CA' }),
+    } as Response);
+
+    const result = await resolveAnalyticsGeoRegion();
+
+    expect(result.country).toBe('CA');
+  });
+
+  it('fail-opens when API returns non-ok', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: false } as Response);
+    expect(await resolveAnalyticsGeoRegion()).toEqual({ region: 'open', country: null });
+  });
+
+  it('uses native geo API URL on Capacitor', async () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ country: 'DE' }),
+    } as Response);
+
+    await resolveAnalyticsGeoRegion();
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/geo$/),
+      expect.any(Object)
+    );
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
   });
 
   it('caches successful API response', async () => {

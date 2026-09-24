@@ -42,6 +42,26 @@ describe('ProCheckoutService', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('returns null when session is missing', async () => {
+    getSession.mockResolvedValue({ data: { session: null } });
+    expect(await service().startProCheckout()).toBeNull();
+    expect(await service().startBillingPortal()).toBeNull();
+  });
+
+  it('returns null when checkout API fails', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: 'stripe down' }),
+      })
+    );
+    expect(await service().startProCheckout()).toBeNull();
+    errSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
   it('starts pro billing portal with kind pro on web and native', async () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
     const fetchMock = vi.fn().mockResolvedValue({

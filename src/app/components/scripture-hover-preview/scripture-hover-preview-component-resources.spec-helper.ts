@@ -5,12 +5,30 @@ import { ɵresolveComponentResources as resolveComponentResources } from '@angul
 
 const componentDir = dirname(fileURLToPath(import.meta.url));
 
-export async function resolveScriptureHoverPreviewComponentResources(): Promise<void> {
-  await resolveComponentResources((url) => {
+export type ScriptureHoverPreviewResourceIo = {
+  existsSync: (path: string) => boolean;
+  readFileSync: (path: string, encoding: 'utf-8') => string;
+};
+
+const defaultResourceIo: ScriptureHoverPreviewResourceIo = {
+  existsSync,
+  readFileSync,
+};
+
+export function createScriptureHoverPreviewResourceResolver(
+  io: ScriptureHoverPreviewResourceIo = defaultResourceIo
+): (url: string) => Promise<string> {
+  return (url) => {
     const path = join(componentDir, url);
-    if (!existsSync(path)) {
+    if (!io.existsSync(path)) {
       throw new Error(`Component resource not found: ${url}`);
     }
-    return Promise.resolve(readFileSync(path, 'utf-8'));
-  });
+    return Promise.resolve(io.readFileSync(path, 'utf-8'));
+  };
+}
+
+export async function resolveScriptureHoverPreviewComponentResources(
+  io: ScriptureHoverPreviewResourceIo = defaultResourceIo
+): Promise<void> {
+  await resolveComponentResources(createScriptureHoverPreviewResourceResolver(io));
 }

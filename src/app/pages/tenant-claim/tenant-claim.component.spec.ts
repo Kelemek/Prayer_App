@@ -86,6 +86,88 @@ describe('TenantClaimComponent', () => {
     });
   });
 
+  it('handles missing token on init', async () => {
+    component = makeComponent(null);
+    await component.ngOnInit();
+    expect(component.joinState).toBe('missing-token');
+    expect(component.statusCopy).toContain('missing a token');
+    expect(component.heading).toBe('Join church');
+  });
+
+  it('surfaces not-found when preview is null', async () => {
+    getInvitePreview = vi.fn(async () => null);
+    component = new TenantClaimComponent(
+      { snapshot: { paramMap: { get: () => 'invite-token-123' } } } as unknown as ActivatedRoute,
+      { navigate: vi.fn() } as unknown as Router,
+      { claimInvite, getInvitePreview, getActorEmail } as unknown as TenantManagementService,
+      { success: toastSuccess, error: toastError } as unknown as ToastService,
+      {
+        getUser: () => ({ email: 'member@example.com' }),
+        logout,
+      } as unknown as AdminAuthService
+    );
+    await component.ngOnInit();
+    expect(component.joinState).toBe('not-found');
+  });
+
+  it('uses actor email when admin user is absent', async () => {
+    component = new TenantClaimComponent(
+      { snapshot: { paramMap: { get: () => 'invite-token-123' } } } as unknown as ActivatedRoute,
+      { navigate: vi.fn() } as unknown as Router,
+      {
+        claimInvite,
+        getInvitePreview,
+        getActorEmail: vi.fn(async () => 'actor@example.com'),
+      } as unknown as TenantManagementService,
+      { success: toastSuccess, error: toastError } as unknown as ToastService,
+      { getUser: () => null, logout } as unknown as AdminAuthService
+    );
+    await component.ngOnInit();
+    expect(component.currentEmail).toBe('actor@example.com');
+  });
+
+  it('shows revoked and accepted copy', async () => {
+    for (const status of ['revoked', 'accepted'] as const) {
+      getInvitePreview = vi.fn(async () => ({ ...pendingPreview, status }));
+      component = new TenantClaimComponent(
+        { snapshot: { paramMap: { get: () => 't' } } } as unknown as ActivatedRoute,
+        { navigate: vi.fn() } as unknown as Router,
+        { claimInvite, getInvitePreview, getActorEmail } as unknown as TenantManagementService,
+        { success: toastSuccess, error: toastError } as unknown as ToastService,
+        {
+          getUser: () => ({ email: 'member@example.com' }),
+          logout,
+        } as unknown as AdminAuthService
+      );
+      await component.ngOnInit();
+      expect(component.joinState).toBe(status);
+      expect(component.statusCopy.length).toBeGreaterThan(10);
+    }
+  });
+
+  it('shows ready heading and claim label', async () => {
+    await component.ngOnInit();
+    expect(component.heading).toBe('Join Alpha Church');
+    expect(component.claimButtonLabel).toBe('Join Alpha Church');
+    expect(component.statusCopy).toContain('Alpha Church');
+  });
+
+  it('does not claim when already loading', async () => {
+    await component.ngOnInit();
+    component.loading = true;
+    await component.claimInvite();
+    expect(claimInvite).not.toHaveBeenCalled();
+  });
+
+  it('toasts when sign-out fails', async () => {
+    component = makeComponent('invite-token-123', 'other@example.com');
+    logout.mockRejectedValue(new Error('logout failed'));
+    await component.ngOnInit();
+    await component.signInAsInvitee();
+    expect(toastError).toHaveBeenCalledWith('logout failed');
+    expect(component.signingOut).toBe(false);
+  });
+
   it('disables claim when invite is expired', async () => {
     getInvitePreview = vi.fn(async () => ({
       ...pendingPreview,

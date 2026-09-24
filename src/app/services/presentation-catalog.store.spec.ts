@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { PresentationCatalogStore } from './presentation-catalog.store';
+import {
+  isPresentationPrompt,
+  PresentationCatalogStore,
+} from './presentation-catalog.store';
 
 describe('PresentationCatalogStore', () => {
   let store: PresentationCatalogStore;
@@ -322,5 +325,104 @@ describe('PresentationCatalogStore', () => {
       'pr1',
       'p1',
     ]);
+  });
+
+  it('isPresentationPrompt distinguishes prompts from prayers', () => {
+    expect(
+      isPresentationPrompt({
+        id: 'pr1',
+        type: 'encouragement',
+        description: 'd',
+        created_at: 't',
+        updated_at: 't',
+        title: 't',
+      })
+    ).toBe(true);
+    expect(
+      isPresentationPrompt({ id: 'p1', prayer_for: 'John', updates: [] } as never)
+    ).toBe(false);
+  });
+
+  it('patchItem and removeItem update all lists', () => {
+    const prayer = { id: 'p1', prayer_for: 'A', title: 'Old', updates: [] } as any;
+    store.prayers = [prayer];
+    store.combinedShuffledItems = [prayer];
+    store.patchItem('p1', { title: 'New' });
+    expect(store.prayers[0].title).toBe('New');
+    store.removeItem('p1');
+    expect(store.prayers).toEqual([]);
+    expect(store.combinedShuffledItems).toEqual([]);
+  });
+
+  it('mapLists skips reassignment when mapper returns same references', () => {
+    const prayer = { id: 'p1', prayer_for: 'A', updates: [] } as any;
+    store.prayers = [prayer];
+    const before = store.prayers;
+    store.mapLists((item) => item);
+    expect(store.prayers).toBe(before);
+  });
+
+  it('buildVisibleItems returns personal prayers when personal is sole type', () => {
+    store.personalPrayers = [
+      { id: 'pp1', category: 'Health', prayer_for: 'Me', updates: [] } as any,
+    ];
+    const items = store.buildVisibleItems({
+      contentTypes: ['personal'],
+      randomize: false,
+      selectedPersonalCategories: [],
+      selectedPromptCategories: [],
+    });
+    expect(items.map((item) => item.id)).toEqual(['pp1']);
+  });
+
+  it('getVisibleItems returns cached shuffle for multi-type randomize', () => {
+    const cached = [{ id: 'x', prayer_for: 'A', updates: [] } as any];
+    store.combinedShuffledItems = cached;
+    expect(
+      store.getVisibleItems({
+        contentTypes: ['prayers', 'prompts'],
+        randomize: true,
+        selectedPersonalCategories: [],
+        selectedPromptCategories: [],
+      })
+    ).toBe(cached);
+  });
+
+  it('applyLivePrayedForFloor returns next list when previous is empty', () => {
+    const next = [{ id: 'p1', prayed_for_count: 1 }];
+    expect(store.applyLivePrayedForFloor([], next)).toEqual(next);
+  });
+
+  it('shuffleVisibleItems shuffles prompts and personal for single-type decks', () => {
+    store.prompts = [
+      { id: 'pr1', type: 'a' },
+      { id: 'pr2', type: 'b' },
+    ] as any[];
+    store.personalPrayers = [
+      { id: 'pp1', prayer_for: 'Me' },
+      { id: 'pp2', prayer_for: 'Me' },
+    ] as any[];
+
+    store.shuffleVisibleItems(
+      {
+        contentTypes: ['prompts'],
+        randomize: true,
+        selectedPersonalCategories: [],
+        selectedPromptCategories: [],
+      },
+      (items) => [...items].reverse()
+    );
+    expect(store.prompts.map((p) => p.id)).toEqual(['pr2', 'pr1']);
+
+    store.shuffleVisibleItems(
+      {
+        contentTypes: ['personal'],
+        randomize: true,
+        selectedPersonalCategories: [],
+        selectedPromptCategories: [],
+      },
+      (items) => [...items].reverse()
+    );
+    expect(store.personalPrayers.map((p) => p.id)).toEqual(['pp2', 'pp1']);
   });
 });

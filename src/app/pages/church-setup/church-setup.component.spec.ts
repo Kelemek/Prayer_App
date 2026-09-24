@@ -177,6 +177,73 @@ describe('ChurchSetupComponent', () => {
     expect(startChurchCheckout).toHaveBeenCalledWith();
   });
 
+  it('shows checkout success toast and strips query param', async () => {
+    const toast = TestBed.inject(ToastService) as { success: ReturnType<typeof vi.fn> };
+    const route = TestBed.inject(ActivatedRoute) as {
+      snapshot: { queryParamMap: { get: ReturnType<typeof vi.fn> } };
+    };
+    route.snapshot.queryParamMap.get = vi.fn((key: string) =>
+      key === 'church_checkout' ? 'success' : null
+    );
+    await fixture.componentInstance.ngOnInit();
+    expect(toast.success).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalled();
+  });
+
+  it('navigates to admin when church is already attached', async () => {
+    getChurchSetupState.mockResolvedValue({ status: 'attached' });
+    await fixture.componentInstance.ngOnInit();
+    expect(navigate).toHaveBeenCalledWith(['/admin']);
+  });
+
+  it('emails setup link on native', async () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    getChurchSetupState.mockResolvedValue({ status: 'none' });
+    const toast = TestBed.inject(ToastService) as {
+      success: ReturnType<typeof vi.fn>;
+      info: ReturnType<typeof vi.fn>;
+    };
+    vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+    await fixture.componentInstance.ngOnInit();
+    await fixture.componentInstance.emailSetupLink();
+    expect(sendSignupEmail).toHaveBeenCalledWith('church');
+    expect(toast.success).toHaveBeenCalled();
+  });
+
+  it('shows canceled checkout toast', async () => {
+    const toast = TestBed.inject(ToastService) as { info: ReturnType<typeof vi.fn> };
+    const route = TestBed.inject(ActivatedRoute) as {
+      snapshot: { queryParamMap: { get: ReturnType<typeof vi.fn> } };
+    };
+    route.snapshot.queryParamMap.get = vi.fn((key: string) =>
+      key === 'church_checkout' ? 'cancel' : null
+    );
+    await fixture.componentInstance.ngOnInit();
+    expect(toast.info).toHaveBeenCalledWith('Church checkout was canceled.');
+  });
+
+  it('toasts when checkout cannot start on web', async () => {
+    const toast = TestBed.inject(ToastService) as { error: ReturnType<typeof vi.fn> };
+    getChurchSetupState.mockResolvedValue({ status: 'none' });
+    startChurchCheckout.mockResolvedValue(null);
+    await fixture.componentInstance.ngOnInit();
+    expect(toast.error).toHaveBeenCalledWith('Could not start checkout. Please try again.');
+  });
+
+  it('marks slug invalid while typing a bad web address', async () => {
+    await fixture.componentInstance.ngOnInit();
+    fixture.componentInstance.onSlugInput('-bad-');
+    expect(fixture.componentInstance.slugAvailabilityStatus).toBe('invalid');
+  });
+
+  it('blocks submit for invalid slug', async () => {
+    await fixture.componentInstance.ngOnInit();
+    fixture.componentInstance.nameDraft = 'Bad';
+    fixture.componentInstance.slugDraft = '!!!';
+    await fixture.componentInstance.submitSetup();
+    expect(completeChurchSetup).not.toHaveBeenCalled();
+  });
+
   it('does not start checkout on native and offers email-me instead', async () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
     getChurchSetupState.mockResolvedValue({ status: 'none' });

@@ -250,4 +250,50 @@ describe("ModalShellComponent", () => {
 
     bar.remove();
   });
+
+  it("adjusts overlay geometry on visual viewport changes", () => {
+    const listeners: Record<string, () => void> = {};
+    const visualViewport = {
+      offsetTop: 12,
+      offsetLeft: 4,
+      width: 320,
+      height: 500,
+      addEventListener: (type: string, cb: () => void) => {
+        listeners[type] = cb;
+      },
+      removeEventListener: vi.fn(),
+    };
+    vi.stubGlobal("visualViewport", visualViewport);
+    const getComputedStyle = vi.spyOn(window, "getComputedStyle").mockReturnValue({
+      paddingTop: "16px",
+      paddingBottom: "8px",
+    } as CSSStyleDeclaration);
+
+    fixture = TestBed.createComponent(ModalShellComponent);
+    fixture.componentInstance.reserveTopChromePx = 40;
+    fixture.detectChanges();
+    listeners.resize?.();
+    expect(fixture.componentInstance.overlayTop).toBe("12px");
+    expect(fixture.componentInstance.overlayWidth).toBe("320px");
+    expect(fixture.componentInstance.panelMaxHeight).toMatch(/px$/);
+
+    fixture.destroy();
+    getComputedStyle.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it("blocks background touchmove outside modal body", () => {
+    fixture = TestBed.createComponent(ModalShellComponent);
+    fixture.detectChanges();
+    const outside = document.createElement("div");
+    const event = {
+      target: outside,
+      preventDefault: vi.fn(),
+    } as unknown as TouchEvent;
+    document.dispatchEvent(
+      new TouchEvent("touchmove", { cancelable: true, bubbles: true })
+    );
+    fixture.componentInstance.onOverlayTouchMove(event);
+    expect(event.preventDefault).toHaveBeenCalled();
+  });
 });

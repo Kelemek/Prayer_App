@@ -50,6 +50,77 @@ describe('BillingSignupService', () => {
     expect(tenant).toEqual({ id: 't1', slug: 'new-church', name: 'New Church' });
   });
 
+  it('returns none when get_church_setup_state RPC fails', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    rpc.mockResolvedValue({ data: null, error: { message: 'fail' } });
+    const state = await service().getChurchSetupState();
+    expect(state.status).toBe('none');
+    errSpy.mockRestore();
+  });
+
+  it('returns null when slug availability RPC fails', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    rpc.mockResolvedValue({ data: null, error: { message: 'fail' } });
+    expect(await service().isTenantSlugAvailable('x')).toBeNull();
+    errSpy.mockRestore();
+  });
+
+  it('throws when complete church setup RPC fails', async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: 'nope' } });
+    await expect(service().completeChurchSetup('N', 'slug')).rejects.toThrow('nope');
+  });
+
+  it('throws when complete church setup returns incomplete row', async () => {
+    rpc.mockResolvedValue({ data: { id: 't1' }, error: null });
+    await expect(service().completeChurchSetup('N', 'slug')).rejects.toThrow(
+      'Failed to finish church setup'
+    );
+  });
+
+  it('rejects invalid signup kind and missing session', async () => {
+    await expect(service().sendSignupEmail('invalid' as never)).rejects.toThrow(
+      'Invalid signup kind'
+    );
+    getSession.mockResolvedValue({ data: { session: null } });
+    await expect(service().sendSignupEmail('church')).rejects.toThrow('signed in');
+  });
+
+  it('returns lead when signup email sends successfully', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          url: 'https://app.example/church-setup?signup_token=tok',
+          token: 'tok',
+          emailed: true,
+        }),
+      })
+    );
+    const lead = await service().sendSignupEmail('church');
+    expect(lead.token).toBe('tok');
+    expect(lead.url).toContain('church-setup');
+  });
+
+  it('throws when signup email response is missing url or token', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: 'bad gateway' }),
+      })
+    );
+    await expect(service().sendSignupEmail('church')).rejects.toThrow('bad gateway');
+  });
+
+  it('churchSetupAbsoluteUrl trims trailing slashes', async () => {
+    const { environment } = await import('../../environments/environment');
+    const original = environment.appUrl;
+    environment.appUrl = 'https://app.example///';
+    expect(service().churchSetupAbsoluteUrl()).toBe('https://app.example/church-setup');
+    environment.appUrl = original;
+  });
+
   it('throws copy-link error when email send fails but url is returned', async () => {
     vi.stubGlobal(
       'fetch',

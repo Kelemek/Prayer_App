@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   canManageChurchBilling,
   churchBillingBannerMessage,
+  formatPlanStatus,
+  isChurchPlanTier,
   shouldShowChurchCheckout,
   tenantHasChurchFeatures,
 } from './church-billing';
@@ -21,6 +23,18 @@ describe('church-billing', () => {
 
   it('grants features for active church', () => {
     expect(tenantHasChurchFeatures(baseTenant({}), now)).toBe(true);
+  });
+
+  it('grants features while trialing', () => {
+    expect(tenantHasChurchFeatures(baseTenant({ plan_status: 'trialing' }), now)).toBe(
+      true
+    );
+  });
+
+  it('denies manage billing without stripe customer', () => {
+    expect(canManageChurchBilling(baseTenant({ stripe_customer_id: null }), now)).toBe(
+      false
+    );
   });
 
   it('grants features during past_due grace', () => {
@@ -81,5 +95,59 @@ describe('church-billing', () => {
       now
     );
     expect(msg).toContain('past due');
+  });
+
+  it('isChurchPlanTier and formatPlanStatus', () => {
+    expect(isChurchPlanTier(baseTenant({}))).toBe(true);
+    expect(isChurchPlanTier(baseTenant({ plan_tier: 'free' }))).toBe(false);
+    expect(formatPlanStatus('past_due')).toBe('past due');
+  });
+
+  it('shouldShowChurchCheckout for free tier', () => {
+    expect(
+      shouldShowChurchCheckout(
+        baseTenant({ plan_tier: 'free', plan_status: 'active' }),
+        now
+      )
+    ).toBe(true);
+  });
+
+  it('churchBillingBannerMessage when grace ended and incomplete checkout', () => {
+    expect(
+      churchBillingBannerMessage(
+        baseTenant({
+          plan_status: 'past_due',
+          grace_until: '2026-01-01T00:00:00Z',
+        }),
+        now
+      )
+    ).toContain('grace period has ended');
+
+    expect(
+      churchBillingBannerMessage(baseTenant({ plan_status: 'incomplete' }), now)
+    ).toContain('Complete Church checkout');
+  });
+
+  it('shouldShowChurchCheckout when church plan lost features', () => {
+    expect(
+      shouldShowChurchCheckout(
+        baseTenant({
+          plan_status: 'canceled',
+          stripe_current_period_end: '2026-01-01T00:00:00Z',
+        }),
+        now
+      )
+    ).toBe(true);
+  });
+
+  it('churchBillingBannerMessage for cancel at period end', () => {
+    const msg = churchBillingBannerMessage(
+      baseTenant({
+        stripe_cancel_at_period_end: true,
+        stripe_current_period_end: '2026-10-01T00:00:00Z',
+      }),
+      now
+    );
+    expect(msg).toContain('ends on');
   });
 });

@@ -43,4 +43,37 @@ describe('AdminPlatformQuotaUsageComponent', () => {
     await component.load();
     expect(component.migrationMissing).toBe(true);
   });
+
+  it('onExpandedChange loads once when expanded', async () => {
+    const loadSpy = vi.spyOn(component, 'load').mockResolvedValue(undefined);
+    component.onExpandedChange(true);
+    expect(loadSpy).toHaveBeenCalled();
+    loadSpy.mockClear();
+    component.onExpandedChange(false);
+    component.onExpandedChange(true);
+    expect(loadSpy).not.toHaveBeenCalled();
+  });
+
+  it('isUserMembersNear detects member quota pressure', () => {
+    expect(
+      component.isUserMembersNear({
+        email: 'a',
+        individual_plan_tier: 'pro',
+        is_church_member: false,
+        groups_owned: 0,
+        max_groups_owned: 10,
+        max_members_per_group: 10,
+        largest_group_members: 9,
+        recite_estimated_cost_usd: 0,
+        recite_whisper_audio_seconds: 0,
+      })
+    ).toBe(true);
+  });
+
+  it('load stores error message on failure', async () => {
+    quotaUsage.loadSnapshot.mockRejectedValue(new Error('rpc down'));
+    await component.load();
+    expect(component.errorMessage).toBe('rpc down');
+    expect(component.snapshot).toBeNull();
+  });
 });

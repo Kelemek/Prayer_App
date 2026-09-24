@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PrintService, Prayer, TimeRange } from './print.service';
 import { SupabaseService } from './supabase.service';
+import { PrayerService } from './prayer.service';
+import * as printNative from '../lib/print-native';
+import * as printBookletHtml from '../lib/print-booklet-html';
 
 /** Matches PrintService: .from('prayer_updates').select('*').eq('tenant_id', id) */
 function mockPrayerUpdatesChain(resolved: { data: unknown; error: unknown }) {
@@ -961,6 +964,883 @@ describe('PrintService', () => {
       
       const results = await Promise.all(promises);
       expect(results.length).toBe(3);
+    });
+  });
+
+  describe('downloadPrintableGroupPrayerList', () => {
+    let groupService: PrintService;
+
+    beforeEach(() => {
+      delete (window as { Capacitor?: unknown }).Capacitor;
+      global.alert = vi.fn();
+      groupService = createPrintService(mockSupabaseService, mockPrayerService);
+    });
+
+    it('prints in-range group prayers', async () => {
+      const printable = {
+        id: 'g1',
+        title: 'Heal',
+        prayer_for: 'Sam',
+        description: 'Please pray',
+        requester: 'Ann',
+        status: 'current',
+        created_at: new Date().toISOString(),
+        updates: [],
+      };
+      vi.spyOn(
+        groupService as never as { filterPrayersByPrintRange: () => unknown[] },
+        'filterPrayersByPrintRange'
+      ).mockReturnValue([printable]);
+      vi.spyOn(
+        groupService as never as { generatePrintableHTML: () => string },
+        'generatePrintableHTML'
+      ).mockReturnValue('<html>group</html>');
+      const deliver = vi
+        .spyOn(groupService as never as { deliverPrintHtml: () => Promise<void> }, 'deliverPrintHtml')
+        .mockResolvedValue(undefined);
+      await groupService.downloadPrintableGroupPrayerList([printable as never], 'Elders', 'month', null);
+      expect(deliver).toHaveBeenCalled();
+    });
+
+    it('alerts when no group prayers match the range', async () => {
+      const old = new Date();
+      old.setFullYear(old.getFullYear() - 3);
+      await groupService.downloadPrintableGroupPrayerList(
+        [
+          {
+            id: 'g1',
+            title: 'Old',
+            prayer_for: 'Sam',
+            description: 'x',
+            requester: 'Ann',
+            status: 'current',
+            created_at: old.toISOString(),
+            updates: [],
+          } as never,
+        ],
+        'Elders',
+        'week',
+        { close: vi.fn() } as never
+      );
+      expect(global.alert).toHaveBeenCalled();
+    });
+  });
+
+  describe('downloadPrintableBookletPrayerList', () => {
+    let bookletService: PrintService;
+    let bookletSupabase: typeof mockSupabaseClient;
+
+    beforeEach(() => {
+      delete (window as { Capacitor?: unknown }).Capacitor;
+      global.alert = vi.fn();
+      global.URL.createObjectURL = vi.fn(() => 'blob:booklet');
+      global.URL.revokeObjectURL = vi.fn();
+      bookletSupabase = {
+        from: vi.fn(),
+      };
+      bookletService = createPrintService(
+        { client: bookletSupabase } as never,
+        mockPrayerService
+      );
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('warns when booklet has no printable content', async () => {
+      vi.spyOn(
+        bookletService as never as {
+          loadPublicPrayersForBookletTimeRange: () => Promise<unknown[] | null>;
+        },
+        'loadPublicPrayersForBookletTimeRange'
+      ).mockResolvedValue([]);
+      vi.spyOn(
+        bookletService as never as {
+          loadBookletPromptSectionsOrdered: () => Promise<unknown[]>;
+        },
+        'loadBookletPromptSectionsOrdered'
+      ).mockResolvedValue([]);
+      vi.spyOn(bookletService, 'loadBookletInsertPagesOrdered').mockResolvedValue([]);
+      const mockWindow = { close: vi.fn() };
+      await bookletService.downloadPrintableBookletPrayerList('month', mockWindow as never);
+      expect(mockToastService.warning).toHaveBeenCalled();
+      expect(mockWindow.close).toHaveBeenCalled();
+    });
+  });
+
+  describe('PrintService implementation HTML and downloads', () => {
+    const fullPrayers: Prayer[] = [
+      {
+        id: '1',
+        title: 'Heal quickly',
+        prayer_for: 'Sam and Sue',
+        description: 'Please pray',
+        requester: 'Ann',
+        status: 'current',
+        created_at: new Date().toISOString(),
+        prayer_updates: [],
+      },
+      {
+        id: '2',
+        title: 'Answered',
+        prayer_for: 'Pat',
+        description: 'Thanks',
+        requester: 'Chris',
+        status: 'answered',
+        created_at: new Date(Date.now() - 86400000).toISOString(),
+        date_answered: new Date().toISOString(),
+        prayer_updates: [],
+      },
+    ];
+
+    it('generatePrintableHTML covers time ranges and statuses', () => {
+      vi.spyOn(
+        service as unknown as { renderMarkdown: (content: string) => string },
+        'renderMarkdown'
+      ).mockImplementation((content) => content);
+      for (const range of ['week', 'twoweeks', 'month', 'year', 'all'] as TimeRange[]) {
+        const html = (
+          service as unknown as { generatePrintableHTML: (p: Prayer[], r: TimeRange) => string }
+        ).generatePrintableHTML(fullPrayers, range);
+        expect(html).toContain('Current Prayer Requests');
+        expect(html).toContain('Answered Prayers');
+        expect(html).toContain('Sam and Sue');
+      }
+    });
+
+    it('generatePromptsPrintableHTML renders prompt groups', () => {
+      const html = (
+        service as unknown as {
+          generatePromptsPrintableHTML: (prompts: Array<{ type: string; title: string }>) => string;
+        }
+      ).generatePromptsPrintableHTML([
+        { type: 'Daily', title: 'Morning' },
+        { type: 'Daily', title: 'Evening' },
+        { type: 'Scripture', title: 'John 3:16' },
+      ]);
+      expect(html).toContain('Morning');
+      expect(html).toContain('Scripture');
+    });
+
+    it('downloadPrintablePromptList delivers HTML for tenant prompts', async () => {
+      delete (window as { Capacitor?: unknown }).Capacitor;
+      mockSupabaseClient.from = vi.fn((table: string) => {
+        if (table === 'prayer_prompts') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({
+              data: [{ type: 'Daily', title: 'Morning', created_at: new Date().toISOString() }],
+              error: null,
+            }),
+          };
+        }
+        if (table === 'prayer_types') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({
+              data: [{ name: 'Daily', display_order: 1 }],
+              error: null,
+            }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          order: vi.fn().mockResolvedValue({ data: [], error: null }),
+        };
+      });
+      const mockWindow = {
+        document: { open: vi.fn(), write: vi.fn(), close: vi.fn() },
+        focus: vi.fn(),
+        close: vi.fn(),
+      };
+      await service.downloadPrintablePromptList(['Daily'], mockWindow as never);
+      expect(mockWindow.document.write).toHaveBeenCalled();
+    });
+
+    it('exposes booklet helper methods for tests', () => {
+      expect(service.buildBookletInsertPageHtml('data:image/png;base64,abc')).toContain('img');
+      expect(service.splitBookletMarkdownIntoPanelParts('hello world', 5).length).toBeGreaterThan(0);
+    });
+
+    it('generatePrayerHTML includes answered metadata and recent updates', () => {
+      vi.spyOn(
+        service as unknown as { renderMarkdown: (content: string) => string },
+        'renderMarkdown'
+      ).mockImplementation((content) => content);
+      vi.spyOn(
+        service as unknown as { escapeHtml: (value: string) => string },
+        'escapeHtml'
+      ).mockImplementation((value) => value);
+      const html = (
+        service as unknown as { generatePrayerHTML: (prayer: Prayer) => string }
+      ).generatePrayerHTML({
+        id: '1',
+        title: 'T',
+        prayer_for: 'Sam',
+        description: 'Body',
+        requester: 'Ann',
+        status: 'answered',
+        created_at: new Date().toISOString(),
+        date_answered: new Date().toISOString(),
+        prayer_updates: [
+          {
+            id: 'u1',
+            content: 'Recent update',
+            author: 'Bob',
+            created_at: new Date().toISOString(),
+            is_anonymous: true,
+          },
+        ],
+      });
+      expect(html).toContain('Answered on');
+      expect(html).toContain('Anonymous');
+    });
+
+    it('generatePersonalPrayersPrintableHTML groups by category', () => {
+      vi.spyOn(
+        service as unknown as { renderMarkdown: (content: string) => string },
+        'renderMarkdown'
+      ).mockImplementation((content) => content);
+      const html = (
+        service as unknown as {
+          generatePersonalPrayersPrintableHTML: (
+            prayers: unknown[],
+            categories?: string[],
+            timeRange?: TimeRange
+          ) => string;
+        }
+      ).generatePersonalPrayersPrintableHTML(
+        [
+          {
+            id: '1',
+            title: 'T',
+            prayer_for: 'Me',
+            description: 'D',
+            requester: 'Ann',
+            status: 'current',
+            category: 'Health',
+            created_at: new Date().toISOString(),
+            updates: [],
+          },
+        ],
+        ['Health'],
+        'month'
+      );
+      expect(html).toContain('Health');
+    });
+
+    it('downloadPrintablePersonalPrayerList writes personal prayer HTML', async () => {
+      delete (window as { Capacitor?: unknown }).Capacitor;
+      global.alert = vi.fn();
+      vi.spyOn(
+        service as unknown as { generatePersonalPrayersPrintableHTML: () => string },
+        'generatePersonalPrayersPrintableHTML'
+      ).mockReturnValue('<html>personal</html>');
+      mockPrayerService.getPersonalPrayers = vi.fn().mockResolvedValue([
+        {
+          id: '1',
+          title: 'T',
+          prayer_for: 'Me',
+          description: 'D',
+          requester: 'Ann',
+          status: 'current',
+          category: 'Health',
+          created_at: new Date().toISOString(),
+          updates: [],
+        },
+      ]);
+      const mockWindow = {
+        document: { open: vi.fn(), write: vi.fn(), close: vi.fn() },
+        focus: vi.fn(),
+        close: vi.fn(),
+      };
+      await service.downloadPrintablePersonalPrayerList(['Health'], mockWindow as never, 'all');
+      expect(mockWindow.document.write).toHaveBeenCalled();
+    });
+
+    it('loadBookletPromptSectionsOrdered returns sections from supabase', async () => {
+      const bookletSupabase = {
+        from: vi.fn((table: string) => {
+          if (table === 'prayer_types') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              order: vi.fn().mockResolvedValue({
+                data: [{ name: 'Praise', display_order: 1 }],
+                error: null,
+              }),
+            };
+          }
+          if (table === 'prayer_prompts') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              in: vi.fn().mockReturnThis(),
+              order: vi.fn().mockResolvedValue({
+                data: [{ type: 'Praise', title: 'Morning Praise' }],
+                error: null,
+              }),
+            };
+          }
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }),
+      };
+      const bookletService = createPrintService(
+        { client: bookletSupabase } as never,
+        mockPrayerService
+      );
+      const sections = await (
+        bookletService as unknown as {
+          loadBookletPromptSectionsOrdered: () => Promise<unknown[]>;
+        }
+      ).loadBookletPromptSectionsOrdered();
+      expect(sections).toHaveLength(1);
+    });
+
+  });
+
+  describe('private print helpers', () => {
+    let helperService: PrintService;
+
+    beforeEach(() => {
+      const createMockChain = () => ({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockResolvedValue({ data: [], error: null }),
+      });
+      helperService = createPrintService(
+        { client: { from: vi.fn(() => createMockChain()) } } as never,
+        { getPersonalPrayers: vi.fn() } as never
+      );
+    });
+
+    it('detects native Capacitor platforms', () => {
+      const capacitor = (window as { Capacitor?: { getPlatform: () => string } }).Capacitor;
+      (window as { Capacitor?: { getPlatform: () => string } }).Capacitor = {
+        getPlatform: () => 'ios',
+      };
+      expect((helperService as unknown as { isNativeApp: () => boolean }).isNativeApp()).toBe(true);
+      (window as { Capacitor?: { getPlatform: () => string } }).Capacitor = capacitor;
+    });
+
+    it('filters prayers by created date and updates in range', () => {
+      const now = new Date();
+      const old = new Date(now);
+      old.setMonth(old.getMonth() - 2);
+      const filtered = (
+        helperService as unknown as {
+          filterPrayersByPrintRange: <T extends { created_at: string }>(items: T[], range: TimeRange) => T[];
+        }
+      ).filterPrayersByPrintRange(
+        [
+          { created_at: now.toISOString(), updates: [{ created_at: now.toISOString() }] },
+          { created_at: old.toISOString(), updates: [] },
+        ],
+        'month'
+      );
+      expect(filtered).toHaveLength(1);
+    });
+
+    it('includes prayers when only an update is in range', () => {
+      const now = new Date();
+      const old = new Date(now);
+      old.setMonth(old.getMonth() - 4);
+      const filtered = (
+        helperService as unknown as {
+          filterPrayersByPrintRange: <
+            T extends { created_at: string; updates?: Array<{ created_at: string }> },
+          >(
+            items: T[],
+            range: TimeRange
+          ) => T[];
+        }
+      ).filterPrayersByPrintRange(
+        [{ created_at: old.toISOString(), updates: [{ created_at: now.toISOString() }] }],
+        'month'
+      );
+      expect(filtered).toHaveLength(1);
+    });
+
+    it('handles Capacitor getPlatform errors when detecting native app', () => {
+      (window as { Capacitor?: { getPlatform: () => string } }).Capacitor = {
+        getPlatform: () => {
+          throw new Error('platform unavailable');
+        },
+      };
+      expect((helperService as unknown as { isNativeApp: () => boolean }).isNativeApp()).toBe(
+        false
+      );
+      delete (window as { Capacitor?: unknown }).Capacitor;
+    });
+
+    it('shares HTML on native via deliverPrintHtml', async () => {
+      vi.spyOn(printNative, 'sharePrintHtmlOnNativeApp').mockResolvedValue(undefined);
+      (window as { Capacitor?: { getPlatform: () => string } }).Capacitor = {
+        getPlatform: () => 'ios',
+      };
+      await (
+        helperService as unknown as {
+          deliverPrintHtml: (
+            html: string,
+            filename: string,
+            title: string,
+            win: Window | null
+          ) => Promise<void>;
+        }
+      ).deliverPrintHtml('<html></html>', 'list.html', 'List', null);
+      expect(printNative.sharePrintHtmlOnNativeApp).toHaveBeenCalled();
+      delete (window as { Capacitor?: unknown }).Capacitor;
+    });
+
+    it('builds print range labels and escapes text', () => {
+      const labelAll = (
+        helperService as unknown as { printRangeDateLabel: (range: TimeRange, today: string) => string }
+      ).printRangeDateLabel('all', 'Jan 1, 2026');
+      expect(labelAll).toContain('All prayers');
+      const escaped = (
+        helperService as unknown as { escapePrintText: (value: string) => string }
+      ).escapePrintText('<script>"x"</script>');
+      expect(escaped).toBe('&lt;script&gt;&quot;x&quot;&lt;/script&gt;');
+    });
+
+    it('downloads html when popup is blocked', async () => {
+      global.window.open = vi.fn(() => null) as typeof window.open;
+      global.alert = vi.fn();
+      await (
+        helperService as unknown as {
+          deliverPrintHtml: (html: string, filename: string, title: string, win: Window | null) => Promise<void>;
+        }
+      ).deliverPrintHtml('<html></html>', 'prayers.html', 'Prayers', null);
+      expect(global.alert).toHaveBeenCalled();
+    });
+  });
+
+  describe('PrintService - branch coverage gaps', () => {
+    const noTenantContext = { getActiveTenant: () => null };
+
+    function serviceWithoutTenant(): PrintService {
+      return new PrintService(
+        mockSupabaseService,
+        mockPrayerService,
+        noTenantContext as never,
+        mockBrandingService as never,
+        mockEmailNotificationService as never,
+        mockToastService as never,
+        mockMemorizationService as never,
+        mockScriptureService as never
+      );
+    }
+
+    beforeEach(() => {
+      global.alert = vi.fn();
+      delete (window as { Capacitor?: unknown }).Capacitor;
+      global.URL.createObjectURL = vi.fn(() => 'blob:mock');
+      global.URL.revokeObjectURL = vi.fn();
+    });
+
+    it('requires tenant for shared prayer list download', async () => {
+      const win = { close: vi.fn() };
+      await serviceWithoutTenant().downloadPrintablePrayerList('month', win as never);
+      expect(global.alert).toHaveBeenCalledWith(
+        'Select an active organization to print shared prayers.'
+      );
+      expect(win.close).toHaveBeenCalled();
+    });
+
+    it('uses native share for shared prayer list on Capacitor', async () => {
+      vi.spyOn(
+        service as unknown as { generatePrintableHTML: () => string },
+        'generatePrintableHTML'
+      ).mockReturnValue('<html>list</html>');
+      vi.spyOn(
+        service as unknown as { isNativeApp: () => boolean },
+        'isNativeApp'
+      ).mockReturnValue(true);
+      const shareSpy = vi
+        .spyOn(
+          service as unknown as {
+            shareOnNativeApp: (html: string, filename: string, title: string) => Promise<void>;
+          },
+          'shareOnNativeApp'
+        )
+        .mockResolvedValue(undefined);
+      global.window.open = vi.fn();
+      await service.downloadPrintablePrayerList('month', null);
+      expect(shareSpy).toHaveBeenCalled();
+    });
+
+    it('requires tenant for prayer prompts download', async () => {
+      const win = { close: vi.fn() };
+      await serviceWithoutTenant().downloadPrintablePromptList([], win as never);
+      expect(global.alert).toHaveBeenCalledWith(
+        'Select an active organization to print prayer prompts.'
+      );
+      expect(win.close).toHaveBeenCalled();
+    });
+
+    it('uses native share for prayer prompts on Capacitor', async () => {
+      vi.spyOn(printNative, 'sharePrintHtmlOnNativeApp').mockResolvedValue(undefined);
+      (window as { Capacitor?: { getPlatform: () => string } }).Capacitor = {
+        getPlatform: () => 'ios',
+      };
+      mockSupabaseClient.from = vi.fn((table: string) => {
+        if (table === 'prayer_prompts') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({
+              data: [{ type: 'Daily', title: 'Morning', created_at: new Date().toISOString() }],
+              error: null,
+            }),
+          };
+        }
+        if (table === 'prayer_types') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          order: vi.fn().mockResolvedValue({ data: [], error: null }),
+        };
+      });
+      await service.downloadPrintablePromptList([], null);
+      expect(printNative.sharePrintHtmlOnNativeApp).toHaveBeenCalled();
+    });
+
+    it('downloads prompts when popup is blocked', async () => {
+      mockSupabaseClient.from = vi.fn((table: string) => {
+        if (table === 'prayer_prompts') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({
+              data: [{ type: 'Daily', title: 'Evening', created_at: new Date().toISOString() }],
+              error: null,
+            }),
+          };
+        }
+        if (table === 'prayer_types') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          order: vi.fn().mockResolvedValue({ data: [], error: null }),
+        };
+      });
+      global.window.open = vi.fn(() => null) as typeof window.open;
+      const mockLink = { href: '', download: '', click: vi.fn() };
+      global.document.createElement = vi.fn(() => mockLink as never);
+      global.document.body.appendChild = vi.fn();
+      global.document.body.removeChild = vi.fn();
+      await service.downloadPrintablePromptList([], null);
+      expect(mockLink.click).toHaveBeenCalled();
+      expect(global.alert).toHaveBeenCalledWith(
+        'Prayer prompts downloaded. Please open the file to view and print.'
+      );
+    });
+
+    it('alerts when personal prayers missing for selected categories', async () => {
+      mockPrayerService.getPersonalPrayers = vi.fn().mockResolvedValue([
+        {
+          id: '1',
+          title: 'T',
+          category: 'Health',
+          created_at: new Date().toISOString(),
+          updates: [],
+        },
+      ]);
+      const win = { close: vi.fn() };
+      await service.downloadPrintablePersonalPrayerList(['Work'], win as never);
+      expect(global.alert).toHaveBeenCalledWith('No personal prayers found in the selected categories.');
+      expect(win.close).toHaveBeenCalled();
+    });
+
+    it('sorts printable HTML by latest update activity', () => {
+      vi.spyOn(
+        service as unknown as { renderMarkdown: (content: string) => string },
+        'renderMarkdown'
+      ).mockImplementation((content) => content);
+      const older = new Date(Date.now() - 5 * 86400000).toISOString();
+      const newer = new Date().toISOString();
+      const html = (
+        service as unknown as { generatePrintableHTML: (p: Prayer[], r: TimeRange) => string }
+      ).generatePrintableHTML(
+        [
+          {
+            id: '1',
+            title: 'Older',
+            prayer_for: 'Older activity',
+            description: 'd',
+            requester: 'r',
+            status: 'current',
+            created_at: older,
+            prayer_updates: [{ id: 'u1', content: 'u', author: 'a', created_at: older }],
+          },
+          {
+            id: '2',
+            title: 'Newer',
+            prayer_for: 'Newer activity',
+            description: 'd',
+            requester: 'r',
+            status: 'current',
+            created_at: older,
+            prayer_updates: [{ id: 'u2', content: 'u', author: 'a', created_at: newer }],
+          },
+        ],
+        'month'
+      );
+      expect(html.indexOf('Newer activity')).toBeLessThan(html.indexOf('Older activity'));
+    });
+
+    it('loads booklet prayers from supabase and filters by update date', async () => {
+      const now = new Date();
+      const old = new Date(now);
+      old.setFullYear(old.getFullYear() - 2);
+      const bookletSupabase = {
+        from: vi.fn((table: string) => {
+          if (table === 'prayer_updates') {
+            return mockPrayerUpdatesChain({
+              data: [
+                {
+                  id: 'u1',
+                  prayer_id: '2',
+                  approval_status: 'approved',
+                  created_at: now.toISOString(),
+                },
+              ],
+              error: null,
+            });
+          }
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            neq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: '1',
+                  created_at: old.toISOString(),
+                  status: 'current',
+                  approval_status: 'approved',
+                },
+                {
+                  id: '2',
+                  created_at: old.toISOString(),
+                  status: 'current',
+                  approval_status: 'approved',
+                },
+              ],
+              error: null,
+            }),
+          };
+        }),
+      };
+      const bookletLoader = createPrintService(
+        { client: bookletSupabase } as never,
+        mockPrayerService
+      );
+      const prayers = await (
+        bookletLoader as unknown as {
+          loadPublicPrayersForBookletTimeRange: (
+            range: TimeRange,
+            win: Window | null
+          ) => Promise<unknown[] | null>;
+        }
+      ).loadPublicPrayersForBookletTimeRange('month', null);
+      expect(prayers).toHaveLength(1);
+      expect((prayers as { id: string }[])[0].id).toBe('2');
+    });
+
+    it('writes booklet HTML to popup when content exists', async () => {
+      const bookletWriter = createPrintService(mockSupabaseService, mockPrayerService);
+      vi.spyOn(printBookletHtml, 'buildSaddleStitchBookletHtml').mockReturnValue(
+        '<html>booklet</html>'
+      );
+      vi.spyOn(
+        bookletWriter as unknown as {
+          loadPublicPrayersForBookletTimeRange: () => Promise<unknown[] | null>;
+        },
+        'loadPublicPrayersForBookletTimeRange'
+      ).mockResolvedValue([
+        {
+          id: '1',
+          title: 'T',
+          prayer_for: 'Sam',
+          description: 'Body',
+          requester: 'Ann',
+          status: 'current',
+          created_at: new Date().toISOString(),
+        },
+      ]);
+      vi.spyOn(bookletWriter, 'loadBookletPromptSectionsOrdered').mockResolvedValue([]);
+      vi.spyOn(bookletWriter, 'loadBookletInsertPagesOrdered').mockResolvedValue([]);
+      vi.spyOn(
+        bookletWriter as unknown as { getBookletFrontCoverLogoUrl: () => string },
+        'getBookletFrontCoverLogoUrl'
+      ).mockReturnValue('');
+      vi.spyOn(
+        bookletWriter as unknown as { tryEmbedInfoQrAsDataUrl: () => Promise<string | null> },
+        'tryEmbedInfoQrAsDataUrl'
+      ).mockResolvedValue(null);
+      vi.spyOn(
+        bookletWriter as unknown as {
+          tryEmbedBookletAppIconAsDataUrl: () => Promise<string | null>;
+        },
+        'tryEmbedBookletAppIconAsDataUrl'
+      ).mockResolvedValue(null);
+      vi.spyOn(
+        bookletWriter as unknown as { resolveInfoQrImageSrc: () => string },
+        'resolveInfoQrImageSrc'
+      ).mockReturnValue('');
+      vi.spyOn(printNative, 'isPrintNativeApp').mockReturnValue(false);
+      const mockWindow = {
+        document: { open: vi.fn(), write: vi.fn(), close: vi.fn() },
+        focus: vi.fn(),
+        close: vi.fn(),
+      };
+      global.window.open = vi.fn(() => mockWindow as never) as typeof window.open;
+      await bookletWriter.downloadPrintableBookletPrayerList('month', mockWindow as never);
+      expect(mockWindow.document.write).toHaveBeenCalled();
+    });
+
+    it('downloads booklet file when popup is blocked', async () => {
+      const bookletWriter = createPrintService(mockSupabaseService, mockPrayerService);
+      vi.spyOn(printBookletHtml, 'buildSaddleStitchBookletHtml').mockReturnValue(
+        '<html>booklet</html>'
+      );
+      vi.spyOn(
+        bookletWriter as unknown as {
+          loadPublicPrayersForBookletTimeRange: () => Promise<unknown[] | null>;
+        },
+        'loadPublicPrayersForBookletTimeRange'
+      ).mockResolvedValue([
+        {
+          id: '1',
+          title: 'T',
+          prayer_for: 'Sam',
+          description: 'Body',
+          requester: 'Ann',
+          status: 'current',
+          created_at: new Date().toISOString(),
+        },
+      ]);
+      vi.spyOn(bookletWriter, 'loadBookletPromptSectionsOrdered').mockResolvedValue([]);
+      vi.spyOn(bookletWriter, 'loadBookletInsertPagesOrdered').mockResolvedValue([]);
+      vi.spyOn(
+        bookletWriter as unknown as { getBookletFrontCoverLogoUrl: () => string },
+        'getBookletFrontCoverLogoUrl'
+      ).mockReturnValue('');
+      vi.spyOn(
+        bookletWriter as unknown as { tryEmbedInfoQrAsDataUrl: () => Promise<string | null> },
+        'tryEmbedInfoQrAsDataUrl'
+      ).mockResolvedValue(null);
+      vi.spyOn(
+        bookletWriter as unknown as {
+          tryEmbedBookletAppIconAsDataUrl: () => Promise<string | null>;
+        },
+        'tryEmbedBookletAppIconAsDataUrl'
+      ).mockResolvedValue(null);
+      vi.spyOn(
+        bookletWriter as unknown as { resolveInfoQrImageSrc: () => string },
+        'resolveInfoQrImageSrc'
+      ).mockResolvedValue('');
+      vi.spyOn(printNative, 'isPrintNativeApp').mockReturnValue(false);
+      global.window.open = vi.fn(() => null) as typeof window.open;
+      const mockLink = { href: '', download: '', click: vi.fn() };
+      global.document.createElement = vi.fn(() => mockLink as never);
+      global.document.body.appendChild = vi.fn();
+      global.document.body.removeChild = vi.fn();
+      await bookletWriter.downloadPrintableBookletPrayerList('month', null);
+      expect(mockLink.click).toHaveBeenCalled();
+      expect(mockToastService.info).toHaveBeenCalledWith(
+        'Booklet download started. Open the file to print; use double-sided, flip on short edge, then fold and staple.'
+      );
+    });
+
+    it('handles group print errors', async () => {
+      const printable = {
+        id: 'g1',
+        title: 'Heal',
+        prayer_for: 'Sam',
+        description: 'Please pray',
+        requester: 'Ann',
+        status: 'current',
+        created_at: new Date().toISOString(),
+        updates: [],
+      };
+      vi.spyOn(
+        service as never as { filterPrayersByPrintRange: () => unknown[] },
+        'filterPrayersByPrintRange'
+      ).mockReturnValue([printable]);
+      vi.spyOn(
+        service as never as { generatePrintableHTML: () => string },
+        'generatePrintableHTML'
+      ).mockReturnValue('<html>group</html>');
+      vi.spyOn(
+        service as never as { deliverPrintHtml: () => Promise<void> },
+        'deliverPrintHtml'
+      ).mockRejectedValue(new Error('deliver failed'));
+      const win = { close: vi.fn() };
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      await service.downloadPrintableGroupPrayerList(
+        [printable as never],
+        'Elders',
+        'month',
+        win as never
+      );
+      expect(global.alert).toHaveBeenCalledWith(
+        'Failed to generate prayer list. Please try again.'
+      );
+      expect(win.close).toHaveBeenCalled();
+    });
+
+    it('fetches scripture text and downloads memorization cards when popup blocked', async () => {
+      mockMemorizationService.items = [
+        {
+          id: '1',
+          reference: 'John 3:16',
+          text: '',
+          translation: 'esv',
+        },
+      ];
+      mockMemorizationService.loadItems.mockResolvedValue(undefined);
+      mockScriptureService.getPassage.mockResolvedValue({
+        reference: 'John 3:16',
+        text: 'For God so loved the world',
+        translation: 'esv',
+      });
+      const memorizationService = createPrintService(
+        { client: mockSupabaseClient } as never,
+        mockPrayerService
+      );
+      global.window.open = vi.fn(() => null) as typeof window.open;
+      const mockLink = { href: '', download: '', click: vi.fn() };
+      global.document.createElement = vi.fn(() => mockLink as never);
+      global.document.body.appendChild = vi.fn();
+      global.document.body.removeChild = vi.fn();
+      await memorizationService.downloadPrintableMemorizationCards(null);
+      expect(mockScriptureService.getPassage).toHaveBeenCalled();
+      expect(mockLink.click).toHaveBeenCalled();
+      expect(mockToastService.info).toHaveBeenCalledWith(
+        'Verse cards downloaded. Open the file to view and print.'
+      );
     });
   });
 

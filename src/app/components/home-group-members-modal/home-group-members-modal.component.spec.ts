@@ -109,6 +109,66 @@ describe("HomeGroupMembersModalComponent", () => {
     expect(document.body.textContent).toContain("near the member limit");
   });
 
+  it("formats member labels and modal title", () => {
+    expect(fixture.componentInstance.title()).toContain("Family");
+    expect(
+      fixture.componentInstance.memberLabel({ ...memberRow, name: "Ann Lee" })
+    ).toContain("Ann Lee");
+  });
+
+  it("confirms leave and remove member flows", async () => {
+    fixture.componentInstance.requestLeaveGroup();
+    expect(fixture.componentInstance.confirmTitle()).toBe("Leave group?");
+    fixture.componentInstance.cancelConfirm();
+    expect(fixture.componentInstance.pendingConfirm).toBeNull();
+
+    fixture.componentInstance.requestRemoveMember(memberRow);
+    expect(fixture.componentInstance.confirmMessage()).toContain("member@example.com");
+    await fixture.componentInstance.onConfirmAction();
+    expect(prayerGroupService.removeMember).toHaveBeenCalledWith(
+      "g1",
+      "member@example.com"
+    );
+  });
+
+  it("sends invites when emails are valid", async () => {
+    fixture.componentInstance.emailsDraft = "new@example.com, other@example.com";
+    await fixture.componentInstance.sendInvites();
+    expect(prayerGroupService.inviteMembers).toHaveBeenCalled();
+  });
+
+  it("allows a non-owner member to leave the group", () => {
+    fixture.componentRef.setInput("currentUserEmail", "member@example.com");
+    fixture.componentRef.setInput("group", {
+      ...familyGroup,
+      my_role: "member",
+    });
+    fixture.detectChanges();
+    expect(fixture.componentInstance.isOwner()).toBe(false);
+    expect(fixture.componentInstance.canLeaveGroup()).toBe(true);
+  });
+
+  it("reports remaining invite slots from the cap", () => {
+    fixture.componentRef.setInput("maxMembersPerGroup", 5);
+    fixture.componentInstance.members = [memberRow, { ...memberRow, id: "m2" }];
+    expect(fixture.componentInstance.remainingInviteSlots()).toBe(3);
+  });
+
+  it("closes after a successful leave confirmation", async () => {
+    const close = vi.fn();
+    fixture.componentInstance.close.subscribe(close);
+    fixture.componentInstance.requestLeaveGroup();
+    await fixture.componentInstance.onConfirmAction();
+    expect(prayerGroupService.leaveGroup).toHaveBeenCalledWith("g1");
+    expect(close).toHaveBeenCalled();
+  });
+
+  it("clears state when modal closes", async () => {
+    fixture.componentRef.setInput("isOpen", false);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.members).toEqual([]);
+  });
+
   it("blocks invites when the member cap is reached", async () => {
     fixture.componentRef.setInput("maxMembersPerGroup", 1);
     fixture.componentInstance.members = [memberRow];

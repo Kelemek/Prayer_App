@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BehaviorSubject, Subject } from 'rxjs';
-import { AppIconBadgeService, type AppIconBadgeNativeApi } from './app-icon-badge.service';
+import {
+  AppIconBadgeService,
+  createCapawesomeAppIconBadgeNative,
+  type AppIconBadgeNativeApi,
+} from './app-icon-badge.service';
 import { BadgeService } from './badge.service';
 
 vi.mock('@capacitor/core', () => ({
@@ -8,6 +12,16 @@ vi.mock('@capacitor/core', () => ({
     isNativePlatform: vi.fn(() => false),
     getPlatform: vi.fn(() => 'web'),
   },
+}));
+
+const capawesomeBadge = vi.hoisted(() => ({
+  configure: vi.fn(async () => undefined),
+  requestPermissions: vi.fn(async () => undefined),
+  set: vi.fn(async () => undefined),
+}));
+
+vi.mock('@capawesome/capacitor-badge', () => ({
+  Badge: capawesomeBadge,
 }));
 
 function createNativeMock(isNative = true): AppIconBadgeNativeApi {
@@ -89,6 +103,38 @@ describe('AppIconBadgeService', () => {
     expect('clear' in native).toBe(false);
   });
 
+  it('syncs when badge functionality is toggled', async () => {
+    const native = createNativeMock(true);
+    service.setNativeApiForTests(native);
+    await service.start();
+    native.set.mockClear();
+    badgeService.getAllTenantDisplayedBadgeCount.mockReturnValue(0);
+    badgesEnabled$.next(false);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(native.set).toHaveBeenCalledWith(0);
+  });
+
+  it('logs when native set fails', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const native = createNativeMock(true);
+    native.set = vi.fn().mockRejectedValue(new Error('native fail'));
+    service.setNativeApiForTests(native);
+    await service.start();
+    await service.sync();
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('start is idempotent', async () => {
+    const native = createNativeMock(true);
+    service.setNativeApiForTests(native);
+    await service.start();
+    native.configure.mockClear();
+    await service.start();
+    expect(native.configure).not.toHaveBeenCalled();
+  });
+
   it('skips a no-op set when the count has not changed', async () => {
     const native = createNativeMock(true);
     service.setNativeApiForTests(native);
@@ -96,5 +142,33 @@ describe('AppIconBadgeService', () => {
     native.set.mockClear();
     await service.sync();
     expect(native.set).not.toHaveBeenCalled();
+  });
+
+  it('logs when native configure fails during start', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const native = createNativeMock(true);
+    native.configure = vi.fn().mockRejectedValue(new Error('configure fail'));
+    service.setNativeApiForTests(native);
+    await service.start();
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+});
+
+describe('createCapawesomeAppIconBadgeNative', () => {
+  it('delegates configure, permissions, and set to Capawesome Badge', async () => {
+    capawesomeBadge.configure.mockClear();
+    capawesomeBadge.requestPermissions.mockClear();
+    capawesomeBadge.set.mockClear();
+    const api = createCapawesomeAppIconBadgeNative();
+    await api.configure({ persist: true, autoClear: false });
+    await api.requestPermissions();
+    await api.set(3);
+    expect(capawesomeBadge.configure).toHaveBeenCalledWith({
+      persist: true,
+      autoClear: false,
+    });
+    expect(capawesomeBadge.requestPermissions).toHaveBeenCalled();
+    expect(capawesomeBadge.set).toHaveBeenCalledWith({ count: 3 });
   });
 });

@@ -84,4 +84,20 @@ describe("HomeChurchDemoPanelComponent", () => {
     button.click();
     expect(emitSpy).toHaveBeenCalled();
   });
+
+  it("uses generic church preview copy for personal, memorize, groups, and planning center", () => {
+    for (const filter of [
+      "personal",
+      "memorize",
+      "groups",
+      "planning_center_list",
+    ] as const) {
+      fixture.componentRef.setInput("activeFilter", filter);
+      fixture.detectChanges();
+      expect(fixture.componentInstance.heading).toBe("Church preview");
+      expect(fixture.componentInstance.body).toContain(
+        "Join a church or take a feature tour"
+      );
+    }
+  });
 });

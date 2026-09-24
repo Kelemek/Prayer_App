@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   mapHomeFilterToContentType,
   PresentationSettingsService,
@@ -19,6 +19,10 @@ describe('mapHomeFilterToContentType', () => {
   it('maps memorize using defaultPrayerView', () => {
     expect(mapHomeFilterToContentType('memorize', 'current')).toBe('prayers');
     expect(mapHomeFilterToContentType('memorize', 'personal')).toBe('personal');
+  });
+
+  it('maps archived to prayers', () => {
+    expect(mapHomeFilterToContentType('archived')).toBe('prayers');
   });
 });
 
@@ -147,5 +151,49 @@ describe('PresentationSettingsService', () => {
       JSON.stringify({ contentType: 'invalid', randomize: 'yes' })
     );
     expect(service.load()).toEqual(service.getDefaults());
+  });
+
+  it('load returns defaults when validation fails on optional fields', () => {
+    const base = {
+      contentTypes: ['prayers'],
+      randomize: false,
+      smartMode: true,
+      displayDuration: 10,
+      loop: true,
+      timeFilter: 'all',
+      statusFilters: { current: true, answered: true, archived: false },
+      prayerTimerMinutes: 10,
+    };
+    localStorage.setItem(
+      'prayer_app_presentation_settings',
+      JSON.stringify({ ...base, smartMode: 'yes' })
+    );
+    expect(service.load()).toEqual(service.getDefaults());
+
+    localStorage.setItem(
+      'prayer_app_presentation_settings',
+      JSON.stringify({ ...base, displayDuration: 2 })
+    );
+    expect(service.load()).toEqual(service.getDefaults());
+
+    localStorage.setItem(
+      'prayer_app_presentation_settings',
+      JSON.stringify({ ...base, loop: 'yes' })
+    );
+    expect(service.load()).toEqual(service.getDefaults());
+
+    localStorage.setItem(
+      'prayer_app_presentation_settings',
+      JSON.stringify({ ...base, prayerTimerMinutes: 0 })
+    );
+    expect(service.load()).toEqual(service.getDefaults());
+  });
+
+  it('save ignores quota errors', () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota');
+    });
+    service.save(service.getDefaults());
+    setItem.mockRestore();
   });
 });

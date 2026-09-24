@@ -70,4 +70,28 @@ describe('UserSettingsBillingSectionComponent', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Billing & invoices');
   });
+
+  it('opens billing portal when the button is clicked', async () => {
+    userSubscription.hasProBillingPortal.mockReturnValue(true);
+    proCheckout.startBillingPortal.mockResolvedValue('https://billing.example');
+    proCheckout.openBillingUrl.mockResolvedValue(undefined);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const button = fixture.nativeElement.querySelector('button') as HTMLButtonElement;
+    button.click();
+    await fixture.whenStable();
+
+    expect(proCheckout.startBillingPortal).toHaveBeenCalled();
+    expect(proCheckout.openBillingUrl).toHaveBeenCalledWith('https://billing.example');
+  });
+
+  it('shows an error when billing portal url is missing', async () => {
+    userSubscription.hasProBillingPortal.mockReturnValue(true);
+    proCheckout.startBillingPortal.mockResolvedValue(null);
+    const component = fixture.componentInstance;
+    await component.onBillingPortal();
+    expect(toast.error).toHaveBeenCalled();
+  });
 });

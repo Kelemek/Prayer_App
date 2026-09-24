@@ -66,4 +66,32 @@ describe('UserSubscriptionService', () => {
     expect(service.isPracticeModeAllowed('recite')).toBe(false);
     expect(service.hasProBillingPortal()).toBe(true);
   });
+
+  it('refreshCapabilities resets when email is missing', async () => {
+    const noEmail = new UserSubscriptionService(
+      { client: { rpc, from } } as unknown as SupabaseService,
+      { getEmail: vi.fn().mockResolvedValue(null) } as unknown as AuthIdentityService
+    );
+    await noEmail.refreshCapabilities();
+    expect(noEmail.hasProBillingPortal()).toBe(false);
+    expect(noEmail.getPracticeModes()).toContain('type');
+  });
+
+  it('registerFreeUser upserts and refreshes', async () => {
+    rpc.mockResolvedValue({ error: null });
+    rpc.mockImplementation((name: string) => {
+      if (name === 'upsert_user_subscription_free') {
+        return Promise.resolve({ error: null });
+      }
+      if (name === 'get_user_group_limits') {
+        return Promise.resolve({ data: null, error: null });
+      }
+      if (name === 'get_user_memorization_practice_modes') {
+        return Promise.resolve({ data: null, error: null });
+      }
+      return Promise.resolve({ data: null, error: null });
+    });
+    await expect(service.registerFreeUser('User')).resolves.toBe(true);
+    expect(rpc).toHaveBeenCalledWith('upsert_user_subscription_free', expect.any(Object));
+  });
 });

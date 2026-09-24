@@ -169,4 +169,44 @@ describe('MemorizationReciteSettingsComponent', () => {
     );
     expect(component.sttProvider).toBe('browser');
   });
+
+  it('formats usage helpers', () => {
+    expect(component.formatMinutes(120)).toBe('2.0 min');
+    expect(component.formatMinutes(600)).toBe('10 min');
+    expect(component.formatMinutes(30)).toBe('0.5 min');
+    expect(component.formatCost(0.456)).toBe('$0.46');
+    expect(component.formatWhisperRate('whisper-1')).toContain('$');
+  });
+
+  it('toggles enabled state from click handler', () => {
+    component.reciteEnabled = false;
+    const event = { preventDefault: vi.fn(), stopPropagation: vi.fn() } as unknown as MouseEvent;
+    component.onEnabledClick(event);
+    expect(component.reciteEnabled).toBe(true);
+    expect(event.preventDefault).toHaveBeenCalled();
+  });
+
+  it('submitSettings requires active tenant', async () => {
+    mockTenantContext.getActiveTenant.mockReturnValue(null);
+    await component.submitSettings();
+    expect(component.errorMessage).toContain('No active organization');
+  });
+
+  it('refreshUsage no-ops without tenant or email', async () => {
+    mockTenantContext.getActiveTenant.mockReturnValue(null);
+    await component.refreshUsage();
+    expect(mockReciteSettings.fetchUsageSummaryForAdmin).not.toHaveBeenCalled();
+  });
+
+  it('ngOnDestroy completes subscription', () => {
+    component.ngOnDestroy();
+    expect(component).toBeTruthy();
+  });
+
+  it('resets when tenant cleared from stream', () => {
+    component.reciteEnabled = true;
+    mockTenantContext.getActiveTenant.mockReturnValue(null);
+    mockTenantContext.activeTenant$.next(null);
+    expect(component.reciteEnabled).toBe(false);
+  });
 });

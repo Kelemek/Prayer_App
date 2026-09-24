@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { remindersForPrayerCard } from './prayer-card-reminders';
+import {
+  ensurePrayerCardItemRemindersLoaded,
+  loadPrayerCardItemReminders,
+  remindersForPrayerCard,
+} from './prayer-card-reminders';
 import type { PrayerItemReminderService } from '../services/prayer-item-reminder.service';
 import type { UserSessionService } from '../services/user-session.service';
 import type { PrayerItemReminder } from '../types/prayer-item-reminder';
@@ -62,6 +66,19 @@ describe('remindersForPrayerCard', () => {
     expect(rows[0]?.prayer_kind).toBe('prompt');
   });
 
+  it('returns no rows when prayerId is empty', () => {
+    expect(
+      remindersForPrayerCard(
+        reminderService,
+        userSessionService,
+        [],
+        '',
+        false,
+        false
+      )
+    ).toEqual([]);
+  });
+
   it('does not show prompt reminders when isPrompt is false', () => {
     const rows = remindersForPrayerCard(
       reminderService,
@@ -75,3 +92,46 @@ describe('remindersForPrayerCard', () => {
     expect(rows).toHaveLength(0);
   });
 });
+
+describe('loadPrayerCardItemReminders', () => {
+  it('retries once when the first load fails', async () => {
+    const ensureLoaded = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce([makeReminder()]);
+    const rows = await loadPrayerCardItemReminders({
+      ensureLoaded,
+    } as unknown as PrayerItemReminderService);
+    expect(ensureLoaded).toHaveBeenCalledTimes(2);
+    expect(rows).toHaveLength(1);
+  });
+
+  it('returns an empty list when retry also fails', async () => {
+    const ensureLoaded = vi.fn().mockRejectedValue(new Error('fail'));
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const rows = await loadPrayerCardItemReminders({
+      ensureLoaded,
+    } as unknown as PrayerItemReminderService);
+    expect(rows).toEqual([]);
+    consoleSpy.mockRestore();
+  });
+});
+
+describe('ensurePrayerCardItemRemindersLoaded', () => {
+  it('reads reminders from session when already cached', async () => {
+    const sessionService = {
+      getCurrentSession: () => ({
+        email: 'user@example.com',
+        prayerItemReminders: [makeReminder({ id: 'cached' })],
+      }),
+    } as unknown as UserSessionService;
+    const ensureLoaded = vi.fn();
+    const rows = await ensurePrayerCardItemRemindersLoaded(
+      sessionService,
+      { ensureLoaded } as unknown as PrayerItemReminderService
+    );
+    expect(rows[0]?.id).toBe('cached');
+    expect(ensureLoaded).not.toHaveBeenCalled();
+  });
+});
+

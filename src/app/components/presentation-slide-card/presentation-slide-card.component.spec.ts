@@ -75,4 +75,58 @@ describe('PresentationSlideCardComponent', () => {
 
     expect(removed).toEqual(['prompt-1']);
   });
+
+  it('emits itemMutated when updates are added or edited', async () => {
+    const cardActions = {
+      addUpdateForCard: vi.fn().mockResolvedValue(true),
+      deleteUpdateForCard: vi.fn().mockResolvedValue(true),
+    } as any;
+    const component = new PresentationSlideCardComponent(
+      cardActions,
+      { deletionsAllowed: 'everyone', updatesAllowed: 'everyone' } as any,
+      { markForCheck: vi.fn() } as any
+    );
+    component.prayer = { id: 'p1' } as any;
+    const mutated: string[] = [];
+    component.itemMutated.subscribe((id) => mutated.push(id));
+
+    await component.onAddUpdate({ text: 'Update' } as any);
+    await component.onDeleteUpdate({ updateId: 'u1' } as any);
+    expect(mutated).toEqual(['p1', 'p1']);
+  });
+
+  it('opens personal edit modals and emits mutation on save', () => {
+    const cdr = { markForCheck: vi.fn() };
+    const component = new PresentationSlideCardComponent(
+      { isAdmin: false } as any,
+      { deletionsAllowed: 'everyone', updatesAllowed: 'everyone' } as any,
+      cdr as any
+    );
+    const mutated: string[] = [];
+    component.itemMutated.subscribe((id) => mutated.push(id));
+
+    component.openEditPersonalUpdate({
+      update: { id: 'u1', text: 'x' } as any,
+      prayerId: 'p1',
+    });
+    expect(component.showEditPersonalUpdate).toBe(true);
+    component.onPersonalUpdateSaved();
+    expect(mutated).toEqual(['p1']);
+
+    component.openEditPersonalPrayer({ id: 'p2' } as any);
+    component.onPersonalPrayerSaved();
+    expect(mutated).toEqual(['p1', 'p2']);
+  });
+
+  it('no-ops delete prayer when slide has no prayer', async () => {
+    const cardActions = { deleteCardForCard: vi.fn() } as any;
+    const component = new PresentationSlideCardComponent(
+      cardActions,
+      { deletionsAllowed: 'everyone', updatesAllowed: 'everyone' } as any,
+      { markForCheck: vi.fn() } as any
+    );
+    component.onDeletePrayer();
+    await Promise.resolve();
+    expect(cardActions.deleteCardForCard).not.toHaveBeenCalled();
+  });
 });

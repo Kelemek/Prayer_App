@@ -198,4 +198,23 @@ describe('AppRoutes', () => {
       expect(loaded).toBeDefined();
     }
   }, 10000);
+
+  it('should lazy load unsubscribe component successfully', async () => {
+    const route = routes.find((r) => r.path === 'unsubscribe');
+    const loaded = await route?.loadComponent?.();
+    expect(loaded).toBeDefined();
+  }, 10000);
+
+  it('should lazy load tenant claim component for join route', async () => {
+    const route = routes.find((r) => r.path === 'join/:token');
+    expect(route?.canActivate).toContain(siteAuthGuard);
+    const loaded = await route?.loadComponent?.();
+    expect(loaded).toBeDefined();
+  }, 10000);
+
+  it('should lazy load church-setup component successfully', async () => {
+    const route = routes.find((r) => r.path === 'church-setup');
+    const loaded = await route?.loadComponent?.();
+    expect(loaded).toBeDefined();
+  }, 10000);
 });

@@ -62,4 +62,68 @@ describe('ChurchCheckoutService', () => {
     expect(await service().startChurchCheckout()).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('reports native stripe checkout UI', () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    expect(service().isNativeStripeCheckoutUi()).toBe(true);
+  });
+
+  it('returns null when session token is missing', async () => {
+    getSession.mockResolvedValue({ data: { session: null } });
+    expect(await service().startChurchCheckout()).toBeNull();
+    expect(await service().startBillingPortal('tenant-1')).toBeNull();
+  });
+
+  it('returns setup_pending when checkout responds with 409', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({ code: 'setup_pending' }),
+      })
+    );
+    expect(await service().startChurchCheckout('tenant-1', 'slug')).toBe(
+      'setup_pending'
+    );
+  });
+
+  it('returns null when checkout HTTP fails', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: 'stripe down' }),
+      })
+    );
+    expect(await service().startChurchCheckout()).toBeNull();
+    errSpy.mockRestore();
+  });
+
+  it('includes tenant return origin when slug is provided', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ url: 'https://checkout.stripe.com/cs' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await service().startChurchCheckout('tenant-1', 'my-church');
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body);
+    expect(body.tenant_id).toBe('tenant-1');
+    expect(body.return_origin).toBeTruthy();
+  });
+
+  it('returns null when billing portal HTTP fails', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: 'portal fail' }),
+      })
+    );
+    expect(await service().startBillingPortal('tenant-1')).toBeNull();
+    errSpy.mockRestore();
+  });
 });

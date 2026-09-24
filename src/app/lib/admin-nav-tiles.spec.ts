@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { adminNavTileCount, ADMIN_NAV_TILES } from './admin-nav-tiles';
 import type { AdminData } from '../services/admin-data.service';
+import type { AdminTab } from './admin-pending-queues';
 
 function stubAdminData(overrides: Partial<AdminData> = {}): AdminData {
   return {
@@ -41,5 +42,15 @@ describe('admin-nav-tiles', () => {
     expect(adminNavTileCount('deletions', data, 0)).toBe(2);
     expect(adminNavTileCount('accounts', data, 0)).toBe(1);
     expect(adminNavTileCount('settings', data, 0)).toBe(0);
+  });
+
+  it('handles null admin data', () => {
+    expect(adminNavTileCount('deletions', null, 0)).toBe(0);
+    expect(adminNavTileCount('accounts', undefined, 0)).toBe(0);
+    expect(adminNavTileCount('prayers', null, 7)).toBe(7);
+  });
+
+  it('adminNavTileCount exhaustiveness default is unreachable at runtime for valid tabs', () => {
+    expect(adminNavTileCount('bogus' as AdminTab, null, 0)).toBe('bogus');
   });
 });

@@ -6,9 +6,23 @@ import {
 import {
   createLocalStorageAllTenantInAppBadgeHydrateDeps,
   hydrateMissingTenantInAppBadgeCaches,
+  loadInAppBadgePrayerItems,
+  loadInAppBadgePromptItems,
+  loadInAppBadgeReceipts,
   mergeReceiptsIntoReadState,
   receiptsToReadState,
+  tenantHasInAppBadgeItemCache,
 } from './all-tenant-in-app-badge-hydrate';
+
+vi.mock('./prayer-community-db', () => ({
+  fetchApprovedSharedPrayers: vi.fn(),
+  fetchApprovedSharedPrayerUpdates: vi.fn(),
+}));
+
+import {
+  fetchApprovedSharedPrayerUpdates,
+  fetchApprovedSharedPrayers,
+} from './prayer-community-db';
 
 describe('all-tenant in-app badge hydrate', () => {
   it('maps receipt rows into read-state buckets', () => {
@@ -107,6 +121,52 @@ describe('all-tenant in-app badge hydrate', () => {
     expect(hydrated).toEqual(['good']);
   });
 
+  it('loadInAppBadgeReceipts calls badge read receipts rpc', async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{ item_kind: 'prayer', item_id: 'p1' }],
+      error: null,
+    });
+    const rows = await loadInAppBadgeReceipts(
+      { rpc } as never,
+      'tenant-1',
+      'user@example.com'
+    );
+    expect(rows).toHaveLength(1);
+    expect(rpc).toHaveBeenCalledWith('get_badge_read_receipts', {
+      p_tenant_id: 'tenant-1',
+      p_user_email: 'user@example.com',
+    });
+  });
+
+  it('returns no tenants when email is blank', async () => {
+    const hydrated = await hydrateMissingTenantInAppBadgeCaches({
+      tenantIds: ['a'],
+      email: '   ',
+      hasPrayerCache: () => false,
+      hasPromptCache: () => false,
+      readStoredReadState: () => emptyInAppBadgeReadState(),
+      writeReadState: vi.fn(),
+      writePrayerCache: vi.fn(),
+      writePromptCache: vi.fn(),
+      loadReceipts: async () => [],
+      loadPrayers: async () => [],
+      loadPrompts: async () => [],
+    });
+    expect(hydrated).toEqual([]);
+  });
+
+  it('tenantHasInAppBadgeItemCache checks list and snapshot keys', () => {
+    const storage = {
+      getItem: vi.fn((key: string) =>
+        key.includes('badge_items') ? '[]' : null
+      ),
+    };
+    expect(tenantHasInAppBadgeItemCache(storage, 't1', 'prayers')).toBe(true);
+    expect(tenantHasInAppBadgeItemCache({ getItem: () => null }, 't1', 'prompts')).toBe(
+      false
+    );
+  });
+
   it('writes badge-owned snapshots instead of list-page caches', async () => {
     const storage = new Map<string, string>();
     const deps = createLocalStorageAllTenantInAppBadgeHydrateDeps({
@@ -145,5 +205,82 @@ describe('all-tenant in-app badge hydrate', () => {
     expect(
       storage.get(inAppBadgeItemSnapshotKey('other', 'prompts'))
     ).toContain('pr-snap');
+  });
+
+  it('loadInAppBadgeReceipts throws on rpc error', async () => {
+    await expect(
+      loadInAppBadgeReceipts(
+        {
+          rpc: async () => ({ data: null, error: new Error('rpc fail') }),
+        } as never,
+        'tenant-1',
+        'user@example.com'
+      )
+    ).rejects.toThrow('rpc fail');
+  });
+
+  it('loadInAppBadgePrayerItems maps approved prayers and updates', async () => {
+    vi.mocked(fetchApprovedSharedPrayers).mockResolvedValue({
+      prayersData: [{ id: 'p1', prayer_for: 'Ann', status: 'current', updates: [] }],
+      error: null,
+    });
+    vi.mocked(fetchApprovedSharedPrayerUpdates).mockResolvedValue({
+      updatesData: [],
+      error: null,
+    });
+    const items = await loadInAppBadgePrayerItems({} as never, 'tenant-1');
+    expect(items.map((i) => i.id)).toEqual(['p1']);
+  });
+
+  it('loadInAppBadgePromptItems filters inactive prompt types', async () => {
+    const client = {
+      from: (table: string) => {
+        if (table === 'prayer_types') {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: async () => ({ data: [{ name: 'Morning' }], error: null }),
+              }),
+            }),
+          };
+        }
+        return {
+          select: () => ({
+            eq: async () => ({
+              data: [
+                { id: 'pr1', type: 'Morning' },
+                { id: 'pr2', type: 'Evening' },
+              ],
+              error: null,
+            }),
+          }),
+        };
+      },
+    };
+    const items = await loadInAppBadgePromptItems(client as never, 'tenant-1');
+    expect(items).toEqual([{ id: 'pr1' }]);
+  });
+
+  it('loadInAppBadgePromptItems returns [] when client tables are missing', async () => {
+    const items = await loadInAppBadgePromptItems({ from: () => ({}) } as never, 't');
+    expect(items).toEqual([]);
+  });
+
+  it('createLocalStorageAllTenantInAppBadgeHydrateDeps wires storage helpers', async () => {
+    const storage = new Map<string, string>();
+    const deps = createLocalStorageAllTenantInAppBadgeHydrateDeps({
+      storage: {
+        getItem: (key) => storage.get(key) ?? null,
+        setItem: (key, value) => storage.set(key, value),
+      },
+      client: { rpc: async () => ({ data: [], error: null }) } as never,
+      email: ' User@Example.com ',
+      tenantIds: ['t1'],
+      skipTenantId: 'active',
+    });
+    expect(deps.email).toBe('user@example.com');
+    expect(deps.hasPrayerCache('t1')).toBe(false);
+    deps.writeReadState('t1', emptyInAppBadgeReadState());
+    expect(storage.size).toBeGreaterThan(0);
   });
 });

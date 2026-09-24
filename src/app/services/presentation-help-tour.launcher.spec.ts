@@ -52,4 +52,63 @@ describe("PresentationHelpTourLauncher", () => {
     expect(helpDriverTourService.startPresentationModeTour).toHaveBeenCalled();
     vi.useRealTimers();
   });
+
+  it("ignores invalid session payloads", () => {
+    sessionStorage.setItem(PRESENTATION_HELP_TOUR_SESSION_KEY, "not-json");
+    launcher.maybeStartFromSession(host, cdr);
+    expect(helpDriverTourService.startPresentationModeTour).not.toHaveBeenCalled();
+
+    sessionStorage.setItem(PRESENTATION_HELP_TOUR_SESSION_KEY, JSON.stringify({}));
+    launcher.maybeStartFromSession(host, cdr);
+    expect(helpDriverTourService.startPresentationModeTour).not.toHaveBeenCalled();
+  });
+
+  it("wires tour callbacks for settings and full guided tour queue", () => {
+    vi.useFakeTimers();
+    helpDriverTourService.startPresentationModeTour = vi.fn((_intro, callbacks) => {
+      callbacks.openSettings();
+      callbacks.closeSettings();
+      callbacks.onFullGuidedTourInterrupted();
+      callbacks.persistFullGuidedTourQueue();
+    });
+    helpDriverTourService.clearFullGuidedTourNavigationState = vi.fn();
+    helpDriverTourService.clearFullGuidedTourProgress = vi.fn();
+
+    sessionStorage.setItem(
+      PRESENTATION_HELP_TOUR_SESSION_KEY,
+      JSON.stringify({
+        title: "Presentation",
+        fullGuidedTourFromFullChain: true,
+        fullGuidedTourRemainingSectionIds: ["a", "b"],
+        fullGuidedTourTotalSteps: 3,
+        fullGuidedTourResumeStartGlobalSectionIndex: 1,
+      })
+    );
+
+    launcher.maybeStartFromSession(host, cdr);
+    vi.advanceTimersByTime(400);
+
+    expect(host.showSettings).toBe(false);
+    expect(helpDriverTourService.clearFullGuidedTourProgress).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("persists closing sentinel when full guided tour has no remaining sections", () => {
+    vi.useFakeTimers();
+    helpDriverTourService.startPresentationModeTour = vi.fn((_intro, callbacks) => {
+      callbacks.persistFullGuidedTourQueue();
+    });
+    sessionStorage.setItem(
+      PRESENTATION_HELP_TOUR_SESSION_KEY,
+      JSON.stringify({
+        title: "Presentation",
+        fullGuidedTourFromFullChain: true,
+        fullGuidedTourRemainingSectionIds: [],
+      })
+    );
+    launcher.maybeStartFromSession(host, cdr);
+    vi.advanceTimersByTime(400);
+    vi.useRealTimers();
+    expect(helpDriverTourService.startPresentationModeTour).toHaveBeenCalled();
+  });
 });

@@ -21,6 +21,7 @@ describe('UserSettingsPrintSectionComponent', () => {
   let mockTenantContext: { getActiveTenant: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
+    delete (window as { Capacitor?: unknown }).Capacitor;
     mockPrintService = {
       downloadPrintablePrayerList: vi.fn(() => Promise.resolve()),
       downloadPrintablePromptList: vi.fn(() => Promise.resolve()),
@@ -236,6 +237,190 @@ describe('UserSettingsPrintSectionComponent', () => {
       },
     });
     expect(component.printOptionsModal).toBeNull();
+  });
+
+  it('exposes modal titles and action labels for each wizard step', () => {
+    component.openPrintOptionsModal('verses');
+    expect(component.printOptionsModalTitle).toBe('Verse card format');
+
+    component.openPrintOptionsModal('prayers');
+    expect(component.printOptionsModalTitle).toBe('What to print');
+
+    component.choosePrayerPrintSource('church');
+    expect(component.printOptionsModalTitle).toBe('Time period');
+    expect(component.prayerPrintActionLabel).toBe('Print Church');
+    expect(component.prayerPrintActionDisabled).toBe(false);
+
+    component.prayerPrintSource = 'groups';
+    expect(component.prayerPrintActionLabel).toBe('Print Group');
+    expect(component.prayerPrintActionDisabled).toBe(true);
+    component.selectedPrintGroupId = 'group-1';
+    expect(component.prayerPrintActionDisabled).toBe(false);
+  });
+
+  it('backs out of the wizard from source and timeframe steps', () => {
+    component.openPrintOptionsModal('prayers');
+    component.choosePrayerPrintSource('personal');
+    component.backPrayerPrintStep();
+    expect(component.prayerPrintStep).toBe('source');
+
+    component.choosePrayerPrintSource('church');
+    component.backPrayerPrintStep();
+    expect(component.prayerPrintStep).toBe('source');
+
+    component.backPrayerPrintStep();
+    expect(component.printOptionsModal).toBeNull();
+  });
+
+  it('no-ops closePrintOptionsModal when already closed', () => {
+    component.printOptionsModal = null;
+    component.closePrintOptionsModal();
+    expect(component.printOptionsModal).toBeNull();
+  });
+
+  it('tracks busy state across print actions', () => {
+    component.isPrinting = true;
+    expect(component.prayersTileBusy).toBe(true);
+    component.isPrinting = false;
+    component.isPrintingPrompts = true;
+    expect(component.prayersTileBusy).toBe(true);
+  });
+
+  it('clears prompt type selection with selectAllPromptTypes', () => {
+    component.selectedPromptTypes = ['Healing'];
+    component.selectAllPromptTypes();
+    expect(component.selectedPromptTypes).toEqual([]);
+  });
+
+  it('sets memorization sheet style', () => {
+    component.setMemorizationSheetStyle('foldable');
+    expect(component.memorizationSheetStyle).toBe('foldable');
+  });
+
+  it('backs from timeframe to the prior wizard step', () => {
+    component.openPrintOptionsModal('prayers');
+    component.choosePrayerPrintSource('prompts');
+    component.prayerPrintStep = 'timeframe';
+    component.backPrayerPrintStep();
+    expect(component.prayerPrintStep).toBe('source');
+
+    component.choosePrayerPrintSource('groups');
+    component.selectedPrintGroupId = 'group-1';
+    component.prayerPrintStep = 'timeframe';
+    component.backPrayerPrintStep();
+    expect(component.prayerPrintStep).toBe('group');
+  });
+
+  it('choosePrintPersonalCategory clears selection when null', () => {
+    component.choosePrintPersonalCategory(null);
+    expect(component.selectedPersonalCategories).toEqual([]);
+    expect(component.prayerPrintStep).toBe('timeframe');
+  });
+
+  it('skips handlePrintGroup when no group is selected', async () => {
+    component.selectedPrintGroupId = null;
+    await component.handlePrintGroup();
+    expect(mockPrintService.downloadPrintableGroupPrayerList).not.toHaveBeenCalled();
+  });
+
+  it('prints prompts and personal flows from the modal wizard', async () => {
+    component.openPrintOptionsModal('prayers');
+    component.choosePrayerPrintSource('prompts');
+    component.selectedPromptTypes = ['Healing'];
+    await component.printFromOptionsModal();
+    expect(mockPrintService.downloadPrintablePromptList).toHaveBeenCalled();
+
+    component.openPrintOptionsModal('prayers');
+    component.choosePrayerPrintSource('personal');
+    component.selectedPersonalCategories = [];
+    await component.printFromOptionsModal();
+    expect(mockPrintService.downloadPrintablePersonalPrayerList).toHaveBeenCalledWith(
+      undefined,
+      expect.anything(),
+      'week'
+    );
+  });
+
+  it('loads groups and personal categories when opened', async () => {
+    component.isOpen = true;
+    component.ngOnChanges({
+      isOpen: {
+        currentValue: true,
+        previousValue: false,
+        firstChange: false,
+        isFirstChange: () => false,
+      },
+    });
+    await Promise.resolve();
+    expect(component.printGroups).toEqual([{ id: 'group-1', name: 'Youth' }]);
+    expect(component.personalCategories).toEqual(['Health']);
+  });
+
+  it('handles load failures for groups and categories', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockPrayerGroupService.loadMyGroups.mockRejectedValueOnce(new Error('groups'));
+    mockPrayerService.getUniqueCategoriesForUser.mockRejectedValueOnce(
+      new Error('cats')
+    );
+    component.isOpen = true;
+    component.ngOnChanges({
+      isOpen: {
+        currentValue: true,
+        previousValue: false,
+        firstChange: false,
+        isFirstChange: () => false,
+      },
+    });
+    await Promise.resolve();
+    expect(component.printGroups).toEqual([]);
+    consoleSpy.mockRestore();
+  });
+
+  it('clears prompt types when there is no active tenant', async () => {
+    mockTenantContext.getActiveTenant.mockReturnValue(null);
+    component.isOpen = true;
+    component.ngOnChanges({
+      isOpen: {
+        currentValue: true,
+        previousValue: false,
+        firstChange: false,
+        isFirstChange: () => false,
+      },
+    });
+    await Promise.resolve();
+    expect(component.promptTypes).toEqual([]);
+  });
+
+  it('detects native Capacitor platforms for print windows', async () => {
+    (window as { Capacitor?: { getPlatform: () => string } }).Capacitor = {
+      getPlatform: () => 'ios',
+    };
+    const openSpy = vi.spyOn(window, 'open');
+    await component.handlePrint();
+    expect(openSpy).not.toHaveBeenCalled();
+    openSpy.mockRestore();
+    delete (window as { Capacitor?: unknown }).Capacitor;
+  });
+
+  it('closes print windows when memorization printing fails', async () => {
+    const close = vi.fn();
+    const doc = {
+      open: vi.fn(),
+      write: vi.fn(),
+      close: vi.fn(),
+    };
+    window.open = vi.fn(
+      () => ({ close, focus: vi.fn(), document: doc }) as unknown as Window
+    );
+    mockPrintService.downloadPrintableMemorizationCards.mockRejectedValueOnce(
+      new Error('mem')
+    );
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await component.handlePrintMemorizationCards();
+
+    expect(close).toHaveBeenCalled();
+    consoleSpy.mockRestore();
   });
 
   it('closes print window when prayer print fails', async () => {

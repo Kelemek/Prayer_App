@@ -87,4 +87,56 @@ describe('prayer-community-load-wire', () => {
     expect(setAllPrayersInMemory).toHaveBeenCalled();
     expect(setCache).toHaveBeenCalled();
   });
+
+  it('runCommunityPrayerCatalogLoad applies error fallback when fetch fails', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fetchApprovedFromDb = vi.fn().mockRejectedValue(new Error('network'));
+    const setError = vi.fn();
+    const emitErrorToast = vi.fn();
+    const setAllPrayersInMemory = vi.fn();
+
+    await runCommunityPrayerCatalogLoad({
+      readCache: () => null,
+      setFetchInFlight: vi.fn(),
+      markDbFetchComplete: vi.fn(),
+      setAllPrayersInMemory,
+      setCache: vi.fn(),
+      reapplyFilters: vi.fn(),
+      setLoading: vi.fn(),
+      setError,
+      refreshBadges: vi.fn(),
+      emitErrorToast,
+      getLastErrorToastTime: () => 0,
+      loadErrorToastCooldownMs: 60_000,
+      isFetchInFlight: () => false,
+      fetchApprovedFromDb,
+    });
+
+    expect(setError).toHaveBeenCalled();
+    expect(emitErrorToast).toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+
+  it('runCommunityPrayerCatalogLoad shows loading on initial load', async () => {
+    const setLoading = vi.fn();
+    const fetchApprovedFromDb = vi.fn().mockResolvedValue([]);
+    await runCommunityPrayerCatalogLoad({
+      readCache: () => null,
+      setFetchInFlight: vi.fn(),
+      markDbFetchComplete: vi.fn(),
+      setAllPrayersInMemory: vi.fn(),
+      setCache: vi.fn(),
+      reapplyFilters: vi.fn(),
+      setLoading,
+      setError: vi.fn(),
+      refreshBadges: vi.fn(),
+      emitErrorToast: vi.fn(),
+      getLastErrorToastTime: () => 0,
+      loadErrorToastCooldownMs: 60_000,
+      isFetchInFlight: () => false,
+      fetchApprovedFromDb,
+    });
+    expect(setLoading).toHaveBeenCalledWith(true);
+    expect(setLoading).toHaveBeenCalledWith(false);
+  });
 });

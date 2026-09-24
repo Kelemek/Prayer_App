@@ -108,7 +108,8 @@ const makeMocks = () => {
 
   const toastService: any = {
     success: vi.fn(),
-    error: vi.fn()
+    error: vi.fn(),
+    info: vi.fn(),
   };
 
   const analyticsService: any = {
@@ -4099,6 +4100,231 @@ describe('HomeComponent', () => {
       expect(mocks.proCheckoutService.startProCheckout).not.toHaveBeenCalled();
     });
 
+    it('covers scroll helpers, virtual scroll layout, and group getters', () => {
+      mocks = makeMocks();
+      mocks.userSubscriptionService.getGroupLimits.mockReturnValue({
+        can_create_group: false,
+        max_groups_owned: 5,
+        groups_owned: 4,
+        max_members_per_group: 10,
+        individual_plan_tier: 'free',
+        is_church_member: false,
+      });
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService,
+        mocks.tenantPermissionService,
+        mocks.tenantContextService
+      );
+
+      expect(comp.usesVirtualScrollMainLayout('prompts')).toBe(true);
+      expect(comp.usesVirtualScrollMainLayout('current')).toBe(true);
+      expect(comp.usesVirtualScrollMainLayout('personal')).toBe(false);
+
+      const scrollPrayer = vi.fn().mockReturnValue(true);
+      const scrollPrompt = vi.fn().mockReturnValue(false);
+      (comp as any).prayerContent = {
+        scrollPrayerIntoView: scrollPrayer,
+        scrollPromptIntoView: scrollPrompt,
+      };
+      expect(comp.scrollHomePrayerIntoView('p1')).toBe(true);
+      expect(comp.scrollHomePromptIntoView('pr1')).toBe(false);
+
+      comp.prayerGroups = [{ id: 'g1', name: 'Family' } as any];
+      comp.selectedGroupId = 'g1';
+      expect(comp.selectedGroupName).toBe('Family');
+      expect(comp.showGroupProUpgrade).toBe(true);
+      expect(comp.showGroupsNearQuotaBanner).toBe(true);
+      expect(comp.groupsNearQuotaShowProCta).toBe(true);
+      expect(comp.maxGroupsOwned).toBe(5);
+
+      comp.selectGroupFilterMode('answered');
+      expect(comp.groupFilterMode).toBe('answered');
+
+      mocks.userSessionService.getUserEmail.mockReturnValue('User@Test.com');
+      expect(comp.currentUserEmail).toBe('user@test.com');
+    });
+
+    it('loadAdminSettings defaults policies when tenant is missing', async () => {
+      mocks = makeMocks();
+      mocks.tenantContextService.getActiveTenant.mockReturnValue(null);
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService,
+        mocks.tenantPermissionService,
+        mocks.tenantContextService
+      );
+      await comp.loadAdminSettings();
+      expect(comp.deletionsAllowed).toBe('everyone');
+      expect(comp.updatesAllowed).toBe('everyone');
+    });
+
+    it('onChurchOnboardingCompleted and onMembersGroupOpened update UI state', () => {
+      mocks = makeMocks();
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      comp.showChurchOnboardingModal = true;
+      comp.onChurchOnboardingCompleted();
+      expect(comp.showChurchOnboardingModal).toBe(false);
+
+      comp.membersGroupIdToOpen = 'g1';
+      comp.onMembersGroupOpened();
+      expect(comp.membersGroupIdToOpen).toBeNull();
+    });
+
+    it('openCreateGroup is blocked when the user cannot create groups', () => {
+      mocks = makeMocks();
+      mocks.tenantPermissionService.canCreatePrayerGroups.mockReturnValue(false);
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService,
+        mocks.tenantPermissionService
+      );
+      comp.openCreateGroup();
+      expect(comp.showGroupEditor).toBe(false);
+    });
+
+    it('onCopyChurchSetupLink copies the setup url', async () => {
+      mocks = makeMocks();
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText },
+      });
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      comp.lastSignupLink = 'https://app.example/setup';
+      await comp.onCopyChurchSetupLink();
+      expect(writeText).toHaveBeenCalledWith('https://app.example/setup');
+      expect(mocks.toastService.success).toHaveBeenCalledWith('Setup link copied');
+    });
+
+    it('exposes admin access from tenant permissions', () => {
+      mocks = makeMocks();
+      mocks.tenantPermissionService.canAccessAdmin.mockReturnValue(true);
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService,
+        mocks.tenantPermissionService,
+        mocks.tenantContextService
+      );
+      expect(comp.canAccessAdminFeatures).toBe(true);
+    });
+
+    it('refreshes catalog and deep links when list state changes', () => {
+      mocks = makeMocks();
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      const catalogSpy = vi.spyOn(comp, 'refreshHomeCatalog');
+      const deepLinkSpy = vi.spyOn(comp, 'retryPendingPrayerDeepLink');
+
+      comp.onListStateChanged();
+      comp.onMemberPrayersLoaded();
+
+      expect(catalogSpy).toHaveBeenCalledTimes(2);
+      expect(deepLinkSpy).toHaveBeenCalledTimes(2);
+      comp.markForCheck();
+      comp.detectChanges();
+      expect(mocks.cdr.markForCheck).toHaveBeenCalled();
+      expect(mocks.cdr.detectChanges).toHaveBeenCalled();
+    });
+
+    it('reconciles selected group when groups$ emits without the current id', () => {
+      mocks = makeMocks();
+      const groups$ = new BehaviorSubject<
+        Array<{ id: string; name: string }>
+      >([{ id: 'gone', name: 'Old Group' }]);
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      comp.prayerGroupService.groups$ = groups$.asObservable();
+      comp.selectedGroupId = 'gone';
+      comp.groupFilterMode = 'named';
+      comp.ngOnInit();
+      groups$.next([{ id: 'g-new', name: 'New Group' }]);
+      expect(comp.selectedGroupId).toBe('g-new');
+      expect(comp.groupFilterMode).toBe('total');
+    });
+
     it('copies the setup link when native email send fails', async () => {
       mocks = makeMocks();
       vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
@@ -4134,6 +4360,314 @@ describe('HomeComponent', () => {
         'https://app.example/church-setup?signup_token=tok'
       );
       expect(comp.lastSignupLink).toContain('/church-setup');
+    });
+
+    it('defaults selectedGroupId when groups$ emits and none is selected', () => {
+      mocks = makeMocks();
+      const groups$ = new BehaviorSubject<Array<{ id: string; name: string }>>([]);
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      comp.selectedGroupId = null;
+      comp.prayerGroupService.groups$ = groups$.asObservable();
+      comp.ngOnInit();
+      groups$.next([{ id: 'g-default', name: 'Default' }]);
+      expect(comp.selectedGroupId).toBe('g-default');
+    });
+
+    it('applyInitialView switches to memorize and clears the query param', () => {
+      mocks = makeMocks();
+      mocks.route.snapshot.queryParamMap.get = vi.fn((key: string) =>
+        key === 'filter' ? 'memorize' : null
+      );
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      comp.applyInitialView({ defaultPrayerView: 'current' } as never);
+      expect(comp.activeFilter).toBe('memorize');
+      expect(comp.viewReady).toBe(true);
+      expect(mocks.router.navigate).toHaveBeenCalled();
+    });
+
+    it('openCreateGroup opens the editor when creation is allowed', () => {
+      mocks = makeMocks();
+      mocks.tenantPermissionService.canCreatePrayerGroups.mockReturnValue(true);
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService,
+        mocks.tenantPermissionService
+      );
+      comp.openCreateGroup();
+      expect(comp.showGroupEditor).toBe(true);
+    });
+
+    it('onCreateGroup selects the new group and opens members', async () => {
+      mocks = makeMocks();
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      vi.spyOn(comp, 'loadPrayerGroups').mockResolvedValue(undefined);
+      comp.prayerGroupService.createGroup = vi.fn().mockResolvedValue({
+        id: 'new-g',
+        name: 'New',
+      });
+      await comp.onCreateGroup('New');
+      expect(comp.selectedGroupId).toBe('new-g');
+      expect(comp.groupFilterMode).toBe('named');
+      expect(comp.membersGroupIdToOpen).toBe('new-g');
+      expect(comp.showGroupEditor).toBe(false);
+    });
+
+    it('onSelectGroup loads prayers for the named group', async () => {
+      mocks = makeMocks();
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      const loadSpy = vi.spyOn(comp, 'loadSelectedGroupPrayers').mockResolvedValue(undefined);
+      await comp.onSelectGroup('g2');
+      expect(comp.selectedGroupId).toBe('g2');
+      expect(comp.groupFilterMode).toBe('named');
+      expect(loadSpy).toHaveBeenCalled();
+    });
+
+    it('onGroupEditorChanged resets selection when the group was removed', async () => {
+      mocks = makeMocks();
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      comp.selectedGroupId = 'gone';
+      comp.groupFilterMode = 'named';
+      comp.prayerGroups = [{ id: 'stay', name: 'Stay' } as never];
+      vi.spyOn(comp, 'loadPrayerGroups').mockImplementation(async () => {
+        comp.prayerGroups = [{ id: 'stay', name: 'Stay' } as never];
+      });
+      await comp.onGroupEditorChanged();
+      expect(comp.selectedGroupId).toBe('stay');
+      expect(comp.groupFilterMode).toBe('total');
+    });
+
+    it('openPrayerRequest requires connectivity', () => {
+      mocks = makeMocks();
+      mocks.connectivity.requireOnline.mockReturnValue(false);
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService,
+        undefined,
+        undefined,
+        undefined,
+        mocks.connectivity
+      );
+      comp.openPrayerRequest();
+      expect(comp.modals.showPrayerForm).toBe(false);
+    });
+
+    it('finishPayFirstTour navigates to church setup on web', async () => {
+      mocks = makeMocks();
+      vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      await (comp as unknown as { finishPayFirstTour(kind: 'church' | 'pro'): Promise<void> }).finishPayFirstTour(
+        'church'
+      );
+      expect(mocks.router.navigateByUrl).toHaveBeenCalledWith('/church-setup');
+    });
+
+    it('finishPayFirstTour emails signup link on native success', async () => {
+      mocks = makeMocks();
+      vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+      mocks.billingSignup.sendSignupEmail.mockResolvedValue({
+        url: 'https://app.example/pro',
+      });
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      await (comp as unknown as { finishPayFirstTour(kind: 'church' | 'pro'): Promise<void> }).finishPayFirstTour(
+        'pro'
+      );
+      expect(mocks.billingSignup.sendSignupEmail).toHaveBeenCalledWith('pro');
+      expect(comp.lastSignupLink).toBe('https://app.example/pro');
+    });
+
+    it('handlePayFirstHomeEntry surfaces checkout cancel toast', async () => {
+      mocks = makeMocks();
+      mocks.route.snapshot.queryParamMap.get = vi.fn((key: string) =>
+        key === 'pro_checkout' ? 'cancel' : null
+      );
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      await (comp as unknown as { handlePayFirstHomeEntry(): Promise<void> }).handlePayFirstHomeEntry();
+      expect(mocks.toastService.info).toHaveBeenCalledWith('Pro checkout was canceled.');
+    });
+
+    it('onCopyChurchSetupLink shows url when clipboard write fails', async () => {
+      mocks = makeMocks();
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          writeText: vi.fn().mockRejectedValue(new Error('denied')),
+        },
+      });
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      comp.lastSignupLink = 'https://app.example/fallback';
+      await comp.onCopyChurchSetupLink();
+      expect(mocks.toastService.info).toHaveBeenCalledWith('https://app.example/fallback');
+    });
+
+    it('onOpenChurchSetupWeb navigates on web', async () => {
+      mocks = makeMocks();
+      vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      await comp.onOpenChurchSetupWeb();
+      expect(mocks.router.navigateByUrl).toHaveBeenCalledWith('/church-setup');
+    });
+
+    it('exposes prayer form and memorize keyboard bridge accessors', () => {
+      mocks = makeMocks();
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+      const form = { id: 'form' };
+      const input = document.createElement('input');
+      (comp as any).modalsHost = { prayerFormComp: form };
+      (comp as any).memorizeKeyboardBridge = { nativeElement: input };
+      expect(comp.getPrayerFormComp()).toBe(form);
+      expect(comp.getMemorizeKeyboardBridge()).toBe(input);
+      expect(comp.groupsOwned).toBe(0);
+      expect(comp.showMemberProUpgrade).toBe(true);
     });
   });
 });

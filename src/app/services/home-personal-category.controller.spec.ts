@@ -59,7 +59,7 @@ describe("HomePersonalCategoryController", () => {
     };
     personalCategoryColorService = {
       getColorsSnapshot: vi.fn(() => ({})),
-      renameCategory: vi.fn(),
+      renameCategory: vi.fn().mockResolvedValue(true),
       deleteCategory: vi.fn().mockResolvedValue(true),
       loadColors: vi.fn().mockResolvedValue({}),
     };
@@ -69,6 +69,23 @@ describe("HomePersonalCategoryController", () => {
       personalCategoryColorService: personalCategoryColorService as any,
       toastService: toastService as any,
     });
+  });
+
+  it("counts current and answered personal prayers", () => {
+    const prayers = [
+      { id: "1", category: "Health" } as PrayerRequest,
+      { id: "2", category: "Answered" } as PrayerRequest,
+    ];
+    expect(controller.personalCurrentPrayersCount(prayers)).toBe(1);
+    expect(controller.personalAnsweredPrayersCount(prayers)).toBe(1);
+  });
+
+  it("allows prayer reorder only in single named category mode", () => {
+    controller.personalCategoryFilterMode = "named";
+    controller.selectedPersonalCategories = ["Health"];
+    expect(controller.canReorderPersonalPrayers).toBe(true);
+    controller.selectedPersonalCategories = ["Health", "Family"];
+    expect(controller.canReorderPersonalPrayers).toBe(false);
   });
 
   it("togglePersonalCategory clears selection when already chosen", () => {
@@ -203,6 +220,27 @@ describe("HomePersonalCategoryController", () => {
   });
 
   describe("personal category overflow rename and delete", () => {
+    it("saves a renamed category and closes the modal", async () => {
+      controller.openRenamePersonalCategoryModal("Health");
+      controller.selectedPersonalCategories = ["Health"];
+      prayerService.renamePersonalCategory.mockResolvedValue(true);
+      personalCategoryColorService.renameCategory.mockResolvedValue(true);
+
+      await controller.saveRenamedPersonalCategory("Wellness");
+
+      expect(toastService.success).toHaveBeenCalledWith("Category renamed.");
+      expect(controller.showRenamePersonalCategory).toBe(false);
+      expect(controller.selectedPersonalCategories).toEqual(["Wellness"]);
+    });
+
+    it("cancels an in-flight rename when the modal closes", async () => {
+      controller.openRenamePersonalCategoryModal("Health");
+      controller.isRenamingPersonalCategory = true;
+      controller.closeRenamePersonalCategoryModal();
+      expect(controller.isRenamingPersonalCategory).toBe(false);
+      expect(controller.showRenamePersonalCategory).toBe(false);
+    });
+
     it("opens rename modal for the selected category", () => {
       controller.openRenamePersonalCategoryModal("Health");
 
@@ -274,6 +312,20 @@ describe("HomePersonalCategoryController", () => {
       expect(host.onFilterStateChanged).toHaveBeenCalled();
     });
 
+    it("toasts when the category name is empty", async () => {
+      prayerService.createPersonalCategory.mockResolvedValue({
+        ok: false,
+        reason: "empty",
+      });
+
+      await controller.createPersonalCategory({
+        name: "   ",
+        color: "#2563EB",
+      });
+
+      expect(toastService.error).toHaveBeenCalledWith("Enter a category name.");
+    });
+
     it("toasts on duplicate and leaves filter mode unchanged", async () => {
       controller.personalCategoryFilterMode = "current";
       prayerService.createPersonalCategory.mockResolvedValue({
@@ -302,6 +354,16 @@ describe("HomePersonalCategoryController", () => {
 
       expect(controller.showCreatePersonalCategory).toBe(false);
     });
+  });
+
+  it("applyReturnContext restores personal filter state", () => {
+    controller.applyReturnContext({
+      personalCategoryFilterMode: "named",
+      selectedPersonalCategories: ["Health"],
+    });
+    expect(controller.personalCategoryFilterMode).toBe("named");
+    expect(controller.selectedPersonalCategories).toEqual(["Health"]);
+    expect(host.onFilterStateChanged).toHaveBeenCalled();
   });
 
   describe("category drag scroll lock", () => {

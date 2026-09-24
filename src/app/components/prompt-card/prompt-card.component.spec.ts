@@ -1248,6 +1248,70 @@ describe('PromptCardComponent - Core Logic', () => {
       component.isAdmin = true;
       expect(component.overflowItems.map((item) => item.id)).toEqual(['reminder', 'delete']);
     });
+
+    it('exposes layout getters and prayed-for display helpers', () => {
+      component.variant = 'presentation';
+      expect(component.variantLayout).toBeDefined();
+      expect(component.headerInsetClasses).toBeTruthy();
+      expect(component.metaHeaderTextSmClasses).toBeTruthy();
+      expect(component.shellClasses().length).toBeGreaterThan(0);
+      component.prompt.prayed_for_count = 3;
+      expect(component.showPrayedForBadge()).toBe(true);
+      expect(component.prayedForCountLabel()).toBe('Prayers');
+    });
+
+    it('resets modal state when prompt id changes', () => {
+      component.ngOnInit();
+      component.showPrayForModal = true;
+      component.showReminderModal = true;
+      component.ngOnChanges({
+        prompt: {
+          previousValue: component.prompt,
+          currentValue: { ...component.prompt, id: 'prompt-2' },
+          firstChange: false,
+          isFirstChange: () => false,
+        },
+      });
+      expect(component.showPrayForModal).toBe(false);
+      expect(component.showReminderModal).toBe(false);
+    });
+
+    it('runs pray-for flow and emits count updates', async () => {
+      localStorage.removeItem('prayer_encouragement_modal_do_not_show');
+      const emitSpy = vi.spyOn(component.prayedForCountChange, 'emit');
+      component.onPrayForClick();
+      expect(component.showPrayForModal).toBe(true);
+      component.onConfirmPrayForFromModal();
+      await Promise.resolve();
+      expect(emitSpy).toHaveBeenCalledWith({ promptId: 'prompt-1', count: 5 });
+    });
+
+    it('skips pray-for modal when do-not-show is stored', async () => {
+      localStorage.setItem('prayer_encouragement_modal_do_not_show', 'true');
+      component.onPrayForClick();
+      expect(component.showPrayForModal).toBe(false);
+      localStorage.removeItem('prayer_encouragement_modal_do_not_show');
+    });
+
+    it('opens reminder modal and tracks reminder changes', async () => {
+      const prayerItemReminderService = TestBed.inject(PrayerItemReminderService) as {
+        remindersForPrayer: ReturnType<typeof vi.fn>;
+      };
+      prayerItemReminderService.remindersForPrayer = vi.fn(() => [{ id: 'r1' }]);
+      component.openReminderModal();
+      expect(component.showReminderModal).toBe(true);
+      component.onCloseReminderModal();
+      expect(component.showReminderModal).toBe(false);
+      component.onPromptRemindersChanged([{ id: 'r1', prayerId: 'prompt-1' } as never]);
+      expect(component.hasReminderForPrompt()).toBe(true);
+      await component.prepareOverflowMenuOpen();
+    });
+
+    it('overflow reminder item opens reminder modal', () => {
+      const reminderItem = component.overflowItems.find((item) => item.id === 'reminder');
+      reminderItem?.onSelect?.();
+      expect(component.showReminderModal).toBe(true);
+    });
   });
 });
 

@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
+const capacitorIsNativeMock = vi.fn(() => false);
+vi.mock('@capacitor/core', () => ({
+  Capacitor: {
+    isNativePlatform: () => capacitorIsNativeMock(),
+  },
+}));
+
 if (typeof window === 'undefined') {
   (globalThis as any).window = {
     location: {
@@ -27,7 +34,7 @@ if (typeof document === 'undefined') {
 import { AppShellComponent } from './app-shell.component';
 import { Router, NavigationEnd } from '@angular/router';
 import { Injector, NgZone } from '@angular/core';
-import { Subject } from 'rxjs';
+import { Subject, of } from 'rxjs';
 
 const decodeAccountCodeMock = vi.fn();
 const supabaseDirectQueryMock = vi.fn();
@@ -130,6 +137,8 @@ describe('AppShellComponent', () => {
 
   beforeEach(() => {
     sessionStorage.clear();
+    capacitorIsNativeMock.mockReturnValue(false);
+    document.documentElement.classList.remove('native-app');
     // Create mock router with events subject
     routerEventsSubject = new Subject();
     mockRouter = {
@@ -1315,6 +1324,212 @@ describe('AppShellComponent', () => {
 
       expect(toastShowToastMock).toHaveBeenCalledWith('Failed to process approval', 'error');
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/login']);
+    });
+
+    it('shows an error when approving without tenant_id on the request', async () => {
+      supabaseDirectQueryMock.mockResolvedValue({
+        data: [{ ...createRequest(), tenant_id: null }],
+        error: null,
+      });
+      window.location.search = '?code=account_approve_test';
+
+      await callHandler();
+
+      expect(toastShowToastMock).toHaveBeenCalledWith(
+        'Cannot approve: missing organization on request',
+        'error'
+      );
+      expect(window.history.replaceState).toHaveBeenCalled();
+    });
+
+    it('still approves when the approval email fails to send', async () => {
+      emailSendEmailMock.mockRejectedValueOnce(new Error('smtp down'));
+
+      await callHandler();
+
+      expect(toastShowToastMock).toHaveBeenCalledWith(
+        expect.stringContaining('Account approved'),
+        'success'
+      );
+    });
+
+    it('still denies when the denial email fails to send', async () => {
+      decodeAccountCodeMock.mockReturnValue({
+        email: 'deny@example.com',
+        type: 'deny',
+      });
+      emailSendEmailMock.mockRejectedValueOnce(new Error('smtp down'));
+
+      await callHandler('account_deny_test');
+
+      expect(toastShowToastMock).toHaveBeenCalledWith(
+        expect.stringContaining('Account denied'),
+        'info'
+      );
+    });
+
+    it('waits for admin auth to finish loading before checking session', async () => {
+      adminIsLoadingMock.mockReturnValue(true);
+      mockInjector.get = vi.fn((token) => {
+        const name = typeof token?.name === 'string' ? token.name : '';
+        if (name === 'AdminAuthService') {
+          return {
+            getIsAdmin: () => adminGetIsAdminMock(),
+            getUser: () => adminGetUserMock(),
+            isLoading: () => adminIsLoadingMock(),
+            loading$: of(false),
+          };
+        }
+        if (name === 'ApprovalLinksService') {
+          return approvalLinksServiceInstance;
+        }
+        if (name === 'SupabaseService') {
+          return supabaseServiceInstance;
+        }
+        if (name === 'EmailNotificationService') {
+          return emailServiceInstance;
+        }
+        if (name === 'ToastService') {
+          return toastServiceInstance;
+        }
+        return {};
+      });
+
+      await callHandler();
+
+      expect(supabaseDirectQueryMock).toHaveBeenCalled();
+    });
+  });
+
+  describe('native platform and push refresh', () => {
+    it('tags the document root on native platforms', () => {
+      capacitorIsNativeMock.mockReturnValue(true);
+      document.documentElement.classList.remove('native-app');
+
+      const shell = new AppShellComponent(
+        mockRouter,
+        mockInjector,
+        mockNgZone,
+        mockPosthog as never
+      );
+      expect(shell).toBeTruthy();
+      expect(document.documentElement.classList.contains('native-app')).toBe(
+        true
+      );
+    });
+
+    it('refreshes prayers when a prayer push notification is tapped', async () => {
+      const notificationEvents$ = new Subject<{
+        source: string;
+        type: string;
+        data?: Record<string, string>;
+      }>();
+      const loadPrayers = vi.fn().mockResolvedValue(undefined);
+      mockInjector.get = vi.fn((token) => {
+        const name = typeof token?.name === 'string' ? token.name : '';
+        if (name === 'CapacitorService') {
+          return { notificationEvents$ };
+        }
+        if (name === 'PrayerService') {
+          return { loadPrayers };
+        }
+        if (name === 'AdminAuthService') {
+          return {
+            getIsAdmin: () => false,
+            getUser: () => null,
+            isLoading: () => false,
+            loading$: of(false),
+          };
+        }
+        return {};
+      });
+
+      component.ngOnInit();
+      await vi.waitFor(() => {
+        notificationEvents$.next({
+          source: 'tap',
+          type: 'prayer_update',
+        });
+        expect(loadPrayers).toHaveBeenCalledWith(false);
+      });
+    });
+
+    it('navigates to admin when an admin push target is tapped', async () => {
+      const notificationEvents$ = new Subject<{
+        source: string;
+        type: string;
+        data?: Record<string, string>;
+      }>();
+      const fetchAdminData = vi.fn().mockResolvedValue(undefined);
+      mockInjector.get = vi.fn((token) => {
+        const name = typeof token?.name === 'string' ? token.name : '';
+        if (name === 'CapacitorService') {
+          return { notificationEvents$ };
+        }
+        if (name === 'PrayerService') {
+          return { loadPrayers: vi.fn() };
+        }
+        if (name === 'AdminDataService') {
+          return { fetchAdminData };
+        }
+        if (name === 'AdminAuthService') {
+          return {
+            getIsAdmin: () => false,
+            getUser: () => null,
+            isLoading: () => false,
+            loading$: of(false),
+          };
+        }
+        return {};
+      });
+
+      component.ngOnInit();
+      await vi.waitFor(() => {
+        notificationEvents$.next({
+          source: 'tap',
+          type: 'other',
+          data: { target: 'admin' },
+        });
+        expect(fetchAdminData).toHaveBeenCalledWith(false, true);
+        expect(mockRouter.navigate).toHaveBeenCalledWith(['/admin']);
+      });
+    });
+
+    it('navigates to memorize filter when a memorization reminder is tapped', async () => {
+      const notificationEvents$ = new Subject<{
+        source: string;
+        type: string;
+        data?: Record<string, string>;
+      }>();
+      mockInjector.get = vi.fn((token) => {
+        const name = typeof token?.name === 'string' ? token.name : '';
+        if (name === 'CapacitorService') {
+          return { notificationEvents$ };
+        }
+        if (name === 'PrayerService') {
+          return { loadPrayers: vi.fn() };
+        }
+        if (name === 'AdminAuthService') {
+          return {
+            getIsAdmin: () => false,
+            getUser: () => null,
+            isLoading: () => false,
+            loading$: of(false),
+          };
+        }
+        return {};
+      });
+
+      component.ngOnInit();
+      await vi.waitFor(() => {
+        notificationEvents$.next({
+          source: 'tap',
+          type: 'memorization_reminder',
+        });
+        expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], {
+          queryParams: { filter: 'memorize' },
+        });
+      });
     });
   });
 

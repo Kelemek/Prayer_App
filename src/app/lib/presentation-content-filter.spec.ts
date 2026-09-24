@@ -1,66 +1,120 @@
-import { describe, expect, it } from "vitest";
-import type { PrayerRequest } from "../services/prayer.service";
+import { describe, expect, it } from 'vitest';
 import {
   filterCommunityPrayersByStatus,
+  filterPersonalPrayersByCategories,
   filterPersonalPrayersByStatus,
-} from "./presentation-content-filter";
+  filterPresentationCommunityPrayers,
+  filterPresentationPersonalPrayers,
+  filterPromptsByCategories,
+  sortPrayersByLatestActivity,
+} from './presentation-content-filter';
+import type { PrayerRequest } from '../services/prayer.service';
 
-function communityPrayer(
-  id: string,
-  status: PrayerRequest["status"]
-): PrayerRequest {
+function prayer(overrides: Partial<PrayerRequest> = {}): PrayerRequest {
   return {
-    id,
-    status,
-    title: id,
-    description: "",
-    requester: "",
-    prayer_for: "",
-    created_at: "2026-01-01T00:00:00.000Z",
-    updated_at: "2026-01-01T00:00:00.000Z",
-    date_requested: "2026-01-01T00:00:00.000Z",
-    updates: [],
-  };
+    id: 'p1',
+    title: 'T',
+    description: '',
+    status: 'current',
+    prayer_for: 'X',
+    requester: 'Y',
+    email: 'e@example.com',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+    ...overrides,
+  } as PrayerRequest;
 }
 
-describe("filterCommunityPrayersByStatus", () => {
-  const prayers = [
-    communityPrayer("c", "current"),
-    communityPrayer("a", "answered"),
-    communityPrayer("ar", "archived"),
-  ];
-
-  it("returns only archived prayers when archived is the sole active flag", () => {
-    const result = filterCommunityPrayersByStatus(prayers, {
-      current: false,
-      answered: false,
-      archived: true,
-    });
-    expect(result.map((p) => p.id)).toEqual(["ar"]);
+describe('presentation-content-filter', () => {
+  it('filterCommunityPrayersByStatus respects toggles', () => {
+    const list = [
+      prayer({ id: 'c', status: 'current' }),
+      prayer({ id: 'a', status: 'answered' }),
+    ];
+    expect(
+      filterCommunityPrayersByStatus(list, {
+        current: true,
+        answered: false,
+        archived: false,
+      }).map((p) => p.id)
+    ).toEqual(['c']);
+    expect(filterCommunityPrayersByStatus(list, { current: false, answered: false, archived: false })).toEqual(
+      list
+    );
   });
 
-  it("returns all prayers when every status flag is false", () => {
-    const result = filterCommunityPrayersByStatus(prayers, {
-      current: false,
-      answered: false,
-      archived: false,
-    });
-    expect(result).toHaveLength(3);
+  it('filterPersonalPrayersByStatus splits answered category', () => {
+    const list = [
+      prayer({ id: '1', category: 'Health' }),
+      prayer({ id: '2', category: 'Answered' }),
+    ];
+    expect(
+      filterPersonalPrayersByStatus(list, {
+        current: true,
+        answered: false,
+        archived: false,
+      }).map((p) => p.id)
+    ).toEqual(['1']);
+    expect(
+      filterPersonalPrayersByStatus(list, {
+        current: false,
+        answered: true,
+        archived: false,
+      }).map((p) => p.id)
+    ).toEqual(['2']);
   });
-});
 
-describe("filterPersonalPrayersByStatus", () => {
-  it("ignores archived flag (personal uses category Answered)", () => {
-    const prayers = [
-      { ...communityPrayer("p1", "current"), category: "Morning" },
-      { ...communityPrayer("p2", "current"), category: "Answered" },
-    ] as PrayerRequest[];
+  it('sortPrayersByLatestActivity orders by newest update', () => {
+    const sorted = sortPrayersByLatestActivity([
+      prayer({
+        id: 'old',
+        created_at: '2020-01-01T00:00:00Z',
+        updates: [],
+      }),
+      prayer({
+        id: 'new',
+        created_at: '2020-01-01T00:00:00Z',
+        updates: [{ id: 'u1', content: 'x', author: 'a', created_at: '2024-06-01T00:00:00Z' }],
+      }),
+    ]);
+    expect(sorted[0]?.id).toBe('new');
+  });
 
-    const result = filterPersonalPrayersByStatus(prayers, {
-      current: false,
-      answered: false,
-      archived: true,
-    });
-    expect(result).toHaveLength(0);
+  it('filterPresentationCommunityPrayers applies status and time', () => {
+    const now = new Date('2024-06-15T12:00:00Z');
+    const result = filterPresentationCommunityPrayers(
+      [prayer({ created_at: '2024-06-10T00:00:00Z' })],
+      {
+        timeFilter: 'week',
+        statusFilters: { current: true, answered: false, archived: false },
+        now,
+      }
+    );
+    expect(result.length).toBe(1);
+  });
+
+  it('filterPresentationPersonalPrayers chains filters', () => {
+    const result = filterPresentationPersonalPrayers(
+      [prayer({ category: 'Family' })],
+      {
+        timeFilter: 'all',
+        statusFilters: { current: true, answered: false, archived: false },
+      }
+    );
+    expect(result.length).toBe(1);
+  });
+
+  it('filterPromptsByCategories and personal categories', () => {
+    const prompts = [
+      { id: '1', type: 'Morning', title: 'A', content: '', created_at: '', updated_at: '' },
+      { id: '2', type: 'Evening', title: 'B', content: '', created_at: '', updated_at: '' },
+    ] as never[];
+    expect(filterPromptsByCategories(prompts, ['Morning']).map((p) => p.id)).toEqual(['1']);
+    expect(
+      filterPersonalPrayersByCategories(
+        [prayer({ category: 'Family' }), prayer({ category: 'Work' })],
+        ['Family']
+      ).length
+    ).toBe(1);
   });
 });

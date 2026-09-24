@@ -142,4 +142,120 @@ describe("PresentationHomeHandoffCoordinator", () => {
       } as MouseEvent)
     ).toBe(true);
   });
+
+  it("navigates to presentation with handoff state", () => {
+    const router = { navigate: vi.fn() };
+    const handoff = buildPresentationHomeHandoff({
+      contentTypes: ["prompts"],
+      activeFilter: "prompts",
+    });
+    coordinator.navigateToPresentation(router as never, handoff);
+    expect(router.navigate).toHaveBeenCalledWith(["/presentation"], {
+      state: { [PRESENTATION_HOME_HANDOFF_STATE_KEY]: handoff },
+    });
+  });
+
+  it("serializes query params for shareable presentation links", () => {
+    const handoff = buildPresentationHomeHandoff({
+      contentTypes: ["prayers"],
+      activeFilter: "community",
+    });
+    const params = coordinator.getQueryParamsForLink(handoff);
+    expect(params).not.toBeNull();
+  });
+
+  it("consumes handoff from query params when history state is absent", () => {
+    const handoff = buildPresentationHomeHandoff({
+      contentTypes: ["personal"],
+      activeFilter: "personal",
+    });
+    const queryParams = coordinator.getQueryParamsForLink(handoff)!;
+    const clearQueryParams = vi.fn();
+    const consumed = coordinator.consumeFromNavigation({
+      historyState: null,
+      replaceHistoryState: vi.fn(),
+      getQueryParam: (key) => queryParams[key] ?? null,
+      clearQueryParams,
+    });
+    expect(consumed?.contentTypes).toEqual(["personal"]);
+    expect(clearQueryParams).toHaveBeenCalled();
+  });
+
+  it("consumeAndApply merges handoff into page state", () => {
+    const page = {
+      contentTypes: ["prayers"] as const,
+      statusFilters: { current: true, answered: true, archived: false },
+      selectedPromptCategories: [] as string[],
+      selectedPersonalCategories: [] as string[],
+      homeReturnContext: null,
+    };
+    const handoff = buildPresentationHomeHandoff({
+      contentTypes: ["prompts"],
+      activeFilter: "prompts",
+    });
+    const consumed = coordinator.consumeAndApply(page, {
+      historyState: { [PRESENTATION_HOME_HANDOFF_STATE_KEY]: handoff },
+      replaceHistoryState: vi.fn(),
+      getQueryParam: () => null,
+      clearQueryParams: vi.fn(),
+    });
+    expect(consumed?.contentTypes).toEqual(["prompts"]);
+    expect(page.contentTypes).toEqual(["prompts"]);
+  });
+
+  it("navigates home without state when return context is missing", () => {
+    const router = { navigate: vi.fn() };
+    coordinator.navigateExit(router as never, null);
+    expect(router.navigate).toHaveBeenCalledWith(["/"]);
+  });
+
+  it("returns null query params when handoff has no serializable fields", () => {
+    expect(coordinator.getQueryParamsForLink({ contentTypes: [] })).toBeNull();
+  });
+
+  it("builds handoff using default prayer view when unset", () => {
+    const handoff = coordinator.buildHandoffFromHome({
+      activeFilter: "current",
+      selectedPromptTypes: [],
+      selectedPersonalCategories: [],
+      personalCategoryFilterMode: "all",
+      defaultPrayerView: undefined,
+    });
+    expect(handoff.contentTypes.length).toBeGreaterThan(0);
+  });
+
+  it("consumeHomeReturnContext returns null when state is empty", () => {
+    expect(
+      coordinator.consumeHomeReturnContext({
+        historyState: {},
+        replaceHistoryState: vi.fn(),
+      })
+    ).toBeNull();
+  });
+
+  it("allows unmodified left click navigation", () => {
+    expect(
+      coordinator.shouldUseNativePresentationNavigation({
+        button: 0,
+        ctrlKey: false,
+        metaKey: false,
+        shiftKey: false,
+        altKey: false,
+      } as MouseEvent)
+    ).toBe(false);
+  });
+
+  it("applies prompt types from home return context", () => {
+    const host = {
+      setFilter: vi.fn(),
+      setSelectedPromptTypes: vi.fn(),
+      applyPersonalReturnContext: vi.fn(),
+      onReturnContextApplied: vi.fn(),
+    };
+    coordinator.applyHomeReturnContext(host, {
+      activeFilter: "prompts",
+      selectedPromptTypes: ["Morning"],
+    });
+    expect(host.setSelectedPromptTypes).toHaveBeenCalledWith(["Morning"]);
+  });
 });
