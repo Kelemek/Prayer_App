@@ -120,6 +120,7 @@ describe('AdminAuthService', () => {
       invalidateCategory: vi.fn(),
       invalidate: vi.fn(),
       invalidateAll: vi.fn(),
+      clearUserScopedCaches: vi.fn(),
       get: vi.fn(),
       set: vi.fn()
     };
@@ -198,6 +199,7 @@ describe('AdminAuthService', () => {
       expect(user).toBe(null);
       expect(isAdmin).toBe(false);
       expect(isAuthenticated).toBe(false);
+      expect(mockCacheService.clearUserScopedCaches).toHaveBeenCalled();
     });
 
     it('should pass login query params when signing out for an invite', async () => {
@@ -272,6 +274,48 @@ describe('AdminAuthService', () => {
       await service.logout();
 
       expect(localStorage.getItem('prayer_encouragement_modal_do_not_show')).toBeNull();
+    });
+
+    it('should wipe user-scoped prayer caches on logout and leave unrelated keys', async () => {
+      await vi.advanceTimersByTimeAsync(100);
+      const { CacheService } = await import('./cache.service');
+      const cache = new CacheService();
+      cache.set('tenant_t1_prayers', [{ id: 'p' }], 60000);
+      cache.set('groupPrayers:g1', [{ id: 'g' }], 60000);
+      cache.set('memberPrayedForCounts', { a: 1 }, 60000);
+      cache.set('memorizationRecommendations:t1', { items: [] }, 60000);
+      cache.set('prayers', [{ id: 'legacy' }], 60000);
+      localStorage.setItem('read_prayers_data', '{}');
+      localStorage.setItem('read_prompts_data', '{}');
+      localStorage.setItem('last_activity_update_member@example.com', '1');
+      localStorage.setItem('theme', 'dark');
+      mockAuthIdentity.getEmail.mockResolvedValue('member@example.com');
+
+      const { AdminAuthService } = await import('./admin-auth.service');
+      const wired = new AdminAuthService(
+        mockSupabaseService,
+        cache,
+        mockTenantContext as any,
+        mockAuthIdentity as any
+      );
+      await vi.advanceTimersByTimeAsync(100);
+
+      await wired.logout();
+
+      expect(cache.get('tenant_t1_prayers')).toBeNull();
+      expect(cache.get('groupPrayers:g1')).toBeNull();
+      expect(cache.get('memberPrayedForCounts')).toBeNull();
+      expect(cache.get('memorizationRecommendations:t1')).toBeNull();
+      expect(cache.get('prayers')).toBeNull();
+      expect(localStorage.getItem('tenant_t1_prayers')).toBeNull();
+      expect(localStorage.getItem('groupPrayers:g1')).toBeNull();
+      expect(localStorage.getItem('memberPrayedForCounts')).toBeNull();
+      expect(localStorage.getItem('memorizationRecommendations:t1')).toBeNull();
+      expect(localStorage.getItem('prayers_cache')).toBeNull();
+      expect(localStorage.getItem('read_prayers_data')).toBeNull();
+      expect(localStorage.getItem('read_prompts_data')).toBeNull();
+      expect(localStorage.getItem('last_activity_update_member@example.com')).toBeNull();
+      expect(localStorage.getItem('theme')).toBe('dark');
     });
   });
 
@@ -767,6 +811,7 @@ describe('AdminAuthService', () => {
       expect(user).toBe(null);
       expect(isAdmin).toBe(false);
       expect(isAuthenticated).toBe(false);
+      expect(mockCacheService.clearUserScopedCaches).toHaveBeenCalled();
     });
 
     it('should persist session start on sign in when not already set', async () => {
