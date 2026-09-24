@@ -62,16 +62,15 @@ export class PushNotificationService {
       return;
     }
     try {
-      // Prefer session (portal + admin MFA); fall back to localStorage when token arrives before session is loaded
-      const sessionEmail = this.userSession.getCurrentSession()?.email?.trim();
-      const userEmail =
-        sessionEmail ||
-        localStorage.getItem('prayerapp_user_email')?.trim() ||
-        (await this.supabase.client.auth.getSession()).data.session?.user?.email?.trim() ||
-        '';
+      // Own-row RLS compares user_email to the JWT email. Skip until login;
+      // setupSessionChangeHandling retries once the session exists.
+      const {
+        data: { session },
+      } = await this.supabase.client.auth.getSession();
+      const userEmail = session?.user?.email?.trim() || '';
 
       if (!userEmail) {
-        console.warn('Cannot store device token: no user logged in');
+        console.warn('Cannot store device token: no authenticated session');
         return;
       }
 

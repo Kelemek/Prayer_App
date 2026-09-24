@@ -217,39 +217,43 @@ export class AdminAuthService {
   }
 
   checkBlockedStatusInBackground(returnUrl?: string): void {
+    const email = this.userSubject.value?.email?.toLowerCase().trim() ?? '';
+    if (!email) {
+      return;
+    }
+
     const now = Date.now();
     if (now - this.lastBlockedCheck < 60000) return; // throttle to avoid spamming
     this.lastBlockedCheck = now;
 
-    // Fire and forget – do not block UI rendering
-    this.supabase.directQuery<{ is_blocked: boolean }>(
-      'tenant_memberships',
-      {
-        select: 'is_blocked',
-        eq: { user_email: this.userSubject.value?.email?.toLowerCase() || '' },
-        limit: 1,
-        timeout: 5000
-      }
-    ).then(({ data, error }) => {
-      if (error) {
-        console.warn('[AdminAuth] Block check skipped due to error:', error);
-        return;
-      }
+    // Signed-in client so RLS can see this user's is_blocked row.
+    // Fire and forget – do not block UI rendering.
+    this.supabase.client
+      .from('tenant_memberships')
+      .select('is_blocked')
+      .eq('user_email', email)
+      .limit(1)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) {
+          console.warn('[AdminAuth] Block check skipped due to error:', error);
+          return;
+        }
 
-      const isBlocked = data && Array.isArray(data) && data.length > 0 && data[0]?.is_blocked;
-      if (isBlocked) {
-        console.log('[AdminAuth] User is blocked - logging out');
-        this.logout();
-        this.router.navigate(['/login'], {
-          queryParams: {
-            returnUrl: returnUrl || '/',
-            blocked: 'true'
-          }
-        });
-      }
-    }).catch(error => {
-      console.warn('[AdminAuth] Block check exception:', error);
-    });
+        if (data?.is_blocked) {
+          console.log('[AdminAuth] User is blocked - logging out');
+          this.logout();
+          this.router.navigate(['/login'], {
+            queryParams: {
+              returnUrl: returnUrl || '/',
+              blocked: 'true'
+            }
+          });
+        }
+      })
+      .catch(error => {
+        console.warn('[AdminAuth] Block check exception:', error);
+      });
   }
 
   private trackUserActivity(): void {
@@ -611,17 +615,14 @@ export class AdminAuthService {
         return;
       }
 
-      const { data, error } = await this.supabase.directQuery<Array<{
-        require_site_login: boolean;
-      }>>('tenant_settings', {
-        select: 'require_site_login',
-        eq: { tenant_id: tenantId },
-        limit: 1,
-        timeout: 10000
-      });
+      const { data, error } = await this.supabase.client
+        .from('tenant_settings')
+        .select('require_site_login')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
 
-      if (!error && data && data[0]) {
-        this.requireSiteLoginSubject.next(data[0].require_site_login ?? true);
+      if (!error && data) {
+        this.requireSiteLoginSubject.next(data.require_site_login ?? true);
       }
     } catch (error) {
       console.error('Error reloading site protection setting:', error);

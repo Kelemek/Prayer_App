@@ -207,6 +207,39 @@ export class SupabaseService {
   }
 
   /**
+   * PostgREST headers for the signed-in user.
+   * `apikey` stays the publishable key so the gateway can route the project.
+   * `Authorization` is the session access token. A missing session is an error:
+   * using the publishable key as Bearer would run the query as anon and hide
+   * rows that RLS only returns to the signed-in user.
+   */
+  private async authorizedRestHeaders(
+    extra?: Record<string, string>
+  ): Promise<{ headers: Record<string, string> } | { error: Error }> {
+    try {
+      const { data, error } = await this.supabase.auth.getSession();
+      if (error) {
+        return { error: new Error('Signed-in session is unavailable') };
+      }
+      const token = data?.session?.access_token;
+      if (!token) {
+        return { error: new Error('Sign in is required') };
+      }
+      return {
+        headers: {
+          apikey: environment.supabasePublishableKey,
+          Authorization: `Bearer ${token}`,
+          ...extra,
+        },
+      };
+    } catch (err) {
+      return {
+        error: err instanceof Error ? err : new Error(String(err)),
+      };
+    }
+  }
+
+  /**
    * Wrap fetch with timeout to prevent hanging on native apps
    * Properly clears timeout to prevent orphaned timers
    */
@@ -283,31 +316,26 @@ export class SupabaseService {
       params.set('limit', String(limit));
     }
     
-    // Add count preference
-    const headers: Record<string, string> = {
-      'apikey': environment.supabasePublishableKey,
-      'Authorization': `Bearer ${environment.supabasePublishableKey}`
-    };
-    
-    if (count) {
-      headers['Prefer'] = `count=${count}`;
+    const auth = await this.authorizedRestHeaders(
+      count ? { Prefer: `count=${count}` } : undefined
+    );
+    if ('error' in auth) {
+      return { data: null, error: auth.error };
     }
-    
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-      
       const response = await fetch(
         `${environment.supabaseUrl}/rest/v1/${table}?${params.toString()}`,
         {
           method: head ? 'HEAD' : 'GET',
-          headers,
+          headers: auth.headers,
           signal: controller.signal
         }
       );
-      
-      clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         return {
@@ -315,18 +343,20 @@ export class SupabaseService {
           error: new Error(`Query failed: ${response.status} - ${errorText}`)
         };
       }
-      
+
       const data = head ? null : await response.json();
       const countValue = response.headers.get('Content-Range')
         ? parseInt(response.headers.get('Content-Range')?.split('/')[1] || '0')
         : undefined;
-      
+
       return { data: data as T, error: null, count: countValue };
     } catch (error) {
       return {
         data: null,
         error: error instanceof Error ? error : new Error(String(error))
       };
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -351,31 +381,31 @@ export class SupabaseService {
       }
     }
     
-    const headers: Record<string, string> = {
-      'apikey': environment.supabasePublishableKey,
-      'Authorization': `Bearer ${environment.supabasePublishableKey}`,
-      'Content-Type': 'application/json'
+    const extra: Record<string, string> = {
+      'Content-Type': 'application/json',
     };
-    
     if (returning) {
-      headers['Prefer'] = 'return=representation';
+      extra['Prefer'] = 'return=representation';
     }
-    
+
+    const auth = await this.authorizedRestHeaders(extra);
+    if ('error' in auth) {
+      return { data: null, error: auth.error };
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-      
       const url = `${environment.supabaseUrl}/rest/v1/${table}${params.toString() ? '?' + params.toString() : ''}`;
-      
+
       const response = await fetch(url, {
         method,
-        headers,
+        headers: auth.headers,
         body: body ? JSON.stringify(body) : undefined,
         signal: controller.signal
       });
-      
-      clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         return {
@@ -383,7 +413,7 @@ export class SupabaseService {
           error: new Error(`Mutation failed: ${response.status} - ${errorText}`)
         };
       }
-      
+
       const data = returning && response.status !== 204 ? await response.json() : null;
       return { data: data as T, error: null };
     } catch (error) {
@@ -391,6 +421,8 @@ export class SupabaseService {
         data: null,
         error: error instanceof Error ? error : new Error(String(error))
       };
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 }
