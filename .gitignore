@@ -36,6 +36,7 @@ backups/
 
 # Coverage reports
 coverage/
+coverage.json
 *.lcov
 .nyc_output/
 .vitest/
