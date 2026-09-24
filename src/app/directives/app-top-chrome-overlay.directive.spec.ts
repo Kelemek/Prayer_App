@@ -41,6 +41,7 @@ describe('AppTopChromeOverlayDirective', () => {
 
     const overlay = document.body.querySelector('.overlay') as HTMLElement;
     expect(overlay?.parentElement).toBe(document.body);
+    expect(overlay.classList.contains('safe-area-overlay')).toBe(true);
     expect(overlay.style.paddingTop).toContain('50px');
 
     fixture.destroy();
@@ -53,6 +54,7 @@ describe('AppTopChromeOverlayDirective', () => {
     fixture.detectChanges();
 
     const overlay = document.body.querySelector('.overlay') as HTMLElement;
+    expect(overlay.classList.contains('safe-area-overlay')).toBe(true);
     expect(overlay.style.paddingTop).toBe('');
 
     fixture.destroy();

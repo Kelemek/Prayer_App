@@ -2,7 +2,7 @@
 @if (isOpen) {
 <div
   appTopChromeOverlay
-  class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-2 sm:p-4"
+  class="fixed inset-0 bg-gray-900/50 flex items-start sm:items-center justify-center z-50 p-2 sm:p-4 safe-area-overlay"
   style="padding-bottom: max(8px, env(safe-area-inset-bottom));"
   (click)="onClose.emit()"
 >

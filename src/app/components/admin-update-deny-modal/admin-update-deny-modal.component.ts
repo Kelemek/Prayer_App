@@ -22,7 +22,7 @@ import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-ov
     @if (isOpen && update) {
       <div
         appTopChromeOverlay
-        class="fixed inset-0 bg-gray-900/50 z-50 flex items-start sm:items-center justify-center p-4"
+        class="fixed inset-0 bg-gray-900/50 z-50 flex items-start sm:items-center justify-center p-4 safe-area-overlay"
       >
         <div
           class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
