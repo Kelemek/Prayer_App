@@ -228,13 +228,15 @@ export class AdminAuthService {
 
     // Signed-in client so RLS can see this user's is_blocked row.
     // Fire and forget – do not block UI rendering.
-    this.supabase.client
-      .from('tenant_memberships')
-      .select('is_blocked')
-      .eq('user_email', email)
-      .limit(1)
-      .maybeSingle()
-      .then(({ data, error }) => {
+    void (async () => {
+      try {
+        const { data, error } = await this.supabase.client
+          .from('tenant_memberships')
+          .select('is_blocked')
+          .eq('user_email', email)
+          .limit(1)
+          .maybeSingle();
+
         if (error) {
           console.warn('[AdminAuth] Block check skipped due to error:', error);
           return;
@@ -250,10 +252,10 @@ export class AdminAuthService {
             }
           });
         }
-      })
-      .catch(error => {
+      } catch (error) {
         console.warn('[AdminAuth] Block check exception:', error);
-      });
+      }
+    })();
   }
 
   private trackUserActivity(): void {
