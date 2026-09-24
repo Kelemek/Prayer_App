@@ -1157,6 +1157,10 @@ describe('AdminDataService', () => {
       await service.denyAccountRequest('1', 'Duplicate account');
 
       expect(mockEmailNotificationService.getTemplate).toHaveBeenCalledWith('account_denied', 'test-tenant-id');
+      expect(mockEmailNotificationService.applyTemplateVariables).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ supportEmail: 'http://localhost:4200/support' })
+      );
       expect(mockEmailNotificationService.sendEmail).toHaveBeenCalled();
     });
   });
