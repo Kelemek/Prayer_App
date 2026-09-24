@@ -10,7 +10,6 @@ import { APP_INITIALIZER } from "@angular/core";
 import { Capacitor } from "@capacitor/core";
 import { AppComponent } from "./app/app.component";
 import { routes } from "./app/app.routes";
-import { AdminAuthService } from "./app/services/admin-auth.service";
 import { BrandingService } from "./app/services/branding.service";
 import { ClientVersionGateService } from "./app/services/client-version-gate.service";
 import { BRANDING_SERVICE_TOKEN } from "./app/components/app-logo/app-logo.component";
@@ -113,43 +112,6 @@ function startApp(): void {
           };
         },
         deps: [BrandingService],
-        multi: true,
-      },
-      {
-        provide: APP_INITIALIZER,
-        useFactory: (adminAuthService: AdminAuthService) => {
-          return () => {
-            // Wait for the loading state to complete (loading goes from true -> false)
-            return new Promise((resolve) => {
-              let resolved = false;
-
-              // Subscribe to loading state
-              const subscription = adminAuthService.loading$.subscribe(
-                (isLoading) => {
-                  // Once loading completes (becomes false), resolve
-                  if (!isLoading && !resolved) {
-                    resolved = true;
-                    subscription.unsubscribe();
-                    resolve(true);
-                  }
-                }
-              );
-
-              // Safety timeout in case loading never completes
-              setTimeout(() => {
-                if (!resolved) {
-                  resolved = true;
-                  console.warn(
-                    "[AppInitialization] AdminAuthService initialization timed out after 5s"
-                  );
-                  subscription.unsubscribe();
-                  resolve(true);
-                }
-              }, 5000);
-            });
-          };
-        },
-        deps: [AdminAuthService],
         multi: true,
       },
     ],
