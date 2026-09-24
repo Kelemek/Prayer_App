@@ -111,10 +111,8 @@ export class PrayerItemReminderModalComponent implements OnChanges, OnDestroy {
   showTimeDropdown = false;
   dropdownPanelStyle: Record<string, string> = {};
 
-  constructor(
-    private remindersService: PrayerItemReminderService,
-    private cdr: ChangeDetectorRef
-  ) {}
+  private readonly remindersService = inject(PrayerItemReminderService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['isOpen']) {
