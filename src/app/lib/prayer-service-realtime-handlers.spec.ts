@@ -34,4 +34,18 @@ describe('prayer-service-realtime-handlers', () => {
 
     expect(reloadPersonalPrayers).not.toHaveBeenCalled();
   });
+
+  it('asks the caller to drop the channel when the socket closes', () => {
+    const onDisconnected = vi.fn();
+    const handlers = buildPrayerCatalogRealtimeHandlers({
+      reloadCommunityPrayers: vi.fn(),
+      reloadPersonalPrayers: vi.fn(),
+      onDisconnected,
+    });
+
+    handlers.onSubscribeStatus?.('CLOSED');
+    handlers.onSubscribeStatus?.('SUBSCRIBED');
+
+    expect(onDisconnected).toHaveBeenCalledTimes(1);
+  });
 });

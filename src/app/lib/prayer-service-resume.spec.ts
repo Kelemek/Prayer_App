@@ -50,14 +50,14 @@ describe('prayer-service-resume', () => {
     vi.useRealTimers();
   });
 
-  it('wirePrayerResumeListeners schedules resume on focus when visible', () => {
-    const schedule = vi.fn();
+  it('wirePrayerResumeListeners resumes on app-became-visible and not on focus', () => {
+    const onLeaveBackground = vi.fn();
+    const onEnterBackground = vi.fn();
     Object.defineProperty(document, 'hidden', { value: false, configurable: true });
 
-    wirePrayerResumeListeners({
-      scheduleResumeRefresh: schedule,
-      onEnterBackground: vi.fn(),
-      onLeaveBackground: vi.fn(),
+    const subs = wirePrayerResumeListeners({
+      onEnterBackground,
+      onLeaveBackground,
       inactivityThresholdMs: 1000,
       getInactivityTimeout: () => null,
       setInactivityTimeout: vi.fn(),
@@ -65,7 +65,19 @@ describe('prayer-service-resume', () => {
     });
 
     window.dispatchEvent(new Event('focus'));
-    expect(schedule).toHaveBeenCalled();
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(onLeaveBackground).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new CustomEvent('app-became-visible'));
+    expect(onLeaveBackground).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(onEnterBackground).toHaveBeenCalledTimes(1);
+    expect(onLeaveBackground).toHaveBeenCalledTimes(1);
+
+    unsubscribePrayerResumeListeners(subs);
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true });
   });
 
   it('unsubscribePrayerResumeListeners unsubscribes all subscriptions', () => {

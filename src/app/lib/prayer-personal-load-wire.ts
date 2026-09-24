@@ -3,7 +3,9 @@ import {
   applyPersonalPrayerLoadCacheFallbackPlan,
   planPersonalPrayerLoadCacheFallback,
   publishPersonalPrayersFromDb,
+  shouldSkipCommunityPrayersDbOnSilentRefresh,
   type PersonalPrayersCacheSnapshotActions,
+  type PrayerCatalogRefreshOptions,
 } from "./prayer-catalog-load";
 import type { PrayerRequest } from "./prayer-types";
 
@@ -23,11 +25,11 @@ export type PersonalPrayerLoadWireDeps = {
 
 export async function runPersonalPrayerCatalogLoad(
   deps: PersonalPrayerLoadWireDeps,
-  silentRefresh = false
+  silentRefresh = false,
+  options?: PrayerCatalogRefreshOptions
 ): Promise<void> {
   try {
     deps.setLoading(true);
-    console.log("[PrayerService] Loading personal prayers...");
 
     const userEmail = await deps.getUserEmail();
     if (!userEmail) {
@@ -40,27 +42,24 @@ export async function runPersonalPrayerCatalogLoad(
 
     const cachedPersonalPrayers = deps.readCache();
     if (cachedPersonalPrayers && cachedPersonalPrayers.length > 0) {
-      console.log(
-        `[PrayerService] Using cached personal prayers (${cachedPersonalPrayers.length} items)`
-      );
       applyCachedPersonalPrayersSnapshot(
         cachedPersonalPrayers,
         deps.cacheSnapshotActions()
       );
 
-      if (silentRefresh) {
-        console.log(
-          "[PrayerService] Cache hit for silent refresh - skipping personal prayers database query"
-        );
+      if (
+        shouldSkipCommunityPrayersDbOnSilentRefresh(
+          silentRefresh,
+          cachedPersonalPrayers,
+          options?.bypassWarmCache === true
+        )
+      ) {
         return;
       }
     }
 
     const personalPrayers = await deps.fetchFromDb(userEmail);
 
-    console.log(
-      `[PrayerService] Loaded ${personalPrayers.length} personal prayers from database`
-    );
     publishPersonalPrayersFromDb(personalPrayers, {
       setPersonalPrayers: (prayers) => deps.setPersonalPrayers(prayers),
       dropAnsweredReminders: (prayers) => deps.dropAnsweredReminders(prayers),
@@ -76,9 +75,6 @@ export async function runPersonalPrayerCatalogLoad(
 
     applyPersonalPrayerLoadCacheFallbackPlan(cacheFallback, {
       applyCachedSnapshot: (prayers) => {
-        console.log(
-          `[PrayerService] Showing ${prayers.length} cached personal prayers`
-        );
         applyCachedPersonalPrayersSnapshot(
           prayers,
           deps.cacheSnapshotActions()

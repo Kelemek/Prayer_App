@@ -590,10 +590,12 @@ describe('PrayerService', () => {
   });
 
   it('ngOnDestroy calls removeChannel when realtimeChannel exists', () => {
-    (service as any).realtimeChannel = { id: 'chanX' };
+    const channel = { id: 'chanX' };
+    (service as any).realtimeChannel = channel;
     supabase.client.removeChannel = vi.fn();
     service.ngOnDestroy();
-    expect(supabase.client.removeChannel).toHaveBeenCalledWith((service as any).realtimeChannel);
+    expect(supabase.client.removeChannel).toHaveBeenCalledWith(channel);
+    expect((service as any).realtimeChannel).toBeNull();
   });
 
   it('loadPrayers falls back to cache on error', async () => {
@@ -705,10 +707,6 @@ describe('PrayerService', () => {
     expect((service as any).realtimeChannel).toBeNull();
   });
 
-  it.skip('inactivity timer callback executes when advanced', async () => {
-    // This test is skipped - the fake timer behavior is unreliable
-  });
-
   it('scheduleResumeRefresh after debounce calls ensureConnected and loadPrayers(true)', async () => {
     const loadSpy = vi.spyOn(service as any, 'loadPrayers').mockResolvedValue(undefined);
     const ensureSpy = vi.spyOn(supabase, 'ensureConnected').mockResolvedValue(undefined);
@@ -717,7 +715,7 @@ describe('PrayerService', () => {
     await new Promise((r) => setTimeout(r, 500));
 
     expect(ensureSpy).toHaveBeenCalled();
-    expect(loadSpy).toHaveBeenCalledWith(true);
+    expect(loadSpy).toHaveBeenCalledWith(true, { bypassWarmCache: true });
     loadSpy.mockRestore();
     ensureSpy.mockRestore();
   }, 5000);
@@ -1436,23 +1434,6 @@ describe('PrayerService - Integration Tests', () => {
       }).not.toThrow();
     });
 
-    it('inactivity listener fires inactivity handler when threshold exceeded', async () => {
-      vi.useFakeTimers();
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-      // make threshold very small and call the listener setup directly
-      (service as any).inactivityThresholdMs = 1;
-      (service as any).setupInactivityListener();
-
-      // advance timers to trigger inactivity timeout
-      vi.advanceTimersByTime(10);
-
-      expect(logSpy).toHaveBeenCalledWith('[PrayerService] Inactivity detected, next activity will trigger refresh');
-
-      logSpy.mockRestore();
-      vi.useRealTimers();
-    });
-
     it('background recovery listener responds to app-became-visible', () => {
       const trig = vi.spyOn(service as any, 'triggerBackgroundRecovery').mockImplementation(() => {});
       // ensure document is visible
@@ -1490,6 +1471,7 @@ describe('PrayerService - Integration Tests', () => {
       mockTenantContext, mockConnectivity as any);
 
       vi.useFakeTimers();
+      const loadSpy = vi.spyOn(service, 'loadPrayers').mockResolvedValue(undefined);
 
       // If we couldn't capture the handler (other tests may have mocked addEventListener),
       // fall back to directly triggering the recovery to assert the same behavior.
@@ -1510,6 +1492,7 @@ describe('PrayerService - Integration Tests', () => {
       await vi.advanceTimersByTimeAsync(500);
 
       expect(mockCacheService.get).toHaveBeenCalledWith(PRAYER_SPEC_SHARED_CACHE_KEY);
+      expect(loadSpy).toHaveBeenCalledWith(true, { bypassWarmCache: true });
       expect((service as any).allPrayersSubject.value).toEqual(
         withDisplayedPrayedForCounts(cached)
       );
@@ -2187,7 +2170,7 @@ describe('PrayerService - Integration Tests', () => {
   });
 
   describe('additional coverage targets', () => {
-    it('setupBackgroundRecoveryListener does not throw when registered', () => {
+    it('visibility change does not throw and silent refresh can be invoked', async () => {
       service = new PrayerService(
         mockSupabaseService,
         mockToastService,
@@ -2198,47 +2181,9 @@ describe('PrayerService - Integration Tests', () => {
       userSessionService,
       mockTenantContext, mockConnectivity as any);
 
-      // calling the method again should be safe and not throw
-      expect(() => (service as any).setupBackgroundRecoveryListener()).not.toThrow();
-    });
+      expect(() => document.dispatchEvent(new Event('visibilitychange'))).not.toThrow();
 
-    it('setupVisibilityListener registers without throwing and silent refresh can be invoked', async () => {
-      service = new PrayerService(
-        mockSupabaseService,
-        mockToastService,
-        mockEmailNotificationService,
-        mockVerificationService,
-        mockCacheService,
-        mockBadgeService,
-      userSessionService,
-      mockTenantContext, mockConnectivity as any);
-
-      expect(() => (service as any).setupVisibilityListener()).not.toThrow();
-
-      // loadPrayers(true) should be callable (silent refresh)
       await expect((service as any).loadPrayers(true)).resolves.not.toThrow();
-    });
-
-    it('inactivity listener registers and provides an inactivity timeout value', () => {
-      vi.useFakeTimers();
-
-      service = new PrayerService(
-        mockSupabaseService,
-        mockToastService,
-        mockEmailNotificationService,
-        mockVerificationService,
-        mockCacheService,
-        mockBadgeService,
-      userSessionService,
-      mockTenantContext, mockConnectivity as any);
-
-      (service as any).inactivityThresholdMs = 5;
-      (service as any).setupInactivityListener();
-
-      const current = (service as any).inactivityTimeout;
-      expect(current).toBeTruthy();
-
-      vi.useRealTimers();
     });
 
     it('deleteUpdate returns true on success and reloads prayers', async () => {
@@ -2357,6 +2302,7 @@ describe('PrayerService - Integration Tests', () => {
 
       mockSupabaseService.client.channel = vi.fn(() => channelMock);
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      (service as any).realtimeChannel = null;
 
       (service as any).setupRealtimeSubscription();
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -2381,6 +2327,7 @@ describe('PrayerService - Integration Tests', () => {
       });
 
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      (service as any).realtimeChannel = null;
 
       expect(() => (service as any).setupRealtimeSubscription()).not.toThrow();
       expect(errSpy).toHaveBeenCalled();
@@ -2405,7 +2352,7 @@ describe('PrayerService - Integration Tests', () => {
       (service as any).triggerBackgroundRecovery();
       await vi.advanceTimersByTimeAsync(500);
 
-      expect(loadSpy).toHaveBeenCalledWith(true);
+      expect(loadSpy).toHaveBeenCalledWith(true, { bypassWarmCache: true });
       loadSpy.mockRestore();
       vi.useRealTimers();
     });
@@ -2460,7 +2407,7 @@ describe('PrayerService - Integration Tests', () => {
       await vi.advanceTimersByTimeAsync(500);
 
       expect(setupSpy).toHaveBeenCalled();
-      expect(loadSpy).toHaveBeenCalledWith(true);
+      expect(loadSpy).toHaveBeenCalledWith(true, { bypassWarmCache: true });
 
       setupSpy.mockRestore();
       loadSpy.mockRestore();
@@ -2551,9 +2498,7 @@ describe('PrayerService - Integration Tests', () => {
       userSessionService,
       mockTenantContext, mockConnectivity as any);
 
-      // The visibility listener calls loadPrayers(true) internally
-      // We just verify it was set up and responds to visibility changes
-      expect(() => (service as any).setupVisibilityListener()).not.toThrow();
+      expect(() => document.dispatchEvent(new Event('visibilitychange'))).not.toThrow();
     });
 
     it('background recovery listener triggers when app comes to foreground', async () => {
@@ -2572,8 +2517,6 @@ describe('PrayerService - Integration Tests', () => {
       Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
       Object.defineProperty(document, 'hidden', { value: true, configurable: true });
 
-      (service as any).setupBackgroundRecoveryListener();
-      
       // Simulate transition to visible
       Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
       Object.defineProperty(document, 'hidden', { value: false, configurable: true });
@@ -2582,35 +2525,6 @@ describe('PrayerService - Integration Tests', () => {
       await new Promise(resolve => setTimeout(resolve, 0));
 
       triggerSpy.mockRestore();
-    });
-
-    it('inactivity listener triggers callback after threshold time', async () => {
-      vi.useFakeTimers();
-
-      service = new PrayerService(
-        mockSupabaseService,
-        mockToastService,
-        mockEmailNotificationService,
-        mockVerificationService,
-        mockCacheService,
-        mockBadgeService,
-      userSessionService,
-      mockTenantContext, mockConnectivity as any);
-
-      (service as any).inactivityThresholdMs = 100;
-      (service as any).setupInactivityListener();
-
-      const initialTimeout = (service as any).inactivityTimeout;
-      expect(initialTimeout).toBeTruthy();
-
-      // Advance time past inactivity threshold
-      vi.advanceTimersByTime(150);
-
-      // The callback should have been invoked
-      const newTimeout = (service as any).inactivityTimeout;
-      expect(newTimeout).toBeTruthy();
-
-      vi.useRealTimers();
     });
 
     it('requestUpdateDeletion handles missing update details gracefully', async () => {
@@ -3154,7 +3068,7 @@ describe('PrayerService - Integration Tests', () => {
       expect(mockToastService.success).toHaveBeenCalled();
     });
 
-    it('cleanup clears inactivity timeout', async () => {
+    it('cleanup completes when no realtime channel is open', async () => {
       service = new PrayerService(
         mockSupabaseService,
         mockToastService,
@@ -3164,10 +3078,6 @@ describe('PrayerService - Integration Tests', () => {
         mockBadgeService,
       userSessionService,
       mockTenantContext, mockConnectivity as any);
-
-      (service as any).inactivityTimeout = setTimeout(() => {}, 1000);
-      const timeoutBefore = (service as any).inactivityTimeout;
-      expect(timeoutBefore).toBeTruthy();
 
       await (service as any).cleanup();
 
@@ -4307,7 +4217,7 @@ describe('PrayerService - Integration Tests', () => {
       expect(mockSupabaseService.client.from).toHaveBeenCalled();
     });
 
-    it('cleanup removes inactivity timeout if it exists', async () => {
+    it('cleanup clears a pending realtime resubscribe timer', async () => {
       service = new PrayerService(
         mockSupabaseService,
         mockToastService,
@@ -4318,14 +4228,14 @@ describe('PrayerService - Integration Tests', () => {
       userSessionService,
       mockTenantContext, mockConnectivity as any);
 
-      // Set a mock timeout
-      (service as any).inactivityTimeout = 12345;
-
+      (service as any).realtimeResubscribeTimer = setTimeout(() => undefined, 1000);
+      const timer = (service as any).realtimeResubscribeTimer;
       const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
 
       await service.cleanup();
 
-      expect(clearTimeoutSpy).toHaveBeenCalledWith(12345);
+      expect(clearTimeoutSpy).toHaveBeenCalledWith(timer);
+      expect((service as any).realtimeResubscribeTimer).toBeNull();
     });
 
     it('applyFilters clears filters when all undefined', () => {
@@ -5751,6 +5661,43 @@ describe('PrayerService - Integration Tests', () => {
 
         expect((service as any).allPersonalPrayersSubject.value.map((p: { id: string }) => p.id)).toEqual(['cached-1']);
         expect(mockSupabaseService.client.from).not.toHaveBeenCalledWith('personal_prayers');
+      });
+
+      it('bypasses warm personal cache when a live refresh asks to', async () => {
+        const cachedPrayers = [{
+          id: 'cached-1',
+          title: 'Cached Prayer',
+          description: 'Cached desc',
+          status: 'current',
+          prayer_for: 'User',
+          requester: 'user@example.com',
+          email: 'user@example.com',
+          is_anonymous: false,
+          date_requested: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          approval_status: 'approved' as const,
+          type: 'prayer' as const,
+          updates: []
+        }];
+
+        mockCacheService.get.mockImplementation((key: string) =>
+          key === PRAYER_SPEC_PERSONAL_CACHE_KEY ? cachedPrayers : null
+        );
+        mockSupabaseService.client.from.mockClear();
+        mockSupabaseService.client.from.mockImplementation(() => ({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnThis(),
+            ilike: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            then: (resolve: (value: unknown) => void) =>
+              Promise.resolve({ data: [], error: null }).then(resolve),
+          }),
+        }));
+
+        await (service as any).personal.loadPersonalPrayers(true, { bypassWarmCache: true });
+
+        expect(mockSupabaseService.client.from).toHaveBeenCalledWith('personal_prayers');
       });
     });
 

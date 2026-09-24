@@ -10,7 +10,8 @@
  * MAIL_SENDER_ADDRESS, optional MAIL_FROM_NAME.
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { classifyBearer } from "./dual-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -591,6 +592,38 @@ async function processLockedBatch(
   return { sent, failedOrRetry };
 }
 
+function bearerToken(req: Request): string {
+  const authHeader = req.headers.get("Authorization") ?? "";
+  return authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+}
+
+function authError(status: 401 | 403): Response {
+  return new Response(
+    JSON.stringify({ error: status === 401 ? "Unauthorized" : "Forbidden" }),
+    { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
+async function rejectUnlessServiceOrAuthenticated(
+  req: Request,
+  supabaseUrl: string,
+  serviceKey: string,
+): Promise<Response | null> {
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  const token = bearerToken(req);
+  const kind = classifyBearer(token, serviceKey, anonKey);
+  if (kind === "service_role") return null;
+  if (kind === "anonymous" || !anonKey) return authError(401);
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data, error } = await userClient.auth.getUser();
+  const email = data?.user?.email?.toLowerCase().trim() ?? "";
+  if (error || !email) return authError(401);
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -612,6 +645,11 @@ serve(async (req) => {
         },
       );
     }
+
+    // Service-key equality runs before getUser because the secret is not a user JWT.
+    const rejected = await rejectUnlessServiceOrAuthenticated(req, supabaseUrl, serviceKey);
+    if (rejected) return rejected;
+
     if (!resendKey || !mailSender) {
       return new Response(
         JSON.stringify({

@@ -26,7 +26,7 @@ if (typeof document === 'undefined') {
 }
 import { AppShellComponent } from './app-shell.component';
 import { Router, NavigationEnd } from '@angular/router';
-import { Injector, ChangeDetectorRef, NgZone } from '@angular/core';
+import { Injector, NgZone } from '@angular/core';
 import { Subject } from 'rxjs';
 
 const decodeAccountCodeMock = vi.fn();
@@ -36,6 +36,9 @@ const emailGetTemplateMock = vi.fn();
 const emailApplyTemplateVariablesMock = vi.fn();
 const emailSendEmailMock = vi.fn();
 const toastShowToastMock = vi.fn();
+const adminGetIsAdminMock = vi.fn(() => false);
+const adminGetUserMock = vi.fn((): { id: string; email: string } | null => null);
+const adminIsLoadingMock = vi.fn(() => false);
 
 vi.mock('./services/approval-links.service', () => {
   return {
@@ -64,8 +67,8 @@ vi.mock('./services/supabase.service', () => {
 vi.mock('./services/email-notification.service', () => {
   return {
     EmailNotificationService: class {
-      getTemplate(templateName: string) {
-        return emailGetTemplateMock(templateName);
+      getTemplate(templateName: string, tenantId?: string) {
+        return emailGetTemplateMock(templateName, tenantId);
       }
 
       applyTemplateVariables(template: string, vars: Record<string, string> = {}) {
@@ -75,6 +78,34 @@ vi.mock('./services/email-notification.service', () => {
       sendEmail(payload: unknown) {
         return emailSendEmailMock(payload);
       }
+
+      getEmailBaseUrl() {
+        return 'https://prayerapp.romans8.net';
+      }
+    }
+  };
+});
+
+vi.mock('./services/admin-auth.service', () => {
+  return {
+    AdminAuthService: class {
+      getIsAdmin() {
+        return adminGetIsAdminMock();
+      }
+
+      getUser() {
+        return adminGetUserMock();
+      }
+
+      isLoading() {
+        return adminIsLoadingMock();
+      }
+
+      loading$ = {
+        pipe: () => ({
+          subscribe: () => ({ unsubscribe() {} })
+        })
+      };
     }
   };
 });
@@ -94,16 +125,17 @@ describe('AppShellComponent', () => {
   let mockRouter: any;
   let mockInjector: any;
   let mockNgZone: any;
-  let mockCdr: any;
   let mockPosthog: Record<string, never>;
   let routerEventsSubject: Subject<any>;
 
   beforeEach(() => {
+    sessionStorage.clear();
     // Create mock router with events subject
     routerEventsSubject = new Subject();
     mockRouter = {
       events: routerEventsSubject.asObservable(),
-      navigate: vi.fn().mockResolvedValue(true)
+      navigate: vi.fn().mockResolvedValue(true),
+      url: '/',
     };
 
     // Create mock NgZone
@@ -111,20 +143,29 @@ describe('AppShellComponent', () => {
       run: vi.fn((fn) => fn())
     };
 
-    // Create mock ChangeDetectorRef
-    mockCdr = {
-      markForCheck: vi.fn(),
-      detectChanges: vi.fn()
-    };
-
     mockPosthog = {};
+    adminGetIsAdminMock.mockReset().mockReturnValue(false);
+    adminGetUserMock.mockReset().mockReturnValue(null);
+    adminIsLoadingMock.mockReset().mockReturnValue(false);
 
     // Create mock Injector
     mockInjector = {
       get: vi.fn((token) => {
         const name = typeof token?.name === 'string' ? token.name : '';
         if (name === 'ToastService') {
-          return { showToast: vi.fn() };
+          return { showToast: (...args: unknown[]) => toastShowToastMock(...args) };
+        }
+        if (name === 'AdminAuthService') {
+          return {
+            getIsAdmin: () => adminGetIsAdminMock(),
+            getUser: () => adminGetUserMock(),
+            isLoading: () => adminIsLoadingMock(),
+            loading$: {
+              pipe: () => ({
+                subscribe: () => ({ unsubscribe() {} })
+              })
+            }
+          };
         }
         return {};
       })
@@ -155,7 +196,7 @@ describe('AppShellComponent', () => {
     });
 
     // Create component
-    component = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+    component = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
   });
 
   afterEach(() => {
@@ -262,133 +303,10 @@ describe('AppShellComponent', () => {
     });
   });
 
-  describe('onWindowFocus', () => {
-    it('should update lastVisibilityState when window receives focus', () => {
-      Object.defineProperty(document, 'hidden', { value: false, writable: true, configurable: true });
-      component.onWindowFocus();
-      expect(component).toBeTruthy();
-    });
-
-    it('should mark for check on window focus', () => {
-      component.onWindowFocus();
-      expect(mockCdr.markForCheck).toHaveBeenCalled();
-    });
-
-    it('should detect changes on window focus', () => {
-      component.onWindowFocus();
-      expect(mockCdr.detectChanges).toHaveBeenCalled();
-    });
-
-    it('should trigger DOM recovery on window focus', () => {
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      document.querySelector = vi.fn().mockReturnValue({ contains: vi.fn(() => true) });
-      component.onWindowFocus();
-
-      expect(document.querySelector).toHaveBeenCalled();
-      consoleLogSpy.mockRestore();
-    });
-
-    it('should handle when querySelector returns null', () => {
-      document.querySelector = vi.fn().mockReturnValue(null);
-      expect(() => component.onWindowFocus()).not.toThrow();
-    });
-  });
-
-  describe('onVisibilityChange', () => {
-    it('should update lastVisibilityState when visibility changes', () => {
-      Object.defineProperty(document, 'hidden', { value: true, writable: true, configurable: true });
-      component.onVisibilityChange();
-      expect(component).toBeTruthy();
-    });
-
-    it('should trigger change detection when page becomes visible', () => {
-      Object.defineProperty(document, 'hidden', { value: false, writable: true, configurable: true });
-      component.onVisibilityChange();
-      expect(mockCdr.markForCheck).toHaveBeenCalled();
-    });
-
-    it('should detect changes when visibility changes to visible', () => {
-      Object.defineProperty(document, 'hidden', { value: false, writable: true, configurable: true });
-      component.onVisibilityChange();
-      expect(mockCdr.detectChanges).toHaveBeenCalled();
-    });
-
-    it('should handle visibility change to hidden', () => {
-      Object.defineProperty(document, 'hidden', { value: true, writable: true, configurable: true });
-      expect(() => component.onVisibilityChange()).not.toThrow();
-    });
-
-    it('should check DOM integrity when becoming visible', () => {
-      Object.defineProperty(document, 'hidden', { value: false, writable: true, configurable: true });
-      document.querySelector = vi.fn(() => ({ contains: vi.fn(() => true) }));
-      component.onVisibilityChange();
-      expect(document.querySelector).toHaveBeenCalled();
-    });
-  });
-
-  describe('triggerDOMRecoveryIfNeeded', () => {
-    it('should check for app-root element', () => {
-      const appRoot = { contains: vi.fn(() => true) };
-      document.querySelector = vi.fn((selector) => {
-        if (selector === 'app-root') return appRoot;
-        return null;
-      });
-
-      component.onWindowFocus();
-      expect(document.querySelector).toHaveBeenCalledWith('app-root');
-    });
-
-    it('should check for router-outlet element', () => {
-      const appRoot = { contains: vi.fn(() => true) };
-      document.querySelector = vi.fn((selector) => {
-        if (selector === 'app-root') return appRoot;
-        if (selector === 'router-outlet') return {};
-        return null;
-      });
-
-      component.onWindowFocus();
-      expect(document.querySelector).toHaveBeenCalledWith('router-outlet');
-    });
-
-    it('should dispatch app-became-visible event when router-outlet is detached', () => {
-      const appRoot = { contains: vi.fn(() => false) };
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-      document.querySelector = vi.fn((selector) => {
-        if (selector === 'app-root') return appRoot;
-        if (selector === 'router-outlet') return {};
-        return null;
-      });
-
-      component.onWindowFocus();
-      expect(window.dispatchEvent).toHaveBeenCalled();
-      consoleWarnSpy.mockRestore();
-    });
-
-    it('should handle DOM recovery check errors gracefully', () => {
-      document.querySelector = vi.fn(() => {
-        throw new Error('DOM access error');
-      });
-      const consoleDebugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
-
-      expect(() => component.onWindowFocus()).not.toThrow();
-      consoleDebugSpy.mockRestore();
-    });
-
-    it('should call detect changes when no content is found', () => {
-      vi.useFakeTimers();
-      Object.defineProperty(document, 'hidden', { value: false, writable: true, configurable: true });
-      document.querySelector = vi.fn((selector) => {
-        if (selector === 'app-root') return { contains: vi.fn(() => true) };
-        if (selector === 'router-outlet') return {};
-        return null;
-      });
-
-      component.onWindowFocus();
-      vi.runAllTimers();
-
-      expect(mockCdr.detectChanges).toHaveBeenCalled();
-      vi.useRealTimers();
+  describe('resume handling', () => {
+    it('does not duplicate visibility or focus recovery in the shell', () => {
+      expect('onVisibilityChange' in component).toBe(false);
+      expect('onWindowFocus' in component).toBe(false);
     });
   });
 
@@ -498,17 +416,14 @@ describe('AppShellComponent', () => {
       expect(component).toBeTruthy();
     });
 
-    it('should strip code param when processing approval code', async () => {
+    it('leaves a non-approval code on the URL for PKCE', async () => {
       window.location.search = '?code=test123&other=param';
       vi.clearAllMocks();
-      
-      // window.history.replaceState is already tracked from setup
+
       await component.ngOnInit();
-      
-      // Verify replaceState was called to clean up URL
-      if ((window.history.replaceState as any).mock) {
-        expect(window.history.replaceState).toHaveBeenCalled();
-      }
+
+      expect(window.history.replaceState).not.toHaveBeenCalled();
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
     });
   });
 
@@ -531,14 +446,14 @@ describe('AppShellComponent', () => {
       expect(component).toBeTruthy();
     });
 
-    it('should route non-account codes to admin', async () => {
+    it('does not strip or redirect a Supabase PKCE code', async () => {
       window.location.search = '?code=someOtherCode';
       vi.spyOn(window.history, 'replaceState');
 
       await component.ngOnInit();
 
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/admin']);
-      expect(window.history.replaceState).toHaveBeenCalled();
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+      expect(window.history.replaceState).not.toHaveBeenCalled();
     });
 
     it('should differentiate between approval types', async () => {
@@ -555,25 +470,22 @@ describe('AppShellComponent', () => {
   });
 
   describe('Navigation and routing', () => {
-    it('should navigate to /admin for non-account codes', async () => {
+    it('does not navigate to admin for a PKCE code', async () => {
       window.location.search = '?code=adminCode123';
 
       await component.ngOnInit();
 
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/admin']);
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
     });
 
-    it('should replace state before navigating', async () => {
+    it('does not replace history state for a PKCE code', async () => {
       window.location.search = '?code=someCode';
       vi.spyOn(window.history, 'replaceState');
 
       await component.ngOnInit();
 
-      expect(window.history.replaceState).toHaveBeenCalled();
-      // replaceState should be called before navigate
-      const replaceIndex = (window.history.replaceState as any).mock.invocationCallOrder[0];
-      const navigateIndex = (mockRouter.navigate as any).mock.invocationCallOrder[0];
-      expect(replaceIndex).toBeLessThan(navigateIndex);
+      expect(window.history.replaceState).not.toHaveBeenCalled();
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
     });
 
     it('should not navigate when no code is present', async () => {
@@ -617,26 +529,6 @@ describe('AppShellComponent', () => {
       vi.useRealTimers();
     });
 
-    it('should handle multiple visibility changes', () => {
-      Object.defineProperty(document, 'hidden', { value: false, writable: true, configurable: true });
-      component.onVisibilityChange();
-
-      Object.defineProperty(document, 'hidden', { value: true, writable: true, configurable: true });
-      component.onVisibilityChange();
-
-      Object.defineProperty(document, 'hidden', { value: false, writable: true, configurable: true });
-      component.onVisibilityChange();
-
-      expect(component).toBeTruthy();
-    });
-
-    it('should handle multiple window focus events', () => {
-      component.onWindowFocus();
-      component.onWindowFocus();
-      component.onWindowFocus();
-
-      expect(mockCdr.markForCheck).toHaveBeenCalledTimes(3);
-    });
   });
 
   describe('Error Recovery', () => {
@@ -670,38 +562,6 @@ describe('AppShellComponent', () => {
       consoleErrorSpy.mockRestore();
     });
 
-    it('should handle DOM recovery attempts', () => {
-      document.querySelector = vi.fn(() => ({
-        contains: vi.fn(() => true)
-      }));
-
-      component.onWindowFocus();
-      expect(document.querySelector).toHaveBeenCalled();
-    });
-  });
-
-  describe('Browser Compatibility', () => {
-    it('should work on Safari with automatic visibility handling', () => {
-      Object.defineProperty(document, 'hidden', { value: false, writable: true, configurable: true });
-      component.onVisibilityChange();
-      expect(mockCdr.detectChanges).toHaveBeenCalled();
-    });
-
-    it('should work on Edge iOS with manual recovery', () => {
-      Object.defineProperty(document, 'hidden', { value: false, writable: true, configurable: true });
-      component.onWindowFocus();
-      expect(mockCdr.detectChanges).toHaveBeenCalled();
-    });
-
-    it('should handle page visibility changes', () => {
-      Object.defineProperty(document, 'hidden', { value: true, writable: true, configurable: true });
-      component.onVisibilityChange();
-
-      Object.defineProperty(document, 'hidden', { value: false, writable: true, configurable: true });
-      component.onVisibilityChange();
-
-      expect(component).toBeTruthy();
-    });
   });
 
   describe('Lifecycle and async operations', () => {
@@ -791,25 +651,20 @@ describe('AppShellComponent', () => {
         showToast: vi.fn()
       };
 
-      // Mock injector to return appropriate mock service for any injector.get() call
-      // This works because the code imports the service class and passes it to get()
-      mockInjector.get = vi.fn().mockImplementation(function(ServiceClass: any) {
-        // Return mocks for all possible services
-        // Since we don't know the exact class reference, we return all mocks
-        // The first call will be for ApprovalLinksService, then SupabaseService, etc.
-        if (!mockInjector._callCount) mockInjector._callCount = 0;
-        
-        const callCount = mockInjector._callCount++;
-        
-        // Rotate through the mocks based on call count
-        const mocks = [
-          mockApprovalLinksService,   // First call - ApprovalLinksService
-          mockSupabaseService,         // Second call - SupabaseService  
-          mockEmailService,            // Third call - EmailNotificationService
-          mockToastService             // Fourth call - ToastService
-        ];
-        
-        return mocks[callCount % mocks.length] || mockApprovalLinksService;
+      mockInjector.get = vi.fn((token: { name?: string }) => {
+        const name = typeof token?.name === 'string' ? token.name : '';
+        if (name === 'ApprovalLinksService') return mockApprovalLinksService;
+        if (name === 'SupabaseService') return mockSupabaseService;
+        if (name === 'EmailNotificationService') return mockEmailService;
+        if (name === 'ToastService') return mockToastService;
+        if (name === 'AdminAuthService') {
+          return {
+            getIsAdmin: () => false,
+            getUser: () => null,
+            isLoading: () => false,
+          };
+        }
+        return {};
       });
     });
 
@@ -817,7 +672,7 @@ describe('AppShellComponent', () => {
       window.location.search = '?code=account_approve_test123';
       
       // Create new component with mocked services
-      const testComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const testComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       
       await testComponent.ngOnInit();
       
@@ -832,7 +687,7 @@ describe('AppShellComponent', () => {
         type: 'deny'
       });
       
-      const testComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const testComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       
       await testComponent.ngOnInit();
       
@@ -843,7 +698,7 @@ describe('AppShellComponent', () => {
       window.location.search = '?code=account_approve_test';
       
       expect(async () => {
-        const testComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+        const testComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
         await testComponent.ngOnInit();
       }).not.toThrow();
     });
@@ -851,26 +706,27 @@ describe('AppShellComponent', () => {
     it('should call router navigate after processing approval code', async () => {
       window.location.search = '?code=account_approve_test';
       
-      const testComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const testComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       await testComponent.ngOnInit();
 
       // Check if navigate was called
       expect(mockRouter.navigate).toBeDefined();
     });
 
-    it('should handle non-account codes properly', async () => {
+    it('should leave non-account codes for auth', async () => {
       window.location.search = '?code=someOtherCode';
       
-      const testComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const testComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       await testComponent.ngOnInit();
 
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/admin']);
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+      expect(mockSupabaseService.directMutation).not.toHaveBeenCalled();
     });
 
     it('should handle empty code gracefully', async () => {
       window.location.search = '';
       
-      const testComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const testComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       await testComponent.ngOnInit();
 
       // Should not navigate if no code
@@ -880,7 +736,7 @@ describe('AppShellComponent', () => {
     it('should handle codes with special characters', async () => {
       window.location.search = '?code=account_approve_%2F%3F%40';
       
-      const testComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const testComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       
       expect(async () => {
         await testComponent.ngOnInit();
@@ -894,45 +750,15 @@ describe('AppShellComponent', () => {
       expect(mockNgZone.run).toHaveBeenCalled();
     });
 
-    it('should handle navigation and visibility change together', () => {
+    it('should scroll to top after navigation', () => {
       vi.useFakeTimers();
-      Object.defineProperty(document, 'hidden', { value: false, writable: true, configurable: true });
       const navEnd = new NavigationEnd(1, '/test', '/test');
       routerEventsSubject.next(navEnd);
 
-      component.onVisibilityChange();
       vi.runAllTimers();
 
-      expect(mockCdr.detectChanges).toHaveBeenCalled();
+      expect(window.scrollTo).toHaveBeenCalled();
       vi.useRealTimers();
-    });
-
-    it('should handle focus and visibility events together', () => {
-      Object.defineProperty(document, 'hidden', { value: false, writable: true, configurable: true });
-      component.onWindowFocus();
-      component.onVisibilityChange();
-
-      expect(mockCdr.markForCheck).toHaveBeenCalled();
-      expect(mockCdr.detectChanges).toHaveBeenCalled();
-    });
-
-    it('should handle sequential DOM recovery checks', () => {
-      document.querySelector = vi.fn(() => ({
-        contains: vi.fn(() => true)
-      }));
-
-      component.onWindowFocus();
-      component.onWindowFocus();
-
-      expect(document.querySelector).toHaveBeenCalled();
-    });
-
-    it('should maintain component state through lifecycle', () => {
-      expect(component.title).toBe('prayerapp');
-      component.onWindowFocus();
-      expect(component.title).toBe('prayerapp');
-      component.onVisibilityChange();
-      expect(component.title).toBe('prayerapp');
     });
   });
 
@@ -973,7 +799,7 @@ describe('AppShellComponent', () => {
       expect(mockRouter.navigate).not.toHaveBeenCalled();
     });
 
-    it('should navigate to admin when code parameter is provided', async () => {
+    it('leaves a PKCE code in place when a code parameter is provided', async () => {
       Object.defineProperty(window, 'location', {
         value: {
           search: '?code=admin_code_12345',
@@ -983,10 +809,11 @@ describe('AppShellComponent', () => {
         writable: true
       });
 
-      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       await newComponent.ngOnInit();
 
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/admin']);
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+      expect(window.history.replaceState).not.toHaveBeenCalled();
     });
 
     it('should detect account approval code prefix', async () => {
@@ -999,7 +826,7 @@ describe('AppShellComponent', () => {
         writable: true
       });
 
-      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       
       // Just verify that ngOnInit doesn't throw for account_approve codes
       expect(async () => {
@@ -1017,7 +844,7 @@ describe('AppShellComponent', () => {
         writable: true
       });
 
-      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       
       // Just verify that ngOnInit doesn't throw for account_deny codes
       expect(async () => {
@@ -1035,7 +862,7 @@ describe('AppShellComponent', () => {
         writable: true
       });
 
-      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       await newComponent.ngOnInit();
 
       expect(mockRouter.navigate).not.toHaveBeenCalled();
@@ -1051,13 +878,13 @@ describe('AppShellComponent', () => {
         writable: true
       });
 
-      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       await newComponent.ngOnInit();
 
       expect(mockRouter.navigate).not.toHaveBeenCalled();
     });
 
-    it('should handle code parameter with other query parameters', async () => {
+    it('leaves a PKCE code when other query parameters are present', async () => {
       Object.defineProperty(window, 'location', {
         value: {
           search: '?redirect=/home&code=admin_code_12345&utm=test',
@@ -1067,13 +894,14 @@ describe('AppShellComponent', () => {
         writable: true
       });
 
-      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       await newComponent.ngOnInit();
 
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/admin']);
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+      expect(window.history.replaceState).not.toHaveBeenCalled();
     });
 
-    it('should clean URL parameters after handling approval code', async () => {
+    it('does not strip a PKCE code from the URL', async () => {
       Object.defineProperty(window, 'location', {
         value: {
           search: '?code=admin_code_12345',
@@ -1083,10 +911,10 @@ describe('AppShellComponent', () => {
         writable: true
       });
 
-      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       await newComponent.ngOnInit();
 
-      expect(window.history.replaceState).toHaveBeenCalled();
+      expect(window.history.replaceState).not.toHaveBeenCalled();
     });
 
     it('should handle invalid URL search params', async () => {
@@ -1099,13 +927,13 @@ describe('AppShellComponent', () => {
         writable: true
       });
 
-      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       await newComponent.ngOnInit();
 
       expect(mockRouter.navigate).not.toHaveBeenCalled();
     });
 
-    it('should navigate to admin for non-account-approval codes', async () => {
+    it('does not treat a non-account code as an approval link', async () => {
       Object.defineProperty(window, 'location', {
         value: {
           search: '?code=some_other_code',
@@ -1115,10 +943,10 @@ describe('AppShellComponent', () => {
         writable: true
       });
 
-      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       await newComponent.ngOnInit();
 
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/admin']);
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
     });
 
     it('should detect different account action prefixes', async () => {
@@ -1131,7 +959,7 @@ describe('AppShellComponent', () => {
         writable: true
       });
 
-      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       
       // Just verify that ngOnInit doesn't throw for account_deny codes
       expect(async () => {
@@ -1139,7 +967,7 @@ describe('AppShellComponent', () => {
       }).not.toThrow();
     });
 
-    it('should handle multiple code parameters (first one wins)', async () => {
+    it('leaves the first non-approval code alone when code is repeated', async () => {
       Object.defineProperty(window, 'location', {
         value: {
           search: '?code=admin_code_1&code=admin_code_2',
@@ -1149,13 +977,13 @@ describe('AppShellComponent', () => {
         writable: true
       });
 
-      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       await newComponent.ngOnInit();
 
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/admin']);
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
     });
 
-    it('should handle query string with special characters in code', async () => {
+    it('leaves a code that contains spaces for auth', async () => {
       Object.defineProperty(window, 'location', {
         value: {
           search: '?code=admin_code_with%20spaces',
@@ -1165,14 +993,14 @@ describe('AppShellComponent', () => {
         writable: true
       });
 
-      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       await newComponent.ngOnInit();
 
-      // Should navigate to admin with the decoded code
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/admin']);
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+      expect(window.history.replaceState).not.toHaveBeenCalled();
     });
 
-    it('should handle case-sensitive account approval codes', async () => {
+    it('does not treat a different-cased prefix as an approval link', async () => {
       Object.defineProperty(window, 'location', {
         value: {
           search: '?code=Account_Approve_test',
@@ -1182,11 +1010,11 @@ describe('AppShellComponent', () => {
         writable: true
       });
 
-      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockCdr, mockPosthog as never);
+      const newComponent = new AppShellComponent(mockRouter, mockInjector, mockNgZone, mockPosthog as never);
       await newComponent.ngOnInit();
 
-      // Should not match account_approve_ because of case sensitivity
-      expect(mockRouter.navigate).toHaveBeenCalledWith(['/admin']);
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+      expect(window.history.replaceState).not.toHaveBeenCalled();
     });
   });
 
@@ -1204,11 +1032,15 @@ describe('AppShellComponent', () => {
     let supabaseServiceInstance: {
       directQuery: (...args: unknown[]) => Promise<any>;
       directMutation: (...args: unknown[]) => Promise<any>;
+      client: {
+        from: (table: string) => any;
+      };
     };
     let emailServiceInstance: {
       getTemplate: (templateName: string) => Promise<any>;
       applyTemplateVariables: (template: string, vars?: Record<string, string>) => string;
       sendEmail: (payload: unknown) => Promise<any>;
+      getEmailBaseUrl: () => string;
     };
     let toastServiceInstance: { showToast: (message: string, type: string) => void };
 
@@ -1218,13 +1050,33 @@ describe('AppShellComponent', () => {
       };
       supabaseServiceInstance = {
         directQuery: (...args: unknown[]) => supabaseDirectQueryMock(...args),
-        directMutation: (...args: unknown[]) => supabaseDirectMutationMock(...args)
+        directMutation: (...args: unknown[]) => supabaseDirectMutationMock(...args),
+        client: {
+          from: (table: string) => {
+            if (table === 'tenant_memberships') {
+              return {
+                insert: () => supabaseDirectMutationMock()
+              };
+            }
+            return {
+              select: () => ({
+                eq: () => ({
+                  limit: () => supabaseDirectQueryMock()
+                })
+              }),
+              delete: () => ({
+                eq: () => supabaseDirectMutationMock()
+              })
+            };
+          }
+        }
       };
       emailServiceInstance = {
-        getTemplate: (templateName: string) => emailGetTemplateMock(templateName),
+        getTemplate: (...args: unknown[]) => emailGetTemplateMock(...args),
         applyTemplateVariables: (template: string, vars: Record<string, string> = {}) =>
           emailApplyTemplateVariablesMock(template, vars),
-        sendEmail: (payload: unknown) => emailSendEmailMock(payload)
+        sendEmail: (payload: unknown) => emailSendEmailMock(payload),
+        getEmailBaseUrl: () => 'https://prayerapp.romans8.net'
       };
       toastServiceInstance = {
         showToast: (message: string, type: string) => toastShowToastMock(message, type)
@@ -1244,6 +1096,18 @@ describe('AppShellComponent', () => {
         }
         if (name === 'ToastService') {
           return toastServiceInstance;
+        }
+        if (name === 'AdminAuthService') {
+          return {
+            getIsAdmin: () => adminGetIsAdminMock(),
+            getUser: () => adminGetUserMock(),
+            isLoading: () => adminIsLoadingMock(),
+            loading$: {
+              pipe() {
+                throw new Error('loading$ is only used while auth is still loading');
+              }
+            }
+          };
         }
 
         return {};
@@ -1287,11 +1151,71 @@ describe('AppShellComponent', () => {
 
       emailSendEmailMock.mockReset().mockResolvedValue({});
       toastShowToastMock.mockReset();
+      adminGetIsAdminMock.mockReset().mockReturnValue(true);
+      adminGetUserMock.mockReset().mockReturnValue({ id: 'admin-1', email: 'admin@example.com' });
+      adminIsLoadingMock.mockReset().mockReturnValue(false);
     });
 
     const callHandler = async (code = 'account_approve_test') => {
       await (component as any).handleAccountApprovalCode(code);
     };
+
+    it('does not insert a membership without an admin session', async () => {
+      adminGetIsAdminMock.mockReturnValue(false);
+      adminGetUserMock.mockReturnValue(null);
+      window.location.search = '?code=account_approve_test';
+
+      await callHandler();
+
+      expect(supabaseDirectMutationMock).not.toHaveBeenCalled();
+      expect(supabaseDirectQueryMock).not.toHaveBeenCalled();
+      expect(toastShowToastMock).toHaveBeenCalledWith(
+        'Sign in as a church admin to use this approval link',
+        'error'
+      );
+      expect(sessionStorage.getItem('prayerapp_pending_account_approval_code')).toBe(
+        'account_approve_test'
+      );
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/login'], {
+        queryParams: { returnUrl: '/test?code=account_approve_test' },
+      });
+    });
+
+    it('does not repeat the unsigned-admin toast on subsequent navigations', async () => {
+      adminGetIsAdminMock.mockReturnValue(false);
+      adminGetUserMock.mockReturnValue(null);
+      window.location.search = '';
+      sessionStorage.setItem('prayerapp_pending_account_approval_code', 'account_approve_test');
+      mockRouter.url = '/login';
+
+      await callHandler();
+      expect(toastShowToastMock).toHaveBeenCalledTimes(1);
+
+      toastShowToastMock.mockClear();
+      mockRouter.navigate.mockClear();
+      await callHandler();
+
+      expect(toastShowToastMock).not.toHaveBeenCalled();
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+      expect(sessionStorage.getItem('prayerapp_pending_account_approval_code')).toBe(
+        'account_approve_test'
+      );
+    });
+
+    it('resumes a pending approval code after the admin signs in', async () => {
+      adminGetIsAdminMock.mockReturnValue(true);
+      adminGetUserMock.mockReturnValue({
+        id: 'admin-1',
+        email: 'admin@example.com',
+      });
+      window.location.search = '';
+      sessionStorage.setItem('prayerapp_pending_account_approval_code', 'account_approve_test');
+
+      await (component as any).handleApprovalCode();
+
+      expect(supabaseDirectQueryMock).toHaveBeenCalled();
+      expect(sessionStorage.getItem('prayerapp_pending_account_approval_code')).toBeNull();
+    });
 
     it('approves a pending request and notifies success', async () => {
       await callHandler();
@@ -1316,7 +1240,13 @@ describe('AppShellComponent', () => {
 
       await callHandler('account_deny_test');
 
-      expect(emailGetTemplateMock).toHaveBeenCalledWith('account_denied');
+      expect(emailGetTemplateMock).toHaveBeenCalledWith('account_denied', 'test-tenant-id');
+      expect(emailApplyTemplateVariablesMock).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          supportEmail: 'https://prayerapp.romans8.net/support'
+        })
+      );
       expect(emailSendEmailMock).toHaveBeenCalled();
       expect(toastShowToastMock).toHaveBeenCalledWith(
         expect.stringContaining('Account denied'),
@@ -1326,10 +1256,11 @@ describe('AppShellComponent', () => {
     });
 
     it('notifies when the request has already been processed', async () => {
-      supabaseDirectQueryMock.mockResolvedValueOnce({
+      supabaseDirectQueryMock.mockResolvedValue({
         data: [createRequest('approved')],
         error: null
       });
+      sessionStorage.setItem('prayerapp_pending_account_approval_code', 'account_approve_test');
 
       await callHandler();
 
@@ -1338,6 +1269,11 @@ describe('AppShellComponent', () => {
         'info'
       );
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/login']);
+      expect(sessionStorage.getItem('prayerapp_pending_account_approval_code')).toBeNull();
+
+      toastShowToastMock.mockClear();
+      await (component as any).handleApprovalCode();
+      expect(toastShowToastMock).not.toHaveBeenCalled();
     });
 
     it('handles invalid approval codes gracefully', async () => {

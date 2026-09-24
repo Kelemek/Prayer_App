@@ -66,6 +66,8 @@ import {
 import {
   applyPersonalPrayerLoadCacheFallbackPlan,
   planPersonalPrayerLoadCacheFallback,
+  shouldSkipCommunityPrayersDbOnSilentRefresh,
+  type PrayerCatalogRefreshOptions,
 } from "../lib/prayer-catalog-load";
 import {
   personalPrayersCacheKeyForTenant,
@@ -291,10 +293,12 @@ export class PrayerPersonalService {
     return isPersonalPrayerDisplayOrderOnlyDbChange(oldRow, newRow);
   }
 
-  async loadPersonalPrayers(silentRefresh = false): Promise<void> {
+  async loadPersonalPrayers(
+    silentRefresh = false,
+    options?: PrayerCatalogRefreshOptions
+  ): Promise<void> {
     try {
       this.loadingPersonalPrayersSubject.next(true);
-      console.log("[PrayerService] Loading personal prayers...");
 
       const tenantId = this.getActiveTenantId();
       const userEmail = await this.getUserEmail();
@@ -313,18 +317,17 @@ export class PrayerPersonalService {
           ? this.cache.getStale<PrayerRequest[]>(cacheKey)
           : null);
       if (cachedPersonalPrayers && cachedPersonalPrayers.length > 0) {
-        console.log(
-          `[PrayerService] Using cached personal prayers (${cachedPersonalPrayers.length} items)`
-        );
         this.seedPersonalServerCounts(cachedPersonalPrayers);
         this.allPersonalPrayersSubject.next(
           this.withPersonalDisplayCounts(cachedPersonalPrayers)
         );
 
-        if (silentRefresh || !this.connectivity.isOnline()) {
-          console.log(
-            "[PrayerService] Cache hit — skipping personal prayers database query"
-          );
+        const skipDbOnWarmCache = shouldSkipCommunityPrayersDbOnSilentRefresh(
+          silentRefresh,
+          cachedPersonalPrayers,
+          options?.bypassWarmCache === true
+        );
+        if (skipDbOnWarmCache || !this.connectivity.isOnline()) {
           this.loadingPersonalPrayersSubject.next(false);
           if (this.connectivity.isOnline()) {
             void this.loadPersonalCategories(false);
@@ -334,7 +337,6 @@ export class PrayerPersonalService {
       }
 
       if (!this.connectivity.isOnline()) {
-        console.log("[PrayerService] Offline with no personal prayer cache");
         this.allPersonalPrayersSubject.next([]);
         this.loadingPersonalPrayersSubject.next(false);
         return;
@@ -358,9 +360,6 @@ export class PrayerPersonalService {
         this.personalCategoriesSubject.value
       );
 
-      console.log(
-        `[PrayerService] Loaded ${personalPrayers.length} personal prayers from database`
-      );
       this.publishPersonalPrayers(personalPrayers);
       this.loadingPersonalPrayersSubject.next(false);
     } catch (err) {
@@ -373,9 +372,6 @@ export class PrayerPersonalService {
       );
       applyPersonalPrayerLoadCacheFallbackPlan(cacheFallback, {
         applyCachedSnapshot: (prayers) => {
-          console.log(
-            `[PrayerService] Showing ${prayers.length} cached personal prayers`
-          );
           this.seedPersonalServerCounts(prayers);
           this.allPersonalPrayersSubject.next(
             this.withPersonalDisplayCounts(prayers)
@@ -513,8 +509,6 @@ export class PrayerPersonalService {
         this.toast.error("User email not available");
         return false;
       }
-
-      console.log("Adding personal prayer for email:", userEmail);
 
       const addPlan = await planPersonalPrayerAdd(
         prayer.category,
@@ -690,7 +684,6 @@ export class PrayerPersonalService {
         this.upsertLocalPersonalCategory(newCategoryId, newCategory);
       }
 
-      console.log("[PrayerService] Personal prayer updated successfully");
       if (options?.successToast !== false) {
         this.toast.success("Personal prayer updated");
       }
@@ -752,7 +745,6 @@ export class PrayerPersonalService {
         )
       );
 
-      console.log("[PrayerService] Personal prayer update updated successfully");
       this.toast.success("Personal prayer update saved");
       return true;
     } catch (error) {
@@ -900,15 +892,11 @@ export class PrayerPersonalService {
         markAsAnswered
       );
 
-      console.log("Adding personal prayer update with data:", updateData);
-
       const { data, error } = await insertPersonalPrayerUpdateRow(
         this.supabase.client,
         updateData
       );
       if (error) throw error;
-
-      console.log("Personal prayer update added successfully:", data);
 
       const insertedRow = Array.isArray(data) ? data[0] : data;
       if (insertedRow) {

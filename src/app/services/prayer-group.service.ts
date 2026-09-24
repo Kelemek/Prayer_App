@@ -7,6 +7,7 @@ import { ToastService } from './toast.service';
 import { UserSessionService } from './user-session.service';
 import { EmailNotificationService } from './email-notification.service';
 import { CacheService } from './cache.service';
+import { APP_BECAME_VISIBLE_EVENT } from '../lib/app-foreground';
 import { groupPrayersCacheKey } from '../lib/prayer-tenant';
 import {
   scheduleDebouncedResumeRefresh,
@@ -575,13 +576,9 @@ export class PrayerGroupService {
   }
 
   private setupResumeListeners(): void {
+    // Same foreground edge as PrayerService (app-became-visible), not focus + visibility.
     this.resumeListenerSubscriptions.push(
-      fromEvent(window, 'focus').subscribe(() => {
-        if (shouldSchedulePrayerResumeRefresh()) {
-          this.scheduleResumeRefresh();
-        }
-      }),
-      fromEvent(document, 'visibilitychange').subscribe(() => {
+      fromEvent(window, APP_BECAME_VISIBLE_EVENT).subscribe(() => {
         if (shouldSchedulePrayerResumeRefresh()) {
           this.scheduleResumeRefresh();
         }

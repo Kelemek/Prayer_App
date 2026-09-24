@@ -46,6 +46,7 @@ describe('prayer-catalog-load', () => {
     expect(shouldSkipCommunityPrayersDbOnSilentRefresh(true, cached)).toBe(true);
     expect(shouldSkipCommunityPrayersDbOnSilentRefresh(false, cached)).toBe(false);
     expect(shouldSkipCommunityPrayersDbOnSilentRefresh(true, [])).toBe(false);
+    expect(shouldSkipCommunityPrayersDbOnSilentRefresh(true, cached, true)).toBe(false);
   });
 
   it('shouldShowCommunityLoadingIndicator when no cache and not silent', () => {

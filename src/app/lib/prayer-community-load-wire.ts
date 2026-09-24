@@ -5,6 +5,7 @@ import {
   publishCommunityPrayersFromDb,
   shouldShowCommunityLoadingIndicator,
   shouldSkipCommunityPrayersDbOnSilentRefresh,
+  type PrayerCatalogRefreshOptions,
 } from './prayer-catalog-load';
 import { formatApprovedCommunityPrayersFromDb } from './prayer-community-load';
 import type { PrayerRequest } from './prayer-types';
@@ -28,26 +29,28 @@ export type CommunityPrayerLoadWireDeps = {
 
 export async function runCommunityPrayerCatalogLoad(
   deps: CommunityPrayerLoadWireDeps,
-  silentRefresh = false
+  silentRefresh = false,
+  options?: PrayerCatalogRefreshOptions
 ): Promise<void> {
   const cachedPrayers = deps.readCache();
-  const skipDb = shouldSkipCommunityPrayersDbOnSilentRefresh(silentRefresh, cachedPrayers);
+  const skipDb = shouldSkipCommunityPrayersDbOnSilentRefresh(
+    silentRefresh,
+    cachedPrayers,
+    options?.bypassWarmCache === true
+  );
 
   try {
-    console.log('[PrayerService] Loading prayers...');
     if (!skipDb) {
       deps.setFetchInFlight(true);
     }
 
     if (cachedPrayers && cachedPrayers.length > 0) {
-      console.log(`[PrayerService] Using cached prayers (${cachedPrayers.length} items)`);
       applyCommunityPrayersCacheSnapshot(cachedPrayers, {
         setAllPrayers: (prayers) => deps.setAllPrayersInMemory(prayers),
         reapplyFilters: () => deps.reapplyFilters(),
       });
 
       if (skipDb) {
-        console.log('[PrayerService] Cache hit for silent refresh - skipping database query');
         if (!deps.isFetchInFlight()) {
           deps.markDbFetchComplete();
         }
@@ -61,10 +64,6 @@ export async function runCommunityPrayerCatalogLoad(
     deps.setError(null);
 
     const prayersData = await deps.fetchApprovedFromDb();
-
-    console.log(
-      `[PrayerService] Loaded ${prayersData?.length || 0} approved prayers from database`
-    );
 
     publishCommunityPrayersFromDb(prayersData || [], formatApprovedCommunityPrayersFromDb, {
       setAllPrayers: (prayers) => deps.setAllPrayersInMemory(prayers),
@@ -82,12 +81,6 @@ export async function runCommunityPrayerCatalogLoad(
       deps.getLastErrorToastTime(),
       deps.loadErrorToastCooldownMs
     );
-
-    if (fallbackPlan.kind === 'use_cache') {
-      console.log(
-        `[PrayerService] Showing ${fallbackPlan.prayers.length} cached prayers (error fallback)`
-      );
-    }
 
     applyCommunityLoadErrorPlan(fallbackPlan, {
       setAllPrayers: (prayers) => deps.setAllPrayersInMemory(prayers),

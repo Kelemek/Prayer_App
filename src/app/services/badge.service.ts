@@ -1,6 +1,7 @@
 import { Injectable, Injector } from '@angular/core';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { distinctUntilChanged, startWith } from 'rxjs/operators';
+import { APP_BECAME_VISIBLE_EVENT } from '../lib/app-foreground';
 import { SupabaseService } from './supabase.service';
 import { UserSessionService } from './user-session.service';
 import { TenantContextService } from './tenant-context.service';
@@ -48,6 +49,32 @@ interface BadgeReceiptRow {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Foreground receipt revalidation interval when a local mirror is already warm. */
+export const BADGE_FOREGROUND_RECEIPT_REVALIDATE_MS = 60_000;
+
+/** Bound per-id badge subjects so a long session cannot grow the map forever. */
+export const INDIVIDUAL_BADGE_SUBJECT_CAP = 200;
+
+function membershipCacheKey(
+  memberships: ReadonlyArray<{
+    tenant_id?: string;
+    role?: string;
+    user_email?: string;
+    badge_functionality_enabled?: boolean;
+  }> | null | undefined
+): string {
+  if (!memberships || memberships.length === 0) {
+    return '';
+  }
+  return memberships
+    .map(
+      (membership) =>
+        `${membership.tenant_id ?? ''}:${membership.role ?? ''}:${(membership.user_email ?? '').toLowerCase()}:${membership.badge_functionality_enabled ? '1' : '0'}`
+    )
+    .sort()
+    .join('|');
+}
+
 function emptyReadState(): BadgeReadState {
   return {
     prayers: [],
@@ -83,6 +110,7 @@ export class BadgeService {
   private readState: BadgeReadState = emptyReadState();
   private loadGeneration = 0;
   private syncInFlight: Promise<void> | null = null;
+  private lastReceiptNetworkSyncAt: number | null = null;
   private otherTenantHydrateInFlight: Promise<void> | null = null;
   private otherTenantHydrateRequested = false;
   private currentUserEmail: string | null = null;
@@ -171,9 +199,18 @@ export class BadgeService {
           .subscribe(() => {
             void this.reloadReadStateFromSources();
           });
-        ctx.memberships$?.subscribe(() => {
-          void this.ensureAllTenantInAppBadgeCaches();
-        });
+        const memberships$ = ctx.memberships$;
+        if (memberships$) {
+          memberships$
+            .pipe(
+              distinctUntilChanged(
+                (prev, next) => membershipCacheKey(prev) === membershipCacheKey(next)
+              )
+            )
+            .subscribe(() => {
+              void this.ensureAllTenantInAppBadgeCaches();
+            });
+        }
       } catch {
         // ignore
       }
@@ -203,6 +240,7 @@ export class BadgeService {
             this.badgeFunctionalityEnabled$.next(false);
             this.pendingSeedAllAsRead = false;
             this.readState = emptyReadState();
+            this.clearIndividualBadgeSubjects();
             this.refreshBadgeCounts();
           }
         });
@@ -244,21 +282,42 @@ export class BadgeService {
       return;
     }
 
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        void this.reloadReadStateFromSources({ preferNetwork: true });
-      }
+    window.addEventListener(APP_BECAME_VISIBLE_EVENT, () => {
+      void this.refreshReadStateOnForeground();
     });
 
     this.visibilityListenerAttached = true;
   }
 
+  private hasWarmReadCache(): boolean {
+    const key = this.getScopedReadCacheKey();
+    if (!key || typeof localStorage === 'undefined') {
+      return false;
+    }
+    return localStorage.getItem(key) != null;
+  }
+
+  /**
+   * Show the local mirror immediately. Hit the database only when that mirror
+   * is missing or the last successful sync is older than the revalidate window.
+   */
+  private async refreshReadStateOnForeground(): Promise<void> {
+    const warm = this.hasWarmReadCache();
+    const fresh =
+      this.lastReceiptNetworkSyncAt != null &&
+      Date.now() - this.lastReceiptNetworkSyncAt < BADGE_FOREGROUND_RECEIPT_REVALIDATE_MS;
+    if (warm && fresh) {
+      this.applyLocalCacheToMemory();
+      this.refreshBadgeCounts();
+      return;
+    }
+    await this.reloadReadStateFromSources();
+  }
+
   /**
    * Load local mirror first (snappy), optionally migrate legacy keys, then sync from DB.
    */
-  private async reloadReadStateFromSources(options?: {
-    preferNetwork?: boolean;
-  }): Promise<void> {
+  private async reloadReadStateFromSources(): Promise<void> {
     const generation = ++this.loadGeneration;
 
     this.restorePendingSeedFlag();
@@ -275,10 +334,6 @@ export class BadgeService {
     }
     this.refreshBadgeCounts();
     void this.ensureAllTenantInAppBadgeCaches();
-
-    if (options?.preferNetwork) {
-      // already loaded from DB above
-    }
   }
 
   getUpdateBadgesChanged$(): Observable<void> {
@@ -720,16 +775,48 @@ export class BadgeService {
     id: string
   ): Observable<boolean> {
     const key = `${type}_${id}`;
-
-    if (!this.individualBadgeSubject$.has(key)) {
-      this.individualBadgeSubject$.set(key, new BehaviorSubject<boolean>(false));
+    let subject = this.individualBadgeSubject$.get(key);
+    if (!subject) {
+      this.evictIdleIndividualBadgeSubjects();
+      subject = new BehaviorSubject<boolean>(false);
+      this.individualBadgeSubject$.set(key, subject);
     }
 
-    return (
-      this.individualBadgeSubject$.get(key) as BehaviorSubject<boolean>
-    )
-      .asObservable()
-      .pipe(startWith(this.checkIndividualBadge(type, id)));
+    return subject.asObservable().pipe(startWith(this.checkIndividualBadge(type, id)));
+  }
+
+  private clearIndividualBadgeSubjects(): void {
+    for (const subject of this.individualBadgeSubject$.values()) {
+      subject.complete();
+    }
+    this.individualBadgeSubject$.clear();
+  }
+
+  private evictIdleIndividualBadgeSubjects(): void {
+    const overCap = () =>
+      this.individualBadgeSubject$.size >= INDIVIDUAL_BADGE_SUBJECT_CAP;
+    if (!overCap()) {
+      return;
+    }
+
+    for (const [key, subject] of [...this.individualBadgeSubject$.entries()]) {
+      if (!overCap()) {
+        return;
+      }
+      if (!subject.observed) {
+        subject.complete();
+        this.individualBadgeSubject$.delete(key);
+      }
+    }
+
+    while (overCap()) {
+      const oldest = this.individualBadgeSubject$.keys().next().value;
+      if (oldest === undefined) {
+        return;
+      }
+      this.individualBadgeSubject$.get(oldest)?.complete();
+      this.individualBadgeSubject$.delete(oldest);
+    }
   }
 
   getUnreadIds(type: 'prayers' | 'prompts'): string[] {
@@ -843,7 +930,6 @@ export class BadgeService {
 
   refreshBadgeCounts(): void {
     this.maybeSeedPendingMarkAll();
-    this.preCreateIndividualBadgeSubjects();
 
     this.badgeCountSubject$.forEach((subject, key) => {
       if (key === 'prayers') {
@@ -868,46 +954,6 @@ export class BadgeService {
     });
 
     this.updateBadgesChanged$.next();
-  }
-
-  private preCreateIndividualBadgeSubjects(): void {
-    try {
-      const prayersCached = localStorage.getItem(this.getPrayersCacheStorageKey());
-      if (prayersCached) {
-        const parsedCache = JSON.parse(prayersCached);
-        const prayers = parsedCache?.data || parsedCache || [];
-        if (Array.isArray(prayers)) {
-          prayers.forEach((prayer: CachedItem) => {
-            const key = `prayers_${prayer.id}`;
-            if (!this.individualBadgeSubject$.has(key)) {
-              this.individualBadgeSubject$.set(
-                key,
-                new BehaviorSubject<boolean>(false)
-              );
-            }
-          });
-        }
-      }
-
-      const promptsCached = localStorage.getItem(this.getPromptsCacheStorageKey());
-      if (promptsCached) {
-        const parsedCache = JSON.parse(promptsCached);
-        const prompts = parsedCache?.data || parsedCache || [];
-        if (Array.isArray(prompts)) {
-          prompts.forEach((prompt: CachedItem) => {
-            const key = `prompts_${prompt.id}`;
-            if (!this.individualBadgeSubject$.has(key)) {
-              this.individualBadgeSubject$.set(
-                key,
-                new BehaviorSubject<boolean>(false)
-              );
-            }
-          });
-        }
-      }
-    } catch (error) {
-      console.warn('[Badge] Failed to pre-create individual badge subjects:', error);
-    }
   }
 
   private calculateBadgeCount(
@@ -1337,6 +1383,7 @@ export class BadgeService {
         receiptsToReadState(rows)
       );
       this.persistReadStateLocally();
+      this.lastReceiptNetworkSyncAt = Date.now();
     } catch (error) {
       console.warn('[Badge] Failed to load read receipts:', error);
     }

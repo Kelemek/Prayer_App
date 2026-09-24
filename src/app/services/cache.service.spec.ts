@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { CacheService } from './cache.service';
+import { CacheService, USER_SCOPED_CACHE_PREFIXES } from './cache.service';
 
 describe('CacheService', () => {
   let service: CacheService;
@@ -169,6 +169,92 @@ describe('CacheService', () => {
       expect(service.get('prayers_1')).toBeNull();
       expect(service.get('prayers_2')).toBeNull();
       expect(service.get('prompts_1')).toBeTruthy();
+    });
+
+    it('should invalidate the resolved storage key used by set and get', () => {
+      service.set('prayers', [{ id: 1 }], 60000);
+
+      expect(service.get('prayers')).toEqual([{ id: 1 }]);
+      expect(localStorage.getItem('prayers_cache')).toBeTruthy();
+      expect(localStorage.getItem('prayers')).toBeNull();
+
+      service.invalidate('prayers');
+
+      expect(service.get('prayers')).toBeNull();
+      expect(localStorage.getItem('prayers_cache')).toBeNull();
+    });
+
+    it('should remove prayers_cache from localStorage when it is no longer in memory', () => {
+      service.set('prayers', [{ id: 1 }], 60000);
+      (service as unknown as { inMemoryCache: Map<string, unknown> }).inMemoryCache.delete(
+        'prayers_cache'
+      );
+
+      expect(localStorage.getItem('prayers_cache')).toBeTruthy();
+
+      service.invalidateCategory('prayers');
+
+      expect(localStorage.getItem('prayers_cache')).toBeNull();
+      expect(service.get('prayers')).toBeNull();
+    });
+  });
+
+  describe('clearUserScopedCaches', () => {
+    it('lists every user-scoped prefix logout must wipe', () => {
+      expect(USER_SCOPED_CACHE_PREFIXES).toEqual([
+        'tenant_',
+        'personalTenant_',
+        'personalCategoryColors_',
+        'prompts:',
+        'groupPrayers:',
+        'memorizationRecommendations:',
+        'memberPrayedForCounts',
+        'memberPrayerUpdates',
+      ]);
+    });
+
+    it('should wipe resolved config keys and dynamic user caches, then not rehydrate them', () => {
+      service.set('prayers', [{ id: 'church' }], 60000);
+      service.set('tenant_tenant-1_prayers', [{ id: 'tenant' }], 60000);
+      service.set('personalTenant_tenant-1', [{ id: 'personal' }], 60000);
+      service.set('personalCategoryColors_tenant-1', { family: '#fff' }, 60000);
+      service.set('prompts:tenant-1', [{ id: 'prompt' }], 60000);
+      service.set('groupPrayers:group-1', [{ id: 'group' }], 60000);
+      service.set('memorizationRecommendations:tenant-1', { items: [1] }, 60000);
+      service.set('memberPrayedForCounts', { person: 2 }, 60000);
+      service.set('memberPrayerUpdates', { person: 3 }, 60000);
+      localStorage.setItem('theme', 'dark');
+      localStorage.setItem('userSession', '{"email":"keep@example.com"}');
+      localStorage.setItem(
+        'tenant_other_prayers',
+        JSON.stringify({ data: [{ id: 'disk-only' }], timestamp: Date.now(), ttl: 60000 })
+      );
+
+      service.clearUserScopedCaches();
+
+      expect(service.get('prayers')).toBeNull();
+      expect(service.get('tenant_tenant-1_prayers')).toBeNull();
+      expect(service.get('groupPrayers:group-1')).toBeNull();
+      expect(service.get('memberPrayedForCounts')).toBeNull();
+      expect(service.get('memorizationRecommendations:tenant-1')).toBeNull();
+      expect(localStorage.getItem('prayers_cache')).toBeNull();
+      expect(localStorage.getItem('tenant_tenant-1_prayers')).toBeNull();
+      expect(localStorage.getItem('personalTenant_tenant-1')).toBeNull();
+      expect(localStorage.getItem('personalCategoryColors_tenant-1')).toBeNull();
+      expect(localStorage.getItem('prompts:tenant-1')).toBeNull();
+      expect(localStorage.getItem('groupPrayers:group-1')).toBeNull();
+      expect(localStorage.getItem('memorizationRecommendations:tenant-1')).toBeNull();
+      expect(localStorage.getItem('memberPrayedForCounts')).toBeNull();
+      expect(localStorage.getItem('memberPrayerUpdates')).toBeNull();
+      expect(localStorage.getItem('tenant_other_prayers')).toBeNull();
+      expect(localStorage.getItem('theme')).toBe('dark');
+      expect(localStorage.getItem('userSession')).toBe('{"email":"keep@example.com"}');
+
+      const restarted = new CacheService();
+      expect(restarted.get('tenant_tenant-1_prayers')).toBeNull();
+      expect(restarted.get('tenant_other_prayers')).toBeNull();
+      expect(restarted.get('prayers')).toBeNull();
+      expect(restarted.get('memberPrayedForCounts')).toBeNull();
     });
   });
 

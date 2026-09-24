@@ -127,7 +127,7 @@ describe('PrayerService extra coverage', () => {
     vi.useRealTimers();
   });
 
-  it('setupVisibilityListener falls back to cache when silent refresh fails', async () => {
+  it('visibility resume falls back to cache when silent refresh fails', async () => {
     vi.useFakeTimers();
     const supabase = makeSupabase();
     (supabase as any).ensureConnected = vi.fn().mockResolvedValue(undefined);
@@ -143,32 +143,13 @@ describe('PrayerService extra coverage', () => {
 
     vi.spyOn(service as any, 'loadPrayers').mockImplementation(() => Promise.reject(new Error('silent')));
 
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true });
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
-    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new CustomEvent('app-became-visible'));
     await vi.advanceTimersByTimeAsync(500);
 
     expect(Array.isArray((service as any).allPrayersSubject.value)).toBe(true);
     vi.useRealTimers();
   });
 
-  it('setupInactivityListener resets timer on activity events without throwing', () => {
-    const supabase = makeSupabase();
-    const cache = {
-      get: vi.fn(() => null),
-      getStale: vi.fn(() => null),
-      set: vi.fn(),
-      invalidate: vi.fn(),
-    };
-    const service = createPrayerService(supabase, cache as any);
-
-    // make threshold small and call setup directly
-    (service as any).inactivityThresholdMs = 10;
-    (service as any).setupInactivityListener();
-
-    // dispatch a mousedown which should reset the timer
-    document.dispatchEvent(new Event('mousedown'));
-
-    // ensure inactivityTimeout is set
-    expect((service as any).inactivityTimeout).toBeTruthy();
-  });
 });

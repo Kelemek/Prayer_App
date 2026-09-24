@@ -251,6 +251,64 @@ describe('BackupStatusComponent', () => {
     expect(component.restoring).toBe(false);
   });
 
+  it('onConfirmBackup does not request verification_codes with the publishable key', async () => {
+    const urls: string[] = [];
+    fetchSpy.mockImplementation(async (url: string) => {
+      urls.push(String(url));
+      if (String(url).includes('/backup_tables')) {
+        return {
+          ok: true,
+          json: async () => [
+            { table_name: 'prayers' },
+            { table_name: 'verification_codes' },
+          ],
+        } as any;
+      }
+      return { ok: true, json: async () => [] } as any;
+    });
+
+    const createObjectURL = vi.fn().mockReturnValue('blob:codes');
+    // @ts-ignore
+    globalThis.URL = { createObjectURL, revokeObjectURL: vi.fn() };
+    const anchor = document.createElement('a');
+    anchor.click = vi.fn();
+    vi.spyOn(document, 'createElement').mockImplementation(() => anchor as any);
+
+    const client = makeMockSupabaseClient();
+    supabaseService.getClient = vi.fn().mockReturnValue(client);
+    component.fetchBackupLogs = vi.fn();
+
+    await component.onConfirmBackup();
+
+    expect(urls.some((url) => url.includes('verification_codes'))).toBe(false);
+    expect(urls.some((url) => url.includes('/rest/v1/prayers'))).toBe(true);
+  });
+
+  it('onConfirmRestore skips verification_codes', async () => {
+    const backupObj = {
+      tables: {
+        prayers: { data: [{ id: 'r1' }] },
+        verification_codes: { data: [{ id: 'code-1', code: '123456' }] },
+      },
+    };
+    const fakeFile: any = { name: 'b.json', text: async () => JSON.stringify(backupObj) };
+    const evt: any = { target: { files: [fakeFile], value: '' } };
+    const client = makeMockSupabaseClient();
+    client.from = vi.fn().mockImplementation(() => ({
+      select: vi.fn().mockResolvedValue({ data: [], error: null }),
+      delete: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ error: null }) }),
+      upsert: vi.fn().mockResolvedValue({ error: null }),
+    }));
+    supabaseService.getClient = vi.fn().mockReturnValue(client);
+
+    await component.handleManualRestore(evt as Event);
+    await component.onConfirmRestore();
+
+    const tables = client.from.mock.calls.map((call: string[]) => call[0]);
+    expect(tables).toContain('prayers');
+    expect(tables).not.toContain('verification_codes');
+  });
+
   it('handleManualBackup with discovered table and data produces non-zero totalRecords', async () => {
     fetchSpy.mockImplementation(async (url: string) => {
       if (url.includes('/backup_tables')) {

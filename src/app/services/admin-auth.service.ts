@@ -8,6 +8,7 @@ import { PushNotificationService } from './push-notification.service';
 import { PrayerEncouragementService } from './prayer-encouragement.service';
 import { TenantContextService } from './tenant-context.service';
 import { AuthIdentityService } from './auth-identity.service';
+import { APP_BECAME_VISIBLE_EVENT } from '../lib/app-foreground';
 import { getAuthRedirectOrigin } from '../lib/app-origin';
 import { resetPostHogUser } from '../../lib/posthog';
 import type { User } from '@supabase/supabase-js';
@@ -27,6 +28,7 @@ export class AdminAuthService {
   private sessionStart: number | null = null;
   private adminSessionStart: number | null = null;
   private lastBlockedCheck = 0;
+  private foregroundRevalidate: Promise<void> | null = null;
 
   public user$ = this.userSubject.asObservable();
   public isAdmin$ = this.isAdminSubject.asObservable();
@@ -112,59 +114,16 @@ export class AdminAuthService {
         this.sessionStart = null;
         this.persistSessionStart(null);
 
-        this.cacheService.invalidateCategory('personalTenant_');
-        this.cacheService.invalidateCategory('prayers');
-        this.cacheService.invalidateCategory('prompts');
-        localStorage.removeItem('read_prayers_data');
-        localStorage.removeItem('read_prompts_data');
-
-        if (userEmail) {
-          localStorage.removeItem(`last_activity_update_${userEmail}`);
-        }
+        this.wipeUserScopedCaches(userEmail);
       }
     });
 
     // Track user activity
     this.trackUserActivity();
 
-    // Refresh lightweight checks when the window regains focus so we don't block rendering
-    window.addEventListener('focus', () => {
-      this.checkBlockedStatusInBackground();
-      
-      // Re-validate admin status on focus after background suspension (iOS Edge issue)
-      const currentUser = this.userSubject.value;
-      if (currentUser) {
-        this.checkAdminStatus(currentUser).catch(error => {
-          console.error('Error re-validating admin status on focus:', error);
-        });
-      }
-    });
-
-    // Also handle visibilitychange event for iOS app background/foreground transitions
-    // This fires before focus on some iOS browsers
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) {
-        console.log('[AdminAuth] App became visible, re-validating admin state');
-        // Re-validate admin status when app returns from background
-        const currentUser = this.userSubject.value;
-        if (currentUser) {
-          this.checkAdminStatus(currentUser).catch(error => {
-            console.error('Error re-validating admin status on visibility change:', error);
-          });
-        }
-        
-        // Check approval session
-        const approvalEmail = localStorage.getItem('approvalAdminEmail');
-        const sessionValidated = localStorage.getItem('approvalSessionValidated');
-        if (approvalEmail && sessionValidated === 'true') {
-          this.isEmailAdmin(approvalEmail).then(isAdmin => {
-            this.isAdminSubject.next(isAdmin);
-            this.hasAdminEmailSubject.next(isAdmin);
-          }).catch(error => {
-            console.error('Error re-validating approval session on visibility change:', error);
-          });
-        }
-      }
+    // One foreground edge. Focus and raw visibilitychange must not both re-check admin.
+    window.addEventListener(APP_BECAME_VISIBLE_EVENT, () => {
+      this.revalidateOnForeground();
     });
 
     // Set up session timeout checks
@@ -180,6 +139,39 @@ export class AdminAuthService {
    */
   public clearLoading(): void {
     this.loadingSubject.next(false);
+  }
+
+  private revalidateOnForeground(): void {
+    this.checkBlockedStatusInBackground();
+    if (this.foregroundRevalidate) {
+      return;
+    }
+    this.foregroundRevalidate = this.revalidateAdminOnForeground().finally(() => {
+      this.foregroundRevalidate = null;
+    });
+  }
+
+  private async revalidateAdminOnForeground(): Promise<void> {
+    const currentUser = this.userSubject.value;
+    if (currentUser) {
+      try {
+        await this.checkAdminStatus(currentUser);
+      } catch (error) {
+        console.error('Error re-validating admin status on foreground:', error);
+      }
+    }
+
+    const approvalEmail = localStorage.getItem('approvalAdminEmail');
+    const sessionValidated = localStorage.getItem('approvalSessionValidated');
+    if (approvalEmail && sessionValidated === 'true') {
+      try {
+        const isAdmin = await this.isEmailAdmin(approvalEmail);
+        this.isAdminSubject.next(isAdmin);
+        this.hasAdminEmailSubject.next(isAdmin);
+      } catch (error) {
+        console.error('Error re-validating approval session on foreground:', error);
+      }
+    }
   }
 
   private async checkAdminStatus(user: User): Promise<void> {
@@ -217,39 +209,45 @@ export class AdminAuthService {
   }
 
   checkBlockedStatusInBackground(returnUrl?: string): void {
+    const email = this.userSubject.value?.email?.toLowerCase().trim() ?? '';
+    if (!email) {
+      return;
+    }
+
     const now = Date.now();
     if (now - this.lastBlockedCheck < 60000) return; // throttle to avoid spamming
     this.lastBlockedCheck = now;
 
-    // Fire and forget – do not block UI rendering
-    this.supabase.directQuery<{ is_blocked: boolean }>(
-      'tenant_memberships',
-      {
-        select: 'is_blocked',
-        eq: { user_email: this.userSubject.value?.email?.toLowerCase() || '' },
-        limit: 1,
-        timeout: 5000
-      }
-    ).then(({ data, error }) => {
-      if (error) {
-        console.warn('[AdminAuth] Block check skipped due to error:', error);
-        return;
-      }
+    // Signed-in client so RLS can see this user's is_blocked row.
+    // Fire and forget – do not block UI rendering.
+    void (async () => {
+      try {
+        const { data, error } = await this.supabase.client
+          .from('tenant_memberships')
+          .select('is_blocked')
+          .eq('user_email', email)
+          .limit(1)
+          .maybeSingle();
 
-      const isBlocked = data && Array.isArray(data) && data.length > 0 && data[0]?.is_blocked;
-      if (isBlocked) {
-        console.log('[AdminAuth] User is blocked - logging out');
-        this.logout();
-        this.router.navigate(['/login'], {
-          queryParams: {
-            returnUrl: returnUrl || '/',
-            blocked: 'true'
-          }
-        });
+        if (error) {
+          console.warn('[AdminAuth] Block check skipped due to error:', error);
+          return;
+        }
+
+        if (data?.is_blocked) {
+          console.log('[AdminAuth] User is blocked - logging out');
+          this.logout();
+          this.router.navigate(['/login'], {
+            queryParams: {
+              returnUrl: returnUrl || '/',
+              blocked: 'true'
+            }
+          });
+        }
+      } catch (error) {
+        console.warn('[AdminAuth] Block check exception:', error);
       }
-    }).catch(error => {
-      console.warn('[AdminAuth] Block check exception:', error);
-    });
+    })();
   }
 
   private trackUserActivity(): void {
@@ -543,14 +541,8 @@ export class AdminAuthService {
       localStorage.removeItem('mfa_code_id');
       localStorage.removeItem('mfa_user_email');
 
-      // Clear user-specific caches to prevent next user from seeing previous user's data
-      this.cacheService.invalidateCategory('personalTenant_');
-      this.cacheService.invalidateCategory('prayers');
-      this.cacheService.invalidateCategory('prompts');
-      
-      // Clear badge read tracking (which prayers/prompts user has read)
-      localStorage.removeItem('read_prayers_data');
-      localStorage.removeItem('read_prompts_data');
+      // Clear user-specific caches so the next account cannot rehydrate them.
+      this.wipeUserScopedCaches(userEmail);
 
       // Clear Pray For modal "do not show again" preference so next user sees the modal if desired
       localStorage.removeItem('prayer_encouragement_modal_do_not_show');
@@ -562,12 +554,7 @@ export class AdminAuthService {
       } catch {
         // Ignore if service not available
       }
-      
-      // Clear analytics activity tracking for this user
-      if (userEmail) {
-        localStorage.removeItem(`last_activity_update_${userEmail}`);
-      }
-      
+
       // Always redirect to login page after logout
       if (loginQueryParams && Object.keys(loginQueryParams).length > 0) {
         this.router.navigate(['/login'], { queryParams: loginQueryParams });
@@ -576,6 +563,19 @@ export class AdminAuthService {
       }
     } catch (error) {
       console.error('Error during logout:', error);
+    }
+  }
+
+  /**
+   * One logout/sign-out wipe for every user-scoped CacheService prefix,
+   * plus badge read-state and per-email activity keys.
+   */
+  private wipeUserScopedCaches(userEmail?: string | null): void {
+    this.cacheService.clearUserScopedCaches();
+    localStorage.removeItem('read_prayers_data');
+    localStorage.removeItem('read_prompts_data');
+    if (userEmail) {
+      localStorage.removeItem(`last_activity_update_${userEmail}`);
     }
   }
 
@@ -611,17 +611,14 @@ export class AdminAuthService {
         return;
       }
 
-      const { data, error } = await this.supabase.directQuery<Array<{
-        require_site_login: boolean;
-      }>>('tenant_settings', {
-        select: 'require_site_login',
-        eq: { tenant_id: tenantId },
-        limit: 1,
-        timeout: 10000
-      });
+      const { data, error } = await this.supabase.client
+        .from('tenant_settings')
+        .select('require_site_login')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
 
-      if (!error && data && data[0]) {
-        this.requireSiteLoginSubject.next(data[0].require_site_login ?? true);
+      if (!error && data) {
+        this.requireSiteLoginSubject.next(data.require_site_login ?? true);
       }
     } catch (error) {
       console.error('Error reloading site protection setting:', error);

@@ -97,6 +97,7 @@ describe('AdminAuthService', () => {
       from: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
       }),
       functions: {
@@ -119,6 +120,7 @@ describe('AdminAuthService', () => {
       invalidateCategory: vi.fn(),
       invalidate: vi.fn(),
       invalidateAll: vi.fn(),
+      clearUserScopedCaches: vi.fn(),
       get: vi.fn(),
       set: vi.fn()
     };
@@ -197,6 +199,7 @@ describe('AdminAuthService', () => {
       expect(user).toBe(null);
       expect(isAdmin).toBe(false);
       expect(isAuthenticated).toBe(false);
+      expect(mockCacheService.clearUserScopedCaches).toHaveBeenCalled();
     });
 
     it('should pass login query params when signing out for an invite', async () => {
@@ -271,6 +274,48 @@ describe('AdminAuthService', () => {
       await service.logout();
 
       expect(localStorage.getItem('prayer_encouragement_modal_do_not_show')).toBeNull();
+    });
+
+    it('should wipe user-scoped prayer caches on logout and leave unrelated keys', async () => {
+      await vi.advanceTimersByTimeAsync(100);
+      const { CacheService } = await import('./cache.service');
+      const cache = new CacheService();
+      cache.set('tenant_t1_prayers', [{ id: 'p' }], 60000);
+      cache.set('groupPrayers:g1', [{ id: 'g' }], 60000);
+      cache.set('memberPrayedForCounts', { a: 1 }, 60000);
+      cache.set('memorizationRecommendations:t1', { items: [] }, 60000);
+      cache.set('prayers', [{ id: 'legacy' }], 60000);
+      localStorage.setItem('read_prayers_data', '{}');
+      localStorage.setItem('read_prompts_data', '{}');
+      localStorage.setItem('last_activity_update_member@example.com', '1');
+      localStorage.setItem('theme', 'dark');
+      mockAuthIdentity.getEmail.mockResolvedValue('member@example.com');
+
+      const { AdminAuthService } = await import('./admin-auth.service');
+      const wired = new AdminAuthService(
+        mockSupabaseService,
+        cache,
+        mockTenantContext as any,
+        mockAuthIdentity as any
+      );
+      await vi.advanceTimersByTimeAsync(100);
+
+      await wired.logout();
+
+      expect(cache.get('tenant_t1_prayers')).toBeNull();
+      expect(cache.get('groupPrayers:g1')).toBeNull();
+      expect(cache.get('memberPrayedForCounts')).toBeNull();
+      expect(cache.get('memorizationRecommendations:t1')).toBeNull();
+      expect(cache.get('prayers')).toBeNull();
+      expect(localStorage.getItem('tenant_t1_prayers')).toBeNull();
+      expect(localStorage.getItem('groupPrayers:g1')).toBeNull();
+      expect(localStorage.getItem('memberPrayedForCounts')).toBeNull();
+      expect(localStorage.getItem('memorizationRecommendations:t1')).toBeNull();
+      expect(localStorage.getItem('prayers_cache')).toBeNull();
+      expect(localStorage.getItem('read_prayers_data')).toBeNull();
+      expect(localStorage.getItem('read_prompts_data')).toBeNull();
+      expect(localStorage.getItem('last_activity_update_member@example.com')).toBeNull();
+      expect(localStorage.getItem('theme')).toBe('dark');
     });
   });
 
@@ -526,28 +571,46 @@ describe('AdminAuthService', () => {
 
     it('should reload site protection setting from database', async () => {
       mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-a' });
-      mockSupabaseService.directQuery = vi.fn().mockResolvedValue({
-        data: [{ require_site_login: false }],
-        error: null
+      mockSupabaseClient.from.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { require_site_login: false },
+          error: null
+        })
       });
 
       await service.reloadSiteProtectionSetting();
 
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('tenant_settings');
+      expect(mockSupabaseService.directQuery).not.toHaveBeenCalled();
       const requireSiteLogin = await firstValueFrom(service.requireSiteLogin$);
       expect(requireSiteLogin).toBe(false);
     });
 
     it('should handle reload error', async () => {
-      mockSupabaseService.directQuery = vi.fn().mockResolvedValue({
-        data: null,
-        error: { message: 'Database error' }
+      mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-a' });
+      mockSupabaseClient.from.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: null,
+          error: { message: 'Database error' }
+        })
       });
 
       await expect(service.reloadSiteProtectionSetting()).resolves.not.toThrow();
+      expect(mockSupabaseService.directQuery).not.toHaveBeenCalled();
     });
 
     it('should handle reload exception', async () => {
-      mockSupabaseService.directQuery = vi.fn().mockRejectedValue(new Error('Network error'));
+      mockTenantContext.getActiveTenant.mockReturnValue({ id: 'tenant-a' });
+      mockSupabaseClient.from.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockRejectedValue(new Error('Network error'))
+      });
 
       await expect(service.reloadSiteProtectionSetting()).resolves.not.toThrow();
     });
@@ -559,9 +622,8 @@ describe('AdminAuthService', () => {
     });
 
     it('should throttle blocked status checks', async () => {
-      // Clear any previous calls from initialization
+      service.userSubject.next({ email: 'user@example.com' });
       vi.clearAllMocks();
-      const directQuerySpy = vi.spyOn(mockSupabaseService, 'directQuery');
 
       service.checkBlockedStatusInBackground();
       service.checkBlockedStatusInBackground();
@@ -569,13 +631,21 @@ describe('AdminAuthService', () => {
       await vi.advanceTimersByTimeAsync(100);
 
       // Should only call once due to throttling (within 60 second window)
-      expect(directQuerySpy).toHaveBeenCalledTimes(1);
+      expect(mockSupabaseClient.from).toHaveBeenCalledTimes(1);
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('tenant_memberships');
+      expect(mockSupabaseService.directQuery).not.toHaveBeenCalled();
     });
 
     it('should handle blocked check error gracefully', async () => {
-      mockSupabaseService.directQuery = vi.fn().mockResolvedValue({
-        data: null,
-        error: { message: 'Database error' }
+      service.userSubject.next({ email: 'user@example.com' });
+      mockSupabaseClient.from.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: null,
+          error: { message: 'Database error' }
+        })
       });
 
       service.checkBlockedStatusInBackground();
@@ -586,7 +656,13 @@ describe('AdminAuthService', () => {
     });
 
     it('should handle blocked check exception gracefully', async () => {
-      mockSupabaseService.directQuery = vi.fn().mockRejectedValue(new Error('Network error'));
+      service.userSubject.next({ email: 'user@example.com' });
+      mockSupabaseClient.from.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockRejectedValue(new Error('Network error'))
+      });
 
       service.checkBlockedStatusInBackground();
       await vi.advanceTimersByTimeAsync(100);
@@ -623,9 +699,14 @@ describe('AdminAuthService', () => {
 
       // Now check blocked status and user should be blocked
       vi.clearAllMocks();
-      mockSupabaseService.directQuery = vi.fn().mockResolvedValue({
-        data: [{ is_blocked: true }],
-        error: null
+      mockSupabaseClient.from.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { is_blocked: true },
+          error: null
+        })
       });
 
       service.checkBlockedStatusInBackground('/admin/users');
@@ -730,6 +811,7 @@ describe('AdminAuthService', () => {
       expect(user).toBe(null);
       expect(isAdmin).toBe(false);
       expect(isAuthenticated).toBe(false);
+      expect(mockCacheService.clearUserScopedCaches).toHaveBeenCalled();
     });
 
     it('should persist session start on sign in when not already set', async () => {
@@ -1076,8 +1158,9 @@ describe('AdminAuthService', () => {
       newService.checkBlockedStatusInBackground();
       await vi.advanceTimersByTimeAsync(100);
 
-      // Should call directQuery with empty email
-      expect(mockSupabaseService.directQuery).toHaveBeenCalled();
+      // No email means no membership read. Do not query as anon.
+      expect(mockSupabaseClient.from).not.toHaveBeenCalled();
+      expect(mockSupabaseService.directQuery).not.toHaveBeenCalled();
     });
 
     it('should handle user without email on init', async () => {
@@ -1165,11 +1248,11 @@ describe('AdminAuthService', () => {
   });
 
   describe('Focus/Visibility Change Handler - iOS Edge Fix', () => {
-    it('should re-validate admin status on window focus after background suspension', async () => {
-      let focusHandler: any;
+    it('should re-validate admin status on app-became-visible after background suspension', async () => {
+      let visibleHandler: any;
       vi.spyOn(window, 'addEventListener').mockImplementation((event: any, handler: any) => {
-        if (event === 'focus') {
-          focusHandler = handler;
+        if (event === 'app-became-visible') {
+          visibleHandler = handler;
         }
       });
 
@@ -1208,12 +1291,9 @@ describe('AdminAuthService', () => {
       let isAdmin = await firstValueFrom(newService.isAdmin$);
       expect(isAdmin).toBe(true);
 
-      // Trigger focus event (simulating app return from background)
-      expect(focusHandler).toBeDefined();
-      if (focusHandler) {
-        focusHandler();
-        await vi.advanceTimersByTimeAsync(200); // Wait longer for async operations
-      }
+      expect(visibleHandler).toBeTypeOf('function');
+      visibleHandler();
+      await vi.advanceTimersByTimeAsync(200);
 
       expect(mockSupabaseClient.functions.invoke).toHaveBeenCalledWith(
         'check-admin-status',
@@ -1223,7 +1303,7 @@ describe('AdminAuthService', () => {
       );
     });
 
-    it('should re-validate admin status on visibilitychange when page becomes visible', async () => {
+    it('should not re-validate admin status from a raw visibilitychange', async () => {
       let visibilityChangeHandler: any;
       vi.spyOn(document, 'addEventListener').mockImplementation((event: any, handler: any) => {
         if (event === 'visibilitychange') {
@@ -1265,22 +1345,15 @@ describe('AdminAuthService', () => {
       const newService = new AdminAuthService(mockSupabaseService, mockCacheService, mockTenantContext as any, mockAuthIdentity as any);
       await vi.advanceTimersByTimeAsync(100);
 
-      let isAdmin = await firstValueFrom(newService.isAdmin$);
+      const isAdmin = await firstValueFrom(newService.isAdmin$);
       expect(isAdmin).toBe(true);
 
-      // Trigger visibilitychange event (page becomes visible)
-      expect(visibilityChangeHandler).toBeDefined();
-      if (visibilityChangeHandler) {
-        visibilityChangeHandler();
-        await vi.advanceTimersByTimeAsync(200); // Wait for async operations
-      }
+      const invokeCount = mockSupabaseClient.functions.invoke.mock.calls.length;
+      expect(visibilityChangeHandler).toBeUndefined();
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(200);
 
-      expect(mockSupabaseClient.functions.invoke).toHaveBeenCalledWith(
-        'check-admin-status',
-        expect.objectContaining({
-          body: expect.objectContaining({ email: 'admin@example.com' })
-        })
-      );
+      expect(mockSupabaseClient.functions.invoke.mock.calls.length).toBe(invokeCount);
     });
 
     it('should not trigger re-validation if page stays hidden on visibilitychange', async () => {
@@ -1312,7 +1385,7 @@ describe('AdminAuthService', () => {
       const newService = new AdminAuthService(mockSupabaseService, mockCacheService, mockTenantContext as any, mockAuthIdentity as any);
       await vi.advanceTimersByTimeAsync(100);
 
-      const initialCallCount = mockSupabaseService.directQuery.mock.calls.length;
+      const initialInvokeCount = mockSupabaseClient.functions.invoke.mock.calls.length;
 
       // Trigger visibilitychange event while page is still hidden
       if (visibilityChangeHandler) {
@@ -1320,8 +1393,9 @@ describe('AdminAuthService', () => {
         await vi.advanceTimersByTimeAsync(100);
       }
 
-      // No additional directQuery calls should happen when page stays hidden
-      expect(mockSupabaseService.directQuery.mock.calls.length).toBe(initialCallCount);
+      // Staying hidden must not re-read membership or re-check admin status
+      expect(mockSupabaseClient.functions.invoke.mock.calls.length).toBe(initialInvokeCount);
+      expect(mockSupabaseClient.from).not.toHaveBeenCalled();
     });
 
   });
@@ -1424,11 +1498,11 @@ describe('AdminAuthService', () => {
   });
 
   describe('Event listener callbacks', () => {
-    it('should handle focus events', async () => {
-      let focusHandler: (() => void) | undefined;
+    it('should handle app-became-visible events', async () => {
+      let visibleHandler: (() => void) | undefined;
       vi.spyOn(window, 'addEventListener').mockImplementation((event: string, handler: any) => {
-        if (event === 'focus') {
-          focusHandler = handler;
+        if (event === 'app-became-visible') {
+          visibleHandler = handler;
         }
       });
 
@@ -1437,10 +1511,9 @@ describe('AdminAuthService', () => {
       
       await vi.advanceTimersByTimeAsync(100);
 
-      if (focusHandler) {
-        focusHandler();
-        await vi.advanceTimersByTimeAsync(100);
-      }
+      expect(visibleHandler).toBeTypeOf('function');
+      visibleHandler!();
+      await vi.advanceTimersByTimeAsync(100);
 
       expect(newService).toBeTruthy();
     });
@@ -1647,11 +1720,11 @@ describe('AdminAuthService', () => {
   });
 
   describe('Focus event handler complete flow', () => {
-    it('should handle focus event without crashing when user exists', async () => {
-      let focusHandler: (() => void) | undefined;
+    it('should handle app-became-visible without crashing when user exists', async () => {
+      let visibleHandler: (() => void) | undefined;
       vi.spyOn(window, 'addEventListener').mockImplementation((event: string, handler: any) => {
-        if (event === 'focus') {
-          focusHandler = handler;
+        if (event === 'app-became-visible') {
+          visibleHandler = handler;
         }
       });
 
@@ -1663,11 +1736,10 @@ describe('AdminAuthService', () => {
         role: 'authenticated'
       } as any);
 
-      service.lastBlockedCheck = Date.now(); // Prevent blocked check from running
-      
-      // Call the focus handler if it was registered
-      if (focusHandler) {
-        focusHandler();
+      service.lastBlockedCheck = Date.now();
+
+      if (visibleHandler) {
+        visibleHandler();
         await vi.advanceTimersByTimeAsync(50);
       }
 

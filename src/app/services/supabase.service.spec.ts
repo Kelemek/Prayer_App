@@ -3,8 +3,13 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 // Ensure we can mock modules before importing the service
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => ({
-    auth: { getSession: vi.fn(() => ({ data: null, error: null })) }
-  }))
+    auth: {
+      getSession: vi.fn(async () => ({
+        data: { session: { access_token: 'user-access-token' } },
+        error: null,
+      })),
+    },
+  })),
 }));
 
 describe('SupabaseService', () => {
@@ -13,6 +18,15 @@ describe('SupabaseService', () => {
 
   beforeEach(async () => {
     vi.resetModules();
+    const { createClient } = await import('@supabase/supabase-js');
+    (createClient as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      auth: {
+        getSession: vi.fn(async () => ({
+          data: { session: { access_token: 'user-access-token' } },
+          error: null,
+        })),
+      },
+    }));
     env = await import('../../environments/environment');
     // default valid env
     env.environment.supabaseUrl = 'https://supabase.example';
@@ -135,8 +149,8 @@ describe('SupabaseService', () => {
     expect(String(res.error)).toContain('Mutation failed');
   });
 
-  it('ensureConnected triggers reconnect when auth.getSession returns error', async () => {
-    const supabaseMock = { auth: { getSession: vi.fn(async () => ({ data: null, error: new Error('boom') })) } };
+  it('ensureConnected triggers reconnect when auth.getSession returns a dead session', async () => {
+    const supabaseMock = { auth: { getSession: vi.fn(async () => ({ data: null, error: { message: 'Invalid Refresh Token: Refresh Token Not Found', code: 'refresh_token_not_found', status: 400 } })) } };
     const createClient = (await import('@supabase/supabase-js')).createClient as any;
     createClient.mockImplementation(() => supabaseMock);
 
@@ -152,6 +166,34 @@ describe('SupabaseService', () => {
     expect(createClient).toHaveBeenCalled();
   });
 
+  it('reconnect notifies listeners with the previous client', async () => {
+    const deadSessionError = {
+      message: 'Invalid Refresh Token: Refresh Token Not Found',
+      code: 'refresh_token_not_found',
+      status: 400,
+    };
+    const previous = {
+      auth: { getSession: vi.fn(async () => ({ data: null, error: deadSessionError })) },
+    };
+    const next = { auth: { getSession: vi.fn(async () => ({ data: { session: true }, error: null })) } };
+    const createClient = (await import('@supabase/supabase-js')).createClient as any;
+    let created = 0;
+    createClient.mockImplementation(() => {
+      created += 1;
+      return created === 1 ? previous : next;
+    });
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+    const listener = vi.fn();
+    svc.onClientReplaced(listener);
+
+    await svc.ensureConnected();
+
+    expect(listener).toHaveBeenCalledWith(previous);
+    expect(svc.client).toBe(next);
+  });
+
   it('ensureConnected does not reconnect when session is healthy', async () => {
     const supabaseMock = { auth: { getSession: vi.fn(async () => ({ data: { session: true }, error: null })) } };
     const createClient = (await import('@supabase/supabase-js')).createClient as any;
@@ -164,6 +206,53 @@ describe('SupabaseService', () => {
     await svc.ensureConnected();
 
     expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it('ensureConnected does not reconnect on a transient network error', async () => {
+    const supabaseMock = { auth: { getSession: vi.fn(async () => ({ data: { session: null }, error: new Error('Failed to fetch') })) } };
+    const createClient = (await import('@supabase/supabase-js')).createClient as any;
+    createClient.mockImplementation(() => supabaseMock);
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+
+    createClient.mockClear();
+    await svc.ensureConnected();
+
+    expect(createClient).not.toHaveBeenCalled();
+    expect(supabaseMock.auth.getSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('ensureConnected shares one session check per foreground window', async () => {
+    vi.useFakeTimers();
+    let resolveSession: ((value: { data: { session: boolean }; error: null }) => void) | undefined;
+    const getSession = vi.fn(
+      () =>
+        new Promise<{ data: { session: boolean }; error: null }>((resolve) => {
+          resolveSession = resolve;
+        })
+    );
+    const supabaseMock = { auth: { getSession } };
+    const createClient = (await import('@supabase/supabase-js')).createClient as any;
+    createClient.mockImplementation(() => supabaseMock);
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+
+    const first = svc.ensureConnected();
+    const second = svc.ensureConnected();
+    resolveSession?.({ data: { session: true }, error: null });
+    await Promise.all([first, second]);
+    expect(getSession).toHaveBeenCalledTimes(1);
+
+    getSession.mockResolvedValue({ data: { session: true }, error: null });
+    await svc.ensureConnected();
+    expect(getSession).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(2000);
+    await svc.ensureConnected();
+    expect(getSession).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 
   it('reconnect throws when environment variables missing at runtime', async () => {
@@ -183,7 +272,7 @@ describe('SupabaseService', () => {
     env.environment.supabasePublishableKey = origKey;
   });
 
-  it('setupVisibilityRecovery calls ensureConnected on visibilitychange and custom event', async () => {
+  it('setupVisibilityRecovery calls ensureConnected only for app-became-visible', async () => {
     const supabaseMock = { auth: { getSession: vi.fn(async () => ({ data: { session: true }, error: null })) } };
     const createClient = (await import('@supabase/supabase-js')).createClient as any;
     createClient.mockImplementation(() => supabaseMock);
@@ -210,17 +299,15 @@ describe('SupabaseService', () => {
     const spy = vi.spyOn(svc as any, 'ensureConnected').mockResolvedValue(undefined);
 
     try {
-      // call captured handlers directly to ensure arrow callback bodies execute
-      // ensure document.hidden is false when handler runs
       Object.defineProperty(document, 'hidden', { value: false, configurable: true });
 
-      if (docHandler) docHandler();
+      expect(docHandler).toBeNull();
+      if (windowHandler) windowHandler();
       if (windowHandler) windowHandler();
 
-      // allow microtasks
       await Promise.resolve();
 
-      expect(spy).toHaveBeenCalled();
+      expect(spy).toHaveBeenCalledTimes(2);
     } finally {
       // restore originals
       (document as any).addEventListener = origDocAdd;
@@ -329,6 +416,111 @@ describe('SupabaseService', () => {
     expect(capturedUrl).toContain('user=eq.3');
     expect(capturedHeaders).toBeDefined();
     expect(capturedHeaders!['Prefer']).toBe('count=exact');
+    expect(capturedHeaders!['apikey']).toBe('anon-key');
+    expect(capturedHeaders!['Authorization']).toBe('Bearer user-access-token');
+    expect(capturedHeaders!['Authorization']).not.toContain('anon-key');
+  });
+
+  it('directMutation sends the session access token, not the publishable key', async () => {
+    let capturedHeaders: Record<string, string> | undefined;
+    globalThis.fetch = vi.fn((_url: string, opts: any) => {
+      capturedHeaders = opts.headers;
+      return Promise.resolve({ ok: true, status: 201, json: async () => [{ id: 1 }], text: async () => '' } as any);
+    });
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+    const res = await svc.directMutation('tenant_memberships', {
+      method: 'POST',
+      body: { name: 'x' },
+      returning: true,
+    });
+
+    expect(res.error).toBeNull();
+    expect(capturedHeaders!['apikey']).toBe('anon-key');
+    expect(capturedHeaders!['Authorization']).toBe('Bearer user-access-token');
+    expect(capturedHeaders!['Authorization']).not.toContain('anon-key');
+    expect(capturedHeaders!['Prefer']).toBe('return=representation');
+  });
+
+  it('directQuery does not call PostgREST as anon when signed out', async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+    const createClient = (await import('@supabase/supabase-js')).createClient as any;
+    createClient.mockImplementation(() => ({
+      auth: {
+        getSession: vi.fn(async () => ({ data: { session: null }, error: null })),
+      },
+    }));
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+    const res = await svc.directQuery('tenant_memberships', { select: 'is_blocked' });
+
+    expect(res.data).toBeNull();
+    expect(String(res.error)).toContain('Sign in is required');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('directMutation does not call PostgREST as anon when signed out', async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+    const createClient = (await import('@supabase/supabase-js')).createClient as any;
+    createClient.mockImplementation(() => ({
+      auth: {
+        getSession: vi.fn(async () => ({ data: { session: null }, error: null })),
+      },
+    }));
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+    const res = await svc.directMutation('tenant_memberships', { method: 'POST', body: {} });
+
+    expect(res.data).toBeNull();
+    expect(String(res.error)).toContain('Sign in is required');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('directQuery returns an error when the session cannot be read', async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+    const createClient = (await import('@supabase/supabase-js')).createClient as any;
+    createClient.mockImplementation(() => ({
+      auth: {
+        getSession: vi.fn(async () => ({ data: { session: null }, error: new Error('boom') })),
+      },
+    }));
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+    const res = await svc.directQuery('tenant_settings');
+
+    expect(String(res.error)).toContain('Signed-in session is unavailable');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('directQuery clears the abort timer when fetch throws', async () => {
+    const clearSpy = vi.spyOn(globalThis, 'clearTimeout');
+    globalThis.fetch = vi.fn(() => Promise.reject(new Error('network fail')));
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+    const res = await svc.directQuery('table');
+
+    expect(String(res.error)).toContain('network fail');
+    expect(clearSpy).toHaveBeenCalled();
+  });
+
+  it('directMutation clears the abort timer when fetch throws', async () => {
+    const clearSpy = vi.spyOn(globalThis, 'clearTimeout');
+    globalThis.fetch = vi.fn(() => Promise.reject(new Error('boom')));
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+    const res = await svc.directMutation('t', { method: 'POST', body: {} });
+
+    expect(res.error).toBeInstanceOf(Error);
+    expect(clearSpy).toHaveBeenCalled();
   });
 
   it('directMutation returns null data for 204 responses', async () => {
@@ -355,8 +547,8 @@ describe('SupabaseService', () => {
     await expect((svc as any).reconnect()).rejects.toThrow('create fail');
   });
 
-  it('ensureConnected calls reconnect when getSession throws', async () => {
-    const supabaseMock = { auth: { getSession: vi.fn(async () => { throw new Error('boom'); }) } };
+  it('ensureConnected calls reconnect when getSession throws a dead session', async () => {
+    const supabaseMock = { auth: { getSession: vi.fn(async () => { throw Object.assign(new Error('Auth session missing'), { status: 401 }); }) } };
     const createClient = (await import('@supabase/supabase-js')).createClient as any;
     createClient.mockImplementation(() => supabaseMock);
 
@@ -366,6 +558,19 @@ describe('SupabaseService', () => {
     createClient.mockClear();
     await svc.ensureConnected();
     expect(createClient).toHaveBeenCalled();
+  });
+
+  it('ensureConnected does not reconnect when getSession throws a generic error', async () => {
+    const supabaseMock = { auth: { getSession: vi.fn(async () => { throw new Error('boom'); }) } };
+    const createClient = (await import('@supabase/supabase-js')).createClient as any;
+    createClient.mockImplementation(() => supabaseMock);
+
+    const mod = await import('./supabase.service');
+    const svc = new mod.SupabaseService();
+
+    createClient.mockClear();
+    await svc.ensureConnected();
+    expect(createClient).not.toHaveBeenCalled();
   });
 
   it('setupVisibilityRecovery logs errors when ensureConnected rejects', async () => {
@@ -398,15 +603,13 @@ describe('SupabaseService', () => {
     try {
       Object.defineProperty(document, 'hidden', { value: false, configurable: true });
 
-      if (docHandler) docHandler();
+      expect(docHandler).toBeNull();
       if (windowHandler) windowHandler();
 
       // allow microtasks to resolve the rejected promises and their .catch handlers
       await Promise.resolve();
 
-      expect(spyEnsure).toHaveBeenCalled();
-      // Should have logged the two different error messages from the two handlers
-      expect(spyConsole).toHaveBeenCalledWith('[SupabaseService] Failed to ensure connection on visibility:', err);
+      expect(spyEnsure).toHaveBeenCalledTimes(1);
       expect(spyConsole).toHaveBeenCalledWith('[SupabaseService] Failed to ensure connection:', err);
     } finally {
       (document as any).addEventListener = origDocAdd;

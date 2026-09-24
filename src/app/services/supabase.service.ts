@@ -1,7 +1,12 @@
 import { Injectable } from '@angular/core';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { environment } from '../../environments/environment';
+import {
+  APP_BECAME_VISIBLE_EVENT,
+  FOREGROUND_CONNECTION_CHECK_WINDOW_MS,
+} from '../lib/app-foreground';
 import { buildSupabaseClientOptions } from '../lib/supabase-client-options';
+import { isDeadAuthSessionError } from '../lib/supabase-session-health';
 import { describeFunctionInvokeFailure as formatFunctionInvokeFailure } from '../utils/supabase-function-invoke-error';
 
 @Injectable({
@@ -9,6 +14,11 @@ import { describeFunctionInvokeFailure as formatFunctionInvokeFailure } from '..
 })
 export class SupabaseService {
   private supabase: SupabaseClient;
+  private connectionCheck: Promise<void> | null = null;
+  private lastHealthyConnectionAt: number | null = null;
+  private readonly clientReplacedListeners = new Set<
+    (previousClient: SupabaseClient) => void
+  >();
 
   constructor() {
     const supabaseUrl = environment.supabaseUrl;
@@ -38,6 +48,19 @@ export class SupabaseService {
 
   get client(): SupabaseClient {
     return this.supabase;
+  }
+
+  /**
+   * Fires after `reconnect()` replaces the client. Listeners must drop channels
+   * opened on `previousClient`; later `client` reads return the new instance.
+   */
+  onClientReplaced(
+    listener: (previousClient: SupabaseClient) => void
+  ): () => void {
+    this.clientReplacedListeners.add(listener);
+    return () => {
+      this.clientReplacedListeners.delete(listener);
+    };
   }
 
   getConfig() {
@@ -90,20 +113,47 @@ export class SupabaseService {
    * Critical for Edge on iOS which may lose connections during background suspension
    */
   async ensureConnected(): Promise<void> {
+    if (
+      this.lastHealthyConnectionAt != null &&
+      Date.now() - this.lastHealthyConnectionAt < FOREGROUND_CONNECTION_CHECK_WINDOW_MS
+    ) {
+      return;
+    }
+    if (this.connectionCheck) {
+      return this.connectionCheck;
+    }
+    this.connectionCheck = this.checkConnectionHealth().finally(() => {
+      this.connectionCheck = null;
+    });
+    return this.connectionCheck;
+  }
+
+  /**
+   * One getSession per in-flight check. Recreate the client only when the
+   * stored session is actually dead — not on a healthy or transient failure.
+   */
+  private async checkConnectionHealth(): Promise<void> {
     try {
-      console.log('[SupabaseService] Checking connection health...');
-      // Attempt a simple auth check to verify connection
-      const { data, error } = await this.supabase.auth.getSession();
-      
-      if (error) {
-        console.warn('[SupabaseService] Connection health check failed:', error);
-        await this.reconnect();
-      } else {
-        console.log('[SupabaseService] Connection is healthy');
+      const { error } = await this.supabase.auth.getSession();
+      if (!error) {
+        this.lastHealthyConnectionAt = Date.now();
+        return;
       }
-    } catch (err) {
-      console.error('[SupabaseService] Connection check error:', err);
+      if (!isDeadAuthSessionError(error)) {
+        console.warn('[SupabaseService] Connection health check failed:', error);
+        return;
+      }
+      console.warn('[SupabaseService] Auth session is dead, recreating client:', error);
       await this.reconnect();
+      this.lastHealthyConnectionAt = Date.now();
+    } catch (err) {
+      if (!isDeadAuthSessionError(err)) {
+        console.error('[SupabaseService] Connection check error:', err);
+        return;
+      }
+      console.warn('[SupabaseService] Auth session is dead, recreating client:', err);
+      await this.reconnect();
+      this.lastHealthyConnectionAt = Date.now();
     }
   }
 
@@ -113,8 +163,6 @@ export class SupabaseService {
    */
   private async reconnect(): Promise<void> {
     try {
-      console.log('[SupabaseService] Reconnecting to Supabase...');
-      
       const supabaseUrl = environment.supabaseUrl;
       const supabasePublishableKey = environment.supabasePublishableKey;
 
@@ -122,8 +170,7 @@ export class SupabaseService {
         throw new Error('Missing Supabase environment variables');
       }
 
-      // Create a new client instance to reset all connections
-      this.supabase = createClient(
+      const nextClient = createClient(
         supabaseUrl,
         supabasePublishableKey,
         buildSupabaseClientOptions(
@@ -132,11 +179,22 @@ export class SupabaseService {
           (input, options) => this.fetchWithNativeCompat(input, options)
         )
       );
-      
-      console.log('[SupabaseService] Reconnected successfully');
+      const previousClient = this.supabase;
+      this.supabase = nextClient;
+      this.notifyClientReplaced(previousClient);
     } catch (err) {
       console.error('[SupabaseService] Reconnection failed:', err);
       throw err;
+    }
+  }
+
+  private notifyClientReplaced(previousClient: SupabaseClient): void {
+    for (const listener of this.clientReplacedListeners) {
+      try {
+        listener(previousClient);
+      } catch (err) {
+        console.error('[SupabaseService] Client replaced listener failed:', err);
+      }
     }
   }
 
@@ -187,6 +245,39 @@ export class SupabaseService {
   }
 
   /**
+   * PostgREST headers for the signed-in user.
+   * `apikey` stays the publishable key so the gateway can route the project.
+   * `Authorization` is the session access token. A missing session is an error:
+   * using the publishable key as Bearer would run the query as anon and hide
+   * rows that RLS only returns to the signed-in user.
+   */
+  private async authorizedRestHeaders(
+    extra?: Record<string, string>
+  ): Promise<{ headers: Record<string, string> } | { error: Error }> {
+    try {
+      const { data, error } = await this.supabase.auth.getSession();
+      if (error) {
+        return { error: new Error('Signed-in session is unavailable') };
+      }
+      const token = data?.session?.access_token;
+      if (!token) {
+        return { error: new Error('Sign in is required') };
+      }
+      return {
+        headers: {
+          apikey: environment.supabasePublishableKey,
+          Authorization: `Bearer ${token}`,
+          ...extra,
+        },
+      };
+    } catch (err) {
+      return {
+        error: err instanceof Error ? err : new Error(String(err)),
+      };
+    }
+  }
+
+  /**
    * Wrap fetch with timeout to prevent hanging on native apps
    * Properly clears timeout to prevent orphaned timers
    */
@@ -213,20 +304,10 @@ export class SupabaseService {
    * Especially important for Edge on iOS
    */
   setupVisibilityRecovery(): void {
-    if (typeof document === 'undefined') return;
+    if (typeof window === 'undefined') return;
 
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) {
-        console.log('[SupabaseService] App becoming visible, ensuring connection health');
-        this.ensureConnected().catch(err => {
-          console.error('[SupabaseService] Failed to ensure connection on visibility:', err);
-        });
-      }
-    });
-
-    // Also listen for the custom app-became-visible event
-    window.addEventListener('app-became-visible', () => {
-      console.log('[SupabaseService] App became visible event, ensuring connection health');
+    // Raw visibility is handled by installAppForegroundSignal in main.ts.
+    window.addEventListener(APP_BECAME_VISIBLE_EVENT, () => {
       this.ensureConnected().catch(err => {
         console.error('[SupabaseService] Failed to ensure connection:', err);
       });
@@ -266,31 +347,26 @@ export class SupabaseService {
       params.set('limit', String(limit));
     }
     
-    // Add count preference
-    const headers: Record<string, string> = {
-      'apikey': environment.supabasePublishableKey,
-      'Authorization': `Bearer ${environment.supabasePublishableKey}`
-    };
-    
-    if (count) {
-      headers['Prefer'] = `count=${count}`;
+    const auth = await this.authorizedRestHeaders(
+      count ? { Prefer: `count=${count}` } : undefined
+    );
+    if ('error' in auth) {
+      return { data: null, error: auth.error };
     }
-    
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-      
       const response = await fetch(
         `${environment.supabaseUrl}/rest/v1/${table}?${params.toString()}`,
         {
           method: head ? 'HEAD' : 'GET',
-          headers,
+          headers: auth.headers,
           signal: controller.signal
         }
       );
-      
-      clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         return {
@@ -298,18 +374,20 @@ export class SupabaseService {
           error: new Error(`Query failed: ${response.status} - ${errorText}`)
         };
       }
-      
+
       const data = head ? null : await response.json();
       const countValue = response.headers.get('Content-Range')
         ? parseInt(response.headers.get('Content-Range')?.split('/')[1] || '0')
         : undefined;
-      
+
       return { data: data as T, error: null, count: countValue };
     } catch (error) {
       return {
         data: null,
         error: error instanceof Error ? error : new Error(String(error))
       };
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -334,31 +412,31 @@ export class SupabaseService {
       }
     }
     
-    const headers: Record<string, string> = {
-      'apikey': environment.supabasePublishableKey,
-      'Authorization': `Bearer ${environment.supabasePublishableKey}`,
-      'Content-Type': 'application/json'
+    const extra: Record<string, string> = {
+      'Content-Type': 'application/json',
     };
-    
     if (returning) {
-      headers['Prefer'] = 'return=representation';
+      extra['Prefer'] = 'return=representation';
     }
-    
+
+    const auth = await this.authorizedRestHeaders(extra);
+    if ('error' in auth) {
+      return { data: null, error: auth.error };
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-      
       const url = `${environment.supabaseUrl}/rest/v1/${table}${params.toString() ? '?' + params.toString() : ''}`;
-      
+
       const response = await fetch(url, {
         method,
-        headers,
+        headers: auth.headers,
         body: body ? JSON.stringify(body) : undefined,
         signal: controller.signal
       });
-      
-      clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         return {
@@ -366,7 +444,7 @@ export class SupabaseService {
           error: new Error(`Mutation failed: ${response.status} - ${errorText}`)
         };
       }
-      
+
       const data = returning && response.status !== 204 ? await response.json() : null;
       return { data: data as T, error: null };
     } catch (error) {
@@ -374,6 +452,8 @@ export class SupabaseService {
         data: null,
         error: error instanceof Error ? error : new Error(String(error))
       };
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 }

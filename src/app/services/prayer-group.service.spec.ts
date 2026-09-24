@@ -687,8 +687,14 @@ describe("PrayerGroupService group prayers cache", () => {
     Object.defineProperty(document, "hidden", { value: false, configurable: true });
 
     window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(400);
+    expect(hydrate).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new CustomEvent("app-became-visible"));
     await vi.advanceTimersByTimeAsync(400);
 
+    expect(hydrate).toHaveBeenCalledTimes(1);
     expect(hydrate).toHaveBeenCalledWith({ force: false });
     vi.useRealTimers();
   });

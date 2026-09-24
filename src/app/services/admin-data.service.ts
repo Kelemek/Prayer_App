@@ -5,6 +5,7 @@ import { PrayerService } from './prayer.service';
 import { EmailNotificationService } from './email-notification.service';
 import { PushNotificationService } from './push-notification.service';
 import { TenantContextService } from './tenant-context.service';
+import { supportPageUrl } from '../constants/app-defaults';
 import type { 
   PrayerRequest, 
   PrayerUpdate, 
@@ -1297,12 +1298,12 @@ export class AdminDataService {
         const html = this.emailNotification.applyTemplateVariables(template.html_body, {
           firstName: request.first_name,
           lastName: request.last_name,
-          supportEmail: 'support@example.com',
+          supportEmail: supportPageUrl(this.emailNotification.getEmailBaseUrl()),
         });
         const text = this.emailNotification.applyTemplateVariables(template.text_body, {
           firstName: request.first_name,
           lastName: request.last_name,
-          supportEmail: 'support@example.com',
+          supportEmail: supportPageUrl(this.emailNotification.getEmailBaseUrl()),
         });
 
         await this.emailNotification.sendEmail({

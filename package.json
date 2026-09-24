@@ -13,7 +13,7 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --run --coverage && node scripts/coverage-report.js",
-    "lint": "ng lint",
+    "lint": "echo 'Lint is disabled: angular.json has no lint target, and eslint.config.js is a React leftover whose plugins are not installed. CI does not run lint.' >&2 && exit 1",
     "cap:icons": "cp public/apple-touch-icon.png resources/logo.png && npx @capacitor/assets generate --iconBackgroundColor '#1a365d' --iconBackgroundColorDark '#1a365d' --splashBackgroundColor '#1a365d' --splashBackgroundColorDark '#1a365d' && cp icons/icon-*.webp public/icons/",
     "cap:icons:generate": "npx @capacitor/assets generate --iconBackgroundColor '#1a365d' --iconBackgroundColorDark '#1a365d' --splashBackgroundColor '#1a365d' --splashBackgroundColorDark '#1a365d'",
     "cap:sync": "npx cap sync",

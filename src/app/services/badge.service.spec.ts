@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { BadgeService } from './badge.service';
+import {
+  BADGE_FOREGROUND_RECEIPT_REVALIDATE_MS,
+  BadgeService,
+  INDIVIDUAL_BADGE_SUBJECT_CAP,
+} from './badge.service';
 import { UserSessionService } from './user-session.service';
 import { TenantContextService } from './tenant-context.service';
 import { SupabaseService } from './supabase.service';
@@ -2351,6 +2355,130 @@ describe('BadgeService all-tenant app icon count', () => {
     );
     expect(service.getAllTenantDisplayedBadgeCount()).toBe(5);
     expect(localStorage.getItem(`tenant_${otherTenantId}_prayers`)).toBeNull();
+  });
+});
+
+describe('BadgeService foreground resume', () => {
+  const receiptCalls = (rpc: ReturnType<typeof vi.fn>) =>
+    rpc.mock.calls.filter((call) => call[0] === 'get_badge_read_receipts');
+
+  function createForegroundService(memberships$?: BehaviorSubject<unknown[]>) {
+    const rpc = vi.fn(async (fn: string) => {
+      if (fn === 'get_badge_read_receipts') {
+        return { data: [], error: null };
+      }
+      return { data: null, error: null };
+    });
+    const userSession = {
+      userSession$: new BehaviorSubject<{
+        email: string;
+        fullName: string;
+        isActive: boolean;
+        badgeFunctionalityEnabled: boolean;
+      } | null>({
+        email: TEST_EMAIL,
+        fullName: 'Test User',
+        isActive: true,
+        badgeFunctionalityEnabled: true,
+      }),
+      getUserEmail: vi.fn(() => TEST_EMAIL),
+    };
+    const tenant = defaultTenantContextMock();
+    if (memberships$) {
+      (tenant as { memberships$: BehaviorSubject<unknown[]> }).memberships$ = memberships$;
+    }
+    const service = new BadgeService(
+      { client: { rpc } } as unknown as SupabaseService,
+      createBadgeInjector(userSession, tenant) as unknown as Injector
+    );
+    (service as unknown as { currentUserEmail: string }).currentUserEmail = TEST_EMAIL;
+    return { service, rpc, userSession };
+  }
+
+  it('revalidates receipts on foreground only when the warm cache is stale', async () => {
+    localStorage.setItem(
+      scopedBadgeKey(),
+      JSON.stringify({
+        prayers: ['p1'],
+        prayerUpdates: [],
+        prompts: [],
+        promptUpdates: [],
+      })
+    );
+    const { service, rpc } = createForegroundService();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    rpc.mockClear();
+    (service as unknown as { lastReceiptNetworkSyncAt: number }).lastReceiptNetworkSyncAt =
+      Date.now();
+
+    window.dispatchEvent(new CustomEvent('app-became-visible'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(receiptCalls(rpc)).toHaveLength(0);
+
+    (service as unknown as { lastReceiptNetworkSyncAt: number }).lastReceiptNetworkSyncAt =
+      Date.now() - BADGE_FOREGROUND_RECEIPT_REVALIDATE_MS - 5;
+    window.dispatchEvent(new CustomEvent('app-became-visible'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await Promise.resolve();
+    expect(receiptCalls(rpc).length).toBeGreaterThan(0);
+  });
+
+  it('caps per-id badge subjects', () => {
+    const { service } = createForegroundService();
+    for (let i = 0; i < INDIVIDUAL_BADGE_SUBJECT_CAP + 25; i++) {
+      service.hasIndividualBadge$('prayers', `prayer-${i}`);
+    }
+    const subjects = (
+      service as unknown as { individualBadgeSubject$: Map<string, unknown> }
+    ).individualBadgeSubject$;
+    expect(subjects.size).toBeLessThanOrEqual(INDIVIDUAL_BADGE_SUBJECT_CAP);
+  });
+
+  it('clears per-id badge subjects when the session ends', async () => {
+    const { service, userSession } = createForegroundService();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    service.hasIndividualBadge$('prayers', 'prayer-1');
+    expect(
+      (service as unknown as { individualBadgeSubject$: Map<string, unknown> })
+        .individualBadgeSubject$.size
+    ).toBe(1);
+
+    userSession.userSession$.next(null);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(
+      (service as unknown as { individualBadgeSubject$: Map<string, unknown> })
+        .individualBadgeSubject$.size
+    ).toBe(0);
+  });
+
+  it('does not rebuild badge caches when memberships are unchanged', async () => {
+    const memberships$ = new BehaviorSubject([
+      { tenant_id: TEST_TENANT_ID, role: 'member', user_email: TEST_EMAIL },
+    ]);
+    const hydrate = vi
+      .spyOn(BadgeService.prototype, 'ensureAllTenantInAppBadgeCaches')
+      .mockResolvedValue();
+    createForegroundService(memberships$);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const afterStart = hydrate.mock.calls.length;
+
+    memberships$.next([
+      { tenant_id: TEST_TENANT_ID, role: 'member', user_email: TEST_EMAIL },
+    ]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(hydrate.mock.calls.length).toBe(afterStart);
+
+    memberships$.next([
+      { tenant_id: TEST_TENANT_ID, role: 'member', user_email: TEST_EMAIL },
+      {
+        tenant_id: '44444444-4444-4444-8444-444444444444',
+        role: 'member',
+        user_email: TEST_EMAIL,
+      },
+    ]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(hydrate.mock.calls.length).toBe(afterStart + 1);
+    hydrate.mockRestore();
   });
 });
 
