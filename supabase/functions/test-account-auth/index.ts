@@ -5,6 +5,34 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
+const RATE_WINDOW_MS = 15 * 60 * 1000;
+const RATE_MAX_PER_EMAIL = 5;
+const RATE_MAX_PER_IP = 20;
+const recentAuthAttempts = new Map<string, number[]>();
+
+function clientIp(req: Request): string {
+  const forwarded = req.headers.get('x-forwarded-for') ?? '';
+  const first = forwarded.split(',')[0]?.trim();
+  return (first || req.headers.get('cf-connecting-ip') || 'unknown').slice(0, 64);
+}
+
+function isRateLimited(key: string, max: number): boolean {
+  const now = Date.now();
+  const times = (recentAuthAttempts.get(key) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
+  if (!recentAuthAttempts.has(key) && recentAuthAttempts.size >= 5000) {
+    const oldest = recentAuthAttempts.keys().next().value;
+    if (oldest) recentAuthAttempts.delete(oldest);
+  }
+  recentAuthAttempts.set(key, times);
+  return times.length >= max;
+}
+
+function recordAttempt(key: string): void {
+  const times = recentAuthAttempts.get(key) ?? [];
+  times.push(Date.now());
+  recentAuthAttempts.set(key, times);
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -38,6 +66,19 @@ serve(async (req) => {
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
+
+    const emailKey = `email:${emailNormalized}`;
+    const ipKey = `ip:${clientIp(req)}`;
+    if (isRateLimited(emailKey, RATE_MAX_PER_EMAIL) || isRateLimited(ipKey, RATE_MAX_PER_IP)) {
+      return new Response(JSON.stringify({
+        error: 'Too many attempts. Try again later.'
+      }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+    recordAttempt(emailKey);
+    recordAttempt(ipKey);
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false }

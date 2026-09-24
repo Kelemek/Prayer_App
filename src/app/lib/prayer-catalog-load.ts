@@ -4,6 +4,11 @@ import type { PrayerRequest } from './prayer-types';
 export const COMMUNITY_PRAYERS_CACHE_KEY = 'prayers';
 export const PERSONAL_PRAYERS_CACHE_KEY = 'personalPrayers';
 
+/** Live catalog refresh. Silent keeps the spinner off; bypass still queries while online. */
+export type PrayerCatalogRefreshOptions = {
+  bypassWarmCache?: boolean;
+};
+
 /** Dest multi-tenant cache keys — never use PERSONAL_PRAYERS_CACHE_KEY. */
 export {
   personalPrayersTenantCacheKey,
@@ -12,8 +17,12 @@ export {
 
 export function shouldSkipCommunityPrayersDbOnSilentRefresh(
   silentRefresh: boolean,
-  cachedPrayers: PrayerRequest[] | null | undefined
+  cachedPrayers: PrayerRequest[] | null | undefined,
+  bypassWarmCache = false
 ): boolean {
+  if (bypassWarmCache) {
+    return false;
+  }
   return Boolean(silentRefresh && cachedPrayers && cachedPrayers.length > 0);
 }
 

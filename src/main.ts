@@ -102,13 +102,7 @@ function startApp(): void {
         useFactory: (brandingService: BrandingService) => {
           return async () => {
             try {
-              console.log(
-                "[AppInitialization] Initializing BrandingService to load logos before rendering"
-              );
               await brandingService.initialize();
-              console.log(
-                "[AppInitialization] BrandingService initialization complete"
-              );
             } catch (error) {
               console.error(
                 "[AppInitialization] BrandingService initialization failed:",
@@ -125,9 +119,6 @@ function startApp(): void {
         provide: APP_INITIALIZER,
         useFactory: (adminAuthService: AdminAuthService) => {
           return () => {
-            console.log(
-              "[AppInitialization] Initializing AdminAuthService for session restoration"
-            );
             // Wait for the loading state to complete (loading goes from true -> false)
             return new Promise((resolve) => {
               let resolved = false;
@@ -138,9 +129,6 @@ function startApp(): void {
                   // Once loading completes (becomes false), resolve
                   if (!isLoading && !resolved) {
                     resolved = true;
-                    console.log(
-                      "[AppInitialization] AdminAuthService initialization complete"
-                    );
                     subscription.unsubscribe();
                     resolve(true);
                   }

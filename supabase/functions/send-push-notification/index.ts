@@ -4,7 +4,7 @@
  * - Android: FCM HTTP v1 API (Firebase service account). Token from device is FCM token.
  * - iOS: APNs HTTP/2 API (.p8 key). Token from Capacitor is APNs device token (not FCM).
  *
- * Deploy: supabase functions deploy send-push-notification
+ * Deploy: supabase functions deploy send-push-notification --no-verify-jwt
  *
  * Usage example:
  * const result = await supabase.functions.invoke('send-push-notification', {
@@ -18,7 +18,8 @@
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { classifyBearer, decideUserAdmin } from './dual-auth.ts';
 import { getToken } from 'https://deno.land/x/google_jwt_sa@v0.2.5/mod.ts';
 import { createAppleNotificationJwt } from 'jsr:@narumincho/apple-notification-jwt@0.1.0';
 
@@ -41,6 +42,7 @@ interface PushNotificationRequest {
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
 const fcmServiceAccountJson = Deno.env.get('FCM_SERVICE_ACCOUNT_JSON') || '';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -144,6 +146,119 @@ async function sendViaApns(
   return { ok: false, errorData };
 }
 
+function bearerToken(req: Request): string {
+  const authHeader = req.headers.get('Authorization') ?? '';
+  return authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+}
+
+async function readJsonObject(req: Request): Promise<Record<string, unknown> | null> {
+  try {
+    const body = await req.clone().json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+    return body as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function tenantIdFrom(body: Record<string, unknown> | null): string {
+  if (!body) return '';
+  if (typeof body.tenantId === 'string') return body.tenantId.trim();
+  if (typeof body.tenant_id === 'string') return body.tenant_id.trim();
+  return '';
+}
+
+async function callerIsAdmin(
+  admin: SupabaseClient,
+  email: string,
+  tenantId: string,
+): Promise<boolean> {
+  if (tenantId) {
+    const { data, error } = await admin.rpc('is_tenant_admin', {
+      tenant_to_check: tenantId,
+      email_to_check: email,
+    });
+    return !error && Boolean(data);
+  }
+  const { data: isSuper, error: superError } = await admin.rpc('is_super_admin', {
+    email_to_check: email,
+  });
+  if (superError) return false;
+  if (isSuper) return true;
+  const { data: row, error } = await admin
+    .from('tenant_memberships')
+    .select('user_email')
+    .eq('user_email', email)
+    .eq('role', 'tenant_admin')
+    .limit(1)
+    .maybeSingle();
+  return !error && Boolean(row);
+}
+
+function authError(status: 401 | 403): Response {
+  return new Response(
+    JSON.stringify({ error: status === 401 ? 'Unauthorized' : 'Forbidden' }),
+    { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+  );
+}
+
+function pushRecipientsFromBody(body: Record<string, unknown> | null): string[] {
+  if (!body || !Array.isArray(body.emails)) return [];
+  const emails = body.emails
+    .map((value) => (typeof value === 'string' ? value.trim().toLowerCase() : ''))
+    .filter((value) => value.length > 0);
+  return [...new Set(emails)];
+}
+
+async function callerCanPushToRecipients(
+  admin: SupabaseClient,
+  callerEmail: string,
+  recipients: string[],
+): Promise<boolean> {
+  if (recipients.length === 0) return false;
+  const { data: callerTenants, error: callerErr } = await admin
+    .from('tenant_memberships')
+    .select('tenant_id')
+    .eq('user_email', callerEmail)
+    .eq('is_blocked', false);
+  if (callerErr || !callerTenants?.length) return false;
+  const tenantIds = callerTenants.map((row) => row.tenant_id);
+  const { data: recipientRows, error } = await admin
+    .from('tenant_memberships')
+    .select('user_email')
+    .eq('is_blocked', false)
+    .in('tenant_id', tenantIds)
+    .in('user_email', recipients);
+  if (error) return false;
+  const found = new Set((recipientRows ?? []).map((row) => row.user_email.toLowerCase()));
+  return recipients.every((email) => found.has(email));
+}
+
+async function rejectUnlessServiceOrAdmin(req: Request): Promise<Response | null> {
+  const token = bearerToken(req);
+  const kind = classifyBearer(token, supabaseKey, anonKey);
+  if (kind === 'service_role') return null;
+  if (kind === 'anonymous' || !supabaseUrl || !supabaseKey || !anonKey) return authError(401);
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data, error } = await userClient.auth.getUser();
+  const email = data?.user?.email?.toLowerCase().trim() ?? '';
+  if (error || !email) return authError(401);
+  const body = await readJsonObject(req);
+  const isAdmin = await callerIsAdmin(supabase, email, tenantIdFrom(body));
+  if (body?.sendToAll === true && !isAdmin) return authError(403);
+  const recipients = pushRecipientsFromBody(body);
+  const memberAllowed =
+    !isAdmin && recipients.length > 0
+      ? await callerCanPushToRecipients(supabase, email, recipients)
+      : false;
+  const decision = decideUserAdmin(email, isAdmin, { memberAllowed });
+  if (!decision.ok) return authError(decision.status);
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -154,6 +269,16 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
+
+  if (!supabaseKey) {
+    return new Response(JSON.stringify({ error: 'Not configured' }), {
+      status: 503,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+  // Service-key equality runs before getUser because the secret is not a user JWT.
+  const rejected = await rejectUnlessServiceOrAdmin(req);
+  if (rejected) return rejected;
 
   try {
     const payload: PushNotificationRequest = await req.json();

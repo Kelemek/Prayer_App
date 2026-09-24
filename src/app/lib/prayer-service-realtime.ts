@@ -64,6 +64,19 @@ export function isRealtimeSubscriptionDisconnectedStatus(status: string): boolea
   return status === 'CLOSED' || status === 'CHANNEL_ERROR';
 }
 
+export function handlePrayerRealtimeSubscribeStatus(
+  status: string,
+  onDisconnected: () => void
+): void {
+  if (!isRealtimeSubscriptionDisconnectedStatus(status)) {
+    return;
+  }
+  console.warn(
+    '[PrayerService] Realtime subscription disconnected; resubscribing'
+  );
+  onDisconnected();
+}
+
 export type PrayerCatalogRealtimeHandlers = {
   onPrayersChange: (payload: PostgresChangePayload) => void;
   onPrayerUpdatesChange: (payload: PostgresChangePayload) => void;

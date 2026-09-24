@@ -40,32 +40,40 @@ deploy_function() {
 # Deploy based on argument
 case $FUNCTION_NAME in
     "send-notification")
+        if [[ ! -f supabase/functions/send-notification/index.ts ]]; then
+            echo "❌ send-notification is not in this repo. Use send-email."
+            exit 1
+        fi
         deploy_function "send-notification" "--no-verify-jwt"
-        echo "� Remember: send-notification runs without JWT verification"
-        echo "   This is for anonymous email sending (prayer requests, etc.)"
+        echo "💡 send-notification runs without JWT verification"
         ;;
     "send-prayer-reminders")
-        deploy_function "send-prayer-reminders" ""
+        deploy_function "send-prayer-reminders" "--no-verify-jwt"
         echo "💡 Daily invoke: Supabase pg_cron (invoke-send-prayer-reminders, 10:00 UTC) + Vault (project_url + service_role_key). See docs/SETUP.md."
+        echo "💡 Gateway JWT is off. The function accepts only Authorization: Bearer \$SUPABASE_SERVICE_ROLE_KEY."
         echo "💡 Next steps:"
         echo "   1. Configure reminder interval in Admin Settings"
         echo "   2. Test with 'Send Reminders Now' button"
         ;;
     "send-user-hourly-prayer-reminders")
-        deploy_function "send-user-hourly-prayer-reminders" ""
+        deploy_function "send-user-hourly-prayer-reminders" "--no-verify-jwt"
         echo "💡 Invoked by dispatch-user-reminders (hourly UTC :00); set APP_URL on the function. See docs/SETUP.md."
+        echo "💡 Gateway JWT is off. Caller must send Authorization: Bearer \$SUPABASE_SERVICE_ROLE_KEY."
         ;;
     "send-user-hourly-memorization-reminders")
-        deploy_function "send-user-hourly-memorization-reminders" ""
+        deploy_function "send-user-hourly-memorization-reminders" "--no-verify-jwt"
         echo "💡 Invoked by dispatch-user-reminders (hourly UTC :00); set APP_URL on the function. See docs/SETUP.md."
+        echo "💡 Gateway JWT is off. Caller must send Authorization: Bearer \$SUPABASE_SERVICE_ROLE_KEY."
         ;;
     "send-user-prayer-item-reminders")
-        deploy_function "send-user-prayer-item-reminders" ""
+        deploy_function "send-user-prayer-item-reminders" "--no-verify-jwt"
         echo "💡 Invoked by dispatch-user-reminders (every 15m); set APP_URL on the function. See docs/SETUP.md."
+        echo "💡 Gateway JWT is off. Caller must send Authorization: Bearer \$SUPABASE_SERVICE_ROLE_KEY."
         ;;
     "dispatch-user-reminders")
-        deploy_function "dispatch-user-reminders" ""
+        deploy_function "dispatch-user-reminders" "--no-verify-jwt"
         echo "💡 Cron: invoke-dispatch-user-reminders (*/15 UTC) + Vault (project_url + service_role_key). See docs/SETUP.md."
+        echo "💡 Gateway JWT is off. forceHourly is honored only for that service-role bearer."
         ;;
     "transcribe-audio")
         deploy_function "transcribe-audio" ""
@@ -104,8 +112,15 @@ case $FUNCTION_NAME in
         echo "📋 Optional secret: OPENAI_ADMIN_KEY (org-wide spend in admin UI)"
         ;;
     "cleanup-device-tokens")
-        deploy_function "cleanup-device-tokens" ""
+        deploy_function "cleanup-device-tokens" "--no-verify-jwt"
         echo "💡 Daily invoke: Supabase pg_cron (invoke-cleanup-device-tokens, 03:00 UTC) + Vault. See docs/SETUP.md."
+        echo "💡 Gateway JWT is off. Caller must send Authorization: Bearer \$SUPABASE_SERVICE_ROLE_KEY."
+        ;;
+    "send-push-notification")
+        deploy_function "send-push-notification" "--no-verify-jwt"
+        echo "💡 Gateway JWT is off. Service-role secret, or a signed-in tenant admin / super admin."
+        echo "   sendToAll stays service-role only. Browser calls use the session JWT, not the secret."
+        echo "📋 Secrets: FCM_SERVICE_ACCOUNT_JSON, APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID (iOS), SUPABASE_SERVICE_ROLE_KEY"
         ;;
     "stripe-church-checkout")
         deploy_function "stripe-church-checkout" ""
@@ -135,8 +150,9 @@ case $FUNCTION_NAME in
         ;;
     "send-verification-code")
         deploy_function "send-verification-code" "--no-verify-jwt"
-        echo "💡 Remember: send-verification-code runs without JWT verification"
-        echo "   This is for email verification before prayer/preference submissions"
+        echo "💡 send-verification-code does not use gateway JWT."
+        echo "   Callers must be the signed-in user (email matches auth.getUser) or the service-role secret."
+        echo "   In-memory rate limit: 5 sends per email per 15 minutes per isolate."
         echo ""
         echo "📋 Required environment variables:"
         echo "   - RESEND_API_KEY"
@@ -146,9 +162,9 @@ case $FUNCTION_NAME in
         ;;
     "send-email")
         deploy_function "send-email" "--no-verify-jwt"
-        echo "💡 send-email must allow non-user JWT: it is invoked from other Edge Functions"
-        echo "   (send-verification-code, send-prayer-reminders, etc.) with the admin Supabase client."
-        echo "   Also invoked from the Angular app; protect abuse via app logic and RLS elsewhere."
+        echo "💡 send-email does not use gateway JWT."
+        echo "   Service-role secret, or a signed-in tenant admin / super admin (self-addressed mail is also allowed)."
+        echo "   Other Edge Functions keep calling it with the admin client. Do not put the secret in Angular."
         echo ""
         echo "📋 Secrets: RESEND_API_KEY, MAIL_SENDER_ADDRESS, MAIL_FROM_NAME (optional), SUPABASE_*"
         ;;
@@ -159,21 +175,49 @@ case $FUNCTION_NAME in
         ;;
     "trigger-email-processor")
         deploy_function "trigger-email-processor" "--no-verify-jwt"
-        echo "💡 Processes email_queue via Resend; invoked from Angular after approvals."
+        echo "💡 Drains email_queue via Resend. Gateway JWT is off."
+        echo "   Service-role secret, or a signed-in tenant admin / super admin. Angular keeps the session JWT."
+        ;;
+    "verify-code")
+        deploy_function "verify-code" "--no-verify-jwt"
+        echo "💡 Gateway JWT is off (deno.json verify_jwt false). Checks a stored email code."
+        ;;
+    "check-admin-status")
+        deploy_function "check-admin-status" ""
+        echo "💡 Admin role lookup. Gateway JWT stays on."
+        ;;
+    "test-account-auth")
+        deploy_function "test-account-auth" "--no-verify-jwt"
+        echo "💡 Login calls this before a session exists, so gateway JWT is off."
+        ;;
+    "scripture")
+        deploy_function "scripture" ""
+        echo "📋 Secrets: ESV_API_TOKEN, API_BIBLE_KEY, API_BIBLE_BIBLE_ID_*"
+        ;;
+    "scripture-audio")
+        deploy_function "scripture-audio" ""
+        echo "📋 Secrets: ESV_API_TOKEN, API_BIBLE_KEY, optional API_BIBLE_AUDIO_BIBLE_ID_*"
         ;;
     "all")
         echo "Deploying all functions..."
         echo ""
-        deploy_function "send-notification" "--no-verify-jwt"
+        # Missing slug must not abort `all` (set -e). Deploy only when the folder exists.
+        if [[ -f supabase/functions/send-notification/index.ts ]]; then
+            deploy_function "send-notification" "--no-verify-jwt"
+        else
+            echo "⏭️  Skipping send-notification (not in this repo)."
+            echo ""
+        fi
         deploy_function "send-email" "--no-verify-jwt"
         deploy_function "email-unsubscribe" "--no-verify-jwt"
         deploy_function "trigger-email-processor" "--no-verify-jwt"
         deploy_function "send-verification-code" "--no-verify-jwt"
-        deploy_function "send-prayer-reminders" ""
-        deploy_function "dispatch-user-reminders" ""
-        deploy_function "send-user-hourly-prayer-reminders" ""
-        deploy_function "send-user-hourly-memorization-reminders" ""
-        deploy_function "send-user-prayer-item-reminders" ""
+        deploy_function "send-prayer-reminders" "--no-verify-jwt"
+        deploy_function "dispatch-user-reminders" "--no-verify-jwt"
+        deploy_function "send-user-hourly-prayer-reminders" "--no-verify-jwt"
+        deploy_function "send-user-hourly-memorization-reminders" "--no-verify-jwt"
+        deploy_function "send-user-prayer-item-reminders" "--no-verify-jwt"
+        deploy_function "send-push-notification" "--no-verify-jwt"
         deploy_function "transcribe-audio" ""
         deploy_function "submit-feedback" ""
         deploy_function "delete-account" ""
@@ -182,13 +226,18 @@ case $FUNCTION_NAME in
         deploy_function "planning-center-lookup" ""
         deploy_function "planning-center-lists" ""
         deploy_function "get-openai-org-usage" ""
-        deploy_function "cleanup-device-tokens" ""
+        deploy_function "cleanup-device-tokens" "--no-verify-jwt"
         deploy_function "stripe-church-checkout" ""
         deploy_function "stripe-pro-checkout" ""
         deploy_function "stripe-billing-portal" ""
         deploy_function "stripe-webhook" "--no-verify-jwt"
         deploy_function "reconcile-church-billing" "--no-verify-jwt"
         deploy_function "send-billing-signup-email" ""
+        deploy_function "verify-code" "--no-verify-jwt"
+        deploy_function "check-admin-status" ""
+        deploy_function "test-account-auth" "--no-verify-jwt"
+        deploy_function "scripture" ""
+        deploy_function "scripture-audio" ""
         echo "🎉 All functions deployed successfully!"
         ;;
     *)
@@ -197,16 +246,17 @@ case $FUNCTION_NAME in
         echo "Usage: ./deploy-functions.sh [function-name]"
         echo ""
         echo "Available functions:"
-        echo "  send-notification        - Email sending (no JWT)"
+        echo "  send-notification        - not in this repo (use send-email)"
         echo "  send-email               - Resend email API (no JWT; called from app + other functions)"
         echo "  email-unsubscribe        - Public unsubscribe (no JWT; token in URL/body)"
-        echo "  trigger-email-processor  - Drain email_queue via Resend (no JWT)"
-        echo "  send-verification-code   - Email verification codes (no JWT)"
-        echo "  send-prayer-reminders    - Automated prayer reminders"
-        echo "  send-user-hourly-prayer-reminders - User hourly self-reminders (cron)"
-        echo "  send-user-hourly-memorization-reminders - User hourly memorization reminders (cron)"
-        echo "  send-user-prayer-item-reminders - Per-prayer item reminders (cron)"
-        echo "  dispatch-user-reminders    - Sequential reminder dispatcher (cron)"
+        echo "  trigger-email-processor  - Drain email_queue via Resend (no JWT; service-role bearer)"
+        echo "  send-verification-code   - Email verification codes (no JWT; user session or service role)"
+        echo "  send-prayer-reminders    - Automated prayer reminders (no JWT; service-role bearer)"
+        echo "  send-user-hourly-prayer-reminders - User hourly self-reminders (no JWT; service-role bearer)"
+        echo "  send-user-hourly-memorization-reminders - User hourly memorization reminders (no JWT; service-role bearer)"
+        echo "  send-user-prayer-item-reminders - Per-prayer item reminders (no JWT; service-role bearer)"
+        echo "  dispatch-user-reminders    - Sequential reminder dispatcher (no JWT; service-role bearer)"
+        echo "  send-push-notification     - FCM/APNs send (no JWT; service-role bearer)"
         echo "  transcribe-audio              - Memorization Recite Whisper STT (JWT)"
         echo "  submit-feedback               - In-app feedback to Notion (JWT; NOTION_TOKEN)"
         echo "  delete-account                - Settings account erasure (JWT; service role RPC)"
@@ -215,13 +265,18 @@ case $FUNCTION_NAME in
         echo "  planning-center-lookup        - PCO people lookup (JWT)"
         echo "  planning-center-lists         - PCO lists and list members (JWT)"
         echo "  get-openai-org-usage          - OpenAI org spend for admin UI"
-        echo "  cleanup-device-tokens    - Stale device tokens + push log cleanup (cron)"
+        echo "  cleanup-device-tokens    - Stale device tokens + push log cleanup (no JWT; service-role bearer)"
         echo "  stripe-church-checkout   - Church Stripe Checkout (JWT)"
         echo "  stripe-pro-checkout      - Pro Stripe Checkout (JWT)"
         echo "  stripe-billing-portal    - Stripe Customer Portal for churches (JWT)"
         echo "  stripe-webhook           - Stripe webhooks (no JWT)"
         echo "  reconcile-church-billing - Hourly grace/period-end downgrades (no JWT; cron)"
         echo "  send-billing-signup-email - Native tour signup emails (JWT; platform From)"
+        echo "  verify-code              - Check a stored email code (no JWT)"
+        echo "  check-admin-status       - Admin role lookup (JWT)"
+        echo "  test-account-auth        - Platform test-account login (no JWT; no session yet)"
+        echo "  scripture                - Bible passage text (JWT)"
+        echo "  scripture-audio          - Bible passage audio (JWT)"
         echo "  all                      - Deploy all functions (default)"
         echo ""
         exit 1

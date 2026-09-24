@@ -1,11 +1,28 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   communityPrayerReminderDropFromPayload,
+  handlePrayerRealtimeSubscribeStatus,
+  isRealtimeSubscriptionDisconnectedStatus,
   personalPrayerReminderDropFromPayload,
   shouldReloadPersonalPrayersAfterRealtimePayload,
 } from './prayer-service-realtime';
 
 describe('prayer-service-realtime', () => {
+  it('treats CLOSED and CHANNEL_ERROR as disconnected', () => {
+    expect(isRealtimeSubscriptionDisconnectedStatus('CLOSED')).toBe(true);
+    expect(isRealtimeSubscriptionDisconnectedStatus('CHANNEL_ERROR')).toBe(true);
+    expect(isRealtimeSubscriptionDisconnectedStatus('SUBSCRIBED')).toBe(false);
+  });
+
+  it('resubscribe hook runs only for disconnected statuses', () => {
+    const onDisconnected = vi.fn();
+    handlePrayerRealtimeSubscribeStatus('SUBSCRIBED', onDisconnected);
+    expect(onDisconnected).not.toHaveBeenCalled();
+    handlePrayerRealtimeSubscribeStatus('CLOSED', onDisconnected);
+    handlePrayerRealtimeSubscribeStatus('CHANNEL_ERROR', onDisconnected);
+    expect(onDisconnected).toHaveBeenCalledTimes(2);
+  });
+
   it('drops community reminders on delete, archived, or answered', () => {
     expect(
       communityPrayerReminderDropFromPayload({
