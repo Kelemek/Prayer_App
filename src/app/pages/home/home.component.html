@@ -245,7 +245,9 @@
           !!(prayerGroupService.loadingPrayers$ | async));
       @let hasCachedContentForTab =
         activeFilter === 'memorize' ||
-        (!canAccessShared && isPublicAreaFilter(activeFilter)) ||
+        (viewReady &&
+          !canAccessShared &&
+          isPublicAreaFilter(activeFilter)) ||
         (activeFilter === 'prompts' &&
           (catalog.displayedPrompts.length > 0 || promptsCatalogCount > 0)) ||
         (activeFilter === 'personal' &&
@@ -363,6 +365,7 @@
         [prayerGroups]="prayerGroups"
         [displayedPrompts]="catalog.displayedPrompts"
         [loadingPersonalPrayers$]="prayerService.loadingPersonalPrayers$"
+        [loadingGroupPrayers$]="prayerGroupService.loadingPrayers$"
         [canReorderPersonalPrayers]="shell.personalCategory.canReorderPersonalPrayers"
         [selectedPromptTypes]="selectedPromptTypes"
         [memorizedItems]="memorizationPanel.memorizedItems"

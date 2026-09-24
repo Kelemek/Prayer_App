@@ -35,6 +35,19 @@ export function isPublicAreaFilter(filter: HomeActiveFilter): boolean {
   );
 }
 
+/** Church demo tabs skip skeletons once the initial home view is ready. */
+export function homeSkipSkeletonForChurchDemoTab(params: {
+  viewReady: boolean;
+  canAccessShared: boolean;
+  activeFilter: HomeActiveFilter;
+}): boolean {
+  return (
+    params.viewReady &&
+    !params.canAccessShared &&
+    isPublicAreaFilter(params.activeFilter)
+  );
+}
+
 /** True when the Groups top tab is selected. */
 export function isGroupsAreaFilter(filter: HomeActiveFilter): boolean {
   return filter === "groups";

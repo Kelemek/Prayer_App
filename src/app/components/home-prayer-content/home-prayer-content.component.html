@@ -9,7 +9,7 @@
   } @else {
   <!-- Empty State for Prayers -->
   @if (activeFilter !== 'prompts' && activeFilter !== 'personal' &&
-  activeFilter !== 'memorize' && activeFilter !== 'groups' && activeFilter !== 'planning_center_list' && (prayers$ | async)?.length === 0) {
+  activeFilter !== 'memorize' && activeFilter !== 'groups' && activeFilter !== 'planning_center_list' && !(loading$ | async) && (prayers$ | async)?.length === 0) {
   <div
     class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center border border-gray-200 dark:border-gray-700"
   >
@@ -169,7 +169,7 @@
   }
 
   @if (activeFilter === 'groups') {
-  @if (groupPrayers.length === 0) {
+  @if (!(loadingGroupPrayers$ | async) && groupPrayers.length === 0) {
   <div
     class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center border border-gray-200 dark:border-gray-700"
   >

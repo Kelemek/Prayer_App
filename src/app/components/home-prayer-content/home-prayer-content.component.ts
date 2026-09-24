@@ -87,6 +87,7 @@ export class HomePrayerContentComponent implements OnChanges {
   @Input() prayerGroups: PrayerGroup[] = [];
   @Input({ required: true }) displayedPrompts!: PrayerPrompt[];
   @Input({ required: true }) loadingPersonalPrayers$!: Observable<boolean>;
+  @Input({ required: true }) loadingGroupPrayers$!: Observable<boolean>;
   @Input({ required: true }) canReorderPersonalPrayers!: boolean;
   @Input({ required: true }) selectedPromptTypes!: string[];
   @Input({ required: true }) memorizedItems!: MemorizedItem[];

@@ -247,13 +247,13 @@ export class PrayerCommunityService {
     silentRefresh = false,
     options?: PrayerCatalogRefreshOptions
   ): Promise<void> {
-    try {
-      const tenantId = this.getActiveTenantId();
-      if (!tenantId) {
-        this.errorSubject.next(null);
-        return;
-      }
+    const tenantId = this.getActiveTenantId();
+    if (!tenantId) {
+      this.errorSubject.next(null);
+      return;
+    }
 
+    try {
       const cachedPrayers = this.getCachedSharedPrayers(tenantId);
       const skipDbOnWarmCache = shouldSkipCommunityPrayersDbOnSilentRefresh(
         silentRefresh,
@@ -286,7 +286,7 @@ export class PrayerCommunityService {
         return;
       }
 
-      if (!silentRefresh && !cachedPrayers) {
+      if (!silentRefresh && !cachedPrayers?.length) {
         this.loadingSubject.next(true);
       }
       this.errorSubject.next(null);

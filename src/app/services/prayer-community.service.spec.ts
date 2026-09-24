@@ -156,9 +156,10 @@ describe('PrayerCommunityService', () => {
 
   it('loadPrayers exits early without tenant', async () => {
     const { service, applyFilters } = createService({ tenantId: null });
+    service.loadingSubject.next(true);
     await service.loadPrayers();
     expect(applyFilters).not.toHaveBeenCalled();
-    expect(service.loadingSubject.value).toBe(false);
+    expect(service.loadingSubject.value).toBe(true);
   });
 
   it('loadPrayers uses warm cache and skips db on silent refresh', async () => {
@@ -195,6 +196,23 @@ describe('PrayerCommunityService', () => {
     await service.loadPrayers();
     expect(service.getAllCommunityPrayersSnapshot()).toHaveLength(1);
     expect(applyFilters).toHaveBeenCalled();
+  });
+
+  it('loadPrayers sets loading true for non-silent fetch with empty cache', async () => {
+    vi.mocked(fetchApprovedSharedPrayers).mockResolvedValue({
+      prayersData: [],
+      error: null,
+    });
+    vi.mocked(fetchApprovedSharedPrayerUpdates).mockResolvedValue({
+      updatesData: [],
+      error: null,
+    });
+    const { service } = createService({ cacheGet: [] });
+    service.loadingSubject.next(false);
+    const loadPromise = service.loadPrayers(false);
+    expect(service.loadingSubject.value).toBe(true);
+    await loadPromise;
+    expect(service.loadingSubject.value).toBe(false);
   });
 
   it('loadPrayers falls back to cache after fetch errors', async () => {

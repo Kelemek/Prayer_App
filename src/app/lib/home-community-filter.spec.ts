@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   homeHasSubFilterRowBelowTabs,
+  homeSkipSkeletonForChurchDemoTab,
   isAllowedHomeFilterWithoutSharedAccess,
   isChurchDemoFilter,
   isCommunityPrayerFilter,
@@ -66,6 +67,38 @@ describe("isGroupsAreaFilter", () => {
     expect(isGroupsAreaFilter("groups")).toBe(true);
     expect(isGroupsAreaFilter("personal")).toBe(false);
     expect(isGroupsAreaFilter("current")).toBe(false);
+  });
+});
+
+describe("homeSkipSkeletonForChurchDemoTab", () => {
+  it("returns false before viewReady so first paint stays on skeletons", () => {
+    expect(
+      homeSkipSkeletonForChurchDemoTab({
+        viewReady: false,
+        canAccessShared: false,
+        activeFilter: "current",
+      })
+    ).toBe(false);
+  });
+
+  it("returns true after viewReady when user lacks shared access on public area tabs", () => {
+    expect(
+      homeSkipSkeletonForChurchDemoTab({
+        viewReady: true,
+        canAccessShared: false,
+        activeFilter: "current",
+      })
+    ).toBe(true);
+  });
+
+  it("returns false when user has shared access", () => {
+    expect(
+      homeSkipSkeletonForChurchDemoTab({
+        viewReady: true,
+        canAccessShared: true,
+        activeFilter: "current",
+      })
+    ).toBe(false);
   });
 });
 
