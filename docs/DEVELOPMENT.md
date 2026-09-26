@@ -25,7 +25,9 @@ Church-scoped configuration lives on **`tenant_settings`** (keyed by `tenant_id`
 
 Personal-only users (no church membership) use safe defaults and do not read another church's `tenant_settings`.
 
-**Outbound mail identity:** `get_tenant_mail_identity(p_tenant_id, p_email)` / `update_tenant_mail_identity(...)` (same MFA `p_email` pattern as reminder settings). Stores display name + DNS-safe local-part (not a full From address) so From always stays on the `MAIL_SENDER_ADDRESS` domain; optional `mail_reply_to` can be any church inbox. Resolution lives in `src/lib/mail-identity.ts` (unit tests) and is inlined in `send-email` and `trigger-email-processor`. Admin UI: Email → Sending identity. Member invites (`tenant_invite` template) pass the church `tenantId` so From identity applies.
+**Outbound mail identity:** `get_tenant_mail_identity(p_tenant_id, p_email)` / `update_tenant_mail_identity(...)` (same MFA `p_email` pattern as reminder settings). Stores display name + DNS-safe local-part (not a full From address) so From always stays on the `MAIL_SENDER_ADDRESS` domain; optional `mail_reply_to` can be any church inbox. Resolution lives in `src/lib/mail-identity.ts` (unit tests) and is inlined in `send-email` and `trigger-email-processor`. Admin UI: Email → Sending identity.
+
+**Church access requests (replaces invite tokens):** Non-members on a church host use `/request-access` and RPCs `get_public_tenant_by_slug`, `get_tenant_access_state`, `complete_tenant_membership_profile`, `create_tenant_access_request`, `approve_tenant_access_request`, `deny_tenant_access_request`. Notifications for new requests are sent server-side via Edge Function `tenant-access`. Table `tenant_invites` is **deprecated** (kept for `erase_user_account` / `export_user_account` until those functions drop the inventory key).
 
 ### Project Structure
 

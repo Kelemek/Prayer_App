@@ -20,8 +20,7 @@ import { ConnectivityService } from "../../services/connectivity.service";
 import { ToastService } from "../../services/toast.service";
 import { PrayerGroupService } from "../../services/prayer-group.service";
 import { UserSubscriptionService } from "../../services/user-subscription.service";
-import { TenantManagementService } from "../../services/tenant-management.service";
-import { parseJoinInviteToken } from "../../lib/tenant-invite";
+import { TenantAccessService } from "../../services/tenant-access.service";
 import { Subject, takeUntil } from "rxjs";
 
 @Component({
@@ -64,21 +63,6 @@ import { Subject, takeUntil } from "rxjs";
           role="status"
         >
           You’re offline. Connect to the internet to sign in.
-        </div>
-        }
-
-        @if (isJoinInviteFlow) {
-        <div
-          class="rounded-lg border border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/30 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-100"
-          role="status"
-        >
-          @if (joinInvite) {
-            You're invited to join
-            <strong>{{ joinInvite.tenantName }}</strong>. Sign in or sign up as
-            <strong>{{ joinInvite.inviteeEmail }}</strong>.
-          } @else {
-            Sign in or sign up with the email address this invite was sent to.
-          }
         </div>
         }
 
@@ -684,9 +668,6 @@ export class LoginComponent implements OnInit, OnDestroy {
   private returnUrl: string = "/";
 
   isOnline = true;
-  isJoinInviteFlow = false;
-  joinInvite: { tenantName: string; inviteeEmail: string } | null = null;
-
   private destroy$ = new Subject<void>();
   /** OTP / registration owns navigation so isAdmin$ cannot race it to "/". */
   private ownsPostLoginNavigation = false;
@@ -716,74 +697,8 @@ export class LoginComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private prayerGroupService: PrayerGroupService,
     private userSubscriptionService: UserSubscriptionService,
-    private tenantManagement: TenantManagementService
+    private tenantAccess: TenantAccessService
   ) {}
-
-  /** Tenant for new subscribers / approval requests (active org, localStorage, or default-tenant). */
-  private async getTenantIdForSignup(): Promise<string | null> {
-    const fromContext = this.tenantContext.getActiveTenant()?.id;
-    if (fromContext) {
-      return fromContext;
-    }
-    const stored =
-      typeof localStorage !== "undefined"
-        ? localStorage.getItem("active_tenant_id")
-        : null;
-    if (stored) {
-      return stored;
-    }
-    const { data } = await this.supabaseService.client
-      .from("tenants")
-      .select("id")
-      .eq("slug", "default-tenant")
-      .maybeSingle();
-    return data?.id ?? null;
-  }
-
-  private async isExplicitChurchTenantId(tenantId: string): Promise<boolean> {
-    const { data } = await this.supabaseService.client
-      .from("tenants")
-      .select("slug, plan_tier")
-      .eq("id", tenantId)
-      .maybeSingle();
-    return (
-      data?.plan_tier === "churches" &&
-      data?.slug !== "default-tenant"
-    );
-  }
-
-  private async isExplicitChurchSignupContext(): Promise<boolean> {
-    const tenantId = await this.getTenantIdForSignup();
-    if (!tenantId) {
-      return false;
-    }
-    return this.isExplicitChurchTenantId(tenantId);
-  }
-
-  private async loadJoinInviteBanner(): Promise<void> {
-    const token = parseJoinInviteToken(this.returnUrl);
-    this.isJoinInviteFlow = !!token;
-    this.joinInvite = null;
-    if (!token) {
-      this.cdr?.markForCheck?.();
-      return;
-    }
-    try {
-      const preview = await this.tenantManagement.getInvitePreview(token);
-      if (preview) {
-        this.joinInvite = {
-          tenantName: preview.tenantName,
-          inviteeEmail: preview.inviteeEmail,
-        };
-        if (!this.email.trim()) {
-          this.email = preview.inviteeEmail;
-        }
-      }
-    } catch (error) {
-      console.warn("Failed to load invite preview for login:", error);
-    }
-    this.cdr?.markForCheck?.();
-  }
 
   async ngOnInit() {
     // Detect dark mode from document class
@@ -822,7 +737,6 @@ export class LoginComponent implements OnInit, OnDestroy {
           this.showBlockedMessage = true;
         }
 
-        void this.loadJoinInviteBanner();
         this.queueSignedInRedirect();
       });
 
@@ -1118,22 +1032,28 @@ export class LoginComponent implements OnInit, OnDestroy {
     isAdmin: boolean
   ) {
     try {
-      // Check if user has a pending approval request FIRST - regardless of subscriber status
-      const hasPendingApproval = await this.checkPendingApprovalRequest(
-        userEmail
-      );
-
-      if (hasPendingApproval) {
-        // User has pending approval - sign them out so they don't get a session
-        // This prevents automatic login when navigating to the main site
-        await this.adminAuthService.logout();
-
-        // Show pending approval message instead of form or loading session
-        this.showSubscriberForm = false;
-        this.showPendingApproval = true;
-        this.loading = false;
-        this.cdr?.markForCheck?.();
-        return;
+      const churchTarget = await this.tenantAccess.resolveTargetTenant(null);
+      if (churchTarget) {
+        const access = await this.tenantAccess.getState(churchTarget.id);
+        if (access.state === "blocked") {
+          this.showBlockedMessage = true;
+          this.loading = false;
+          this.cdr?.markForCheck?.();
+          return;
+        }
+        if (access.state !== "member") {
+          try {
+            await this.userSessionService.loadUserSession(userEmail);
+          } catch (sessionError) {
+            console.warn("[AdminLogin] Failed to load user session:", sessionError);
+          }
+          await this.router.navigate(["/request-access"], {
+            queryParams: { returnUrl: this.returnUrl || "/" },
+          });
+          this.loading = false;
+          this.cdr?.markForCheck?.();
+          return;
+        }
       }
 
       const isSubscriber = await this.checkEmailSubscriber(userEmail);
@@ -1147,14 +1067,12 @@ export class LoginComponent implements OnInit, OnDestroy {
           if (groupProfile.name) {
             // Name already on group membership — skip the welcome form.
           } else {
-            this.requiresApproval = false;
             this.showSubscriberForm = true;
             this.loading = false;
             this.cdr?.markForCheck?.();
             return;
           }
-        } else {
-          this.requiresApproval = await this.isExplicitChurchSignupContext();
+        } else if (!churchTarget) {
           this.showSubscriberForm = true;
           this.loading = false;
           this.cdr?.markForCheck?.();
@@ -1410,30 +1328,6 @@ export class LoginComponent implements OnInit, OnDestroy {
     }
   }
 
-  private async checkPendingApprovalRequest(email: string): Promise<boolean> {
-    try {
-      const { data, error } = await this.supabaseService.directQuery<{
-        id: string;
-        approval_status: string;
-      }>("account_approval_requests", {
-        select: "id, approval_status",
-        eq: { email: email.toLowerCase(), approval_status: "pending" },
-        limit: 1,
-      });
-
-      if (error) {
-        console.error("[AdminLogin] Error checking pending approval:", error);
-        return false;
-      }
-
-      const hasPending = data && Array.isArray(data) && data.length > 0;
-      return hasPending || false;
-    } catch (err) {
-      console.error("[AdminLogin] Exception checking pending approval:", err);
-      return false;
-    }
-  }
-
   async saveNewSubscriber(): Promise<boolean> {
     try {
       if (!this.firstName.trim() || !this.lastName.trim()) {
@@ -1444,78 +1338,6 @@ export class LoginComponent implements OnInit, OnDestroy {
 
       this.loading = true;
       this.cdr?.markForCheck?.();
-
-      if (this.requiresApproval) {
-        const signupTenantId = await this.getTenantIdForSignup();
-
-        const { error } = await this.supabaseService.client.rpc(
-          "create_account_approval_request",
-          {
-            p_email: this.email.toLowerCase(),
-            p_first_name: this.firstName.trim(),
-            p_last_name: this.lastName.trim(),
-            p_affiliation_reason: this.affiliationReason.trim(),
-            p_tenant_id: signupTenantId,
-          }
-        );
-
-        if (error) {
-          console.error("[AdminLogin] Error creating approval request:", error);
-          console.error("[AdminLogin] Error details:", {
-            message: error.message,
-            status: (error as any).status,
-            statusText: (error as any).statusText,
-            details: (error as any).details,
-            hint: (error as any).hint,
-            code: (error as any).code,
-          });
-
-          // Check if it's a duplicate email error
-          if (
-            error.message?.includes("duplicate key") ||
-            error.message?.includes("unique constraint")
-          ) {
-            this.error =
-              "An approval request already exists for this email address. Please check your email or contact an administrator.";
-          } else {
-            this.error = `Failed to submit approval request: ${
-              error.message || "Unknown error"
-            }`;
-          }
-
-          this.loading = false;
-          this.cdr?.markForCheck?.();
-          return false;
-        }
-
-        // Send admin notification email
-        try {
-          await this.emailNotificationService.sendAccountApprovalNotification(
-            this.email.toLowerCase(),
-            this.firstName.trim(),
-            this.lastName.trim(),
-            this.affiliationReason.trim(),
-            signupTenantId
-          );
-        } catch (emailError) {
-          console.error(
-            "[AdminLogin] Failed to send admin notification:",
-            emailError
-          );
-          // Don't fail the request if email fails
-        }
-
-        // Sign out user so they don't get a session in localStorage
-        // This prevents automatic login when navigating to the main site
-        await this.adminAuthService.logout();
-
-        // Show pending approval message
-        this.showSubscriberForm = false;
-        this.showPendingApproval = true;
-        this.loading = false;
-        this.cdr?.markForCheck?.();
-        return true;
-      }
 
       const groupProfile = await this.prayerGroupService.getMembershipProfile(
         this.email
@@ -1547,85 +1369,13 @@ export class LoginComponent implements OnInit, OnDestroy {
         return true;
       }
 
-      // Normal subscriber flow (church tenant) or free-tier registration
-      const subscriberTenantId = await this.getTenantIdForSignup();
-      const useChurchMembership =
-        !!subscriberTenantId &&
-        (await this.isExplicitChurchTenantId(subscriberTenantId));
-
-      if (!useChurchMembership) {
-        const fullName = `${this.firstName.trim()} ${this.lastName.trim()}`;
-        const saved = await this.userSubscriptionService.registerFreeUser(fullName);
-        if (!saved) {
-          this.error = "Failed to create your account. Please try again.";
-          this.loading = false;
-          this.cdr?.markForCheck?.();
-          return false;
-        }
-
-        this.showSubscriberForm = false;
-        this.firstName = "";
-        this.lastName = "";
-        this.affiliationReason = "";
-        this.loading = false;
-
-        try {
-          await this.userSessionService.loadUserSession(this.email);
-        } catch (sessionError) {
-          console.warn("[AdminLogin] Failed to load user session:", sessionError);
-        }
-
-        this.navigateToPostLoginDestination();
-        this.cdr?.markForCheck?.();
-        return true;
-      }
-
-      if (!subscriberTenantId) {
-        this.error =
-          "Could not determine organization for signup. Please try again.";
+      const fullName = `${this.firstName.trim()} ${this.lastName.trim()}`;
+      const saved = await this.userSubscriptionService.registerFreeUser(fullName);
+      if (!saved) {
+        this.error = "Failed to create your account. Please try again.";
         this.loading = false;
         this.cdr?.markForCheck?.();
         return false;
-      }
-
-      const { data, error } = await this.supabaseService.directMutation<{
-        id: string;
-      }>("tenant_memberships", {
-        method: "POST",
-        body: {
-          user_email: this.email.toLowerCase(),
-          name: `${this.firstName.trim()} ${this.lastName.trim()}`,
-          is_active: true,
-          role: "member",
-          receive_admin_emails: false,
-          tenant_id: subscriberTenantId,
-        },
-        returning: true,
-      });
-
-      if (error) {
-        console.error("[AdminLogin] Error saving subscriber:", error);
-        console.error("[AdminLogin] Error details:", {
-          message: error.message,
-          status: (error as any).status,
-          statusText: (error as any).statusText,
-        });
-        this.error = `Failed to save subscriber: ${
-          error.message || "Unknown error"
-        }`;
-        this.loading = false;
-        this.cdr?.markForCheck?.();
-        return false;
-      }
-
-      // Send welcome email to the new subscriber
-      try {
-        await this.emailNotificationService.sendSubscriberWelcomeNotification(
-          this.email
-        );
-      } catch (emailError) {
-        console.error("[AdminLogin] Failed to send welcome email:", emailError);
-        // Don't fail the request if email fails
       }
 
       this.showSubscriberForm = false;
@@ -1634,16 +1384,14 @@ export class LoginComponent implements OnInit, OnDestroy {
       this.affiliationReason = "";
       this.loading = false;
 
-      // Load user session directly before navigating
       try {
         await this.userSessionService.loadUserSession(this.email);
       } catch (sessionError) {
         console.warn("[AdminLogin] Failed to load user session:", sessionError);
-        // Continue anyway - session might load asynchronously
       }
 
       this.navigateToPostLoginDestination();
-
+      this.cdr?.markForCheck?.();
       return true;
     } catch (err) {
       console.error("[AdminLogin] Exception saving subscriber:", err);

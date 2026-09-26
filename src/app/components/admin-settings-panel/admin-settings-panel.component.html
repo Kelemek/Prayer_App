@@ -289,8 +289,11 @@
     }
     @case ('security') {
       <div>
-        <div class="mb-4">
-          <app-church-member-invite></app-church-member-invite>
+        <div class="mb-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4 text-sm text-gray-700 dark:text-gray-300">
+          Members can ask to join from your church link
+          <span class="font-medium">{{ activeTenant?.slug }}.prayer.romans8.net</span>
+          or Home → Church → Join a church. Approve them in Admin → Accounts, or pre-add them in
+          Email Subscribers.
         </div>
         <div class="mb-4">
           <app-admin-user-management></app-admin-user-management>

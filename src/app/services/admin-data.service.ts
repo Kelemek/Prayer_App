@@ -6,6 +6,7 @@ import { EmailNotificationService } from './email-notification.service';
 import { PushNotificationService } from './push-notification.service';
 import { TenantContextService } from './tenant-context.service';
 import { supportPageUrl } from '../constants/app-defaults';
+import { getTenantOrigin } from '../lib/app-origin';
 import type { 
   PrayerRequest, 
   PrayerUpdate, 
@@ -1154,30 +1155,22 @@ export class AdminDataService {
       throw new Error('Admin features require an active tenant');
     }
 
-    const { data: request, error: fetchError } = await supabaseClient
-      .from('account_approval_requests')
-      .select('*')
-      .eq('id', id)
-      .eq('tenant_id', tenantId)
-      .single();
+    const { data: row, error: rpcError } = await supabaseClient.rpc(
+      'approve_tenant_access_request',
+      { p_request_id: id },
+    );
 
-    if (fetchError) throw fetchError;
-    if (!request) throw new Error('Account approval request not found');
+    if (rpcError) throw rpcError;
+    const request = row as {
+      email: string;
+      first_name: string;
+      last_name: string;
+      tenant_id: string;
+    };
+    if (!request?.email) {
+      throw new Error('Account approval request not found');
+    }
 
-    await this.ensureTenantMembership({
-      tenantId,
-      email: request.email.toLowerCase(),
-      name: `${request.first_name} ${request.last_name}`,
-    });
-
-    const { error: deleteError } = await supabaseClient
-      .from('account_approval_requests')
-      .delete()
-      .eq('id', id);
-
-    if (deleteError) throw deleteError;
-
-    // Refresh first so the pending card leaves the queue even if email delivery hangs.
     await this.fetchAdminData(true, true);
     void this.sendAccountApprovedNotifications(request, tenantId);
   }
@@ -1189,22 +1182,21 @@ export class AdminDataService {
       throw new Error('Admin features require an active tenant');
     }
 
-    const { data: request, error: fetchError } = await supabaseClient
-      .from('account_approval_requests')
-      .select('*')
-      .eq('id', id)
-      .eq('tenant_id', tenantId)
-      .single();
+    const { data: row, error: rpcError } = await supabaseClient.rpc(
+      'deny_tenant_access_request',
+      { p_request_id: id, p_reason: reason },
+    );
 
-    if (fetchError) throw fetchError;
-    if (!request) throw new Error('Account approval request not found');
-
-    const { error: deleteError } = await supabaseClient
-      .from('account_approval_requests')
-      .delete()
-      .eq('id', id);
-
-    if (deleteError) throw deleteError;
+    if (rpcError) throw rpcError;
+    const request = row as {
+      email: string;
+      first_name: string;
+      last_name: string;
+      tenant_id: string;
+    };
+    if (!request?.email) {
+      throw new Error('Account approval request not found');
+    }
 
     await this.fetchAdminData(true, true);
     void this.sendAccountDeniedNotification(request, tenantId);
@@ -1277,6 +1269,8 @@ export class AdminDataService {
     tenantId: string
   ): Promise<void> {
     try {
+      const slug = this.tenantContext.getActiveTenant()?.slug ?? '';
+      const loginLink = `${getTenantOrigin(slug)}/login`;
       const template = await this.emailNotification.getTemplate('account_approved', tenantId);
       if (template) {
         const subject = this.emailNotification.applyTemplateVariables(template.subject, {
@@ -1286,13 +1280,13 @@ export class AdminDataService {
           firstName: request.first_name,
           lastName: request.last_name,
           email: request.email,
-          loginLink: `${this.emailNotification.getEmailBaseUrl()}/login`,
+          loginLink,
         });
         const text = this.emailNotification.applyTemplateVariables(template.text_body, {
           firstName: request.first_name,
           lastName: request.last_name,
           email: request.email,
-          loginLink: `${this.emailNotification.getEmailBaseUrl()}/login`,
+          loginLink,
         });
 
         await this.emailNotification.sendEmail({

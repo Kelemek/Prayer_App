@@ -71,6 +71,7 @@ describe('AdminDataService', () => {
     // Create mock Supabase client with default empty responses
     mockSupabaseClient = {
       from: vi.fn((table: string) => createMockQueryChain([], null)),
+      rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
       auth: {
         getSession: vi.fn(() => Promise.resolve({ 
           data: { 
@@ -1004,37 +1005,22 @@ describe('AdminDataService', () => {
         id: '1',
         email: 'john@example.com',
         first_name: 'John',
-        last_name: 'Doe'
+        last_name: 'Doe',
+        tenant_id: 'test-tenant-id',
       };
 
-      // Mock window.location.origin
-      Object.defineProperty(window, 'location', {
-        value: { origin: 'http://localhost:4200' },
-        writable: true
-      });
-
-      mockSupabaseClient.from = vi.fn((table: string) => {
-        if (table === 'account_approval_requests') {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                single: vi.fn(() => Promise.resolve({ data: mockRequest, error: null }))
-              }))
-            })),
-            delete: vi.fn(() => ({
-              eq: vi.fn(() => Promise.resolve({ error: null }))
-            }))
-          };
-        } else if (table === 'tenant_memberships') {
-          return {
-            insert: vi.fn(() => Promise.resolve({ error: null }))
-          };
+      mockSupabaseClient.rpc = vi.fn((fn: string) => {
+        if (fn === 'approve_tenant_access_request') {
+          return Promise.resolve({ data: mockRequest, error: null });
         }
-        return createMockQueryChain([], null);
+        return Promise.resolve({ data: null, error: null });
       });
 
       await service.approveAccountRequest('1');
 
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('approve_tenant_access_request', {
+        p_request_id: '1',
+      });
       expect(mockEmailNotificationService.getTemplate).toHaveBeenCalledWith('account_approved', 'test-tenant-id');
       expect(mockEmailNotificationService.sendEmail).toHaveBeenCalled();
     });
@@ -1047,6 +1033,15 @@ describe('AdminDataService', () => {
         last_name: 'Doe'
       };
 
+      mockSupabaseClient.rpc = vi.fn((fn: string) => {
+        if (fn === 'approve_tenant_access_request') {
+          return Promise.resolve({ data: { id: '1', email: 'john@example.com', first_name: 'John', last_name: 'Doe', tenant_id: 'test-tenant-id' }, error: null });
+        }
+        if (fn === 'deny_tenant_access_request') {
+          return Promise.resolve({ data: { id: '1', email: 'john@example.com', first_name: 'John', last_name: 'Doe', tenant_id: 'test-tenant-id' }, error: null });
+        }
+        return Promise.resolve({ data: null, error: null });
+      });
       mockSupabaseClient.from = vi.fn((table: string) => {
         if (table === 'account_approval_requests') {
           return {
@@ -1271,6 +1266,15 @@ describe('AdminDataService', () => {
         last_name: 'Doe'
       };
 
+      mockSupabaseClient.rpc = vi.fn((fn: string) => {
+        if (fn === 'approve_tenant_access_request') {
+          return Promise.resolve({ data: { id: '1', email: 'john@example.com', first_name: 'John', last_name: 'Doe', tenant_id: 'test-tenant-id' }, error: null });
+        }
+        if (fn === 'deny_tenant_access_request') {
+          return Promise.resolve({ data: { id: '1', email: 'john@example.com', first_name: 'John', last_name: 'Doe', tenant_id: 'test-tenant-id' }, error: null });
+        }
+        return Promise.resolve({ data: null, error: null });
+      });
       mockSupabaseClient.from = vi.fn((table: string) => {
         if (table === 'account_approval_requests') {
           return {
@@ -1388,6 +1392,15 @@ describe('AdminDataService', () => {
         }
       ];
 
+      mockSupabaseClient.rpc = vi.fn((fn: string) => {
+        if (fn === 'approve_tenant_access_request') {
+          return Promise.resolve({ data: { id: '1', email: 'john@example.com', first_name: 'John', last_name: 'Doe', tenant_id: 'test-tenant-id' }, error: null });
+        }
+        if (fn === 'deny_tenant_access_request') {
+          return Promise.resolve({ data: { id: '1', email: 'john@example.com', first_name: 'John', last_name: 'Doe', tenant_id: 'test-tenant-id' }, error: null });
+        }
+        return Promise.resolve({ data: null, error: null });
+      });
       mockSupabaseClient.from = vi.fn((table: string) => {
         if (table === 'account_approval_requests') {
           return createMockQueryChain(mockAccountRequests, null);
@@ -2070,69 +2083,16 @@ describe('AdminDataService', () => {
         }))
       }));
 
+      mockSupabaseClient.rpc = vi.fn(() => Promise.resolve({ data: null, error: null }));
       await expect(service.approveAccountRequest('1')).rejects.toThrow();
     });
 
-    it('should handle email subscriber insert error', async () => {
-      const mockRequest = {
-        id: '1',
-        email: 'john@example.com',
-        first_name: 'John',
-        last_name: 'Doe'
-      };
+    it('should propagate approve RPC errors', async () => {
+      mockSupabaseClient.rpc = vi.fn(() =>
+        Promise.resolve({ data: null, error: new Error('RPC failed') }),
+      );
 
-      mockSupabaseClient.from = vi.fn((table: string) => {
-        if (table === 'account_approval_requests') {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                single: vi.fn(() => Promise.resolve({ data: mockRequest, error: null }))
-              }))
-            })),
-            delete: vi.fn(() => ({
-              eq: vi.fn(() => Promise.resolve({ error: null }))
-            }))
-          };
-        } else if (table === 'tenant_memberships') {
-          return {
-            insert: vi.fn(() => Promise.resolve({ error: new Error('Insert failed') }))
-          };
-        }
-        return createMockQueryChain([], null);
-      });
-
-      await expect(service.approveAccountRequest('1')).rejects.toThrow('Insert failed');
-    });
-
-    it('should handle deletion of approval request after creating subscriber', async () => {
-      const mockRequest = {
-        id: '1',
-        email: 'john@example.com',
-        first_name: 'John',
-        last_name: 'Doe'
-      };
-
-      mockSupabaseClient.from = vi.fn((table: string) => {
-        if (table === 'account_approval_requests') {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                single: vi.fn(() => Promise.resolve({ data: mockRequest, error: null }))
-              }))
-            })),
-            delete: vi.fn(() => ({
-              eq: vi.fn(() => Promise.resolve({ error: new Error('Delete failed') }))
-            }))
-          };
-        } else if (table === 'tenant_memberships') {
-          return {
-            insert: vi.fn(() => Promise.resolve({ error: null }))
-          };
-        }
-        return createMockQueryChain([], null);
-      });
-
-      await expect(service.approveAccountRequest('1')).rejects.toThrow('Delete failed');
+      await expect(service.approveAccountRequest('1')).rejects.toThrow('RPC failed');
     });
 
     it('should handle email send failure gracefully', async () => {
@@ -2143,6 +2103,15 @@ describe('AdminDataService', () => {
         last_name: 'Doe'
       };
 
+      mockSupabaseClient.rpc = vi.fn((fn: string) => {
+        if (fn === 'approve_tenant_access_request') {
+          return Promise.resolve({ data: { id: '1', email: 'john@example.com', first_name: 'John', last_name: 'Doe', tenant_id: 'test-tenant-id' }, error: null });
+        }
+        if (fn === 'deny_tenant_access_request') {
+          return Promise.resolve({ data: { id: '1', email: 'john@example.com', first_name: 'John', last_name: 'Doe', tenant_id: 'test-tenant-id' }, error: null });
+        }
+        return Promise.resolve({ data: null, error: null });
+      });
       mockSupabaseClient.from = vi.fn((table: string) => {
         if (table === 'account_approval_requests') {
           return {
@@ -2171,43 +2140,6 @@ describe('AdminDataService', () => {
       await service.approveAccountRequest('1');
     });
 
-    it('should activate an existing membership when insert hits a unique constraint', async () => {
-      const mockRequest = {
-        id: '1',
-        email: 'john@example.com',
-        first_name: 'John',
-        last_name: 'Doe'
-      };
-      const updateEq = vi.fn(() => Promise.resolve({ error: null }));
-
-      mockSupabaseClient.from = vi.fn((table: string) => {
-        if (table === 'account_approval_requests') {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                single: vi.fn(() => Promise.resolve({ data: mockRequest, error: null }))
-              }))
-            })),
-            delete: vi.fn(() => ({
-              eq: vi.fn(() => Promise.resolve({ error: null }))
-            }))
-          };
-        } else if (table === 'tenant_memberships') {
-          return {
-            insert: vi.fn(() => Promise.resolve({
-              error: { code: '23505', message: 'duplicate key value violates unique constraint' }
-            })),
-            update: vi.fn(() => ({
-              eq: updateEq
-            }))
-          };
-        }
-        return createMockQueryChain([], null);
-      });
-
-      await service.approveAccountRequest('1');
-      expect(updateEq).toHaveBeenCalled();
-    });
 
     it('should finish approval even if sending email never resolves', async () => {
       const mockRequest = {
@@ -2217,6 +2149,15 @@ describe('AdminDataService', () => {
         last_name: 'Doe'
       };
 
+      mockSupabaseClient.rpc = vi.fn((fn: string) => {
+        if (fn === 'approve_tenant_access_request') {
+          return Promise.resolve({ data: { id: '1', email: 'john@example.com', first_name: 'John', last_name: 'Doe', tenant_id: 'test-tenant-id' }, error: null });
+        }
+        if (fn === 'deny_tenant_access_request') {
+          return Promise.resolve({ data: { id: '1', email: 'john@example.com', first_name: 'John', last_name: 'Doe', tenant_id: 'test-tenant-id' }, error: null });
+        }
+        return Promise.resolve({ data: null, error: null });
+      });
       mockSupabaseClient.from = vi.fn((table: string) => {
         if (table === 'account_approval_requests') {
           return {
@@ -2259,52 +2200,32 @@ describe('AdminDataService', () => {
       await expect(service.denyAccountRequest('1', 'reason')).rejects.toThrow();
     });
 
-    it('should handle deletion error', async () => {
-      const mockRequest = {
-        id: '1',
-        email: 'john@example.com',
-        first_name: 'John',
-        last_name: 'Doe'
-      };
+    it('should propagate deny RPC errors', async () => {
+      mockSupabaseClient.rpc = vi.fn(() =>
+        Promise.resolve({ data: null, error: new Error('Deny failed') }),
+      );
 
-      mockSupabaseClient.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn(() => Promise.resolve({ data: mockRequest, error: null }))
-          }))
-        })),
-        delete: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ error: new Error('Delete failed') }))
-        }))
-      }));
-
-      await expect(service.denyAccountRequest('1', 'reason')).rejects.toThrow('Delete failed');
+      await expect(service.denyAccountRequest('1', 'reason')).rejects.toThrow('Deny failed');
     });
 
     it('should handle email send failure gracefully', async () => {
-      const mockRequest = {
-        id: '1',
-        email: 'john@example.com',
-        first_name: 'John',
-        last_name: 'Doe'
-      };
-
-      mockSupabaseClient.from = vi.fn(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn(() => Promise.resolve({ data: mockRequest, error: null }))
-          }))
-        })),
-        delete: vi.fn(() => ({
-          eq: vi.fn(() => Promise.resolve({ error: null }))
-        }))
-      }));
+      mockSupabaseClient.rpc = vi.fn(() =>
+        Promise.resolve({
+          data: {
+            id: '1',
+            email: 'john@example.com',
+            first_name: 'John',
+            last_name: 'Doe',
+            tenant_id: 'test-tenant-id',
+          },
+          error: null,
+        }),
+      );
 
       mockEmailNotificationService.sendEmail = vi.fn(() =>
         Promise.reject(new Error('Email send failed'))
       );
 
-      // Should resolve even if email fails (error is caught)
       await service.denyAccountRequest('1', 'reason');
     });
   });

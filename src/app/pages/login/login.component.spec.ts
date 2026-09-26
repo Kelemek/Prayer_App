@@ -127,7 +127,7 @@ const makeComponent = (mocks: any) => {
 
 // Helper to create LoginComponent with custom service mocks (for tests with modified mocks)
 let componentsToCleanup: LoginComponent[] = [];
-const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, userSession: any, theme: any, tenantContext: any, router: any, route: any, cdr: any, connectivity?: any, toast?: any, userSubscription?: any, tenantManagement?: any) => {
+const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, userSession: any, theme: any, tenantContext: any, router: any, route: any, cdr: any, connectivity?: any, toast?: any, userSubscription?: any, tenantAccess?: any) => {
   const connectivityMock = connectivity ?? {
     isOnline: vi.fn(() => true),
     isOnline$: new BehaviorSubject(true).asObservable(),
@@ -142,8 +142,9 @@ const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, 
     registerFreeUser: vi.fn(async () => true),
     refreshCapabilities: vi.fn(async () => undefined),
   };
-  const tenantManagementMock = tenantManagement ?? {
-    getInvitePreview: vi.fn(async () => null),
+  const tenantAccessMock = tenantAccess ?? {
+    resolveTargetTenant: vi.fn(async () => null),
+    getState: vi.fn(async () => ({ state: 'member' as const })),
   };
   const comp = new LoginComponent(
     adminAuth,
@@ -159,7 +160,7 @@ const makeComponentWithMocks = (adminAuth: any, supabase: any, emailNotif: any, 
     cdr,
     prayerGroupMock as any,
     userSubscriptionMock as any,
-    tenantManagementMock as any
+    tenantAccessMock as any
   );
   comp.codeInputs = { toArray: () => [{ nativeElement: { focus: vi.fn() } }] } as any;
   // Register for cleanup
@@ -381,7 +382,6 @@ describe('LoginComponent', () => {
     comp.mfaCodeInput = comp.mfaCode.join('');
     comp.codeLength = 4;
     vi.spyOn(comp as any, 'checkEmailSubscriber').mockResolvedValue(false);
-    vi.spyOn(comp as any, 'checkPendingApprovalRequest').mockResolvedValue(false);
 
     await (comp as any).verifyMfaCode();
     // Wait for setTimeout (1 second delay) to complete
@@ -407,105 +407,6 @@ describe('LoginComponent', () => {
     const res = await comp.saveNewSubscriber();
     expect(res).toBe(false);
     expect(comp.error).toContain('Please enter your first and last name');
-  });
-
-  it('saveNewSubscriber handles approval RPC error and sets friendly message', async () => {
-    // setup rpc to return error
-    mocks.supabaseService.client.rpc = vi.fn(async () => ({ data: null, error: { message: 'duplicate key' } }));
-    const comp = makeComponentWithMocks(
-      mocks.adminAuthService,
-      mocks.supabaseService,
-      mocks.emailNotificationService,
-      mocks.userSessionService,
-      mocks.themeService,
-      mocks.tenantContextService,
-      mocks.router,
-      mocks.route,
-      mocks.cdr
-    );
-    comp.email = 'x@y.com';
-    comp.firstName = 'A';
-    comp.lastName = 'B';
-    comp.requiresApproval = true;
-    const res = await comp.saveNewSubscriber();
-    expect(res).toBe(false);
-    expect(comp.error).toContain('An approval request already exists');
-  });
-
-  it('saveNewSubscriber success approval path shows pending approval', async () => {
-    mocks.supabaseService.client.rpc = vi.fn(async () => ({ data: 123, error: null }));
-    const comp = makeComponentWithMocks(
-      mocks.adminAuthService,
-      mocks.supabaseService,
-      mocks.emailNotificationService,
-      mocks.userSessionService,
-      mocks.themeService,
-      mocks.tenantContextService,
-      mocks.router,
-      mocks.route,
-      mocks.cdr
-    );
-    comp.email = 'x2@y.com';
-    comp.firstName = 'A';
-    comp.lastName = 'B';
-    comp.requiresApproval = true;
-    const res = await comp.saveNewSubscriber();
-    expect(res).toBe(true);
-    expect(comp.showPendingApproval).toBe(true);
-  });
-
-  it('saveNewSubscriber normal flow saves church subscriber and navigates', async () => {
-    const mutationSpy = vi.fn(async () => ({ data: [{ id: '1' }], error: null }));
-    mocks.supabaseService.directMutation = mutationSpy;
-    mocks.supabaseService.client.from = vi.fn((table: string) => {
-      if (table === 'tenants') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              maybeSingle: vi.fn(async () => ({
-                data: { slug: 'test-tenant', plan_tier: 'churches' },
-                error: null,
-              })),
-            })),
-          })),
-        };
-      }
-      return {
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: { verification_code_length: 6 }, error: null })) })),
-        })),
-      };
-    });
-    const comp = makeComponentWithMocks(
-      mocks.adminAuthService,
-      mocks.supabaseService,
-      mocks.emailNotificationService,
-      mocks.userSessionService,
-      mocks.themeService,
-      mocks.tenantContextService,
-      mocks.router,
-      mocks.route,
-      mocks.cdr
-    );
-    comp.email = 'x3@y.com';
-    comp.firstName = 'A';
-    comp.lastName = 'B';
-    comp.requiresApproval = false;
-    const res = await comp.saveNewSubscriber();
-    expect(res).toBe(true);
-    expect(mutationSpy).toHaveBeenCalledWith(
-      'tenant_memberships',
-      expect.objectContaining({
-        body: expect.objectContaining({
-          user_email: 'x3@y.com',
-          name: 'A B',
-          is_active: true,
-          role: 'member',
-          receive_admin_emails: false
-        })
-      })
-    );
-    expect(mocks.router.navigateByUrl).toHaveBeenCalled();
   });
 
   it('handleSubmit handles sendMfaCode failure and sets error', async () => {
@@ -647,80 +548,7 @@ describe('LoginComponent', () => {
   it('uses fixed 6-digit login code length', () => {
     const comp = makeComponent(mocks);
     expect(comp.codeLength).toBe(6);
-  });
-
-  it('saveNewSubscriber handles email notification failure but still shows pending approval', async () => {
-    const compMocks = makeMocks();
-    // rpc resolves successfully
-    compMocks.supabaseService.client.rpc = vi.fn(async () => ({ data: 999, error: null }));
-    // email send fails
-    compMocks.emailNotificationService.sendAccountApprovalNotification = vi.fn(async () => { throw new Error('smtp fail'); });
-
-    const comp = makeComponentWithMocks(
-      compMocks.adminAuthService,
-      compMocks.supabaseService,
-      compMocks.emailNotificationService,
-      compMocks.userSessionService,
-      compMocks.themeService,
-      compMocks.tenantContextService,
-      compMocks.router,
-      compMocks.route,
-      compMocks.cdr
-    );
-    comp.email = 'notify@x.com';
-    comp.firstName = 'A';
-    comp.lastName = 'B';
-    comp.requiresApproval = true;
-
-    const res = await comp.saveNewSubscriber();
-    expect(res).toBe(true);
-    expect(comp.showPendingApproval).toBe(true);
-  });
-
-  it('saveNewSubscriber handles directMutation save error and surfaces friendly message', async () => {
-    const compMocks = makeMocks();
-    compMocks.supabaseService.client.from = vi.fn((table: string) => {
-      if (table === 'tenants') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              maybeSingle: vi.fn(async () => ({
-                data: { slug: 'test-tenant', plan_tier: 'churches' },
-                error: null,
-              })),
-            })),
-          })),
-        };
-      }
-      return {
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: { verification_code_length: 6 }, error: null })) })),
-        })),
-      };
-    });
-    // simulate directMutation error
-    compMocks.supabaseService.directMutation = vi.fn(async () => ({ data: null, error: { message: 'Insert failed', status: 500 } }));
-
-    const comp = makeComponentWithMocks(
-      compMocks.adminAuthService,
-      compMocks.supabaseService,
-      compMocks.emailNotificationService,
-      compMocks.userSessionService,
-      compMocks.themeService,
-      compMocks.tenantContextService,
-      compMocks.router,
-      compMocks.route,
-      compMocks.cdr
-    );
-    comp.email = 'savefail@x.com';
-    comp.firstName = 'A';
-    comp.lastName = 'B';
-    comp.requiresApproval = false;
-
-    const res = await comp.saveNewSubscriber();
-    expect(res).toBe(false);
-    expect(comp.error).toContain('Failed to save subscriber');
-  });
+  });););
 
   it('ngOnDestroy completes the destroy subject', () => {
     const comp = makeComponent(mocks);
@@ -792,46 +620,7 @@ describe('LoginComponent', () => {
     comp.codeInputs = { toArray: () => [] } as any;
     await comp.ngOnInit();
     expect(comp.email).toBe('prefilled@example.com');
-  });
-
-  it('ngOnInit shows join invite banner and prefills invited email', async () => {
-    const queryMocks = makeMocks();
-    queryMocks.route = {
-      queryParams: of({ returnUrl: '/join/invite-token-123' }),
-    } as any;
-    const getInvitePreview = vi.fn(async () => ({
-      tenantName: 'Alpha Church',
-      tenantSlug: 'alpha',
-      inviteeEmail: 'member@example.com',
-      expiresAt: '2099-01-01T00:00:00.000Z',
-      status: 'pending',
-    }));
-    const comp = makeComponentWithMocks(
-      queryMocks.adminAuthService,
-      queryMocks.supabaseService,
-      queryMocks.emailNotificationService,
-      queryMocks.userSessionService,
-      queryMocks.themeService,
-      queryMocks.tenantContextService,
-      queryMocks.router,
-      queryMocks.route,
-      queryMocks.cdr,
-      undefined,
-      undefined,
-      undefined,
-      { getInvitePreview }
-    );
-    comp.codeInputs = { toArray: () => [] } as any;
-    await comp.ngOnInit();
-    await vi.waitFor(() => {
-      expect(comp.isJoinInviteFlow).toBe(true);
-      expect(comp.joinInvite).toEqual({
-        tenantName: 'Alpha Church',
-        inviteeEmail: 'member@example.com',
-      });
-      expect(comp.email).toBe('member@example.com');
-    });
-  });
+  }););
 
   it('ngOnInit subscribes to requireSiteLogin$ and updates component state', async () => {
     const queryMocks = makeMocks();
@@ -972,7 +761,6 @@ describe('LoginComponent', () => {
     comp.mfaCode = ['1', '2', '3', '4'];
     comp.mfaCodeInput = '1234';
     vi.spyOn(comp as any, 'checkEmailSubscriber').mockResolvedValue(true);
-    vi.spyOn(comp as any, 'checkPendingApprovalRequest').mockResolvedValue(false);
 
     await comp.verifyMfaCode();
     expect(authMocks.router.navigateByUrl).not.toHaveBeenCalled();
@@ -1022,7 +810,6 @@ describe('LoginComponent', () => {
     mocks.adminAuthService.verifyMfaCode = vi.fn(async () => ({ success: false, error: 'nope' }));
     await comp.verifyMfaCode();
     await (comp as any).checkEmailSubscriber(secretEmail);
-    await (comp as any).checkPendingApprovalRequest(secretEmail);
     const dumped = log.mock.calls.map((args) => args.map(String).join(' ')).join('\n');
     expect(dumped).not.toContain(secretEmail);
     expect(dumped).not.toContain(secretCode);
@@ -1251,19 +1038,7 @@ describe('LoginComponent', () => {
     comp.email = 'test@x.com';
     await comp.handleResendCode();
     expect(comp.error).toContain('network');
-  });
-
-  it('saveNewSubscriber catches exception and returns false', async () => {
-    const comp = makeComponent(mocks);
-    mocks.supabaseService.client.rpc = vi.fn(async () => { throw new Error('rpc fail'); });
-    comp.email = 'x@y.com';
-    comp.firstName = 'A';
-    comp.lastName = 'B';
-    comp.requiresApproval = true;
-    const res = await comp.saveNewSubscriber();
-    expect(res).toBe(false);
-    expect(comp.error).toContain('rpc fail');
-  });
+  }););
 
   it('verifyMfaCode routes admin users to returnUrl', async () => {
     mocks.adminAuthService.verifyMfaCode = vi.fn(async () => ({ success: true, isAdmin: true }));
@@ -1276,7 +1051,6 @@ describe('LoginComponent', () => {
     (comp as any).returnUrl = '/admin/dashboard';
     comp.isAdmin = false;
     vi.spyOn(comp as any, 'checkEmailSubscriber').mockResolvedValue(true);
-    vi.spyOn(comp as any, 'checkPendingApprovalRequest').mockResolvedValue(false);
     
     await (comp as any).verifyMfaCode();
     // Wait for setTimeout (1 second delay) to complete
@@ -1360,38 +1134,7 @@ describe('LoginComponent', () => {
       mediaQueryListenerCalls[0]({});
       expect((comp as any).isDarkMode).toBe(true);
     }
-  });
-
-  it('saveNewSubscriber approval request creates RPC call with correct params and does not set duplicate error for other errors', async () => {
-    const compMocks = makeMocks();
-    // rpc returns a non-duplicate error
-    compMocks.supabaseService.client.rpc = vi.fn(async () => ({ 
-      data: null, 
-      error: { message: 'some other error occurred' } 
-    }));
-
-    const comp = makeComponentWithMocks(
-      compMocks.adminAuthService,
-      compMocks.supabaseService,
-      compMocks.emailNotificationService,
-      compMocks.userSessionService,
-      compMocks.themeService,
-      compMocks.tenantContextService,
-      compMocks.router,
-      compMocks.route,
-      compMocks.cdr
-    );
-    comp.email = 'generic@x.com';
-    comp.firstName = 'A';
-    comp.lastName = 'B';
-    comp.requiresApproval = true;
-
-    const res = await comp.saveNewSubscriber();
-    expect(res).toBe(false);
-    // Should get the generic error message, not the duplicate key message
-    expect(comp.error).toContain('Failed to submit approval request');
-    expect(comp.error).toContain('some other error occurred');
-  });
+  }););
 
   it('checkEmailSubscriber handles error response with no data array', async () => {
     const comp = makeComponent(mocks);
@@ -1406,15 +1149,13 @@ describe('LoginComponent', () => {
 
   it('verifyMfaCode handles blockError when not an Error instance', async () => {
     mocks.adminAuthService.verifyMfaCode = vi.fn(async () => ({ success: true, isAdmin: false }));
-    // Mock checkEmailSubscriber to throw a string error (not an Error instance)
     const comp = makeComponent(mocks);
     comp.email = 'test@x.com';
     comp.mfaCode = ['1','2','3','4'];
     comp.mfaCodeInput = '1234';
     comp.codeLength = 4;
-    
-    vi.spyOn(comp as any, 'checkPendingApprovalRequest').mockRejectedValue('string error');
-    
+    vi.spyOn(comp as any, 'checkEmailSubscriber').mockRejectedValue('Access denied');
+
     await (comp as any).verifyMfaCode();
     // Wait for setTimeout (1 second delay) to complete
     await new Promise(resolve => setTimeout(resolve, 1100));
@@ -1425,7 +1166,6 @@ describe('LoginComponent', () => {
 
   it('group-only invitee without a name sees first/last form without approval', async () => {
     const comp = makeComponent(mocks);
-    vi.spyOn(comp as any, 'checkPendingApprovalRequest').mockResolvedValue(false);
     vi.spyOn(comp as any, 'checkEmailSubscriber').mockResolvedValue(false);
     vi.spyOn(comp['prayerGroupService'], 'getMembershipProfile').mockResolvedValue({
       hasMembership: true,
@@ -1441,7 +1181,6 @@ describe('LoginComponent', () => {
 
   it('group-only invitee with a name skips the welcome form', async () => {
     const comp = makeComponent(mocks);
-    vi.spyOn(comp as any, 'checkPendingApprovalRequest').mockResolvedValue(false);
     vi.spyOn(comp as any, 'checkEmailSubscriber').mockResolvedValue(false);
     vi.spyOn(comp['prayerGroupService'], 'getMembershipProfile').mockResolvedValue({
       hasMembership: true,

@@ -86,17 +86,17 @@ describe('AdminSettingsPanelComponent', () => {
     expect(html).not.toContain('github-settings');
   });
 
-  it('security tab mounts Invite members above Admin User Management for every admin', () => {
+  it('security tab documents self-service join above Admin User Management', () => {
     const htmlPath = join(
       dirname(fileURLToPath(import.meta.url)),
       'admin-settings-panel.component.html'
     );
     const html = readFileSync(htmlPath, 'utf-8');
     const security = settingsTabContent(html, 'security');
-    const inviteAt = security.indexOf('<app-church-member-invite>');
+    const joinCopyAt = security.indexOf('ask to join');
     const adminUsersAt = security.indexOf('<app-admin-user-management>');
-    expect(inviteAt).toBeGreaterThan(-1);
-    expect(inviteAt).toBeLessThan(adminUsersAt);
+    expect(joinCopyAt).toBeGreaterThan(-1);
+    expect(joinCopyAt).toBeLessThan(adminUsersAt);
     expect(security).not.toContain('isSuperAdmin');
   });
 

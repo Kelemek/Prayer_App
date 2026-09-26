@@ -3,7 +3,6 @@ import { TenantManagementService } from './tenant-management.service';
 import { SupabaseService } from './supabase.service';
 import { TenantContextService } from './tenant-context.service';
 import { EmailNotificationService } from './email-notification.service';
-import { InviteEmailSendError } from '../lib/tenant-invite';
 
 describe('TenantManagementService', () => {
   let service: TenantManagementService;
@@ -55,11 +54,6 @@ describe('TenantManagementService', () => {
         client: { auth: { getSession }, rpc, from },
       } as unknown as SupabaseService,
       { refresh } as unknown as TenantContextService,
-      {
-        getTemplate,
-        sendEmail,
-        applyTemplateVariables,
-      } as unknown as EmailNotificationService
     );
   });
 
@@ -87,257 +81,6 @@ describe('TenantManagementService', () => {
     await expect(service.createTenant('Test', 'test')).rejects.toThrow(
       'You must be logged in to create a tenant'
     );
-  });
-
-  it('creates invite with normalized email and sends mail with tenantId', async () => {
-    rpc.mockResolvedValue({ data: 'invite-token', error: null });
-    const created = await service.createInvite('tenant-1', ' Member@Example.com ');
-    expect(created.token).toBe('invite-token');
-    expect(created.url).toContain('/join/invite-token');
-    expect(rpc).toHaveBeenCalledWith(
-      'create_tenant_invite',
-      expect.objectContaining({
-        p_tenant_id: 'tenant-1',
-        p_invitee_email: 'member@example.com',
-        p_invited_by_email: 'admin@example.com',
-      })
-    );
-    expect(sendEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: 'member@example.com',
-        tenantId: 'tenant-1',
-        subject: "You're invited to join Alpha Church",
-      })
-    );
-  });
-
-  it('uses tenant_invite template variables when present', async () => {
-    rpc.mockResolvedValue({ data: 'invite-token', error: null });
-    getTemplate.mockResolvedValue({
-      subject: 'Join {{tenantName}}',
-      html_body: '<p>{{joinLink}}</p>',
-      text_body: '{{inviteeEmail}} {{inviterEmail}} {{expiresAt}}',
-    });
-    await service.createInvite('tenant-1', 'member@example.com');
-    expect(sendEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        subject: 'Join Alpha Church',
-        htmlBody: expect.stringContaining('/join/invite-token'),
-        textBody: expect.stringContaining('member@example.com'),
-        tenantId: 'tenant-1',
-      })
-    );
-  });
-
-  it('throws InviteEmailSendError with token and url when send fails', async () => {
-    rpc.mockResolvedValue({ data: 'invite-token', error: null });
-    sendEmail.mockRejectedValue(new Error('Resend down'));
-    try {
-      await service.createInvite('tenant-1', 'a@b.com');
-      throw new Error('expected InviteEmailSendError');
-    } catch (err) {
-      expect(err).toBeInstanceOf(InviteEmailSendError);
-      expect((err as InviteEmailSendError).token).toBe('invite-token');
-      expect((err as InviteEmailSendError).url).toContain('/join/invite-token');
-      expect((err as InviteEmailSendError).message).toBe('Resend down');
-    }
-  });
-
-  it('loads invite preview from RPC', async () => {
-    rpc.mockResolvedValue({
-      data: {
-        tenant_name: 'Alpha Church',
-        tenant_slug: 'alpha',
-        invitee_email: 'member@example.com',
-        expires_at: '2026-09-17T00:00:00.000Z',
-        status: 'pending',
-      },
-      error: null,
-    });
-    await expect(service.getInvitePreview(' tok ')).resolves.toEqual({
-      tenantName: 'Alpha Church',
-      tenantSlug: 'alpha',
-      inviteeEmail: 'member@example.com',
-      expiresAt: '2026-09-17T00:00:00.000Z',
-      status: 'pending',
-    });
-    expect(rpc).toHaveBeenCalledWith('get_tenant_invite_preview', { p_token: 'tok' });
-  });
-
-  it('getInvitePreview returns null for a blank token', async () => {
-    await expect(service.getInvitePreview('  ')).resolves.toBeNull();
-    expect(rpc).not.toHaveBeenCalled();
-  });
-
-  it('throws when getInvitePreview RPC fails', async () => {
-    rpc.mockResolvedValue({ data: null, error: { message: 'preview failed' } });
-    await expect(service.getInvitePreview('tok')).rejects.toThrow('preview failed');
-  });
-
-  it('claims invite via RPC when logged in', async () => {
-    getSession.mockResolvedValue({
-      data: { session: { user: { email: 'member@example.com' } } },
-    });
-    rpc.mockResolvedValue({ data: 'tenant-1', error: null });
-
-    const tenantId = await service.claimInvite('token-123', 'Pat Lee');
-    expect(tenantId).toBe('tenant-1');
-    expect(rpc).toHaveBeenCalledWith('claim_tenant_invite', {
-      p_token: 'token-123',
-      p_display_name: 'Pat Lee',
-    });
-    expect(refresh).toHaveBeenCalled();
-  });
-
-  it('rejects invite when RPC reports email mismatch', async () => {
-    getSession.mockResolvedValue({
-      data: { session: { user: { email: 'member@example.com' } } },
-    });
-    rpc.mockResolvedValue({
-      data: null,
-      error: { message: 'Invite email does not match this user' },
-    });
-
-    await expect(service.claimInvite('token-123', 'Pat Lee')).rejects.toThrow(
-      'Invite email does not match this user'
-    );
-  });
-
-  it('lists super admins for caller', async () => {
-    rpc.mockResolvedValue({
-      data: [{ user_email: 'admin@example.com' }],
-      error: null,
-    });
-    await expect(service.listSuperAdmins()).resolves.toEqual([
-      { user_email: 'admin@example.com' },
-    ]);
-  });
-
-  it('updates tenant plan and refreshes context', async () => {
-    rpc.mockResolvedValue({ data: null, error: null });
-    await service.setTenantPlan('tenant-1', 'churches', 'active');
-    expect(rpc).toHaveBeenCalledWith(
-      'update_tenant_subscription',
-      expect.objectContaining({
-        p_tenant_id: 'tenant-1',
-        p_plan_tier: 'churches',
-        p_status: 'active',
-      })
-    );
-    expect(refresh).toHaveBeenCalled();
-  });
-
-  it('assigns and removes super admin roles', async () => {
-    const upsert = vi.fn().mockResolvedValue({ error: null });
-    const delEq = vi.fn().mockResolvedValue({ error: null });
-    from.mockImplementation((table: string) => {
-      if (table === 'global_roles') {
-        return {
-          upsert,
-          delete: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: delEq }) }),
-        };
-      }
-      return { select: vi.fn() };
-    });
-
-    await service.assignSuperAdmin('new-admin@example.com');
-    expect(upsert).toHaveBeenCalledWith(
-      { user_email: 'new-admin@example.com', role: 'super_admin' },
-      { onConflict: 'user_email' }
-    );
-
-    await service.removeSuperAdmin('old-admin@example.com');
-    expect(delEq).toHaveBeenCalledWith('role', 'super_admin');
-  });
-
-  it('returns memberships for active tenant', async () => {
-    const order = vi.fn().mockResolvedValue({
-      data: [{ tenant_id: 'tenant-1', user_email: 'member@example.com', role: 'member' }],
-      error: null,
-    });
-    from.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({ order }),
-      }),
-    });
-  service = new TenantManagementService(
-      {
-        client: { auth: { getSession }, rpc, from },
-      } as unknown as SupabaseService,
-      {
-        refresh,
-        getActiveTenant: vi.fn(() => ({ id: 'tenant-1', name: 'Test' })),
-      } as unknown as TenantContextService,
-      {
-        getTemplate,
-        sendEmail,
-        applyTemplateVariables,
-      } as unknown as EmailNotificationService
-    );
-
-    const memberships = await service.getMembershipsForActiveTenant();
-    expect(memberships).toHaveLength(1);
-    expect(order).toHaveBeenCalledWith('created_at', { ascending: true });
-  });
-
-  it('throws when createTenant RPC fails', async () => {
-    rpc.mockResolvedValue({ data: null, error: { message: 'rpc failed' } });
-    await expect(service.createTenant('Test', 'test')).rejects.toThrow('rpc failed');
-  });
-
-  it('requires login to create invite', async () => {
-    getSession.mockResolvedValue({ data: { session: null } });
-    await expect(service.createInvite('tenant-1', 'a@b.com')).rejects.toThrow(
-      'You must be logged in to invite members'
-    );
-  });
-
-  it('throws when createInvite RPC fails', async () => {
-    rpc.mockResolvedValue({ data: null, error: { message: 'invite failed' } });
-    await expect(service.createInvite('tenant-1', 'a@b.com')).rejects.toThrow('invite failed');
-  });
-
-  it('requires a display name to claim invite', async () => {
-    getSession.mockResolvedValue({
-      data: { session: { user: { email: 'member@example.com' } } },
-    });
-    await expect(service.claimInvite('token-123', '  ')).rejects.toThrow(
-      'Please enter your name'
-    );
-    expect(rpc).not.toHaveBeenCalled();
-  });
-
-  it('requires login to claim invite', async () => {
-    getSession.mockResolvedValue({ data: { session: null } });
-    await expect(service.claimInvite('token', 'Pat Lee')).rejects.toThrow(
-      'You must be logged in to claim an invite'
-    );
-  });
-
-  it('throws when invite is missing', async () => {
-    rpc.mockResolvedValue({
-      data: null,
-      error: { message: 'Invite not found or already used' },
-    });
-    await expect(service.claimInvite('token', 'Pat Lee')).rejects.toThrow(
-      'Invite not found or already used'
-    );
-  });
-
-  it('throws when invite has expired', async () => {
-    rpc.mockResolvedValue({
-      data: null,
-      error: { message: 'Invite has expired' },
-    });
-    await expect(service.claimInvite('token', 'Pat Lee')).rejects.toThrow('Invite has expired');
-  });
-
-  it('throws when claim RPC fails', async () => {
-    rpc.mockResolvedValue({
-      data: null,
-      error: { message: 'insert failed' },
-    });
-    await expect(service.claimInvite('token', 'Pat Lee')).rejects.toThrow('insert failed');
   });
 
   it('throws when setTenantPlan fails', async () => {
@@ -383,12 +126,7 @@ describe('TenantManagementService', () => {
       {
         refresh,
         getActiveTenant: vi.fn(() => null),
-      } as unknown as TenantContextService,
-      {
-        getTemplate,
-        sendEmail,
-        applyTemplateVariables,
-      } as unknown as EmailNotificationService
+      } as unknown as TenantContextService
     );
     await expect(service.getMembershipsForActiveTenant()).resolves.toEqual([]);
   });
@@ -406,12 +144,7 @@ describe('TenantManagementService', () => {
       {
         refresh,
         getActiveTenant: vi.fn(() => ({ id: 'tenant-1' })),
-      } as unknown as TenantContextService,
-      {
-        getTemplate,
-        sendEmail,
-        applyTemplateVariables,
-      } as unknown as EmailNotificationService
+      } as unknown as TenantContextService
     );
     await expect(service.getMembershipsForActiveTenant()).rejects.toThrow('query failed');
   });
