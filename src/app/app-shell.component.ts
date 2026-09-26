@@ -10,7 +10,6 @@ import { CommonModule } from "@angular/common";
 import { Capacitor } from "@capacitor/core";
 import { AnalyticsConsentBannerComponent } from "./components/analytics-consent-banner/analytics-consent-banner.component";
 import { ToastContainerComponent } from "./components/toast-container/toast-container.component";
-import { TenantSwitcherBarComponent } from "./components/tenant-switcher-bar/tenant-switcher-bar.component";
 import { supportPageUrl } from "./constants/app-defaults";
 import { AdminAuthService } from "./services/admin-auth.service";
 import { AdminDataService } from "./services/admin-data.service";
@@ -27,7 +26,6 @@ const PENDING_ACCOUNT_APPROVAL_CODE_KEY = "prayerapp_pending_account_approval_co
     CommonModule,
     RouterOutlet,
     ToastContainerComponent,
-    TenantSwitcherBarComponent,
     AnalyticsConsentBannerComponent,
   ],
   template: `
@@ -35,7 +33,6 @@ const PENDING_ACCOUNT_APPROVAL_CODE_KEY = "prayerapp_pending_account_approval_co
       <div
         class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100"
       >
-        <app-tenant-switcher-bar />
         <router-outlet></router-outlet>
         <app-toast-container></app-toast-container>
         <app-analytics-consent-banner />

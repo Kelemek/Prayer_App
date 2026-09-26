@@ -10,53 +10,21 @@ import { AppTopChromeOverlayDirective } from './app-top-chrome-overlay.directive
 })
 class HostComponent {}
 
-function appendTenantBar(height: number): HTMLElement {
-  const bar = document.createElement('app-tenant-switcher-bar');
-  bar.getBoundingClientRect = () =>
-    ({
-      height,
-      width: 0,
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      x: 0,
-      y: 0,
-      toJSON: () => ({}),
-    }) as DOMRect;
-  document.body.appendChild(bar);
-  return bar;
-}
-
 describe('AppTopChromeOverlayDirective', () => {
   afterEach(() => {
-    document.querySelector('app-tenant-switcher-bar')?.remove();
     document.querySelector('.overlay')?.remove();
   });
 
-  it('portals the overlay to body and pads below the tenant switcher bar', () => {
-    const bar = appendTenantBar(49.2);
+  it('portals the overlay to body with safe-area class', () => {
     const fixture = TestBed.createComponent(HostComponent);
     fixture.detectChanges();
 
     const overlay = document.body.querySelector('.overlay') as HTMLElement;
     expect(overlay?.parentElement).toBe(document.body);
     expect(overlay.classList.contains('safe-area-overlay')).toBe(true);
-    expect(overlay.style.paddingTop).toContain('50px');
-
-    fixture.destroy();
-    expect(document.body.contains(overlay)).toBe(false);
-    bar.remove();
-  });
-
-  it('does not set padding-top when the tenant bar is absent', () => {
-    const fixture = TestBed.createComponent(HostComponent);
-    fixture.detectChanges();
-
-    const overlay = document.body.querySelector('.overlay') as HTMLElement;
-    expect(overlay.classList.contains('safe-area-overlay')).toBe(true);
     expect(overlay.style.paddingTop).toBe('');
 
     fixture.destroy();
+    expect(document.body.contains(overlay)).toBe(false);
   });
 });

@@ -5,6 +5,7 @@ import { UserSessionService } from "./user-session.service";
 import { TenantPermissionService } from "./tenant-permission.service";
 import { TenantContextService } from "./tenant-context.service";
 import { ConnectivityService } from "./connectivity.service";
+import { AdminDataService } from "./admin-data.service";
 import { navigateToAdminPortal } from "../lib/admin-portal-navigation";
 
 @Injectable()
@@ -15,7 +16,8 @@ export class HomeAdminNavigationController {
     private readonly userSessionService: UserSessionService,
     private readonly tenantPermissionService: TenantPermissionService,
     private readonly tenantContextService: TenantContextService,
-    private readonly connectivity: ConnectivityService
+    private readonly connectivity: ConnectivityService,
+    private readonly adminDataService: AdminDataService
   ) {}
 
   navigateToAdmin(): void {
@@ -25,6 +27,7 @@ export class HomeAdminNavigationController {
       tenantContext: this.tenantContextService,
       router: this.router,
       toastService: this.toastService,
+      adminData: this.adminDataService,
     });
   }
 

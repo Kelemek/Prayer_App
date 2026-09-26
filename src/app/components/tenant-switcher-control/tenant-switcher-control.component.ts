@@ -1,0 +1,233 @@
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  HostListener,
+  Input,
+  OnDestroy,
+  OnInit,
+} from '@angular/core';
+import { NgClass } from '@angular/common';
+import { Subject, takeUntil } from 'rxjs';
+import { switchTenantWithNavigation } from '../../lib/tenant-navigation';
+import {
+  SETTINGS_CHOICE_DROPDOWN_SHELL_CLASS,
+  SETTINGS_CHOICE_DROPDOWN_TRIGGER_CLASS,
+  settingsChoiceNgClass,
+} from '../../lib/settings-choice-ui';
+import { TenantContextService } from '../../services/tenant-context.service';
+import { ToastService } from '../../services/toast.service';
+import type { Tenant } from '../../types/tenant';
+
+@Component({
+  selector: 'app-tenant-switcher-control',
+  standalone: true,
+  imports: [NgClass],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="relative min-w-0" data-tenant-switcher-dropdown>
+      <div
+        [class]="choiceShellClass"
+        [ngClass]="settingsChoiceNgClass(showTenantDropdown)"
+      >
+        <button
+          type="button"
+          [id]="triggerId"
+          (click)="toggleTenantDropdown()"
+          [attr.aria-expanded]="showTenantDropdown"
+          aria-haspopup="listbox"
+          aria-label="Switch organization"
+          title="Switch organization"
+          [class]="choiceTriggerClass"
+        >
+          <span
+            class="truncate text-sm font-medium text-gray-800 dark:text-gray-100"
+          >
+            {{ activeTenantName }}
+          </span>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="shrink-0 text-gray-500 transition-transform dark:text-gray-400"
+            [class.rotate-180]="showTenantDropdown"
+            aria-hidden="true"
+          >
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+      </div>
+
+      @if (showTenantDropdown) {
+        <div
+          role="listbox"
+          aria-label="Organizations"
+          class="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
+        >
+          @for (tenant of tenantSwitchOptions; track tenant.id) {
+            <button
+              type="button"
+              role="option"
+              [attr.aria-selected]="tenant.id === activeTenantId"
+              (click)="selectTenant(tenant.id)"
+              class="flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-sm text-gray-700 transition-colors dark:text-gray-200"
+              [ngClass]="{
+                'hover:bg-gray-50 dark:hover:bg-gray-700/60':
+                  tenant.id !== activeTenantId,
+                'bg-blue-50 dark:bg-blue-900/30':
+                  tenant.id === activeTenantId,
+              }"
+              [title]="'Switch to ' + tenant.name"
+            >
+              <span class="truncate">{{ tenant.name }}</span>
+              @if (tenant.id === activeTenantId) {
+                <span class="ml-2 shrink-0 text-blue-600 dark:text-blue-400"
+                  >✓</span
+                >
+              }
+            </button>
+          }
+        </div>
+      }
+    </div>
+  `,
+})
+export class TenantSwitcherControlComponent implements OnInit, OnDestroy {
+  @Input() triggerId = 'settings-tenant-switcher-trigger';
+
+  readonly choiceShellClass = SETTINGS_CHOICE_DROPDOWN_SHELL_CLASS;
+  readonly choiceTriggerClass = SETTINGS_CHOICE_DROPDOWN_TRIGGER_CLASS;
+  readonly settingsChoiceNgClass = settingsChoiceNgClass;
+
+  showTenantDropdown = false;
+
+  private destroy$ = new Subject<void>();
+
+  /** Capture phase: Settings modal stops bubble on panel clicks. */
+  private readonly onDocumentClickCapture = (event: MouseEvent): void => {
+    if (!this.showTenantDropdown) {
+      return;
+    }
+
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    if (target.closest('[data-tenant-switcher-dropdown]')) {
+      return;
+    }
+
+    this.closeTenantDropdown();
+  };
+
+  constructor(
+    private tenantContextService: TenantContextService,
+    private toastService: ToastService,
+    private cdr: ChangeDetectorRef
+  ) {}
+
+  ngOnInit(): void {
+    this.tenantContextService.activeTenant$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.cdr.markForCheck());
+
+    this.tenantContextService.availableTenants$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.cdr.markForCheck());
+
+    this.tenantContextService.memberships$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.cdr.markForCheck());
+
+    this.tenantContextService.isSuperAdmin$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.cdr.markForCheck());
+
+    document.addEventListener('click', this.onDocumentClickCapture, true);
+  }
+
+  ngOnDestroy(): void {
+    document.removeEventListener('click', this.onDocumentClickCapture, true);
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.showTenantDropdown) {
+      this.closeTenantDropdown();
+    }
+  }
+
+  get activeTenantId(): string | null {
+    return this.tenantContextService.getActiveTenant()?.id ?? null;
+  }
+
+  get activeTenantName(): string {
+    return this.tenantContextService.getActiveTenant()?.name ?? 'Organization';
+  }
+
+  get tenantSwitchOptions(): Tenant[] {
+    const options = this.tenantContextService.getTenantSwitcherOptions();
+    const unique = new Map(options.map((tenant) => [tenant.id, tenant]));
+    const activeTenant = this.tenantContextService.getActiveTenant();
+    if (activeTenant?.id && !unique.has(activeTenant.id)) {
+      unique.set(activeTenant.id, activeTenant);
+    }
+
+    return Array.from(unique.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+  }
+
+  toggleTenantDropdown(): void {
+    this.showTenantDropdown = !this.showTenantDropdown;
+    this.cdr.markForCheck();
+  }
+
+  closeTenantDropdown(): void {
+    if (!this.showTenantDropdown) {
+      return;
+    }
+    this.showTenantDropdown = false;
+    this.cdr.markForCheck();
+  }
+
+  async selectTenant(tenantId: string): Promise<void> {
+    this.closeTenantDropdown();
+    await this.onTenantSelect(tenantId);
+  }
+
+  async onTenantSelect(tenantId: string): Promise<void> {
+    if (!tenantId || tenantId === this.activeTenantId) {
+      return;
+    }
+
+    const tenant = this.tenantSwitchOptions.find((item) => item.id === tenantId);
+    if (!tenant?.slug) {
+      this.toastService.error('Unable to switch organization');
+      return;
+    }
+
+    const result = await switchTenantWithNavigation(
+      tenantId,
+      tenant.slug,
+      (id) => this.tenantContextService.switchTenant(id)
+    );
+    if (result === 'failed') {
+      this.toastService.error('Unable to switch organization');
+      return;
+    }
+    if (result === 'navigated') {
+      return;
+    }
+
+    this.cdr.markForCheck();
+  }
+}

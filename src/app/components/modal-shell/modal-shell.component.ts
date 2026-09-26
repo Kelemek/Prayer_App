@@ -27,6 +27,10 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
+      :host {
+        display: contents;
+      }
+
       .modal-shell-overlay {
         padding-top: env(safe-area-inset-top, 0px);
       }
@@ -162,7 +166,7 @@ export class ModalShellComponent
   @Input() appendToBody = true;
   /** Fixed pixel inset below safe-area (overrides reserveAppTopChrome when > 0). */
   @Input() reserveTopChromePx = 0;
-  /** When true, measures app-tenant-switcher-bar so the panel sits below it. */
+  /** When true, reserves space for optional sticky app chrome (unused; org switcher is in Settings). */
   @Input() reserveAppTopChrome = true;
 
   @Output() close = new EventEmitter<void>();

@@ -25,6 +25,7 @@ import { TenantMembershipPreferencesService } from '../../services/tenant-member
 import { ConnectivityService } from '../../services/connectivity.service';
 import { TenantPermissionService } from '../../services/tenant-permission.service';
 import { ToastService } from '../../services/toast.service';
+import { AdminDataService } from '../../services/admin-data.service';
 import { Router } from '@angular/router';
 import { UserSettingsFacade } from '../../lib/user-settings-facade';
 import { UserSettingsPanelComponent } from './user-settings-panel/user-settings-panel.component';
@@ -69,7 +70,8 @@ export class UserSettingsComponent
     tenantPermissionService: TenantPermissionService,
     router: Router,
     toastService: ToastService,
-    cdr: ChangeDetectorRef
+    cdr: ChangeDetectorRef,
+    adminDataService: AdminDataService
   ) {
     const scrollCallbacks = {
       emitScrollToSectionComplete: () => {},
@@ -92,6 +94,7 @@ export class UserSettingsComponent
       tenantPermissionService,
       router,
       toastService,
+      adminDataService,
       cdr,
       markForCheck: () => cdr.markForCheck(),
       emitScrollToSectionComplete: () =>

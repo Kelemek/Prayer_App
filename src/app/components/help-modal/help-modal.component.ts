@@ -19,6 +19,7 @@ import { HelpContentService } from "../../services/help-content.service";
 import { HelpSection } from "../../types/help-content";
 import { isHomeHelpTourSectionId } from "../../lib/home-help-tour-dispatch";
 import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
+import { CHURCH_GREEN_SHELL_BORDER_CLASS } from "../../lib/home-sub-filter-chip-classes";
 
 @Component({
   selector: "app-help-modal",
@@ -117,7 +118,7 @@ import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-ov
               (input)="onSearchChange()"
               placeholder="Search help topics..."
               aria-label="Search help topics"
-              class="w-full pl-10 pr-4 py-2 sm:py-3 rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 hover:border-blue-300 dark:hover:border-blue-600 focus:border-blue-500 focus:outline-none ui-field-border"
+              [class]="helpSearchInputClass"
             />
           </div>
 
@@ -313,6 +314,10 @@ export class HelpModalComponent implements OnInit {
   filteredSections: HelpSection[] = [];
   expandedSection: string | null = null;
   searchQuery = "";
+
+  /** Matches home prayer search (`app-prayer-filters`). */
+  readonly helpSearchInputClass =
+    `w-full pl-10 pr-4 py-2 sm:py-3 rounded-md bg-inset-surface-muted text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base ${CHURCH_GREEN_SHELL_BORDER_CLASS}`;
 
   private readonly helpContentService = inject(HelpContentService);
   private readonly sanitizer = inject(DomSanitizer);

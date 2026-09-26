@@ -8,7 +8,7 @@ export const HOME_INACTIVE_SURFACE_BG_CLASS =
   "bg-church-surface-inactive dark:bg-gray-800";
 
 export const HOME_INACTIVE_SURFACE_HOVER_BG_CLASS =
-  "hover:bg-church-surface-inactive-hover dark:hover:bg-gray-700";
+  "hover:bg-inset-surface-muted dark:hover:bg-inset-surface-muted";
 
 /** Slightly darker than gray-300 so borders read on tinted inactive fills. */
 export const HOME_INACTIVE_SURFACE_BORDER_CLASS =

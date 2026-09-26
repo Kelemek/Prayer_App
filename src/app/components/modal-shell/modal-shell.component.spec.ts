@@ -34,7 +34,6 @@ describe("ModalShellComponent", () => {
         el.style.touchAction = "";
       }
     });
-    document.querySelector("app-tenant-switcher-bar")?.remove();
     document.querySelectorAll(".modal-shell-overlay").forEach((el) => el.remove());
   });
 
@@ -223,32 +222,6 @@ describe("ModalShellComponent", () => {
     expect(overlay?.parentElement).toBe(document.body);
     fixture.destroy();
     expect(document.body.contains(overlay)).toBe(false);
-  });
-
-  it("sets overlay padding from tenant switcher bar by default", () => {
-    const bar = document.createElement("app-tenant-switcher-bar");
-    bar.getBoundingClientRect = () =>
-      ({
-        height: 48,
-        width: 0,
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        x: 0,
-        y: 0,
-        toJSON: () => ({}),
-      }) as DOMRect;
-    document.body.appendChild(bar);
-
-    fixture = TestBed.createComponent(ModalShellComponent);
-    fixture.detectChanges();
-    const overlay = document.body.querySelector(
-      ".modal-shell-overlay"
-    ) as HTMLElement;
-    expect(overlay.style.paddingTop).toContain("48px");
-
-    bar.remove();
   });
 
   it("adjusts overlay geometry on visual viewport changes", () => {

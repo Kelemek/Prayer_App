@@ -438,6 +438,7 @@ export class UserSettingsFacade {
       tenantContext: this.deps.tenantContext,
       router: this.deps.router,
       toastService: this.deps.toastService,
+      adminData: this.deps.adminDataService,
     });
   }
 

@@ -203,6 +203,10 @@ describe('UserSettingsComponent', () => {
       isOnline$: { subscribe: vi.fn() },
     };
 
+    const mockAdminDataService = {
+      prefetchForNavigation: vi.fn(),
+    };
+
     component = new UserSettingsComponent(
       mockThemeService,
       mockTextSizeService,
@@ -220,7 +224,8 @@ describe('UserSettingsComponent', () => {
       mockTenantPermissionService as any,
       mockRouter as any,
       mockToastService as any,
-      mockChangeDetectorRef as ChangeDetectorRef
+      mockChangeDetectorRef as ChangeDetectorRef,
+      mockAdminDataService as any
     );
   });
 

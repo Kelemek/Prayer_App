@@ -1,0 +1,21 @@
+@if (showSection) {
+  <div
+    id="tour-settings-organization"
+    class="settings-modal-section-card rounded-lg p-3 sm:p-4"
+  >
+    <div class="flex flex-col gap-2 sm:gap-3">
+      <div>
+        <div
+          class="font-medium text-gray-800 dark:text-gray-100 text-sm sm:text-base"
+        >
+          Organization
+        </div>
+        <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1 text-pretty">
+          You belong to more than one organization. Choose which one you are
+          viewing.
+        </p>
+      </div>
+      <app-tenant-switcher-control triggerId="settings-tenant-switcher-trigger" />
+    </div>
+  </div>
+}

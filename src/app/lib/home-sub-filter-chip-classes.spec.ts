@@ -123,6 +123,7 @@ describe("homeFilterTabClass", () => {
     });
     expect(cls).toContain("rounded-t-lg");
     expect(cls).toContain("bg-church-surface-inactive");
+    expect(cls).toContain("hover:bg-inset-surface-muted");
     expect(cls).toContain("border-church-surface-inactive-tab-border");
     expect(cls).not.toContain("border-[2px]");
     expect(cls).not.toContain("z-10");

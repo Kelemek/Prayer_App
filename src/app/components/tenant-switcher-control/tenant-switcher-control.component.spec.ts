@@ -1,14 +1,13 @@
 import { ChangeDetectorRef } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { TenantSwitcherBarComponent } from './tenant-switcher-bar.component';
+import { TenantSwitcherControlComponent } from './tenant-switcher-control.component';
 import { TenantContextService } from '../../services/tenant-context.service';
 import { ToastService } from '../../services/toast.service';
 
-describe('TenantSwitcherBarComponent', () => {
-  let component: TenantSwitcherBarComponent;
+describe('TenantSwitcherControlComponent', () => {
+  let component: TenantSwitcherControlComponent;
   let mockTenantContext: {
-    loading$: BehaviorSubject<boolean>;
     activeTenant$: BehaviorSubject<{ id: string; name: string } | null>;
     availableTenants$: BehaviorSubject<unknown[]>;
     memberships$: BehaviorSubject<unknown[]>;
@@ -21,7 +20,6 @@ describe('TenantSwitcherBarComponent', () => {
 
   beforeEach(() => {
     mockTenantContext = {
-      loading$: new BehaviorSubject(false),
       activeTenant$: new BehaviorSubject({ id: 'tenant-a', name: 'Alpha Church' }),
       availableTenants$: new BehaviorSubject([]),
       memberships$: new BehaviorSubject([]),
@@ -35,7 +33,7 @@ describe('TenantSwitcherBarComponent', () => {
     };
     toastError = vi.fn();
 
-    component = new TenantSwitcherBarComponent(
+    component = new TenantSwitcherControlComponent(
       mockTenantContext as unknown as TenantContextService,
       { error: toastError } as unknown as ToastService,
       { markForCheck: vi.fn() } as unknown as ChangeDetectorRef
@@ -43,8 +41,7 @@ describe('TenantSwitcherBarComponent', () => {
     component.ngOnInit();
   });
 
-  it('is visible when loaded with multiple tenant options', () => {
-    expect(component.visible).toBe(true);
+  it('shows active tenant name', () => {
     expect(component.activeTenantName).toBe('Alpha Church');
   });
 
@@ -61,10 +58,17 @@ describe('TenantSwitcherBarComponent', () => {
     expect(toastError).toHaveBeenCalledWith('Unable to switch organization');
   });
 
-  it('closes dropdown on outside click', () => {
+  it('closes dropdown on outside click (capture, before modal stopPropagation)', () => {
     component.toggleTenantDropdown();
-    const outside = document.createElement('div');
-    component.onDocumentClick({ target: outside } as MouseEvent);
+    const panel = document.createElement('div');
+    panel.addEventListener('click', (event) => event.stopPropagation());
+    const inner = document.createElement('button');
+    panel.appendChild(inner);
+    document.body.appendChild(panel);
+    inner.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, cancelable: true })
+    );
+    panel.remove();
     expect(component.showTenantDropdown).toBe(false);
   });
 

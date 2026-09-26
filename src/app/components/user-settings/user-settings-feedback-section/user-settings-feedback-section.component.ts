@@ -1,12 +1,14 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FeedbackFormComponent } from '../../feedback-form/feedback-form.component';
 import { FeedbackService } from '../../../services/feedback.service';
+import { USER_SETTINGS_SECTION_HOST_STYLES } from '../user-settings-section-host';
 
 @Component({
   selector: 'app-user-settings-feedback-section',
   standalone: true,
   imports: [FeedbackFormComponent],
   templateUrl: './user-settings-feedback-section.component.html',
+  styles: [...USER_SETTINGS_SECTION_HOST_STYLES],
   changeDetection: ChangeDetectionStrategy.Eager,
 })
 export class UserSettingsFeedbackSectionComponent implements OnInit {

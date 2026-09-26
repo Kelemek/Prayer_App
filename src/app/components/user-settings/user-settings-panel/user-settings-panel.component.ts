@@ -12,6 +12,7 @@ import { UserSettingsErrorBannerComponent } from '../user-settings-error-banner/
 import { UserSettingsFeedbackSectionComponent } from '../user-settings-feedback-section/user-settings-feedback-section.component';
 import { UserSettingsAccountSectionComponent } from '../user-settings-account-section/user-settings-account-section.component';
 import { UserSettingsBillingSectionComponent } from '../user-settings-billing-section/user-settings-billing-section.component';
+import { UserSettingsOrganizationSectionComponent } from '../user-settings-organization-section/user-settings-organization-section.component';
 import type { UserSettingsFacade } from '../../../lib/user-settings-facade';
 
 @Component({
@@ -31,6 +32,7 @@ import type { UserSettingsFacade } from '../../../lib/user-settings-facade';
     UserSettingsFeedbackSectionComponent,
     UserSettingsBillingSectionComponent,
     UserSettingsAccountSectionComponent,
+    UserSettingsOrganizationSectionComponent,
   ],
   templateUrl: './user-settings-panel.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,

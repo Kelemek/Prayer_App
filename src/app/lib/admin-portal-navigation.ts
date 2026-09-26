@@ -1,4 +1,5 @@
 import type { Router } from "@angular/router";
+import type { AdminDataService } from "../services/admin-data.service";
 import type { ConnectivityService } from "../services/connectivity.service";
 import type { TenantContextService } from "../services/tenant-context.service";
 import type { TenantPermissionService } from "../services/tenant-permission.service";
@@ -10,6 +11,7 @@ export interface AdminPortalNavigationDeps {
   tenantContext: TenantContextService;
   router: Router;
   toastService: ToastService;
+  adminData?: AdminDataService;
 }
 
 export function navigateToAdminPortal(deps: AdminPortalNavigationDeps): void {
@@ -24,5 +26,7 @@ export function navigateToAdminPortal(deps: AdminPortalNavigationDeps): void {
     deps.toastService.error("Admin access is not available for this account");
     return;
   }
+  deps.adminData?.prefetchForNavigation();
+  void import("../pages/admin/admin.component");
   void deps.router.navigate(["/admin"]);
 }

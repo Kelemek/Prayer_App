@@ -14,6 +14,7 @@ import type { TenantMembershipPreferencesService } from '../services/tenant-memb
 import type { ConnectivityService } from '../services/connectivity.service';
 import type { TenantPermissionService } from '../services/tenant-permission.service';
 import type { ToastService } from '../services/toast.service';
+import type { AdminDataService } from '../services/admin-data.service';
 import type { Router } from '@angular/router';
 
 export interface UserSettingsFacadeDeps {
@@ -33,6 +34,7 @@ export interface UserSettingsFacadeDeps {
   tenantPermissionService: TenantPermissionService;
   router: Router;
   toastService: ToastService;
+  adminDataService: AdminDataService;
   cdr: ChangeDetectorRef;
   markForCheck: () => void;
   emitScrollToSectionComplete?: () => void;

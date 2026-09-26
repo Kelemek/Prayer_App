@@ -8,9 +8,8 @@ import {
 import { appTopChromeOverlayPaddingTop } from '../lib/measure-app-top-chrome-inset';
 
 /**
- * Portals a `fixed inset-0` overlay to `document.body`, pads it below
- * `app-tenant-switcher-bar` (same pattern as Settings → Print modals), and
- * applies `safe-area-overlay` so notches and home indicators are respected on iOS.
+ * Portals a `fixed inset-0` overlay to `document.body` and applies
+ * `safe-area-overlay` so notches and home indicators are respected on iOS.
  */
 @Directive({
   selector: '[appTopChromeOverlay]',

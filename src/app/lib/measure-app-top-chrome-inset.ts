@@ -1,13 +1,9 @@
-/** Breathing room between the tenant switcher and the modal card. */
+/** Breathing room below optional top chrome when measuring legacy switcher hosts. */
 export const APP_TOP_CHROME_OVERLAY_GAP = '0.75rem';
 
-/** Sticky app chrome above main content (tenant switcher bar). */
+/** Sticky app chrome above main content (legacy; org switcher moved to Settings). */
 export function measureAppTopChromeInsetPx(): number {
-  const bar = document.querySelector('app-tenant-switcher-bar');
-  if (!(bar instanceof HTMLElement)) {
-    return 0;
-  }
-  return Math.ceil(bar.getBoundingClientRect().height);
+  return 0;
 }
 
 /** Overlay `padding-top` so a full-screen modal sits below the tenant switcher bar. */
@@ -31,5 +27,5 @@ export function appTopChromeOverlayPaddingTopFromPx(chromePx: number): string {
 /** Shared modal-shell inputs for Settings → Print (Prayers, Prompts, Personal, Verses). */
 export const SETTINGS_PRINT_MODAL_SHELL = {
   appendToBody: true,
-  reserveAppTopChrome: true,
+  reserveAppTopChrome: false,
 } as const;
