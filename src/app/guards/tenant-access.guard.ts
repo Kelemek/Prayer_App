@@ -28,7 +28,9 @@ export const tenantAccessGuard: CanActivateFn = async (_route, state) => {
       return true;
     }
   } catch {
-    return true;
+    return router.createUrlTree(['/request-access'], {
+      queryParams: { returnUrl: state.url },
+    });
   }
 
   return router.createUrlTree(['/request-access'], {

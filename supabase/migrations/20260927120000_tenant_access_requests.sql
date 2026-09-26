@@ -50,10 +50,7 @@ create policy account_approval_requests_select on public.account_approval_reques
     or lower(email) = public.current_user_email()
   );
 
-create policy account_approval_requests_update on public.account_approval_requests
-  for update to authenticated
-  using (public.is_tenant_admin(tenant_id) or public.is_super_admin())
-  with check (public.is_tenant_admin(tenant_id) or public.is_super_admin());
+-- Status changes only via approve/deny RPCs (security definer); no direct UPDATE for clients.
 
 create policy account_approval_requests_delete on public.account_approval_requests
   for delete to authenticated
@@ -258,13 +255,15 @@ $$;
 
 grant execute on function public.complete_tenant_membership_profile(uuid, text, text) to authenticated;
 
+drop function if exists public.create_tenant_access_request(uuid, text, text, text);
+
 create or replace function public.create_tenant_access_request(
   p_tenant_id uuid,
   p_first_name text,
   p_last_name text,
   p_affiliation_reason text
 )
-returns uuid
+returns jsonb
 language plpgsql
 security definer
 set search_path = public
@@ -273,6 +272,7 @@ declare
   v_email text := public.current_user_email();
   v_id uuid;
   v_plan text;
+  v_created boolean := false;
 begin
   if v_email is null or v_email = '' then
     raise exception 'Not authenticated';
@@ -287,6 +287,15 @@ begin
   select plan_tier into v_plan from public.tenants where id = p_tenant_id;
   if v_plan is distinct from 'churches' then
     raise exception 'Access requests are only for church tenants';
+  end if;
+
+  if exists (
+    select 1 from public.tenant_memberships tm
+    where tm.tenant_id = p_tenant_id
+      and tm.user_email = v_email
+      and coalesce(tm.is_blocked, false) = true
+  ) then
+    raise exception 'Account blocked';
   end if;
 
   if exists (
@@ -316,7 +325,7 @@ begin
   returning id into v_id;
 
   if v_id is not null then
-    return v_id;
+    return jsonb_build_object('id', v_id, 'created', false);
   end if;
 
   insert into public.account_approval_requests (
@@ -332,11 +341,14 @@ begin
   )
   returning id into v_id;
 
-  return v_id;
+  v_created := true;
+  return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
 
 grant execute on function public.create_tenant_access_request(uuid, text, text, text) to authenticated;
+
+revoke update on public.account_approval_requests from authenticated;
 
 create or replace function public.approve_tenant_access_request(p_request_id uuid)
 returns jsonb
@@ -384,6 +396,7 @@ begin
     set
       name = excluded.name,
       is_active = true,
+      is_blocked = false,
       first_login_at = coalesce(public.tenant_memberships.first_login_at, now()),
       role = coalesce(public.tenant_memberships.role, excluded.role);
 

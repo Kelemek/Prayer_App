@@ -393,7 +393,7 @@ serve(async (req: Request) => {
   }
 
   if (action === 'join_pco') {
-    if (accessStateName !== 'none') {
+    if (accessStateName !== 'none' || !stateObj?.pco_enabled) {
       return jsonResponse({ error: 'Not eligible for PCO join' }, 400);
     }
     const pco = await checkPcoExactMatch(adminClient, tenantId, callerEmail);
@@ -462,6 +462,10 @@ serve(async (req: Request) => {
   }
 
   if (action === 'request') {
+    if (accessStateName !== 'none') {
+      return jsonResponse({ error: 'Not eligible to submit an access request' }, 400);
+    }
+
     const firstName = String(body.first_name ?? '').trim();
     const lastName = String(body.last_name ?? '').trim();
     const affiliation = String(body.affiliation_reason ?? '').trim();
@@ -469,7 +473,7 @@ serve(async (req: Request) => {
       return jsonResponse({ error: 'All fields are required' }, 400);
     }
 
-    const { data: requestId, error: rpcError } = await userClient.rpc('create_tenant_access_request', {
+    const { data: requestResult, error: rpcError } = await userClient.rpc('create_tenant_access_request', {
       p_tenant_id: tenantId,
       p_first_name: firstName,
       p_last_name: lastName,
@@ -479,6 +483,15 @@ serve(async (req: Request) => {
       return jsonResponse({ error: rpcError.message }, 400);
     }
 
+    const created =
+      typeof requestResult === 'object' &&
+      requestResult !== null &&
+      (requestResult as { created?: boolean }).created === true;
+    const requestId =
+      typeof requestResult === 'object' && requestResult !== null
+        ? (requestResult as { id?: string }).id
+        : requestResult;
+
     const { data: tenantRow } = await adminClient
       .from('tenants')
       .select('slug')
@@ -486,20 +499,22 @@ serve(async (req: Request) => {
       .maybeSingle();
     const slug = tenantRow?.slug ?? '';
 
-    try {
-      await sendAdminRequestNotifications(
-        adminClient,
-        serviceKey,
-        supabaseUrl,
-        tenantId,
-        slug,
-        callerEmail,
-        firstName,
-        lastName,
-        affiliation,
-      );
-    } catch (notifyErr) {
-      console.warn('tenant-access: notifications failed (non-fatal)', notifyErr);
+    if (created) {
+      try {
+        await sendAdminRequestNotifications(
+          adminClient,
+          serviceKey,
+          supabaseUrl,
+          tenantId,
+          slug,
+          callerEmail,
+          firstName,
+          lastName,
+          affiliation,
+        );
+      } catch (notifyErr) {
+        console.warn('tenant-access: notifications failed (non-fatal)', notifyErr);
+      }
     }
 
     return jsonResponse({ success: true, request_id: requestId }, 200);

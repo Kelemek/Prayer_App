@@ -37,4 +37,17 @@ describe('tenantAccessGuard', () => {
     );
     expect(result).toBe(true);
   });
+
+  it('redirects to request-access when getState fails', async () => {
+    resolveTargetTenant.mockResolvedValue({ id: 't1', slug: 'a', name: 'A' });
+    getState.mockRejectedValue(new Error('rpc down'));
+    navigate.mockReturnValue('/request-access');
+    const result = await TestBed.runInInjectionContext(() =>
+      tenantAccessGuard({} as never, { url: '/admin' } as never),
+    );
+    expect(navigate).toHaveBeenCalledWith(['/request-access'], {
+      queryParams: { returnUrl: '/admin' },
+    });
+    expect(result).toBe('/request-access');
+  });
 });
