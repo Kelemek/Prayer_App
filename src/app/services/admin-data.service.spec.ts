@@ -278,11 +278,143 @@ describe('AdminDataService', () => {
       });
 
       await service.fetchAdminData();
+      await vi.waitFor(async () => {
+        const data = await firstValueFrom(service.data$);
+        expect(data.pendingPrayers[0].requester).toBe('Mark Larson');
+      });
 
       const data = await firstValueFrom(service.data$);
       expect(data.pendingPrayers[0].requester).toBe('Mark Larson');
       expect(data.pendingUpdates[0].author).toBe('Mark Larson');
       expect(data.pendingUpdates[0].prayers?.requester).toBe('Jane Smith');
+    });
+
+    it('ignores stale member-name enrichment after a newer fetch', async () => {
+      const oldPrayer = {
+        id: 'old',
+        title: 'Old',
+        approval_status: 'pending',
+        email: 'mark@example.com',
+        requester: '',
+      };
+      const newPrayer = {
+        id: 'new',
+        title: 'New',
+        approval_status: 'pending',
+        email: 'jane@example.com',
+        requester: '',
+      };
+      let phase: 'stale' | 'fresh' = 'stale';
+      let resolveStaleMembers: (value: { data: unknown; error: null }) => void = () => undefined;
+      const staleMembers = new Promise<{ data: unknown; error: null }>((resolve) => {
+        resolveStaleMembers = resolve;
+      });
+
+      const deferredMembershipChain = () => {
+        const selectChain: {
+          eq: () => typeof selectChain;
+          in: () => typeof selectChain;
+          order: () => Promise<{ data: unknown; error: null }>;
+          then: Promise<{ data: unknown; error: null }>['then'];
+        } = {
+          eq: () => selectChain,
+          in: () => selectChain,
+          order: () => staleMembers,
+          then: (onFulfilled, onRejected) => staleMembers.then(onFulfilled, onRejected),
+        };
+        return {
+          select: () => selectChain,
+          update: () => selectChain,
+          insert: () => selectChain,
+          delete: () => selectChain,
+        };
+      };
+
+      mockSupabaseClient.from = vi.fn((table: string) => {
+        if (table === 'tenant_memberships' && phase === 'stale') {
+          return deferredMembershipChain();
+        }
+        if (table === 'prayers') {
+          return createMockQueryChain(phase === 'stale' ? [oldPrayer] : [newPrayer], null);
+        }
+        return createMockQueryChain([], null);
+      });
+
+      await service.fetchAdminData();
+      expect((await firstValueFrom(service.data$)).pendingPrayers.map((prayer) => prayer.id)).toEqual(['old']);
+
+      phase = 'fresh';
+      await service.fetchAdminData();
+      expect((await firstValueFrom(service.data$)).pendingPrayers.map((prayer) => prayer.id)).toEqual(['new']);
+
+      resolveStaleMembers({
+        data: [{ user_email: 'mark@example.com', name: 'Mark Larson' }],
+        error: null,
+      });
+      await staleMembers;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect((await firstValueFrom(service.data$)).pendingPrayers.map((prayer) => prayer.id)).toEqual(['new']);
+    });
+
+    it('does not publish an in-flight queue after the active tenant changes', async () => {
+      const oldPrayer = {
+        id: 'tenant-a-prayer',
+        title: 'A',
+        approval_status: 'pending',
+        email: null,
+      };
+      const newPrayer = {
+        id: 'tenant-b-prayer',
+        title: 'B',
+        approval_status: 'pending',
+        email: null,
+      };
+      let activeTenantId = 'tenant-a';
+      let resolveOldPrayers: (value: { data: unknown; error: null }) => void = () => undefined;
+      const oldPrayers = new Promise<{ data: unknown; error: null }>((resolve) => {
+        resolveOldPrayers = resolve;
+      });
+      mockTenantContext.getActiveTenant.mockImplementation(() => ({ id: activeTenantId }));
+
+      const deferredPrayerChain = () => {
+        const selectChain: {
+          eq: () => typeof selectChain;
+          in: () => typeof selectChain;
+          order: () => Promise<{ data: unknown; error: null }>;
+          then: Promise<{ data: unknown; error: null }>['then'];
+        } = {
+          eq: () => selectChain,
+          in: () => selectChain,
+          order: () => oldPrayers,
+          then: (onFulfilled, onRejected) => oldPrayers.then(onFulfilled, onRejected),
+        };
+        return {
+          select: () => selectChain,
+          update: () => selectChain,
+          insert: () => selectChain,
+          delete: () => selectChain,
+        };
+      };
+
+      mockSupabaseClient.from = vi.fn((table: string) => {
+        if (table === 'prayers' && activeTenantId === 'tenant-a') {
+          return deferredPrayerChain();
+        }
+        if (table === 'prayers') {
+          return createMockQueryChain([newPrayer], null);
+        }
+        return createMockQueryChain([], null);
+      });
+
+      const firstFetch = service.fetchAdminData();
+      activeTenantId = 'tenant-b';
+      resolveOldPrayers({ data: [oldPrayer], error: null });
+      await firstFetch;
+      await vi.waitFor(async () => {
+        const data = await firstValueFrom(service.data$);
+        expect(data.loading).toBe(false);
+        expect(data.pendingPrayers.map((prayer) => prayer.id)).toEqual(['tenant-b-prayer']);
+      });
     });
 
     it('should transform prayer updates with prayer titles', async () => {
@@ -1176,7 +1308,7 @@ describe('AdminDataService', () => {
     it('should call fetchAdminData with silent=false for refresh', async () => {
       const spy = vi.spyOn(service, 'fetchAdminData');
       service.refresh();
-      expect(spy).toHaveBeenCalledWith(false);
+      expect(spy).toHaveBeenCalledWith(false, true);
     });
   });
 

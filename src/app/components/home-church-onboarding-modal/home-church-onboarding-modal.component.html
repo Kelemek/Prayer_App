@@ -69,6 +69,28 @@
           (keydown.enter)="submitJoin()"
         />
       </label>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          First name
+          <input
+            type="text"
+            class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            [(ngModel)]="firstName"
+            autocomplete="given-name"
+            [disabled]="submitting"
+          />
+        </label>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Last name
+          <input
+            type="text"
+            class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            [(ngModel)]="lastName"
+            autocomplete="family-name"
+            [disabled]="submitting"
+          />
+        </label>
+      </div>
       <div class="flex gap-2">
         <button
           type="button"

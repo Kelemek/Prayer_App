@@ -83,6 +83,18 @@ export class AdminDataService {
 
   public data$: Observable<AdminData> = this.dataSubject.asObservable();
   private isFetching = false;
+  private fetchInFlight = 0;
+  /** Bumped on each fetch so in-flight work cannot publish an older queue. */
+  private adminFetchGeneration = 0;
+
+  /** Starts admin pending fetch early (e.g. when user taps Admin in Settings). */
+  prefetchForNavigation(): void {
+    void this.fetchAdminData(false, false);
+  }
+
+  isInitialFetchInProgress(): boolean {
+    return this.isFetching;
+  }
 
   constructor(
     private supabase: SupabaseService,
@@ -97,9 +109,12 @@ export class AdminDataService {
       return;
     }
 
+    const fetchGeneration = ++this.adminFetchGeneration;
+    this.fetchInFlight += 1;
+    this.isFetching = true;
+
+    let tenantId: string | null = null;
     try {
-      this.isFetching = true;
-      
       if (!silent) {
         this.dataSubject.next({ 
           ...this.dataSubject.value, 
@@ -109,13 +124,15 @@ export class AdminDataService {
       }
 
       const supabaseClient = this.supabase.client;
-      const tenantId = this.getRequiredTenantId();
+      tenantId = this.getRequiredTenantId();
       if (!tenantId) {
-        this.dataSubject.next({
-          ...this.dataSubject.value,
-          loading: false,
-          error: 'Admin features require an active churches tenant'
-        });
+        if (fetchGeneration === this.adminFetchGeneration) {
+          this.dataSubject.next({
+            ...this.dataSubject.value,
+            loading: false,
+            error: 'Admin features require an active churches tenant'
+          });
+        }
         return;
       }
 
@@ -204,6 +221,10 @@ export class AdminDataService {
         )
       ])) as any[];
 
+      if (this.abandonStaleAdminFetch(fetchGeneration, tenantId, silent)) {
+        return;
+      }
+
       // Check for errors
       if (pendingPrayersResult.error) throw pendingPrayersResult.error;
       if (pendingUpdatesResult.error) {
@@ -223,35 +244,20 @@ export class AdminDataService {
       const pendingPrayers = pendingPrayersResult.data || [];
       const rawPendingUpdates = pendingUpdatesResult.data || [];
 
-      const memberNamesByEmail = await this.loadMemberNamesByEmail(
-        tenantId,
-        this.collectPendingApprovalEmails(pendingPrayers, rawPendingUpdates)
-      );
-
-      const enrichedPendingPrayers = pendingPrayers.map((prayer: PrayerRequest) =>
-        this.enrichPrayerWithMemberName(prayer, memberNamesByEmail)
-      );
-
-      const pendingUpdates = rawPendingUpdates.map((update: any) => {
-        const enrichedUpdate = this.enrichUpdateWithMemberName(update, memberNamesByEmail);
-        return {
-          ...enrichedUpdate,
-          prayer_title: enrichedUpdate.prayers?.title,
-          prayers: enrichedUpdate.prayers
-            ? this.enrichPrayerWithMemberName(enrichedUpdate.prayers, memberNamesByEmail)
-            : enrichedUpdate.prayers,
-        };
-      });
-
       const pendingDeletionRequests = (pendingDeletionRequestsResult.data || []).map((d: any) => ({
         ...d,
         prayer_title: d.prayers?.title
       }));
 
-      // Update with pending data immediately
+      const pendingUpdatesUnenriched = rawPendingUpdates.map((update: any) => ({
+        ...update,
+        prayer_title: update.prayers?.title,
+      }));
+
+      // Show pending queues immediately; enrich display names in the background.
       this.dataSubject.next({
-        pendingPrayers: enrichedPendingPrayers,
-        pendingUpdates,
+        pendingPrayers,
+        pendingUpdates: pendingUpdatesUnenriched,
         pendingDeletionRequests,
         pendingUpdateDeletionRequests: pendingUpdateDeletionRequestsResult.data || [],
         pendingAccountRequests: pendingAccountRequestsResult.data || [],
@@ -269,19 +275,32 @@ export class AdminDataService {
         error: null
       });
 
+      void this.enrichPendingWithMemberNames(
+        fetchGeneration,
+        tenantId,
+        pendingPrayers,
+        rawPendingUpdates
+      );
+
       // PHASE 2: Fetch approved/denied data in background (non-blocking)
-      // These are typically not needed on initial load and can load asynchronously
-      this.loadApprovedAndDeniedDataAsync();
+      void this.loadApprovedAndDeniedDataAsync(fetchGeneration, tenantId);
       
     } catch (error: any) {
       console.error('Error fetching admin data:', error);
+      if (tenantId && this.abandonStaleAdminFetch(fetchGeneration, tenantId, silent)) {
+        return;
+      }
+      if (fetchGeneration !== this.adminFetchGeneration) {
+        return;
+      }
       this.dataSubject.next({
         ...this.dataSubject.value,
         loading: false,
         error: error.message || 'Failed to fetch admin data'
       });
     } finally {
-      this.isFetching = false;
+      this.fetchInFlight = Math.max(0, this.fetchInFlight - 1);
+      this.isFetching = this.fetchInFlight > 0;
     }
   }
 
@@ -289,11 +308,17 @@ export class AdminDataService {
    * Load approved and denied data asynchronously in the background.
    * This doesn't block the initial admin portal load.
    */
-  async loadApprovedAndDeniedDataAsync(): Promise<void> {
+  async loadApprovedAndDeniedDataAsync(
+    fetchGeneration?: number,
+    tenantIdAtStart?: string
+  ): Promise<void> {
     try {
       const supabaseClient = this.supabase.client;
-      const tenantId = this.getRequiredTenantId();
+      const tenantId = tenantIdAtStart ?? this.getRequiredTenantId();
       if (!tenantId) {
+        return;
+      }
+      if (!this.isAdminFetchCurrent(fetchGeneration, tenantId)) {
         return;
       }
 
@@ -396,6 +421,10 @@ export class AdminDataService {
         ...d,
         prayer_title: d.prayers?.title
       }));
+
+      if (!this.isAdminFetchCurrent(fetchGeneration, tenantId)) {
+        return;
+      }
 
       // Update with approved/denied data
       this.dataSubject.next({
@@ -1186,7 +1215,7 @@ export class AdminDataService {
   }
 
   refresh(): void {
-    this.fetchAdminData(false);
+    this.fetchAdminData(false, true);
   }
 
   /**
@@ -1316,6 +1345,96 @@ export class AdminDataService {
       }
     } catch (emailError) {
       console.error('Failed to send denial email:', emailError);
+    }
+  }
+
+  private isAdminFetchCurrent(fetchGeneration: number | undefined, tenantId: string): boolean {
+    if (fetchGeneration !== undefined && fetchGeneration !== this.adminFetchGeneration) {
+      return false;
+    }
+    return this.getRequiredTenantId() === tenantId;
+  }
+
+  /** Drop results from a superseded fetch. Refetch when the active tenant changed. */
+  private abandonStaleAdminFetch(
+    fetchGeneration: number,
+    tenantId: string,
+    silent: boolean
+  ): boolean {
+    if (this.isAdminFetchCurrent(fetchGeneration, tenantId)) {
+      return false;
+    }
+    if (
+      fetchGeneration === this.adminFetchGeneration &&
+      this.getRequiredTenantId() !== tenantId
+    ) {
+      void this.fetchAdminData(silent, true);
+    }
+    return true;
+  }
+
+  private async enrichPendingWithMemberNames(
+    fetchGeneration: number,
+    tenantId: string,
+    pendingPrayers: PrayerRequest[],
+    rawPendingUpdates: Array<PrayerUpdate & { prayers?: PrayerRequest | null }>
+  ): Promise<void> {
+    try {
+      const memberNamesByEmail = await this.loadMemberNamesByEmail(
+        tenantId,
+        this.collectPendingApprovalEmails(pendingPrayers, rawPendingUpdates)
+      );
+
+      if (!this.isAdminFetchCurrent(fetchGeneration, tenantId)) {
+        return;
+      }
+
+      const enrichedPendingPrayers = pendingPrayers.map((prayer) =>
+        this.enrichPrayerWithMemberName(prayer, memberNamesByEmail)
+      );
+
+      const pendingUpdates = rawPendingUpdates.map((update: any) => {
+        const enrichedUpdate = this.enrichUpdateWithMemberName(update, memberNamesByEmail);
+        return {
+          ...enrichedUpdate,
+          prayer_title: enrichedUpdate.prayers?.title,
+          prayers: enrichedUpdate.prayers
+            ? this.enrichPrayerWithMemberName(enrichedUpdate.prayers, memberNamesByEmail)
+            : enrichedUpdate.prayers,
+        };
+      });
+
+      const current = this.dataSubject.value;
+      const prayersById = new Map(enrichedPendingPrayers.map((prayer) => [prayer.id, prayer]));
+      const updatesById = new Map(pendingUpdates.map((update) => [update.id, update]));
+
+      this.dataSubject.next({
+        ...current,
+        pendingPrayers: current.pendingPrayers.map((prayer) => {
+          const enriched = prayersById.get(prayer.id);
+          if (!enriched || enriched.requester === prayer.requester) {
+            return prayer;
+          }
+          return { ...prayer, requester: enriched.requester };
+        }),
+        pendingUpdates: current.pendingUpdates.map((update) => {
+          const enriched = updatesById.get(update.id);
+          if (!enriched) {
+            return update;
+          }
+          const author = enriched.author ?? update.author;
+          const prayers =
+            update.prayers && enriched.prayers && enriched.prayers.requester !== update.prayers.requester
+              ? { ...update.prayers, requester: enriched.prayers.requester }
+              : update.prayers;
+          if (author === update.author && prayers === update.prayers) {
+            return update;
+          }
+          return { ...update, author, prayers };
+        }),
+      });
+    } catch (error) {
+      console.error('[AdminDataService] Failed to enrich pending member names:', error);
     }
   }
 

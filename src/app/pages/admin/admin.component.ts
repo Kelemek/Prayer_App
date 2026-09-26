@@ -5,7 +5,9 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   NgZone,
+  Type,
 } from '@angular/core';
+import { NgComponentOutlet } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subject, distinctUntilChanged, filter, map, skip, take, takeUntil } from 'rxjs';
 import { AdminDataService, type AdminData } from '../../services/admin-data.service';
@@ -23,7 +25,6 @@ import { AdminNavTilesComponent } from '../../components/admin-nav-tiles/admin-n
 import { AdminApprovalsPanelComponent } from '../../components/admin-approvals-panel/admin-approvals-panel.component';
 import { AdminDeletionsPanelComponent } from '../../components/admin-deletions-panel/admin-deletions-panel.component';
 import { AdminAccountsPanelComponent } from '../../components/admin-accounts-panel/admin-accounts-panel.component';
-import { AdminSettingsPanelComponent } from '../../components/admin-settings-panel/admin-settings-panel.component';
 import { AdminChurchBillingBannerComponent } from '../../components/admin-church-billing-banner/admin-church-billing-banner.component';
 import { isChurchPlanTier, tenantHasChurchFeatures } from '../../lib/church-billing';
 import {
@@ -59,11 +60,11 @@ const EMPTY_ANALYTICS_STATS: AnalyticsStats = {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    NgComponentOutlet,
     AdminNavTilesComponent,
     AdminApprovalsPanelComponent,
     AdminDeletionsPanelComponent,
     AdminAccountsPanelComponent,
-    AdminSettingsPanelComponent,
     AdminChurchBillingBannerComponent,
     SendNotificationDialogComponent,
     ConfirmationDialogComponent,
@@ -90,6 +91,13 @@ export class AdminComponent implements OnInit, OnDestroy {
   isSuperAdmin = false;
   approvingAccountRequestId: string | null = null;
   denyingAccountRequestId: string | null = null;
+
+  /** Loaded on first visit to Settings (large bundle). */
+  settingsPanelComponent: Type<unknown> | null = null;
+  settingsPanelLoading = false;
+  settingsPanelLoadError = false;
+
+  private settingsPanelLoad: Promise<void> | null = null;
 
   constructor(
     private router: Router,
@@ -160,7 +168,9 @@ export class AdminComponent implements OnInit, OnDestroy {
       });
 
     this.hasFetchStarted = true;
-    this.adminDataService.fetchAdminData();
+    if (!this.adminDataService.isInitialFetchInProgress()) {
+      void this.adminDataService.fetchAdminData();
+    }
 
     if (this.activeTab === 'settings' && this.activeSettingsTab === 'analytics' && this.canAccessAnalytics()) {
       void this.loadAnalytics();
@@ -267,6 +277,9 @@ export class AdminComponent implements OnInit, OnDestroy {
 
   onTabChange(tab: AdminTab): void {
     this.activeTab = tab;
+    if (tab === 'settings') {
+      void this.ensureSettingsPanelLoaded();
+    }
     if (tab === 'settings' && this.activeSettingsTab === 'analytics' && this.canAccessAnalytics()) {
       void this.loadAnalytics();
     }
@@ -275,9 +288,62 @@ export class AdminComponent implements OnInit, OnDestroy {
   onSettingsTabChange(tab: AdminSettingsTab): void {
     const next = tab === 'analytics' && !this.canAccessAnalytics() ? 'content' : tab;
     this.activeSettingsTab = next;
+    void this.ensureSettingsPanelLoaded();
     if (next === 'analytics') {
       void this.loadAnalytics();
     }
+    this.cdr.markForCheck();
+  }
+
+  readonly settingsPanelInputs = (): Record<string, unknown> => ({
+    activeSettingsTab: this.activeSettingsTab,
+    analyticsStats: this.analyticsStats,
+    showAnalyticsTab: this.canAccessAnalytics(),
+    isChurchTenant: this.isChurchTenant(),
+    isSuperAdmin: this.isSuperAdmin,
+    canWipeChurch: this.canWipeChurch(),
+    activeTenant: this.tenantContextService.getActiveTenant(),
+    settingsTabChangeHandler: (tab: AdminSettingsTab) => this.onSettingsTabChange(tab),
+  });
+
+  retrySettingsPanel(): void {
+    this.settingsPanelLoadError = false;
+    this.settingsPanelLoad = null;
+    void this.ensureSettingsPanelLoaded();
+  }
+
+  private async ensureSettingsPanelLoaded(): Promise<void> {
+    if (this.settingsPanelComponent) {
+      return;
+    }
+    if (this.settingsPanelLoad) {
+      await this.settingsPanelLoad;
+      return;
+    }
+    this.settingsPanelLoading = true;
+    this.settingsPanelLoadError = false;
+    this.cdr.markForCheck();
+    const load = import(
+      '../../components/admin-settings-panel/admin-settings-panel.component'
+    )
+      .then((module) => {
+        this.settingsPanelComponent = module.AdminSettingsPanelComponent;
+      })
+      .catch((error: unknown) => {
+        console.error('Failed to load settings panel:', error);
+        this.settingsPanelLoadError = true;
+        if (this.settingsPanelLoad === load) {
+          this.settingsPanelLoad = null;
+        }
+      })
+      .finally(() => {
+        if (this.settingsPanelLoad === load || this.settingsPanelLoad === null) {
+          this.settingsPanelLoading = false;
+        }
+        this.cdr.markForCheck();
+      });
+    this.settingsPanelLoad = load;
+    return load;
   }
 
   ngOnDestroy(): void {

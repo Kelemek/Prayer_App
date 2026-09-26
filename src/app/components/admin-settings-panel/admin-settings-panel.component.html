@@ -8,7 +8,7 @@
       <button
         type="button"
         [id]="tab.domId"
-        (click)="settingsTabChange.emit(tab.id)"
+        (click)="selectSettingsTab(tab.id)"
         [class]="
           'px-4 py-2 font-medium rounded-t-lg transition-colors flex items-center gap-2 cursor-pointer ' +
           (activeSettingsTab === tab.id

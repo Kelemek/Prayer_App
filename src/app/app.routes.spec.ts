@@ -207,7 +207,7 @@ describe('AppRoutes', () => {
 
   it('should lazy load tenant claim component for join route', async () => {
     const route = routes.find((r) => r.path === 'join/:token');
-    expect(route?.canActivate).toContain(siteAuthGuard);
+    expect(route?.canActivate).toBeUndefined();
     const loaded = await route?.loadComponent?.();
     expect(loaded).toBeDefined();
   }, 10000);

@@ -46,7 +46,6 @@ export const routes: Routes = [
   {
     path: 'join/:token',
     loadComponent: () => import('./pages/tenant-claim/tenant-claim.component').then(m => m.TenantClaimComponent),
-    canActivate: [siteAuthGuard]
   },
   {
     path: 'church-setup',

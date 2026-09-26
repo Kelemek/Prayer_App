@@ -174,61 +174,31 @@ describe('TenantManagementService', () => {
     await expect(service.getInvitePreview('tok')).rejects.toThrow('preview failed');
   });
 
-  it('claims invite when email matches and invite is pending', async () => {
-    const maybeSingle = vi.fn().mockResolvedValue({
-      data: {
-        id: 'invite-1',
-        tenant_id: 'tenant-1',
-        email: 'member@example.com',
-        expires_at: new Date(Date.now() + 60_000).toISOString(),
-      },
-      error: null,
-    });
-    const insert = vi.fn().mockResolvedValue({ error: null });
-    const updateEq = vi.fn().mockResolvedValue({ error: null });
-    from.mockImplementation((table: string) => {
-      if (table === 'tenant_invites') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({ maybeSingle }),
-            }),
-          }),
-          update: vi.fn().mockReturnValue({ eq: updateEq }),
-        };
-      }
-      return { insert };
-    });
+  it('claims invite via RPC when logged in', async () => {
     getSession.mockResolvedValue({
       data: { session: { user: { email: 'member@example.com' } } },
     });
+    rpc.mockResolvedValue({ data: 'tenant-1', error: null });
 
-    const tenantId = await service.claimInvite('token-123');
+    const tenantId = await service.claimInvite('token-123', 'Pat Lee');
     expect(tenantId).toBe('tenant-1');
-    expect(insert).toHaveBeenCalled();
-    expect(updateEq).toHaveBeenCalledWith('id', 'invite-1');
+    expect(rpc).toHaveBeenCalledWith('claim_tenant_invite', {
+      p_token: 'token-123',
+      p_display_name: 'Pat Lee',
+    });
     expect(refresh).toHaveBeenCalled();
   });
 
-  it('rejects invite when email does not match', async () => {
-    const maybeSingle = vi.fn().mockResolvedValue({
-      data: {
-        id: 'invite-1',
-        tenant_id: 'tenant-1',
-        email: 'other@example.com',
-        expires_at: new Date(Date.now() + 60_000).toISOString(),
-      },
-      error: null,
+  it('rejects invite when RPC reports email mismatch', async () => {
+    getSession.mockResolvedValue({
+      data: { session: { user: { email: 'member@example.com' } } },
     });
-    from.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({ maybeSingle }),
-        }),
-      }),
+    rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'Invite email does not match this user' },
     });
 
-    await expect(service.claimInvite('token-123')).rejects.toThrow(
+    await expect(service.claimInvite('token-123', 'Pat Lee')).rejects.toThrow(
       'Invite email does not match this user'
     );
   });
@@ -327,99 +297,47 @@ describe('TenantManagementService', () => {
     await expect(service.createInvite('tenant-1', 'a@b.com')).rejects.toThrow('invite failed');
   });
 
+  it('requires a display name to claim invite', async () => {
+    getSession.mockResolvedValue({
+      data: { session: { user: { email: 'member@example.com' } } },
+    });
+    await expect(service.claimInvite('token-123', '  ')).rejects.toThrow(
+      'Please enter your name'
+    );
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it('requires login to claim invite', async () => {
     getSession.mockResolvedValue({ data: { session: null } });
-    await expect(service.claimInvite('token')).rejects.toThrow(
+    await expect(service.claimInvite('token', 'Pat Lee')).rejects.toThrow(
       'You must be logged in to claim an invite'
     );
   });
 
   it('throws when invite is missing', async () => {
-    from.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-          }),
-        }),
-      }),
+    rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'Invite not found or already used' },
     });
-    await expect(service.claimInvite('token')).rejects.toThrow(
+    await expect(service.claimInvite('token', 'Pat Lee')).rejects.toThrow(
       'Invite not found or already used'
     );
   });
 
   it('throws when invite has expired', async () => {
-    from.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({
-              data: {
-                id: 'invite-1',
-                tenant_id: 'tenant-1',
-                email: 'admin@example.com',
-                expires_at: new Date(Date.now() - 60_000).toISOString(),
-              },
-              error: null,
-            }),
-          }),
-        }),
-      }),
+    rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'Invite has expired' },
     });
-    await expect(service.claimInvite('token')).rejects.toThrow('Invite has expired');
+    await expect(service.claimInvite('token', 'Pat Lee')).rejects.toThrow('Invite has expired');
   });
 
-  it('throws when membership insert fails during claim', async () => {
-    const maybeSingle = vi.fn().mockResolvedValue({
-      data: {
-        id: 'invite-1',
-        tenant_id: 'tenant-1',
-        email: 'admin@example.com',
-        expires_at: new Date(Date.now() + 60_000).toISOString(),
-      },
-      error: null,
+  it('throws when claim RPC fails', async () => {
+    rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'insert failed' },
     });
-    from.mockImplementation((table: string) => {
-      if (table === 'tenant_invites') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({ maybeSingle }),
-            }),
-          }),
-        };
-      }
-      return { insert: vi.fn().mockResolvedValue({ error: { message: 'insert failed' } }) };
-    });
-    await expect(service.claimInvite('token')).rejects.toThrow('insert failed');
-  });
-
-  it('throws when invite update fails during claim', async () => {
-    const maybeSingle = vi.fn().mockResolvedValue({
-      data: {
-        id: 'invite-1',
-        tenant_id: 'tenant-1',
-        email: 'admin@example.com',
-        expires_at: new Date(Date.now() + 60_000).toISOString(),
-      },
-      error: null,
-    });
-    const updateEq = vi.fn().mockResolvedValue({ error: { message: 'update failed' } });
-    from.mockImplementation((table: string) => {
-      if (table === 'tenant_invites') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({ maybeSingle }),
-            }),
-          }),
-          update: vi.fn().mockReturnValue({ eq: updateEq }),
-        };
-      }
-      return { insert: vi.fn().mockResolvedValue({ error: null }) };
-    });
-    await expect(service.claimInvite('token')).rejects.toThrow('update failed');
+    await expect(service.claimInvite('token', 'Pat Lee')).rejects.toThrow('insert failed');
   });
 
   it('throws when setTenantPlan fails', async () => {

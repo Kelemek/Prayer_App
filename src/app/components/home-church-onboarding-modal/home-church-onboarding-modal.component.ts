@@ -34,6 +34,8 @@ export class HomeChurchOnboardingModalComponent implements OnChanges {
   view: ChurchOnboardingView = "chooser";
   submitting = false;
   inviteToken = "";
+  firstName = "";
+  lastName = "";
 
   private readonly tenantManagement = inject(TenantManagementService);
   private readonly tenantContext = inject(TenantContextService);
@@ -49,6 +51,8 @@ export class HomeChurchOnboardingModalComponent implements OnChanges {
     this.view = "chooser";
     this.submitting = false;
     this.inviteToken = "";
+    this.firstName = "";
+    this.lastName = "";
   }
 
   showJoin(): void {
@@ -68,7 +72,12 @@ export class HomeChurchOnboardingModalComponent implements OnChanges {
   }
 
   get canSubmitJoin(): boolean {
-    return !this.submitting && this.inviteToken.trim().length > 0;
+    return (
+      !this.submitting &&
+      this.inviteToken.trim().length > 0 &&
+      !!this.firstName.trim() &&
+      !!this.lastName.trim()
+    );
   }
 
   get title(): string {
@@ -85,13 +94,14 @@ export class HomeChurchOnboardingModalComponent implements OnChanges {
   }
 
   async submitJoin(): Promise<void> {
-    const token = this.inviteToken.trim();
-    if (!token || this.submitting) {
+    if (!this.canSubmitJoin) {
       return;
     }
+    const token = this.inviteToken.trim();
     this.submitting = true;
     try {
-      const tenantId = await this.tenantManagement.claimInvite(token);
+      const fullName = `${this.firstName.trim()} ${this.lastName.trim()}`;
+      const tenantId = await this.tenantManagement.claimInvite(token, fullName);
       const claimedTenant = this.tenantContext
         .getAvailableTenants()
         .find((t) => t.id === tenantId);

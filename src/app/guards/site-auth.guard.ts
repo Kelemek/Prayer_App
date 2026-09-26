@@ -2,7 +2,7 @@ import { inject } from '@angular/core';
 import { Router, CanActivateFn } from '@angular/router';
 import { AdminAuthService } from '../services/admin-auth.service';
 import { combineLatest, of } from 'rxjs';
-import { map, skipWhile } from 'rxjs/operators';
+import { map, skipWhile, take } from 'rxjs/operators';
 
 /**
  * Site-wide authentication guard
@@ -20,7 +20,7 @@ export const siteAuthGuard: CanActivateFn = (route, state) => {
   ]).pipe(
     // Skip while loading
     skipWhile(([_, isLoading]) => isLoading),
-    // Take first value after loading is complete
+    take(1),
     map(([isAuthenticated]) => {
       // If not authenticated, redirect to login
       if (!isAuthenticated) {

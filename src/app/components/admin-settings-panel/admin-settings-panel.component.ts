@@ -89,6 +89,8 @@ export class AdminSettingsPanelComponent implements OnInit {
   @Input() isSuperAdmin = false;
   @Input() canWipeChurch = false;
   @Input() activeTenant: Tenant | null = null;
+  /** Used when hosted via NgComponentOutlet (outputs are not wired on the outlet). */
+  @Input() settingsTabChangeHandler?: (tab: AdminSettingsTab) => void;
   showFeedbackForm = false;
   pcoCredentialsConfigured = false;
   feedbackSectionExpanded = false;
@@ -119,6 +121,11 @@ export class AdminSettingsPanelComponent implements OnInit {
     'user_hourly_memorization_reminder',
     'user_hourly_memorization_reminder_with_spotlight',
   ] as const;
+
+  selectSettingsTab(tab: AdminSettingsTab): void {
+    this.settingsTabChangeHandler?.(tab);
+    this.settingsTabChange.emit(tab);
+  }
 
   get visibleSettingsTabs(): AdminSettingsTabDef[] {
     return ADMIN_SETTINGS_TABS.filter((tab) => this.isSettingsTabVisible(tab.id));

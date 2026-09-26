@@ -12,6 +12,7 @@ const makeMocks = () => {
   const adminAuthService: any = {
     requireSiteLogin$,
     isAdmin$,
+    getUser: vi.fn(() => null),
     sendMfaCode: vi.fn(async (email: string) => ({ success: true })),
     verifyMfaCode: vi.fn(async (code: string) => ({ success: true, isAdmin: false })),
     logout: vi.fn(async () => {})
@@ -46,7 +47,7 @@ const makeMocks = () => {
     theme$: of('light')
   };
 
-  const router: any = { navigate: vi.fn() };
+  const router: any = { navigate: vi.fn(), navigateByUrl: vi.fn() };
 
   const route: any = {
     queryParams: of({}),
@@ -504,7 +505,7 @@ describe('LoginComponent', () => {
         })
       })
     );
-    expect(mocks.router.navigate).toHaveBeenCalled();
+    expect(mocks.router.navigateByUrl).toHaveBeenCalled();
   });
 
   it('handleSubmit handles sendMfaCode failure and sets error', async () => {
@@ -900,7 +901,7 @@ describe('LoginComponent', () => {
     await comp.ngOnInit();
     // Emit isAdmin as true
     authMocks.isAdmin$.next(true);
-    expect(authMocks.router.navigate).toHaveBeenCalledWith(['/']);
+    expect(authMocks.router.navigateByUrl).toHaveBeenCalledWith('/');
   });
 
   it('ngOnInit sends an already signed-in admin to returnUrl', async () => {
@@ -920,8 +921,8 @@ describe('LoginComponent', () => {
     comp.codeInputs = { toArray: () => [] } as any;
     await comp.ngOnInit();
     authMocks.isAdmin$.next(true);
-    expect(authMocks.router.navigate).toHaveBeenCalledWith(['/presentation']);
-    expect(authMocks.router.navigate).not.toHaveBeenCalledWith(['/']);
+    expect(authMocks.router.navigateByUrl).toHaveBeenCalledWith('/presentation');
+    expect(authMocks.router.navigateByUrl).not.toHaveBeenCalledWith('/');
   });
 
   it('already signed-in admin with returnUrl /admin still goes home', async () => {
@@ -941,7 +942,7 @@ describe('LoginComponent', () => {
     comp.codeInputs = { toArray: () => [] } as any;
     await comp.ngOnInit();
     authMocks.isAdmin$.next(true);
-    expect(authMocks.router.navigate).toHaveBeenCalledWith(['/']);
+    expect(authMocks.router.navigateByUrl).toHaveBeenCalledWith('/');
   });
 
   it('OTP success keeps returnUrl when isAdmin$ flips true during verify', async () => {
@@ -964,7 +965,7 @@ describe('LoginComponent', () => {
     );
     comp.codeInputs = { toArray: () => [] } as any;
     await comp.ngOnInit();
-    authMocks.router.navigate.mockClear();
+    authMocks.router.navigateByUrl.mockClear();
     comp.email = 'admin@example.com';
     comp.waitingForMfaCode = true;
     comp.codeLength = 4;
@@ -974,11 +975,11 @@ describe('LoginComponent', () => {
     vi.spyOn(comp as any, 'checkPendingApprovalRequest').mockResolvedValue(false);
 
     await comp.verifyMfaCode();
-    expect(authMocks.router.navigate).not.toHaveBeenCalled();
+    expect(authMocks.router.navigateByUrl).not.toHaveBeenCalled();
 
     await new Promise((resolve) => setTimeout(resolve, 1100));
-    expect(authMocks.router.navigate).toHaveBeenCalledTimes(1);
-    expect(authMocks.router.navigate).toHaveBeenCalledWith(['/presentation']);
+    expect(authMocks.router.navigateByUrl).toHaveBeenCalledTimes(1);
+    expect(authMocks.router.navigateByUrl).toHaveBeenCalledWith('/presentation');
   });
 
   it('ngOnDestroy stops queryParams and isAdmin$ updates', async () => {
@@ -999,11 +1000,11 @@ describe('LoginComponent', () => {
     comp.codeInputs = { toArray: () => [] } as any;
     await comp.ngOnInit();
     comp.ngOnDestroy();
-    authMocks.router.navigate.mockClear();
+    authMocks.router.navigateByUrl.mockClear();
     params$.next({ email: 'late@example.com', returnUrl: '/presentation' });
     authMocks.isAdmin$.next(true);
     expect(comp.email).not.toBe('late@example.com');
-    expect(authMocks.router.navigate).not.toHaveBeenCalled();
+    expect(authMocks.router.navigateByUrl).not.toHaveBeenCalled();
   });
 
   it('does not log email or OTP on the sign-in path', async () => {
@@ -1281,7 +1282,7 @@ describe('LoginComponent', () => {
     // Wait for setTimeout (1 second delay) to complete
     await new Promise(resolve => setTimeout(resolve, 1100));
     
-    expect(mocks.router.navigate).toHaveBeenCalledWith(['/admin/dashboard']);
+    expect(mocks.router.navigateByUrl).toHaveBeenCalledWith('/admin/dashboard');
   });
 
   it('verifyMfaCode clears sessionStorage after successful verification', async () => {
@@ -1453,7 +1454,7 @@ describe('LoginComponent', () => {
     expect(mocks.userSessionService.loadUserSession).toHaveBeenCalledWith(
       'group@example.com'
     );
-    expect(mocks.router.navigate).toHaveBeenCalled();
+    expect(mocks.router.navigateByUrl).toHaveBeenCalled();
   });
 
   it('saveNewSubscriber for a group-only invitee writes group member name and skips tenant/approval', async () => {

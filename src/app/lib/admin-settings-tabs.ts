@@ -15,11 +15,11 @@ export interface AdminSettingsTabDef {
 }
 
 export const ADMIN_SETTINGS_TABS: readonly AdminSettingsTabDef[] = [
-  { id: 'analytics', label: 'Analytics' },
+  { id: 'analytics', label: 'Analytics', domId: 'admin-settings-tab-analytics' },
   { id: 'content', label: 'Content', domId: 'admin-settings-tab-content' },
   { id: 'email', label: 'Email', domId: 'admin-settings-tab-email' },
   { id: 'tools', label: 'Tools', domId: 'admin-settings-tab-tools' },
-  { id: 'security', label: 'Security' },
+  { id: 'security', label: 'Security', domId: 'admin-settings-tab-security' },
   { id: 'integrations', label: 'Integrations', domId: 'admin-settings-tab-integrations' },
-  { id: 'tenant_manager', label: 'Tenant Manager' },
+  { id: 'tenant_manager', label: 'Tenant Manager', domId: 'admin-settings-tab-tenant-manager' },
 ];

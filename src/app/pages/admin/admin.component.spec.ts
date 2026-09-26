@@ -21,6 +21,7 @@ describe('AdminComponent', () => {
     adminDataService = {
       data$: new Subject<any>(),
       fetchAdminData: vi.fn(),
+      isInitialFetchInProgress: vi.fn(() => false),
       refresh: vi.fn(),
       approvePrayer: vi.fn().mockResolvedValue(undefined),
       denyPrayer: vi.fn().mockResolvedValue(undefined),

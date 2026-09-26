@@ -96,12 +96,23 @@ describe("HomeChurchOnboardingModalComponent", () => {
     expect(createTenant).not.toHaveBeenCalled();
   });
 
+  it("does not claim when first or last name is missing", async () => {
+    fixture.componentInstance.showJoin();
+    fixture.componentInstance.inviteToken = "token-abc";
+    fixture.componentInstance.firstName = "Pat";
+    await fixture.componentInstance.submitJoin();
+    expect(claimInvite).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.submitting).toBe(false);
+  });
+
   it("claims an invite token and switches tenant", async () => {
     const completedSpy = vi.spyOn(fixture.componentInstance.completed, "emit");
     fixture.componentInstance.showJoin();
     fixture.componentInstance.inviteToken = " token-abc ";
+    fixture.componentInstance.firstName = "Pat";
+    fixture.componentInstance.lastName = "Lee";
     await fixture.componentInstance.submitJoin();
-    expect(claimInvite).toHaveBeenCalledWith("token-abc");
+    expect(claimInvite).toHaveBeenCalledWith("token-abc", "Pat Lee");
     expect(switchTenantWithNavigation).toHaveBeenCalled();
     expect(completedSpy).toHaveBeenCalled();
   });
@@ -111,6 +122,8 @@ describe("HomeChurchOnboardingModalComponent", () => {
     const completedSpy = vi.spyOn(fixture.componentInstance.completed, "emit");
     fixture.componentInstance.showJoin();
     fixture.componentInstance.inviteToken = "token-abc";
+    fixture.componentInstance.firstName = "Pat";
+    fixture.componentInstance.lastName = "Lee";
     await fixture.componentInstance.submitJoin();
     expect(completedSpy).toHaveBeenCalled();
     expect(toastSuccess).not.toHaveBeenCalled();
@@ -128,6 +141,8 @@ describe("HomeChurchOnboardingModalComponent", () => {
     claimInvite.mockRejectedValueOnce(new Error("bad token"));
     fixture.componentInstance.showJoin();
     fixture.componentInstance.inviteToken = "x";
+    fixture.componentInstance.firstName = "Pat";
+    fixture.componentInstance.lastName = "Lee";
     await fixture.componentInstance.submitJoin();
     expect(toastError).toHaveBeenCalledWith("bad token");
     expect(fixture.componentInstance.submitting).toBe(false);

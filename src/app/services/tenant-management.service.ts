@@ -123,57 +123,38 @@ export class TenantManagementService {
     return mapTenantInvitePreview(data);
   }
 
-  async claimInvite(token: string): Promise<string> {
+  async claimInvite(token: string, displayName: string): Promise<string> {
+    const trimmed = token.trim();
+    if (!trimmed) {
+      throw new Error('Invite not found or already used');
+    }
+
+    const trimmedName = displayName.trim();
+    if (!trimmedName) {
+      throw new Error('Please enter your name');
+    }
+
     const userEmail = await this.getCurrentUserEmail();
     if (!userEmail) {
       throw new Error('You must be logged in to claim an invite');
     }
 
-    const { data: invite, error: inviteError } = await this.supabase.client
-      .from('tenant_invites')
-      .select('*')
-      .eq('token', token)
-      .eq('status', 'pending')
-      .maybeSingle();
+    const { data, error } = await this.supabase.client.rpc('claim_tenant_invite', {
+      p_token: trimmed,
+      p_display_name: trimmedName,
+    });
 
-    if (inviteError || !invite) {
-      throw new Error('Invite not found or already used');
+    if (error) {
+      throw new Error(error.message || 'Failed to claim invite');
     }
 
-    if (invite.email.toLowerCase().trim() !== userEmail.toLowerCase().trim()) {
-      throw new Error('Invite email does not match this user');
-    }
-
-    if (new Date(invite.expires_at).getTime() < Date.now()) {
-      throw new Error('Invite has expired');
-    }
-
-    const { error: membershipError } = await this.supabase.client
-      .from('tenant_memberships')
-      .insert({
-        tenant_id: invite.tenant_id,
-        user_email: userEmail.toLowerCase().trim(),
-        role: 'member'
-      });
-
-    if (membershipError) {
-      throw new Error(membershipError.message);
-    }
-
-    const { error: inviteUpdateError } = await this.supabase.client
-      .from('tenant_invites')
-      .update({
-        status: 'accepted',
-        accepted_at: new Date().toISOString()
-      })
-      .eq('id', invite.id);
-
-    if (inviteUpdateError) {
-      throw new Error(inviteUpdateError.message);
+    const tenantId = typeof data === 'string' ? data : null;
+    if (!tenantId) {
+      throw new Error('Failed to claim invite');
     }
 
     await this.tenantContext.refresh();
-    return invite.tenant_id as string;
+    return tenantId;
   }
 
   async setTenantPlan(tenantId: string, planTier: Tenant['plan_tier'], status: Tenant['plan_status'] = 'active'): Promise<void> {
@@ -196,6 +177,24 @@ export class TenantManagementService {
   /** Resolves the signed-in actor (Supabase session or MFA local email). */
   getActorEmail(): Promise<string | null> {
     return this.getCurrentUserEmail();
+  }
+
+  /** Stored free-tier display name for the signed-in user, if any. */
+  async getActorDisplayName(): Promise<string> {
+    const email = await this.getCurrentUserEmail();
+    if (!email) {
+      return '';
+    }
+    try {
+      const { data } = await this.supabase.client
+        .from('user_subscriptions')
+        .select('display_name')
+        .eq('user_email', email.toLowerCase().trim())
+        .maybeSingle();
+      return typeof data?.display_name === 'string' ? data.display_name.trim() : '';
+    } catch {
+      return '';
+    }
   }
 
   /**

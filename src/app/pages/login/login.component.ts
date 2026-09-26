@@ -881,14 +881,24 @@ export class LoginComponent implements OnInit, OnDestroy {
     return "/";
   }
 
+  private navigateToPostLoginDestination(): void {
+    void this.router.navigateByUrl(this.postLoginDestination());
+  }
+
   private queueSignedInRedirect(): void {
     if (
       !this.returnUrlReady ||
-      !this.signedInAdmin ||
       this.ownsPostLoginNavigation ||
       this.signedInRedirectStarted ||
       this.destroyed
     ) {
+      return;
+    }
+    const hasReturnUrl =
+      !!this.returnUrl && this.returnUrl !== "/" && this.returnUrl !== "/admin";
+    const hasSession = this.adminAuthService.getUser() != null;
+    const shouldRedirect = this.signedInAdmin || (hasReturnUrl && hasSession);
+    if (!shouldRedirect) {
       return;
     }
     this.signedInRedirectStarted = true;
@@ -913,7 +923,7 @@ export class LoginComponent implements OnInit, OnDestroy {
     if (this.shouldAbortSignedInRedirect()) {
       return;
     }
-    this.router.navigate([this.postLoginDestination()]);
+    this.navigateToPostLoginDestination();
   }
 
   private shouldAbortSignedInRedirect(): boolean {
@@ -1172,8 +1182,7 @@ export class LoginComponent implements OnInit, OnDestroy {
       // Continue anyway - session might load asynchronously
     }
 
-    const destination = this.postLoginDestination();
-    this.router.navigate([destination]);
+    this.navigateToPostLoginDestination();
   }
 
   sanitizeCodeInput(): void {
@@ -1533,7 +1542,7 @@ export class LoginComponent implements OnInit, OnDestroy {
           console.warn("[AdminLogin] Failed to load user session:", sessionError);
         }
 
-        this.router.navigate([this.postLoginDestination()]);
+        this.navigateToPostLoginDestination();
         this.cdr?.markForCheck?.();
         return true;
       }
@@ -1566,7 +1575,7 @@ export class LoginComponent implements OnInit, OnDestroy {
           console.warn("[AdminLogin] Failed to load user session:", sessionError);
         }
 
-        this.router.navigate([this.postLoginDestination()]);
+        this.navigateToPostLoginDestination();
         this.cdr?.markForCheck?.();
         return true;
       }
@@ -1633,7 +1642,7 @@ export class LoginComponent implements OnInit, OnDestroy {
         // Continue anyway - session might load asynchronously
       }
 
-      this.router.navigate([this.postLoginDestination()]);
+      this.navigateToPostLoginDestination();
 
       return true;
     } catch (err) {

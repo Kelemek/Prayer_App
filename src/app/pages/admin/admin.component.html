@@ -115,16 +115,29 @@
           ></app-admin-accounts-panel>
         }
         @case ('settings') {
-          <app-admin-settings-panel
-            [activeSettingsTab]="activeSettingsTab"
-            [analyticsStats]="analyticsStats"
-            [showAnalyticsTab]="canAccessAnalytics()"
-            [isChurchTenant]="isChurchTenant()"
-            [isSuperAdmin]="isSuperAdmin"
-            [canWipeChurch]="canWipeChurch()"
-            [activeTenant]="tenantContextService.getActiveTenant()"
-            (settingsTabChange)="onSettingsTabChange($event)"
-          ></app-admin-settings-panel>
+          @if (settingsPanelComponent; as panel) {
+            <ng-container *ngComponentOutlet="panel; inputs: settingsPanelInputs()" />
+          } @else if (settingsPanelLoading) {
+            <div class="text-center py-12">
+              <div
+                class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"
+                role="status"
+                aria-label="Loading settings"
+              ></div>
+              <p class="text-gray-600 dark:text-gray-400 mt-4">Loading settings…</p>
+            </div>
+          } @else if (settingsPanelLoadError) {
+            <div class="text-center py-12">
+              <p class="text-gray-600 dark:text-gray-400">Settings could not be loaded.</p>
+              <button
+                type="button"
+                class="mt-4 px-4 py-2 rounded-md btn-chip btn-chip-blue"
+                (click)="retrySettingsPanel()"
+              >
+                Try again
+              </button>
+            </div>
+          }
         }
       }
     }
