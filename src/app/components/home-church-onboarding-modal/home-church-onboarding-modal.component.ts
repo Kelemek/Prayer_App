@@ -9,11 +9,14 @@ import {
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
-import { TenantManagementService } from "../../services/tenant-management.service";
-import { TenantContextService } from "../../services/tenant-context.service";
+import { Router } from "@angular/router";
+import { TenantAccessService } from "../../services/tenant-access.service";
 import { ToastService } from "../../services/toast.service";
-import { switchTenantWithNavigation } from "../../lib/tenant-navigation";
 import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
+import { environment } from "../../../environments/environment";
+import { buildTenantOrigin } from "../../lib/tenant-host";
+import { shouldNavigateToTenantSubdomain } from "../../lib/tenant-navigation";
+import { parseChurchSlugFromInput } from "../../lib/parse-church-slug-input";
 
 export type ChurchOnboardingView = "chooser" | "join";
 
@@ -33,13 +36,11 @@ export class HomeChurchOnboardingModalComponent implements OnChanges {
 
   view: ChurchOnboardingView = "chooser";
   submitting = false;
-  inviteToken = "";
-  firstName = "";
-  lastName = "";
+  churchAddress = "";
 
-  private readonly tenantManagement = inject(TenantManagementService);
-  private readonly tenantContext = inject(TenantContextService);
+  private readonly tenantAccess = inject(TenantAccessService);
   private readonly toast = inject(ToastService);
+  private readonly router = inject(Router);
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes["isOpen"]?.currentValue === true) {
@@ -50,9 +51,7 @@ export class HomeChurchOnboardingModalComponent implements OnChanges {
   resetForm(): void {
     this.view = "chooser";
     this.submitting = false;
-    this.inviteToken = "";
-    this.firstName = "";
-    this.lastName = "";
+    this.churchAddress = "";
   }
 
   showJoin(): void {
@@ -72,12 +71,7 @@ export class HomeChurchOnboardingModalComponent implements OnChanges {
   }
 
   get canSubmitJoin(): boolean {
-    return (
-      !this.submitting &&
-      this.inviteToken.trim().length > 0 &&
-      !!this.firstName.trim() &&
-      !!this.lastName.trim()
-    );
+    return !this.submitting && this.churchAddress.trim().length > 0;
   }
 
   get title(): string {
@@ -97,34 +91,37 @@ export class HomeChurchOnboardingModalComponent implements OnChanges {
     if (!this.canSubmitJoin) {
       return;
     }
-    const token = this.inviteToken.trim();
     this.submitting = true;
     try {
-      const fullName = `${this.firstName.trim()} ${this.lastName.trim()}`;
-      const tenantId = await this.tenantManagement.claimInvite(token, fullName);
-      const claimedTenant = this.tenantContext
-        .getAvailableTenants()
-        .find((t) => t.id === tenantId);
-      const slug = claimedTenant?.slug ?? "";
-      if (slug) {
-        const navResult = await switchTenantWithNavigation(
-          tenantId,
-          slug,
-          (id) => this.tenantContext.switchTenant(id)
-        );
-        if (navResult === "navigated") {
-          this.completed.emit();
-          return;
-        }
-      } else {
-        await this.tenantContext.switchTenant(tenantId);
+      const suffix = environment.tenantHostSuffix ?? "";
+      const slug = parseChurchSlugFromInput(this.churchAddress, suffix);
+      if (!slug) {
+        this.toast.error("Enter a valid church web address or short name.");
+        return;
       }
-      this.toast.success("Invite claimed successfully");
+
+      const tenant = await this.tenantAccess.resolveTargetTenant(slug);
+      if (!tenant) {
+        this.toast.error("We could not find that church. Check the address and try again.");
+        return;
+      }
+
+      if (shouldNavigateToTenantSubdomain()) {
+        const origin = buildTenantOrigin(
+          tenant.slug,
+          suffix,
+          typeof window !== "undefined" ? window.location.protocol : "https:",
+        );
+        window.location.assign(`${origin}/request-access`);
+        return;
+      }
+
+      await this.router.navigate(["/request-access"], { queryParams: { church: tenant.slug } });
       this.completed.emit();
-    } catch (error) {
-      this.toast.error(
-        error instanceof Error ? error.message : "Failed to join church"
-      );
+      this.close.emit();
+    } catch (err) {
+      console.error("Join church navigation failed:", err);
+      this.toast.error("Could not open the church join flow. Try again.");
     } finally {
       this.submitting = false;
     }

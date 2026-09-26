@@ -4,6 +4,11 @@ Major features and milestones for the Prayer App.
 
 ## [Current] - September 2026
 
+### Church access requests replace invite tokens
+- Self-service **request access** per church tenant (`/request-access`, `tenant-access` Edge Function, migrations `20260927120000_tenant_access_requests.sql` and `20260927121000_deprecate_tenant_invites.sql`). Deploy **`tenant-access` before** shipping the client. Set secrets `APP_URL` and `TENANT_HOST_SUFFIX` on the function (see `docs/SETUP.md`).
+- Admins approve or deny in **Admin → Accounts**. `/join/:token` redirects into the request-access flow.
+- Null `tenant_id` on legacy approval rows: **deleted** (not assigned to default-tenant). PCO match: **exact email** (fail closed). Pre-added members get a **one-time name prompt** even when the admin entered a name.
+
 ### Privacy: GDPR-style data export
 - Settings **Download my data** saves a JSON package of the signed-in user’s account, authored prayers, preferences, and memberships across every church they belong to.
 - RPC `export_user_account()` is argument-less and bound to `auth.uid()` (no cross-user / cross-tenant leakage). Inventory mirrors `erase_user_account`.

@@ -327,7 +327,8 @@ Templates are stored in Supabase `email_templates` table:
 - `prayer_answered` - Notification when prayer marked answered
 - `update_approved` - Notification for approved updates
 - `subscriber_welcome` - Welcome to email list
-- `tenant_invite` - Transactional member invite with `/join/:token` link (Admin → Tenant Manager). Seeded by `20260910220000_tenant_invite_email.sql` (apply that migration before relying on the DB template; the app falls back to inline copy if the row is missing). Uses per-tenant Sending identity when `tenantId` is passed to `send-email`.
+- `account_approval_request`, `account_approved`, `account_denied` — church access-request notifications (seeded by `20260927120000_tenant_access_requests.sql` where missing). Admin approval emails use the tenant subdomain login link.
+- Edge Function **`tenant-access`** — authenticated `check_pco`, `join_pco`, and `request` actions for non-members. Requires user JWT. Secrets: `APP_URL` (platform origin), `TENANT_HOST_SUFFIX` (e.g. `prayer.romans8.net`), plus the usual `SUPABASE_*` keys. Deploy with `supabase functions deploy tenant-access --no-verify-jwt` **before** promoting a client build that calls it.
 
 ### Supabase Auth login OTP (Magic Link template)
 

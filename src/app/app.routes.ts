@@ -1,12 +1,13 @@
 import { Routes } from '@angular/router';
 import { adminGuard } from './guards/admin.guard';
 import { siteAuthGuard } from './guards/site-auth.guard';
+import { tenantAccessGuard } from './guards/tenant-access.guard';
 
 export const routes: Routes = [
   {
     path: '',
     loadComponent: () => import('./pages/home/home.component').then(m => m.HomeComponent),
-    canActivate: [siteAuthGuard]
+    canActivate: [siteAuthGuard, tenantAccessGuard]
   },
   {
     path: 'info',
@@ -19,12 +20,12 @@ export const routes: Routes = [
   {
     path: 'admin',
     loadComponent: () => import('./pages/admin/admin.component').then(m => m.AdminComponent),
-    canActivate: [siteAuthGuard, adminGuard],
+    canActivate: [siteAuthGuard, tenantAccessGuard, adminGuard],
   },
   {
     path: 'presentation',
     loadComponent: () => import('./pages/presentation/presentation.component').then(m => m.PresentationComponent),
-    canActivate: [siteAuthGuard],
+    canActivate: [siteAuthGuard, tenantAccessGuard],
   },
   {
     path: 'privacy',
@@ -45,12 +46,23 @@ export const routes: Routes = [
   },
   {
     path: 'join/:token',
-    loadComponent: () => import('./pages/tenant-claim/tenant-claim.component').then(m => m.TenantClaimComponent),
+    loadComponent: () =>
+      import('./pages/join-redirect/join-redirect.component').then(
+        (m) => m.JoinRedirectComponent,
+      ),
+  },
+  {
+    path: 'request-access',
+    loadComponent: () =>
+      import('./pages/request-access/request-access.component').then(
+        (m) => m.RequestAccessComponent,
+      ),
+    canActivate: [siteAuthGuard],
   },
   {
     path: 'church-setup',
     loadComponent: () => import('./pages/church-setup/church-setup.component').then(m => m.ChurchSetupComponent),
-    canActivate: [siteAuthGuard]
+    canActivate: [siteAuthGuard],
   },
   {
     path: '**',

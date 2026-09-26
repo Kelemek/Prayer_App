@@ -95,12 +95,3 @@ export function getAuthRedirectOrigin(): string | undefined {
   return configured ? configured.replace(/\/$/, '') : origin;
 }
 
-/** Full invite claim URL for a tenant. */
-export function buildTenantInviteUrl(slug: string, token: string): string {
-  const base = getTenantOrigin(slug);
-  const trimmedToken = token.trim();
-  if (!base || !trimmedToken) {
-    return '';
-  }
-  return `${base}/join/${encodeURIComponent(trimmedToken)}`;
-}

@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { environment } from '../../environments/environment';
 import {
-  buildTenantInviteUrl,
   getAuthRedirectOrigin,
   getTenantOrigin,
   resolveTenantHostSuffixForPreview,
@@ -43,20 +42,6 @@ describe('app-origin', () => {
   it('getAuthRedirectOrigin uses current tenant host', () => {
     expect(getAuthRedirectOrigin()).toBe('https://cross-pointe.prayer.romans8.net');
   });
-
-  it('buildTenantInviteUrl includes join path', () => {
-    expect(buildTenantInviteUrl('alpha', 'token-123')).toBe(
-      'https://alpha.prayer.romans8.net/join/token-123'
-    );
-  });
-
-  it('buildTenantInviteUrl falls back to platform appUrl when suffix is empty', () => {
-    environment.tenantHostSuffix = '';
-    expect(buildTenantInviteUrl('alpha', 'token-123')).toBe(
-      'https://prayer.romans8.net/join/token-123'
-    );
-  });
-
   it('resolveTenantHostSuffixForPreview prefers tenantHostSuffix', () => {
     expect(resolveTenantHostSuffixForPreview()).toBe('prayer.romans8.net');
   });

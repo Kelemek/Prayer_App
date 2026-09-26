@@ -2,16 +2,6 @@ import { Injectable } from '@angular/core';
 import { SupabaseService } from './supabase.service';
 import type { Tenant, TenantMembership, TenantUserDirectoryRow } from '../types/tenant';
 import { TenantContextService } from './tenant-context.service';
-import { EmailNotificationService } from './email-notification.service';
-import { buildTenantInviteUrl } from '../lib/app-origin';
-import {
-  formatInviteExpiry,
-  InviteEmailSendError,
-  mapTenantInvitePreview,
-  TENANT_INVITE_TEMPLATE_KEY,
-  type CreatedTenantInvite,
-  type TenantInvitePreview,
-} from '../lib/tenant-invite';
 import {
   mergeUsersWithTenantsAndGroups,
   type TenantUserDirectoryGroupMemberRow,
@@ -25,7 +15,6 @@ export class TenantManagementService {
   constructor(
     private supabase: SupabaseService,
     private tenantContext: TenantContextService,
-    private emailNotification: EmailNotificationService
   ) {}
 
   async createTenant(
@@ -57,104 +46,6 @@ export class TenantManagementService {
 
     await this.tenantContext.refresh();
     return tenant as Tenant;
-  }
-
-  async createInvite(tenantId: string, email: string): Promise<CreatedTenantInvite> {
-    const inviterEmail = await this.getCurrentUserEmail();
-    if (!inviterEmail) {
-      throw new Error('You must be logged in to invite members');
-    }
-
-    const inviteeEmail = email.toLowerCase().trim();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await this.supabase.client.rpc('create_tenant_invite', {
-      p_tenant_id: tenantId,
-      p_invitee_email: inviteeEmail,
-      p_invited_by_email: inviterEmail.toLowerCase().trim(),
-      p_expires_at: expiresAt
-    });
-
-    if (error || !data) {
-      throw new Error(error?.message || 'Failed to create invite');
-    }
-
-    const token = data as string;
-    let tenantName = 'this church';
-    let tenantSlug = '';
-    try {
-      const tenant = await this.getTenantNameAndSlug(tenantId);
-      tenantName = tenant.name;
-      tenantSlug = tenant.slug;
-    } catch (lookupError) {
-      console.error('Failed to load tenant for invite email:', lookupError);
-    }
-    const url = buildTenantInviteUrl(tenantSlug, token);
-    const created: CreatedTenantInvite = { token, url };
-
-    try {
-      await this.sendTenantInviteEmail({
-        tenantId,
-        tenantName,
-        inviterEmail: inviterEmail.toLowerCase().trim(),
-        inviteeEmail,
-        expiresAt,
-        joinLink: url,
-      });
-    } catch (sendError) {
-      const message =
-        sendError instanceof Error ? sendError.message : 'Failed to send invite email';
-      throw new InviteEmailSendError(message, token, url);
-    }
-
-    return created;
-  }
-
-  async getInvitePreview(token: string): Promise<TenantInvitePreview | null> {
-    const trimmed = token.trim();
-    if (!trimmed) {
-      return null;
-    }
-    const { data, error } = await this.supabase.client.rpc('get_tenant_invite_preview', {
-      p_token: trimmed,
-    });
-    if (error) {
-      throw new Error(error.message || 'Failed to load invite');
-    }
-    return mapTenantInvitePreview(data);
-  }
-
-  async claimInvite(token: string, displayName: string): Promise<string> {
-    const trimmed = token.trim();
-    if (!trimmed) {
-      throw new Error('Invite not found or already used');
-    }
-
-    const trimmedName = displayName.trim();
-    if (!trimmedName) {
-      throw new Error('Please enter your name');
-    }
-
-    const userEmail = await this.getCurrentUserEmail();
-    if (!userEmail) {
-      throw new Error('You must be logged in to claim an invite');
-    }
-
-    const { data, error } = await this.supabase.client.rpc('claim_tenant_invite', {
-      p_token: trimmed,
-      p_display_name: trimmedName,
-    });
-
-    if (error) {
-      throw new Error(error.message || 'Failed to claim invite');
-    }
-
-    const tenantId = typeof data === 'string' ? data : null;
-    if (!tenantId) {
-      throw new Error('Failed to claim invite');
-    }
-
-    await this.tenantContext.refresh();
-    return tenantId;
   }
 
   async setTenantPlan(tenantId: string, planTier: Tenant['plan_tier'], status: Tenant['plan_status'] = 'active'): Promise<void> {
@@ -292,95 +183,4 @@ export class TenantManagementService {
     return session?.user?.email || null;
   }
 
-  private async getTenantNameAndSlug(tenantId: string): Promise<{ name: string; slug: string }> {
-    const { data, error } = await this.supabase.client
-      .from('tenants')
-      .select('name, slug')
-      .eq('id', tenantId)
-      .maybeSingle();
-    if (error) {
-      throw new Error(error.message || 'Failed to load tenant');
-    }
-    return {
-      name: (data?.name ?? '').trim() || 'this church',
-      slug: (data?.slug ?? '').trim(),
-    };
-  }
-
-  private async sendTenantInviteEmail(options: {
-    tenantId: string;
-    tenantName: string;
-    inviterEmail: string;
-    inviteeEmail: string;
-    expiresAt: string;
-    joinLink: string;
-  }): Promise<void> {
-    const variables = {
-      tenantName: options.tenantName,
-      inviterEmail: options.inviterEmail,
-      inviteeEmail: options.inviteeEmail,
-      expiresAt: formatInviteExpiry(options.expiresAt),
-      joinLink: options.joinLink,
-    };
-    const template = await this.emailNotification.getTemplate(
-      TENANT_INVITE_TEMPLATE_KEY,
-      options.tenantId
-    );
-    let subject: string;
-    let htmlBody: string;
-    let textBody: string;
-    if (template) {
-      subject = this.emailNotification.applyTemplateVariables(template.subject, variables);
-      htmlBody = this.emailNotification.applyTemplateVariables(template.html_body, variables);
-      textBody = this.emailNotification.applyTemplateVariables(template.text_body, variables);
-    } else {
-      subject = `You're invited to join ${options.tenantName}`;
-      htmlBody = this.buildInviteFallbackHtml(variables);
-      textBody = this.buildInviteFallbackText(variables);
-    }
-    await this.emailNotification.sendEmail({
-      to: options.inviteeEmail,
-      subject,
-      htmlBody,
-      textBody,
-      tenantId: options.tenantId,
-    });
-  }
-
-  private buildInviteFallbackHtml(variables: {
-    tenantName: string;
-    inviterEmail: string;
-    inviteeEmail: string;
-    expiresAt: string;
-    joinLink: string;
-  }): string {
-    return `<!DOCTYPE html>
-<html>
-  <head><meta charset="utf-8"></head>
-  <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px;">
-    <h1 style="color:#39704D;">You're invited</h1>
-    <p>${variables.inviterEmail} invited you to join <strong>${variables.tenantName}</strong>.</p>
-    <p>This invite is for <strong>${variables.inviteeEmail}</strong> and expires on ${variables.expiresAt}.</p>
-    <p><a href="${variables.joinLink}" style="display:inline-block;background:#39704D;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;">Join ${variables.tenantName}</a></p>
-    <p style="font-size:13px;color:#6b7280;word-break:break-all;">${variables.joinLink}</p>
-  </body>
-</html>`;
-  }
-
-  private buildInviteFallbackText(variables: {
-    tenantName: string;
-    inviterEmail: string;
-    inviteeEmail: string;
-    expiresAt: string;
-    joinLink: string;
-  }): string {
-    return `You're invited to join ${variables.tenantName}
-
-${variables.inviterEmail} invited you to join ${variables.tenantName}.
-This invite is for ${variables.inviteeEmail} and expires on ${variables.expiresAt}.
-
-Sign in or sign up as that email, then open:
-${variables.joinLink}
-`;
-  }
 }
