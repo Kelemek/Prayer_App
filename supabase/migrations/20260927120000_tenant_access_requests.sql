@@ -460,6 +460,76 @@ $$;
 
 grant execute on function public.deny_tenant_access_request(uuid, text) to authenticated;
 
+-- PCO join membership write (edge calls after server-side PCO match; not client-callable).
+create or replace function public.complete_tenant_pco_join(
+  p_tenant_id uuid,
+  p_user_email text,
+  p_first_name text,
+  p_last_name text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_name text;
+  v_email text := lower(trim(coalesce(p_user_email, '')));
+  v_plan text;
+  v_pco boolean := false;
+begin
+  if v_email = '' then
+    raise exception 'Email is required';
+  end if;
+  v_name := trim(coalesce(p_first_name, '') || ' ' || coalesce(p_last_name, ''));
+  if v_name = '' then
+    raise exception 'Name is required';
+  end if;
+
+  select t.plan_tier into v_plan from public.tenants t where t.id = p_tenant_id;
+  if v_plan is distinct from 'churches' then
+    raise exception 'PCO join is only for church tenants';
+  end if;
+
+  select coalesce(ti.pco_enabled, false) into v_pco
+  from public.tenant_integrations ti
+  where ti.tenant_id = p_tenant_id;
+
+  if not v_pco then
+    raise exception 'Planning Center is not enabled';
+  end if;
+
+  insert into public.tenant_memberships (
+    tenant_id, user_email, role, name, is_active, receive_admin_emails,
+    in_planning_center, planning_center_checked_at, first_login_at
+  )
+  values (
+    p_tenant_id,
+    v_email,
+    'member',
+    v_name,
+    true,
+    false,
+    true,
+    now(),
+    now()
+  )
+  on conflict (tenant_id, user_email) do update
+    set
+      name = excluded.name,
+      is_active = true,
+      is_blocked = false,
+      in_planning_center = true,
+      planning_center_checked_at = now(),
+      first_login_at = coalesce(public.tenant_memberships.first_login_at, now());
+
+  perform public.upsert_user_subscription_free(v_email, v_name);
+end;
+$$;
+
+revoke all on function public.complete_tenant_pco_join(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function public.complete_tenant_pco_join(uuid, text, text, text) to service_role;
+
 create or replace function public.get_tenant_admin_notification_emails(p_tenant_id uuid)
 returns setof text
 language sql

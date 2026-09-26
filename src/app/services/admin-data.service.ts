@@ -1227,43 +1227,6 @@ export class AdminDataService {
     return this.tenantContext.getActiveTenant()?.id || null;
   }
 
-  private isUniqueConstraintError(error: { code?: string; message?: string }): boolean {
-    return error.code === '23505' || /duplicate key|unique constraint/i.test(error.message ?? '');
-  }
-
-  private async ensureTenantMembership(params: {
-    tenantId: string;
-    email: string;
-    name: string;
-  }): Promise<void> {
-    const { error: insertError } = await this.supabase.client
-      .from('tenant_memberships')
-      .insert({
-        user_email: params.email,
-        name: params.name,
-        is_active: true,
-        role: 'member',
-        receive_admin_emails: false,
-        tenant_id: params.tenantId,
-      });
-
-    if (!insertError) {
-      return;
-    }
-    if (!this.isUniqueConstraintError(insertError)) {
-      throw insertError;
-    }
-
-    // Already a member (for example a prior subscriber) — keep their role, just activate.
-    const { error: updateError } = await this.supabase.client
-      .from('tenant_memberships')
-      .update({ is_active: true, name: params.name })
-      .eq('tenant_id', params.tenantId)
-      .eq('user_email', params.email);
-
-    if (updateError) throw updateError;
-  }
-
   private async sendAccountApprovedNotifications(
     request: { email: string; first_name: string; last_name: string },
     tenantId: string

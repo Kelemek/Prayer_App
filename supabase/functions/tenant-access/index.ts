@@ -407,28 +407,15 @@ serve(async (req: Request) => {
       return jsonResponse({ error: 'Name is required' }, 400);
     }
 
-    const { error: upsertError } = await adminClient.from('tenant_memberships').upsert(
-      {
-        tenant_id: tenantId,
-        user_email: callerEmail,
-        role: 'member',
-        name: fullName,
-        is_active: true,
-        receive_admin_emails: false,
-        in_planning_center: true,
-        planning_center_checked_at: new Date().toISOString(),
-        first_login_at: new Date().toISOString(),
-      },
-      { onConflict: 'tenant_id,user_email' },
-    );
-    if (upsertError) {
-      return jsonResponse({ error: upsertError.message }, 500);
-    }
-
-    await adminClient.rpc('upsert_user_subscription_free', {
-      p_email: callerEmail,
-      p_name: fullName,
+    const { error: joinError } = await adminClient.rpc('complete_tenant_pco_join', {
+      p_tenant_id: tenantId,
+      p_user_email: callerEmail,
+      p_first_name: firstName,
+      p_last_name: lastName,
     });
+    if (joinError) {
+      return jsonResponse({ error: joinError.message }, 500);
+    }
 
     try {
       const { data: welcomeTemplate } = await adminClient
