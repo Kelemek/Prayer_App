@@ -620,7 +620,7 @@ describe('LoginComponent', () => {
     comp.codeInputs = { toArray: () => [] } as any;
     await comp.ngOnInit();
     expect(comp.email).toBe('prefilled@example.com');
-  }););
+  });
 
   it('ngOnInit subscribes to requireSiteLogin$ and updates component state', async () => {
     const queryMocks = makeMocks();
@@ -1038,7 +1038,7 @@ describe('LoginComponent', () => {
     comp.email = 'test@x.com';
     await comp.handleResendCode();
     expect(comp.error).toContain('network');
-  }););
+  });
 
   it('verifyMfaCode routes admin users to returnUrl', async () => {
     mocks.adminAuthService.verifyMfaCode = vi.fn(async () => ({ success: true, isAdmin: true }));
@@ -1134,7 +1134,7 @@ describe('LoginComponent', () => {
       mediaQueryListenerCalls[0]({});
       expect((comp as any).isDarkMode).toBe(true);
     }
-  }););
+  });
 
   it('checkEmailSubscriber handles error response with no data array', async () => {
     const comp = makeComponent(mocks);
