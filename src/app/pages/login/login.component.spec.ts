@@ -548,7 +548,7 @@ describe('LoginComponent', () => {
   it('uses fixed 6-digit login code length', () => {
     const comp = makeComponent(mocks);
     expect(comp.codeLength).toBe(6);
-  });););
+  });
 
   it('ngOnDestroy completes the destroy subject', () => {
     const comp = makeComponent(mocks);
