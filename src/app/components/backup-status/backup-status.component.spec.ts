@@ -152,7 +152,7 @@ describe('BackupStatusComponent', () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  it('fetchBackupLogs leaves lists empty when query returns no rows', async () => {
+  it('fetchBackupLogs clears lists when query returns no rows', async () => {
     const chain = mockBackupLogsSelectChain({ data: [], error: null });
     supabaseService.getClient = vi.fn().mockReturnValue({ from: chain.from });
     component.latestBackup = { id: 'old' } as any;
@@ -160,8 +160,8 @@ describe('BackupStatusComponent', () => {
 
     await component.fetchBackupLogs();
 
-    expect(component.latestBackup).toEqual({ id: 'old' });
-    expect(component.allBackups).toEqual([{ id: 'old' }]);
+    expect(component.latestBackup).toBeNull();
+    expect(component.allBackups).toEqual([]);
     expect(toast.error).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -660,6 +660,8 @@ describe('BackupStatusComponent', () => {
     it('should handle empty response', async () => {
       const chain = mockBackupLogsSelectChain({ data: [], error: null });
       mockSupabaseService.getClient = vi.fn().mockReturnValue({ from: chain.from });
+      component.latestBackup = { id: 'old' } as any;
+      component.allBackups = [{ id: 'old' } as any];
 
       await component.fetchBackupLogs();
 

@@ -60,6 +60,15 @@ describe('close-signed-in-personal-rls migration contract', () => {
     expect(ddl).not.toMatch(/with check\s*\(\s*true\s*\)/i);
   });
 
+  it('defines super-admin backup_logs policies and own-row personal_prayers policies', () => {
+    expect(sql).toContain('backup_logs_select_super_admin');
+    expect(sql).toContain('backup_logs_insert_super_admin');
+    expect(sql).toContain('create policy personal_prayers_select_own');
+    expect(sql).toContain('create policy personal_prayers_insert_own');
+    expect(sql).toContain('create policy personal_prayers_update_own');
+    expect(sql).toContain('create policy personal_prayers_delete_own');
+  });
+
   it('drops github_token and defines broadcast exclusion RPC safely', () => {
     expect(sql).toContain('drop column if exists github_token');
     expect(sql).toContain('get_broadcast_excluded_test_account_email');

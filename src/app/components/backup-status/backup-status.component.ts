@@ -558,10 +558,9 @@ export class BackupStatusComponent {
         throw new Error(error.message || "Query failed");
       }
 
-      if (data && data.length > 0) {
-        this.latestBackup = data[0];
-        this.allBackups = data;
-      }
+      const rows = data ?? [];
+      this.latestBackup = rows.length > 0 ? rows[0] : null;
+      this.allBackups = rows;
     } catch (error) {
       console.error("Error fetching backup logs:", error);
       this.toast.error("Failed to load backup logs");

@@ -21,6 +21,43 @@ drop policy if exists "Users can update their own personal prayers" on public.pe
 drop policy if exists "Users can see their own personal prayers" on public.personal_prayers;
 drop policy if exists "Allow all personal_prayers access" on public.personal_prayers;
 
+-- Ensure own-row policies exist (idempotent; prayer-paid already has these from 20260416130000).
+drop policy if exists personal_prayers_select_own on public.personal_prayers;
+create policy personal_prayers_select_own on public.personal_prayers
+  for select to authenticated
+  using (
+    lower(user_email) = public.current_user_email()
+    or public.is_super_admin()
+  );
+
+drop policy if exists personal_prayers_insert_own on public.personal_prayers;
+create policy personal_prayers_insert_own on public.personal_prayers
+  for insert to authenticated
+  with check (
+    lower(user_email) = public.current_user_email()
+    or public.is_super_admin()
+  );
+
+drop policy if exists personal_prayers_update_own on public.personal_prayers;
+create policy personal_prayers_update_own on public.personal_prayers
+  for update to authenticated
+  using (
+    lower(user_email) = public.current_user_email()
+    or public.is_super_admin()
+  )
+  with check (
+    lower(user_email) = public.current_user_email()
+    or public.is_super_admin()
+  );
+
+drop policy if exists personal_prayers_delete_own on public.personal_prayers;
+create policy personal_prayers_delete_own on public.personal_prayers
+  for delete to authenticated
+  using (
+    lower(user_email) = public.current_user_email()
+    or public.is_super_admin()
+  );
+
 revoke all on table public.personal_prayers from public, anon;
 revoke truncate on table public.personal_prayers from authenticated;
 grant select, insert, update, delete on table public.personal_prayers to authenticated;
@@ -49,6 +86,9 @@ drop policy if exists "Allow all updates" on public.backup_logs;
 drop policy if exists "Allow public reads" on public.backup_logs;
 drop policy if exists "Anyone can read backup logs" on public.backup_logs;
 drop policy if exists "Service role can insert backup logs" on public.backup_logs;
+
+drop policy if exists backup_logs_select_super_admin on public.backup_logs;
+drop policy if exists backup_logs_insert_super_admin on public.backup_logs;
 
 create policy backup_logs_select_super_admin on public.backup_logs
   for select to authenticated
