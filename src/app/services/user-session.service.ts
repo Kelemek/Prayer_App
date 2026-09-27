@@ -156,6 +156,22 @@ export class UserSessionService {
       .subscribe(() => {
         void this.reloadSessionForCurrentUser();
       });
+
+    const loading$ = this.tenantContext.loading$;
+    if (!loading$) {
+      return;
+    }
+    loading$
+      .pipe(
+        distinctUntilChanged(),
+        filter((loading) => !loading)
+      )
+      .subscribe(() => {
+        if (this.resolveMembershipTenantId()) {
+          return;
+        }
+        void this.reloadSessionForCurrentUser();
+      });
   }
 
   private async reloadSessionForCurrentUser(): Promise<void> {
@@ -278,6 +294,13 @@ export class UserSessionService {
     }
   }
 
+  private tenantContextIsLoading(): boolean {
+    if (typeof this.tenantContext.isLoading !== 'function') {
+      return false;
+    }
+    return this.tenantContext.isLoading();
+  }
+
   private resolveMembershipTenantId(): string | null {
     return (
       this.tenantContext.getActiveTenant()?.id ??
@@ -292,7 +315,10 @@ export class UserSessionService {
   }> {
     const tenantId = this.resolveMembershipTenantId();
     if (!tenantId) {
-      return { data: null, error: null, pendingTenant: true };
+      if (this.tenantContextIsLoading()) {
+        return { data: null, error: null, pendingTenant: true };
+      }
+      return { data: null, error: null };
     }
     const result = await this.supabase.client
       .from('tenant_memberships')

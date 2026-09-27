@@ -418,6 +418,25 @@ serve(async (req: Request) => {
     }
 
     try {
+      const { data: tenantRow } = await adminClient
+        .from('tenants')
+        .select('slug')
+        .eq('id', tenantId)
+        .maybeSingle();
+      const slug = tenantRow?.slug ?? '';
+      const tenantOrigin = resolveTenantOrigin(slug);
+      const appLink = `${tenantOrigin}/`;
+
+      const { data: membershipRow } = await adminClient
+        .from('tenant_memberships')
+        .select('unsubscribe_token')
+        .eq('tenant_id', tenantId)
+        .eq('user_email', callerEmail)
+        .maybeSingle();
+      const unsubscribeUrl = membershipRow?.unsubscribe_token
+        ? `${tenantOrigin}/unsubscribe?token=${membershipRow.unsubscribe_token}`
+        : '';
+
       const { data: welcomeTemplate } = await adminClient
         .from('email_templates')
         .select('subject, html_body, text_body')
@@ -425,7 +444,13 @@ serve(async (req: Request) => {
         .eq('template_key', 'subscriber_welcome')
         .maybeSingle();
       if (welcomeTemplate) {
-        const vars = { firstName, lastName, email: callerEmail };
+        const vars = {
+          firstName,
+          lastName,
+          email: callerEmail,
+          appLink,
+          unsubscribe_url: unsubscribeUrl,
+        };
         await fetch(`${supabaseUrl}/functions/v1/send-email`, {
           method: 'POST',
           headers: {

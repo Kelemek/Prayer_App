@@ -250,6 +250,7 @@ export class PrayerCommunityService {
     const tenantId = this.getActiveTenantId();
     if (!tenantId) {
       this.errorSubject.next(null);
+      this.loadingSubject.next(false);
       return;
     }
 

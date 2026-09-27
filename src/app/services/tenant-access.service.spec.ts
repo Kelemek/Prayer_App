@@ -64,4 +64,15 @@ describe('TenantAccessService', () => {
     const tenant = await service.resolveTargetTenant('church-b');
     expect(tenant?.id).toBe('t2');
   });
+
+  it('completeProfile throws the database error message', async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { message: 'Membership not found' },
+    });
+
+    await expect(service.completeProfile('t1', 'Ada', 'Lovelace')).rejects.toThrow(
+      'Membership not found',
+    );
+  });
 });

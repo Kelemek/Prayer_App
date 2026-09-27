@@ -86,17 +86,16 @@ describe('AdminSettingsPanelComponent', () => {
     expect(html).not.toContain('github-settings');
   });
 
-  it('security tab documents self-service join above Admin User Management', () => {
+  it('security tab opens with Admin User Management and no join banner', () => {
     const htmlPath = join(
       dirname(fileURLToPath(import.meta.url)),
       'admin-settings-panel.component.html'
     );
     const html = readFileSync(htmlPath, 'utf-8');
     const security = settingsTabContent(html, 'security');
-    const joinCopyAt = security.indexOf('ask to join');
-    const adminUsersAt = security.indexOf('<app-admin-user-management>');
-    expect(joinCopyAt).toBeGreaterThan(-1);
-    expect(joinCopyAt).toBeLessThan(adminUsersAt);
+    expect(security).not.toContain('ask to join');
+    expect(security).not.toContain('prayer.romans8.net');
+    expect(security.indexOf('<app-admin-user-management>')).toBeGreaterThan(-1);
     expect(security).not.toContain('isSuperAdmin');
   });
 

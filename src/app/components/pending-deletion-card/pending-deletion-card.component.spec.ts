@@ -265,10 +265,11 @@ describe('PendingDeletionCardComponent', () => {
       fixture.detectChanges();
       await fixture.whenStable();
 
-      // The button text should change (with regex to handle whitespace)
-      const button = fixture.nativeElement.querySelector('button');
-      expect(button?.textContent).toMatch(/Approving.../);
-      expect(button?.hasAttribute('disabled')).toBe(true);
+      const approveButton = Array.from(fixture.nativeElement.querySelectorAll('button')).find(
+        (el: Element) => /Approving\.\.\./.test(el.textContent ?? ''),
+      );
+      expect(approveButton?.textContent).toMatch(/Approving.../);
+      expect(approveButton?.hasAttribute('disabled')).toBe(true);
     });
 
     it('should hide approve button when showing denial form', async () => {

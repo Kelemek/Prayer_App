@@ -159,7 +159,7 @@ describe('PrayerCommunityService', () => {
     service.loadingSubject.next(true);
     await service.loadPrayers();
     expect(applyFilters).not.toHaveBeenCalled();
-    expect(service.loadingSubject.value).toBe(true);
+    expect(service.loadingSubject.value).toBe(false);
   });
 
   it('loadPrayers uses warm cache and skips db on silent refresh', async () => {

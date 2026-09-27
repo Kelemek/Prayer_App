@@ -36,6 +36,19 @@ describe('parseHost', () => {
     });
   });
 
+  it('recognizes church slugs on localhost when no suffix is configured', () => {
+    const local = {
+      platformHosts: ['localhost', '127.0.0.1'],
+      tenantHostSuffix: '',
+    };
+    expect(parseHost('localhost', local)).toEqual({ kind: 'platform' });
+    expect(parseHost('crosspointe.localhost', local)).toEqual({
+      kind: 'tenant',
+      slug: 'crosspointe',
+    });
+    expect(parseHost('a.b.localhost', local)).toEqual({ kind: 'unknown' });
+  });
+
   it('treats nested subdomains as unknown', () => {
     expect(parseHost('a.b.prayer.romans8.net', config)).toEqual({ kind: 'unknown' });
   });

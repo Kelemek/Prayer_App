@@ -41,6 +41,7 @@ describe('UserSessionService', () => {
     mockTenantContext = {
       getActiveTenant: vi.fn(() => activeTenantSubject.value),
       activeTenant$: activeTenantSubject.asObservable(),
+      isLoading: vi.fn(() => false),
     };
 
     // Create mock for Supabase Service
@@ -981,9 +982,21 @@ describe('UserSessionService', () => {
       eq.mockClear();
       maybeSingle.mockClear();
       mockTenantContext.getActiveTenant.mockReturnValue(null);
+      mockTenantContext.isLoading.mockReturnValue(true);
       localStorage.removeItem('active_tenant_id');
       await service.loadUserSession('test@example.com');
       expect(maybeSingle).not.toHaveBeenCalled();
+    });
+
+    it('publishes a session when tenant loading has finished with no organization', async () => {
+      mockTenantContext.getActiveTenant.mockReturnValue(null);
+      mockTenantContext.isLoading.mockReturnValue(false);
+      localStorage.removeItem('active_tenant_id');
+      service.clearSession();
+
+      await service.loadUserSession('visitor@example.com');
+
+      expect(service.getCurrentSession()?.email).toBe('visitor@example.com');
     });
 
     it('reloads membership when active tenant is set after a deferred load', async () => {
@@ -1000,6 +1013,7 @@ describe('UserSessionService', () => {
       );
 
       activeTenantSubject.next(null);
+      mockTenantContext.isLoading.mockReturnValue(true);
       localStorage.removeItem('active_tenant_id');
       service.clearSession();
 

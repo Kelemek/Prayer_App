@@ -1,0 +1,15 @@
+---
+description: Never mutate prayer-prod Supabase; paid/dev only for applies
+alwaysApply: true
+---
+
+# No changes to prayer-prod
+
+While working in **Prayer_App** (`Kelemek/Prayer_App`):
+
+- **prayer-prod** is Supabase project **`eqiafsygvfaifhoaewxi`**. Treat it as production.
+- **Never apply** migrations, SQL, edge function deploys, secrets, branch merges, or any other writes to prayer-prod.
+- **Reading** prayer-prod (logs, schema, advisors, MCP queries) is allowed when needed for comparison or investigation.
+- **Default target** for applies is **prayer-paid** / dev: **`vjvanphgxtaoxgtxbngf`** (local `environment.ts` Supabase URL), unless the user names a different non-prod project.
+
+If a task would touch both environments, do paid/dev only and say explicitly that prod was skipped.

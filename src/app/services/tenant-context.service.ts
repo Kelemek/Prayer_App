@@ -88,6 +88,10 @@ export class TenantContextService {
     return this.isSuperAdminSubject.value;
   }
 
+  isLoading(): boolean {
+    return this.loadingSubject.value;
+  }
+
   getIsImpersonatingTenant(): boolean {
     const activeTenant = this.getActiveTenant();
     if (!activeTenant || !this.getIsSuperAdmin()) {

@@ -65,7 +65,25 @@ export function parseHost(
     }
   }
 
+  const localSlug = localDevTenantSlug(host);
+  if (localSlug) {
+    return { kind: 'tenant', slug: localSlug };
+  }
+
   return { kind: 'unknown' };
+}
+
+/** `{slug}.localhost` is a church host when no production suffix is configured. */
+function localDevTenantSlug(host: string): string | null {
+  const suffix = '.localhost';
+  if (!host.endsWith(suffix)) {
+    return null;
+  }
+  const prefix = host.slice(0, -suffix.length);
+  if (!prefix || prefix.includes('.') || !isDnsSafeSlugLabel(prefix)) {
+    return null;
+  }
+  return prefix;
 }
 
 export function isTenantSlugHost(parsed: ParsedHost): parsed is { kind: 'tenant'; slug: string } {

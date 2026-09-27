@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef, ViewRef } from '@angular/core';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { LoginPageLayoutComponent } from '../../components/login-page-layout/login-page-layout.component';
 import { LoginHeaderComponent } from '../../components/login-header/login-header.component';
@@ -35,7 +35,7 @@ import { switchTenantWithNavigation } from '../../lib/tenant-navigation';
       />
 
       @if (phase === 'loading') {
-        <p class="text-center text-white text-sm">Loading…</p>
+        <p class="text-center text-gray-600 dark:text-gray-400 text-sm">Loading…</p>
       }
 
       @if (phase === 'error') {
@@ -60,10 +60,10 @@ import { switchTenantWithNavigation } from '../../lib/tenant-navigation';
       @if (phase === 'pending_approval') {
         <app-login-account-status kind="pending_approval" />
         <div class="mt-4 flex flex-col gap-2 text-center">
-          <button type="button" class="text-sm text-white underline" (click)="signOut()">
+          <button type="button" class="text-sm text-gray-700 dark:text-gray-300 underline" (click)="signOut()">
             Sign out
           </button>
-          <a [href]="platformHome" class="text-sm text-emerald-100 underline">Platform home</a>
+          <a [href]="platformHome" class="text-sm text-blue-700 dark:text-blue-400 underline">Platform home</a>
         </div>
       }
 
@@ -222,10 +222,19 @@ export class RequestAccessComponent implements OnInit {
         await this.finishAsMember();
       }
     } catch (err) {
-      this.formError = err instanceof Error ? err.message : 'Something went wrong.';
+      const message = messageFromUnknown(err, 'Something went wrong.');
+      if (message === 'Membership not found') {
+        this.joinViaPcoAfterName = false;
+        this.phase = 'request';
+        this.formError = 'Tell us how you are connected to this church, then submit again.';
+      } else {
+        this.formError = message;
+      }
     } finally {
       this.submitting = false;
-      this.cdr.markForCheck();
+      if (!(this.cdr as ViewRef).destroyed) {
+        this.cdr.detectChanges();
+      }
     }
   }
 
@@ -245,4 +254,17 @@ export class RequestAccessComponent implements OnInit {
     await this.adminAuth.logout();
     await this.router.navigate(['/login']);
   }
+}
+
+function messageFromUnknown(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.message.trim()) {
+    return err.message;
+  }
+  if (err && typeof err === 'object' && 'message' in err) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) {
+      return message;
+    }
+  }
+  return fallback;
 }

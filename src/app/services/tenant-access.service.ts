@@ -115,7 +115,7 @@ export class TenantAccessService {
       p_last_name: lastName,
     });
     if (error) {
-      throw error;
+      throw new Error(error.message || 'Could not save your name.');
     }
   }
 

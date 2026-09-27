@@ -81,19 +81,6 @@ describe('PendingAccountApprovalCardComponent', () => {
       expect(screen.getByText(/Email: test@example.com/)).toBeTruthy();
     });
 
-    it('should display pending badge', async () => {
-      await render(PendingAccountApprovalCardComponent, {
-        componentProperties: {
-          request: mockRequest
-        },
-        providers: [
-          { provide: SupabaseService, useValue: mockSupabaseService }
-        ]
-      });
-
-      expect(screen.getByText('Pending')).toBeTruthy();
-    });
-
     it('should display formatted request date', async () => {
       await render(PendingAccountApprovalCardComponent, {
         componentProperties: {

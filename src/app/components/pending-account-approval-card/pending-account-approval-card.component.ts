@@ -20,21 +20,16 @@ export interface AccountApprovalRequest {
   template: `
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 mb-4">
       <!-- Header -->
-      <div class="flex items-start justify-between mb-4">
-        <div class="flex-1">
-          <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">
-            {{ request.first_name }} {{ request.last_name }}
-          </h3>
-          <div class="text-sm text-gray-500 dark:text-gray-400 space-y-1">
-            <p class="break-words">Email: {{ request.email }}</p>
-            <p class="text-xs text-gray-400 dark:text-gray-500">
-              Requested: {{ formatDate(request.created_at) }}
-            </p>
-          </div>
+      <div class="mb-4">
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">
+          {{ request.first_name }} {{ request.last_name }}
+        </h3>
+        <div class="text-sm text-gray-500 dark:text-gray-400 space-y-1">
+          <p class="break-words">Email: {{ request.email }}</p>
+          <p class="text-xs text-gray-400 dark:text-gray-500">
+            Requested: {{ formatDate(request.created_at) }}
+          </p>
         </div>
-        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400">
-          Pending
-        </span>
       </div>
 
       <!-- Affiliation Reason -->
@@ -46,20 +41,7 @@ export interface AccountApprovalRequest {
       }
 
       <!-- Action Buttons -->
-      <div class="flex gap-2 flex-wrap">
-        @if (!isDenying) {
-        <button
-          (click)="handleApprove()"
-          [disabled]="isApproving"
-          class="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
-          {{ isApproving ? 'Approving...' : 'Approve' }}
-        </button>
-        }
-
+      <div class="flex flex-wrap justify-end gap-2">
         @if (!isDenying) {
         <button
           (click)="isDenying = true"
@@ -70,6 +52,19 @@ export interface AccountApprovalRequest {
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
           Deny
+        </button>
+        }
+
+        @if (!isDenying) {
+        <button
+          (click)="handleApprove()"
+          [disabled]="isApproving"
+          class="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          {{ isApproving ? 'Approving...' : 'Approve' }}
         </button>
         }
       </div>

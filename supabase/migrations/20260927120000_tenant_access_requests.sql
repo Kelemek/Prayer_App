@@ -122,6 +122,7 @@ declare
   v_tenant_name text;
   v_pco boolean := false;
   v_membership public.tenant_memberships%rowtype;
+  v_has_membership boolean := false;
   v_pending boolean := false;
   v_name text;
 begin
@@ -170,7 +171,11 @@ begin
     and tm.user_email = v_email
   limit 1;
 
-  if found and coalesce(v_membership.is_blocked, false) then
+  -- SELECT EXISTS below always returns a row and would set FOUND true even
+  -- when this user has no membership, which sent non-members to needs_name.
+  v_has_membership := found;
+
+  if v_has_membership and coalesce(v_membership.is_blocked, false) then
     return jsonb_build_object('state', 'blocked', 'tenant_name', v_tenant_name, 'pco_enabled', v_pco);
   end if;
 
@@ -185,7 +190,7 @@ begin
     return jsonb_build_object('state', 'pending', 'tenant_name', v_tenant_name, 'pco_enabled', v_pco);
   end if;
 
-  if found and coalesce(v_membership.is_active, true) = true then
+  if v_has_membership and coalesce(v_membership.is_active, true) = true then
     v_name := nullif(trim(v_membership.name), '');
     if v_membership.first_login_at is not null then
       return jsonb_build_object(
@@ -410,8 +415,11 @@ begin
     updated_at = now()
   where id = p_request_id;
 
-  select to_jsonb(r) into strict v_req from public.account_approval_requests r where r.id = p_request_id;
-  return v_req;
+  return (
+    select to_jsonb(r)
+    from public.account_approval_requests r
+    where r.id = p_request_id
+  );
 end;
 $$;
 
@@ -453,8 +461,11 @@ begin
     updated_at = now()
   where id = p_request_id;
 
-  select to_jsonb(r) into strict v_req from public.account_approval_requests r where r.id = p_request_id;
-  return v_req;
+  return (
+    select to_jsonb(r)
+    from public.account_approval_requests r
+    where r.id = p_request_id
+  );
 end;
 $$;
 
