@@ -1,0 +1,15 @@
+---
+description: GitHub CLI must use the kelemek account for Prayer_App
+alwaysApply: true
+---
+
+# GitHub CLI account (Prayer_App)
+
+For **`gh`** commands in this repo (`pr pr merge`, `pr create`, `api`, etc.):
+
+- Use the **`kelemek`** GitHub account, not **`cp-church`**.
+- Before merging PRs or other write operations, run `gh auth status` and confirm the active user is **`kelemek`** with push/merge access to **`Kelemek/Prayer_App`**.
+
+If only `cp-church` is logged in, `gh pr merge` fails with missing `MergePullRequest` permission. The user must add `kelemek` once via `gh auth login`, then `gh auth switch -u kelemek`.
+
+Git push may use different credentials than `gh`; do not assume they match.
