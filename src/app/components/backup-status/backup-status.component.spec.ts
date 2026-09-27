@@ -11,6 +11,15 @@ const createMockFile = (content: string | object, filename: string = 'backup.jso
   return mockFile;
 };
 
+function signedInAuth(accessToken = 'user-jwt') {
+  return {
+    getSession: vi.fn().mockResolvedValue({
+      data: { session: { access_token: accessToken } },
+      error: null,
+    }),
+  };
+}
+
 const makeMockSupabaseClient = (overrides: any = {}) => {
   const insert = vi.fn().mockResolvedValue({});
   const upsert = vi.fn().mockResolvedValue({});
@@ -28,6 +37,7 @@ const makeMockSupabaseClient = (overrides: any = {}) => {
 
   return {
     from,
+    auth: signedInAuth(),
     insert,
     upsert,
     select,
@@ -284,10 +294,15 @@ describe('BackupStatusComponent', () => {
     expect(component.restoring).toBe(false);
   });
 
-  it('onConfirmBackup does not request verification_codes with the publishable key', async () => {
+  it('onConfirmBackup reads tables with the signed-in token and skips verification_codes', async () => {
     const urls: string[] = [];
-    fetchSpy.mockImplementation(async (url: string) => {
+    const authorizations: string[] = [];
+    fetchSpy.mockImplementation(async (url: string, init?: RequestInit) => {
       urls.push(String(url));
+      const headers = init?.headers as Record<string, string> | undefined;
+      if (headers?.Authorization) {
+        authorizations.push(headers.Authorization);
+      }
       if (String(url).includes('/backup_tables')) {
         return {
           ok: true,
@@ -315,6 +330,28 @@ describe('BackupStatusComponent', () => {
 
     expect(urls.some((url) => url.includes('verification_codes'))).toBe(false);
     expect(urls.some((url) => url.includes('/rest/v1/prayers'))).toBe(true);
+    expect(authorizations.length).toBeGreaterThan(0);
+    expect(authorizations.every((value) => value === 'Bearer user-jwt')).toBe(true);
+  });
+
+  it('onConfirmBackup fails when there is no signed-in session', async () => {
+    const client = makeMockSupabaseClient({
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: null },
+          error: null,
+        }),
+      },
+    });
+    supabaseService.getClient = vi.fn().mockReturnValue(client);
+
+    await component.onConfirmBackup();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.stringContaining('Sign in is required to create a backup')
+    );
+    expect(component.backingUp).toBe(false);
   });
 
   it('onConfirmRestore skips verification_codes', async () => {
@@ -550,6 +587,7 @@ describe('BackupStatusComponent', () => {
       getSupabaseUrl: vi.fn().mockReturnValue('https://test.supabase.co'),
       getPublishableKey: vi.fn().mockReturnValue('test-key'),
       getClient: vi.fn().mockReturnValue({
+        auth: signedInAuth(),
         from: vi.fn().mockReturnValue({
           insert: vi.fn().mockReturnValue({ error: null }),
           select: vi.fn().mockReturnValue({ eq: vi.fn() }),

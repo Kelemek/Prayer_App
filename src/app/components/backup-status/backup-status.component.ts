@@ -7,7 +7,7 @@ import { AdminSectionLoadingComponent } from "../admin-section-loading/admin-sec
 import { AdminCollapsibleSectionComponent } from "../admin-collapsible-section/admin-collapsible-section.component";
 import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
 
-/** Publishable-key backups must not read or restore verification codes. */
+/** Verification codes are operational secrets and are never included in a backup. */
 const BACKUP_SKIP_TABLES = new Set(["verification_codes"]);
 
 interface BackupLog {
@@ -597,6 +597,25 @@ export class BackupStatusComponent {
     this.showBackupConfirmDialog = true;
   }
 
+  /**
+   * PostgREST headers for a signed-in backup.
+   * `apikey` identifies the project. `Authorization` must be the session
+   * access token so the request runs as `authenticated` and RLS returns
+   * personal rows. The publishable key as Bearer would run as anon.
+   */
+  private async signedInRestHeaders(): Promise<Record<string, string>> {
+    const { data, error } = await this.supabaseService.getClient().auth.getSession();
+    const token = data?.session?.access_token;
+    if (error || !token) {
+      throw new Error("Sign in is required to create a backup");
+    }
+    return {
+      apikey: this.supabaseService.getPublishableKey(),
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+  }
+
   async onConfirmBackup(): Promise<void> {
     this.showBackupConfirmDialog = false;
 
@@ -604,7 +623,7 @@ export class BackupStatusComponent {
     try {
       // Auto-discover tables from the database
       const supabaseUrl = this.supabaseService.getSupabaseUrl();
-      const supabaseKey = this.supabaseService.getPublishableKey();
+      const restHeaders = await this.signedInRestHeaders();
 
       let tables: string[];
 
@@ -616,11 +635,7 @@ export class BackupStatusComponent {
         const tableResponse = await fetch(
           `${supabaseUrl}/rest/v1/backup_tables?${tableParams.toString()}`,
           {
-            headers: {
-              apikey: supabaseKey,
-              Authorization: `Bearer ${supabaseKey}`,
-              "Content-Type": "application/json",
-            },
+            headers: restHeaders,
           }
         );
 
@@ -686,11 +701,7 @@ export class BackupStatusComponent {
           const response = await fetch(
             `${supabaseUrl}/rest/v1/${table}?${tableParams.toString()}`,
             {
-              headers: {
-                apikey: supabaseKey,
-                Authorization: `Bearer ${supabaseKey}`,
-                "Content-Type": "application/json",
-              },
+              headers: restHeaders,
             }
           );
 
