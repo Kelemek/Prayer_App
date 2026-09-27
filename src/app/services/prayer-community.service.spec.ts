@@ -373,6 +373,38 @@ describe('PrayerCommunityService', () => {
     await expect(service.getMemberPrayedForCountsBatch([])).resolves.toEqual({});
   });
 
+  it('getMemberPrayedForCountsBatch returns empty without active tenant', async () => {
+    const { service } = createService({ tenantId: null });
+    await expect(service.getMemberPrayedForCountsBatch(['person-1'])).resolves.toEqual({});
+    expect(fetchMemberPrayedForCountsBatch).not.toHaveBeenCalled();
+  });
+
+  it('getMemberPrayerUpdatesBatch returns empty without active tenant', async () => {
+    const { service } = createService({ tenantId: null });
+    await expect(service.getMemberPrayerUpdatesBatch(['person-1'])).resolves.toEqual({});
+    expect(fetchMemberPrayerUpdatesBatch).not.toHaveBeenCalled();
+  });
+
+  it('getMemberPrayerUpdates returns empty without active tenant', async () => {
+    const { service } = createService({ tenantId: null });
+    await expect(service.getMemberPrayerUpdates('person-1')).resolves.toEqual([]);
+    expect(fetchMemberPrayerUpdatesForPerson).not.toHaveBeenCalled();
+  });
+
+  it('incrementMemberPrayedFor returns null without active tenant', async () => {
+    const { service } = createService({ tenantId: null });
+    await expect(service.incrementMemberPrayedFor('person-1')).resolves.toBeNull();
+    expect(rpcIncrementMemberPrayedFor).not.toHaveBeenCalled();
+  });
+
+  it('addMemberPrayerUpdate returns false without active tenant', async () => {
+    const { service } = createService({ tenantId: null });
+    await expect(
+      service.addMemberPrayerUpdate('person-1', 'Ann', 'x', 'Bob')
+    ).resolves.toBe(false);
+    expect(insertMemberPrayerUpdateRow).not.toHaveBeenCalled();
+  });
+
   it('getMemberPrayedForCountsBatch caches rpc results', async () => {
     vi.mocked(fetchMemberPrayedForCountsBatch).mockResolvedValue({
       data: [{ person_id: 'person-1', prayed_for_count: 3 }],
@@ -381,6 +413,11 @@ describe('PrayerCommunityService', () => {
     const { service } = createService();
     const counts = await service.getMemberPrayedForCountsBatch(['person-1']);
     expect(counts['person-1']).toBe(3);
+    expect(fetchMemberPrayedForCountsBatch).toHaveBeenCalledWith(
+      expect.anything(),
+      'tenant-1',
+      ['person-1']
+    );
   });
 
   it('getMemberPrayerUpdatesBatch returns grouped updates', async () => {

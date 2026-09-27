@@ -33,11 +33,15 @@ describe('prayer-member-updates', () => {
       content: 'x',
       is_answered: true,
     });
-    expect(buildMemberPrayerUpdateInsertRow('p1', 'c', true)).toEqual({
+    expect(buildMemberPrayerUpdateInsertRow('tenant-1', 'p1', 'c', true)).toEqual({
+      tenant_id: 'tenant-1',
       person_id: 'p1',
       content: 'c',
       is_answered: true,
     });
+    expect(buildMemberPrayerUpdateInsertRow('tenant-1', 'p1', 'c', true)).not.toHaveProperty(
+      'author_email'
+    );
   });
 
   it('cache helpers', () => {

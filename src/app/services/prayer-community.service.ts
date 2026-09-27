@@ -55,16 +55,16 @@ import {
   updateMemberPrayerUpdateRow,
 } from '../lib/prayer-community-db';
 import {
-  MEMBER_PRAYER_UPDATES_CACHE_KEY,
   groupMemberPrayerUpdatesByPersonId,
   mapMemberPrayerUpdateRow,
   memberPrayerCacheKeysToInvalidate,
+  memberPrayerUpdatesCacheKey,
+  memberPrayedForCountsCacheKey,
   memberUpdatesCacheForPerson,
   writeMemberUpdatesCacheForPerson,
   trimMemberPersonId,
 } from '../lib/prayer-member-updates';
 import {
-  MEMBER_PRAYED_FOR_COUNTS_CACHE_KEY,
   memberPrayedForCountsFromRows,
   writeMemberPrayedForCountToCache,
 } from '../lib/prayer-member-pray-for';
@@ -565,18 +565,20 @@ export class PrayerCommunityService {
     personIds: string[]
   ): Promise<Record<string, number>> {
     try {
-      if (personIds.length === 0) {
+      const tenantId = this.getActiveTenantId();
+      if (!tenantId || personIds.length === 0) {
         return {};
       }
 
       const { data, error } = await fetchMemberPrayedForCountsBatch(
         this.supabase.client,
+        tenantId,
         personIds
       );
       if (error) throw error;
 
       const countsMap = memberPrayedForCountsFromRows(data || []);
-      this.cache.set(MEMBER_PRAYED_FOR_COUNTS_CACHE_KEY, countsMap);
+      this.cache.set(memberPrayedForCountsCacheKey(tenantId), countsMap);
       return countsMap;
     } catch (error) {
       console.error('Error fetching batch member prayed-for counts:', error);
@@ -588,18 +590,20 @@ export class PrayerCommunityService {
     personIds: string[]
   ): Promise<Record<string, ReturnType<typeof mapMemberPrayerUpdateRow>[]>> {
     try {
-      if (personIds.length === 0) {
+      const tenantId = this.getActiveTenantId();
+      if (!tenantId || personIds.length === 0) {
         return {};
       }
 
       const { data, error } = await fetchMemberPrayerUpdatesBatch(
         this.supabase.client,
+        tenantId,
         personIds
       );
       if (error) throw error;
 
       const updatesMap = groupMemberPrayerUpdatesByPersonId(data || []);
-      this.cache.set(MEMBER_PRAYER_UPDATES_CACHE_KEY, updatesMap);
+      this.cache.set(memberPrayerUpdatesCacheKey(tenantId), updatesMap);
       return updatesMap;
     } catch (error) {
       console.error('Error fetching batch member prayer updates:', error);
@@ -611,7 +615,13 @@ export class PrayerCommunityService {
     personId: string
   ): Promise<ReturnType<typeof mapMemberPrayerUpdateRow>[]> {
     try {
-      const cachedUpdates = this.cache.get(MEMBER_PRAYER_UPDATES_CACHE_KEY) as
+      const tenantId = this.getActiveTenantId();
+      if (!tenantId) {
+        return [];
+      }
+
+      const cacheKey = memberPrayerUpdatesCacheKey(tenantId);
+      const cachedUpdates = this.cache.get(cacheKey) as
         | Record<string, ReturnType<typeof mapMemberPrayerUpdateRow>[]>
         | undefined;
       const cachedForPerson = memberUpdatesCacheForPerson(cachedUpdates, personId);
@@ -621,6 +631,7 @@ export class PrayerCommunityService {
 
       const { data, error } = await fetchMemberPrayerUpdatesForPerson(
         this.supabase.client,
+        tenantId,
         personId
       );
       if (error) throw error;
@@ -628,7 +639,7 @@ export class PrayerCommunityService {
       const updates = (data || []).map((u) => mapMemberPrayerUpdateRow(u));
 
       this.cache.set(
-        MEMBER_PRAYER_UPDATES_CACHE_KEY,
+        cacheKey,
         writeMemberUpdatesCacheForPerson(cachedUpdates, personId, updates)
       );
 
@@ -641,13 +652,15 @@ export class PrayerCommunityService {
 
   async incrementMemberPrayedFor(personId: string): Promise<number | null> {
     try {
+      const tenantId = this.getActiveTenantId();
       const trimmedId = trimMemberPersonId(personId);
-      if (!trimmedId) {
+      if (!tenantId || !trimmedId) {
         return null;
       }
 
       const { data: newCount, error } = await rpcIncrementMemberPrayedFor(
         this.supabase.client,
+        tenantId,
         trimmedId
       );
       if (error) throw error;
@@ -655,10 +668,11 @@ export class PrayerCommunityService {
       const count = parsePrayedForRpcCount(newCount);
       if (count === null) return null;
 
+      const countsCacheKey = memberPrayedForCountsCacheKey(tenantId);
       this.cache.set(
-        MEMBER_PRAYED_FOR_COUNTS_CACHE_KEY,
+        countsCacheKey,
         writeMemberPrayedForCountToCache(
-          this.cache.get(MEMBER_PRAYED_FOR_COUNTS_CACHE_KEY) as Record<string, number> | null,
+          this.cache.get(countsCacheKey) as Record<string, number> | null,
           trimmedId,
           count
         )
@@ -683,10 +697,15 @@ export class PrayerCommunityService {
     if (!this.connectivity.requireOnline('add a member prayer update')) {
       return false;
     }
+    const tenantId = this.requireActiveTenantId('add a member prayer update');
+    if (!tenantId) {
+      return false;
+    }
     return runMemberPrayerCacheMutation(
       async () => {
         const { error } = await insertMemberPrayerUpdateRow(
           this.supabase.client,
+          tenantId,
           personId,
           content,
           isAnswered
@@ -695,7 +714,7 @@ export class PrayerCommunityService {
           throw error;
         }
       },
-      () => this.invalidateMemberPrayerCaches(listId),
+      () => this.invalidateMemberPrayerCaches(listId, tenantId),
       (message) => this.toast.success(message),
       (message) => this.toast.error(message),
       {
@@ -714,17 +733,25 @@ export class PrayerCommunityService {
     if (!this.connectivity.requireOnline('delete a member prayer update')) {
       return false;
     }
+    const tenantId = this.requireActiveTenantId('delete a member prayer update');
+    if (!tenantId) {
+      return false;
+    }
     return runMemberPrayerCacheMutation(
       async () => {
-        const { error } = await deleteMemberPrayerUpdateRow(
+        const { error, affected } = await deleteMemberPrayerUpdateRow(
           this.supabase.client,
+          tenantId,
           updateId
         );
         if (error) {
           throw error;
         }
+        if (affected < 1) {
+          throw new Error('Member prayer update not found or not allowed');
+        }
       },
-      () => this.invalidateMemberPrayerCaches(listId),
+      () => this.invalidateMemberPrayerCaches(listId, tenantId),
       (message) => this.toast.success(message),
       (message) => this.toast.error(message),
       {
@@ -744,18 +771,26 @@ export class PrayerCommunityService {
     if (!this.connectivity.requireOnline('update a member prayer update')) {
       return false;
     }
+    const tenantId = this.requireActiveTenantId('update a member prayer update');
+    if (!tenantId) {
+      return false;
+    }
     return runMemberPrayerCacheMutation(
       async () => {
-        const { error } = await updateMemberPrayerUpdateRow(
+        const { error, affected } = await updateMemberPrayerUpdateRow(
           this.supabase.client,
+          tenantId,
           updateId,
           updates
         );
         if (error) {
           throw error;
         }
+        if (affected < 1) {
+          throw new Error('Member prayer update not found or not allowed');
+        }
       },
-      () => this.invalidateMemberPrayerCaches(listId),
+      () => this.invalidateMemberPrayerCaches(listId, tenantId),
       (message) => this.toast.success(message),
       (message) => this.toast.error(message),
       {
@@ -766,9 +801,13 @@ export class PrayerCommunityService {
     );
   }
 
-  private invalidateMemberPrayerCaches(listId?: string): void {
-    for (const key of memberPrayerCacheKeysToInvalidate(listId)) {
+  private invalidateMemberPrayerCaches(listId?: string, tenantId?: string | null): void {
+    const tid = tenantId ?? this.getActiveTenantId();
+    for (const key of memberPrayerCacheKeysToInvalidate(listId, tid)) {
       this.cache.invalidate(key);
+    }
+    if (tid) {
+      this.cache.invalidate(memberPrayedForCountsCacheKey(tid));
     }
   }
 

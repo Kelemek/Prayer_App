@@ -9,6 +9,12 @@ import {
   insertCommunityPrayerRowNoReturning,
   insertTenantMembershipMemberRow,
   updateCommunityPrayerStatusRow,
+  fetchMemberPrayerUpdatesBatch,
+  fetchMemberPrayedForCountsBatch,
+  insertMemberPrayerUpdateRow,
+  deleteMemberPrayerUpdateRow,
+  updateMemberPrayerUpdateRow,
+  rpcIncrementMemberPrayedFor,
 } from './prayer-community-db';
 
 function queryChain(
@@ -142,5 +148,43 @@ describe('prayer-community-db', () => {
       't1'
     );
     expect(result.data).toHaveLength(1);
+  });
+
+  it('member prayer helpers scope by tenant_id', async () => {
+    const chain: Record<string, unknown> = {};
+    chain.eq = vi.fn(() => chain);
+    chain.in = vi.fn(() => chain);
+    chain.select = vi.fn(() => chain);
+    chain.insert = vi.fn(() => chain);
+    chain.update = vi.fn(() => chain);
+    chain.delete = vi.fn(() => chain);
+    chain.order = vi.fn().mockResolvedValue({ data: [], error: null });
+    chain.single = vi.fn().mockResolvedValue({ data: null, error: null });
+
+    const client = {
+      from: vi.fn(() => chain),
+      rpc: vi.fn().mockResolvedValue({ data: 1, error: null }),
+    };
+
+    await fetchMemberPrayerUpdatesBatch(client as never, 'tenant-a', ['p1']);
+    expect(chain.eq).toHaveBeenCalledWith('tenant_id', 'tenant-a');
+
+    await fetchMemberPrayedForCountsBatch(client as never, 'tenant-a', ['p1']);
+    expect(chain.eq).toHaveBeenCalledWith('tenant_id', 'tenant-a');
+
+    await insertMemberPrayerUpdateRow(client as never, 'tenant-a', 'p1', 'c', false);
+    expect(chain.insert).toHaveBeenCalled();
+
+    await deleteMemberPrayerUpdateRow(client as never, 'tenant-a', 'u1');
+    expect(chain.eq).toHaveBeenCalledWith('tenant_id', 'tenant-a');
+
+    await updateMemberPrayerUpdateRow(client as never, 'tenant-a', 'u1', { content: 'x' });
+    expect(chain.eq).toHaveBeenCalledWith('tenant_id', 'tenant-a');
+
+    await rpcIncrementMemberPrayedFor(client as never, 'tenant-a', 'p1');
+    expect(client.rpc).toHaveBeenCalledWith('increment_member_prayed_for_count', {
+      p_tenant_id: 'tenant-a',
+      p_person_id: 'p1',
+    });
   });
 });
