@@ -1,2 +1,4 @@
 *
 !.gitignore
+!rls-sweep-verify/
+!rls-sweep-verify/**
