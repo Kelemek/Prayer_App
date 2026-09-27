@@ -330,9 +330,11 @@ export async function fetchPrayerUpdateRowForDeletionNotify(
 
 export async function rpcIncrementMemberPrayedFor(
   client: SupabaseClient,
+  tenantId: string,
   personId: string
 ): Promise<{ data: unknown; error: unknown }> {
   const result = await client.rpc('increment_member_prayed_for_count', {
+    p_tenant_id: tenantId,
     p_person_id: personId,
   });
   return { data: result.data, error: result.error };
@@ -340,13 +342,14 @@ export async function rpcIncrementMemberPrayedFor(
 
 export async function insertMemberPrayerUpdateRow(
   client: SupabaseClient,
+  tenantId: string,
   personId: string,
   content: string,
   isAnswered: boolean
 ): Promise<{ error: unknown }> {
   const result = await client
     .from('member_prayer_updates')
-    .insert(buildMemberPrayerUpdateInsertRow(personId, content, isAnswered))
+    .insert(buildMemberPrayerUpdateInsertRow(tenantId, personId, content, isAnswered))
     .select()
     .single();
   return { error: result.error };
@@ -354,32 +357,42 @@ export async function insertMemberPrayerUpdateRow(
 
 export async function deleteMemberPrayerUpdateRow(
   client: SupabaseClient,
+  tenantId: string,
   updateId: string
-): Promise<{ error: unknown }> {
-  const result = await client.from('member_prayer_updates').delete().eq('id', updateId);
-  return { error: result.error };
+): Promise<{ error: unknown; affected: number }> {
+  const result = await client
+    .from('member_prayer_updates')
+    .delete()
+    .eq('id', updateId)
+    .eq('tenant_id', tenantId)
+    .select('id');
+  return { error: result.error, affected: result.data?.length ?? 0 };
 }
 
 export async function updateMemberPrayerUpdateRow(
   client: SupabaseClient,
+  tenantId: string,
   updateId: string,
   updates: Partial<PrayerUpdate>
-): Promise<{ error: unknown }> {
+): Promise<{ error: unknown; affected: number }> {
   const result = await client
     .from('member_prayer_updates')
     .update(buildMemberPrayerUpdatePatch(updates))
     .eq('id', updateId)
-    .select();
-  return { error: result.error };
+    .eq('tenant_id', tenantId)
+    .select('id');
+  return { error: result.error, affected: result.data?.length ?? 0 };
 }
 
 export async function fetchMemberPrayerUpdatesBatch(
   client: SupabaseClient,
+  tenantId: string,
   personIds: string[]
 ): Promise<{ data: MemberPrayerUpdateRow[] | null; error: unknown }> {
   const result = await client
     .from('member_prayer_updates')
     .select('id, person_id, content, created_at, updated_at, is_answered')
+    .eq('tenant_id', tenantId)
     .in('person_id', personIds)
     .order('created_at', { ascending: true });
   return { data: result.data as MemberPrayerUpdateRow[] | null, error: result.error };
@@ -387,11 +400,13 @@ export async function fetchMemberPrayerUpdatesBatch(
 
 export async function fetchMemberPrayerUpdatesForPerson(
   client: SupabaseClient,
+  tenantId: string,
   personId: string
 ): Promise<{ data: MemberPrayerUpdateRow[] | null; error: unknown }> {
   const result = await client
     .from('member_prayer_updates')
     .select('id, person_id, content, created_at, updated_at, is_answered')
+    .eq('tenant_id', tenantId)
     .eq('person_id', personId)
     .order('created_at', { ascending: true });
   return { data: result.data as MemberPrayerUpdateRow[] | null, error: result.error };
@@ -399,6 +414,7 @@ export async function fetchMemberPrayerUpdatesForPerson(
 
 export async function fetchMemberPrayedForCountsBatch(
   client: SupabaseClient,
+  tenantId: string,
   personIds: string[]
 ): Promise<{
   data: Array<{ person_id: string; prayed_for_count: number }> | null;
@@ -407,6 +423,7 @@ export async function fetchMemberPrayedForCountsBatch(
   const result = await client
     .from('member_prayed_for_counts')
     .select('person_id, prayed_for_count')
+    .eq('tenant_id', tenantId)
     .in('person_id', personIds);
   return { data: result.data, error: result.error };
 }

@@ -1,0 +1,46 @@
+RLS acceptance run 2026-09-27T03:05:42Z UTC
+Host: 127.0.0.1:54322 (local Docker only)
+
+=== §7.1 structure (postgres) ===
+PASS | 7.1.1 broad/anon policies | 0 rows
+PASS | 7.1.2 anon table grants | exactly 2 ibcd catalog tables
+PASS | 7.1.3 authenticated TRUNCATE | 0 rows
+PASS | 7.1.4 anon definer RPC count | 16 functions
+PASS | 7.1.5 service-only RPCs | 9/9 auth=false svc=true
+PASS | 7.1.6 email-trust RPC patterns | 0 rows
+PASS | 7.1.7 member_prayed_for_counts PK | PRIMARY KEY (tenant_id, person_id)
+PASS | 7.1.7 tenant_id/author_email columns | tenant_id|NO;author_email|YES;tenant_id|YES;
+
+=== §7.2 anon ===
+PASS | 7.2.1 anon select tenants | ERROR:  permission denied for table tenants
+PASS | 7.2.2 anon select deletion_requests | ERROR:  permission denied for table deletion_requests
+PASS | 7.2.3 anon list_approved_prayers spoof | ERROR:  permission denied for function list_approved_prayers_for_super_admin
+PASS | 7.2.4 anon get_tenant_mail_identity | ERROR:  permission denied for function get_tenant_mail_identity
+PASS | 7.2.5a anon ibcd verses count>0 | count=104
+PASS | 7.2.5b get_public_tenant_by_slug 1 row | count=1
+PASS | 7.2.5c is_login_allowed_email boolean | returned t/f
+
+=== §7.3 member A ===
+PASS | 7.3.1 member isolation union counts | max=0
+PASS | 7.3.2 member mail identity tenant B | ERROR:  Not authenticated
+PASS | 7.3.3 member mail identity tenant A null | ERROR:  Not authorized for tenant
+PASS | 7.3.4 member list_super_admins | ERROR:  Not authorized
+PASS | 7.3.5 member select email_queue | ERROR:  permission denied for table email_queue
+
+=== §7.4 admin A ===
+PASS | 7.4.1 admin cross-tenant union counts | max=0
+PASS | 7.4.2 admin get_tenant_mail_identity own tenant | 1 row each
+PASS | 7.4.3 admin mail identity tenant B | ERROR:  Not authorized for tenant
+PASS | 7.4.4 admin mail identity wrong email | ERROR:  Not authenticated
+
+=== §7.5 write probes (member A, rollback) ===
+PASS | 7.5.1 email_queue outsider group_prayer_added | ERROR:  new row violates row-level security policy for table "email_queue"
+PASS | 7.5.2 email_queue member-a2 group_prayer_added succeeds | insert ok
+PASS | 7.5.3 email_queue admin_subscriber_manual_broadcast | ERROR:  new row violates row-level security policy for table "email_queue"
+PASS | 7.5.4 prayers insert approved | ERROR:  new row violates row-level security policy for table "prayers"
+PASS | 7.5.5 prayers insert pending succeeds | insert ok
+PASS | 7.5.6 member update prayers | 0 rows
+PASS | 7.5.7 deletion_requests cross-tenant | ERROR:  new row violates row-level security policy for table "deletion_requests"
+PASS | 7.5.8 member_prayer_updates tenant B | ERROR:  new row violates row-level security policy for table "member_prayer_updates"
+
+SUMMARY: ALL CHECKS PASSED

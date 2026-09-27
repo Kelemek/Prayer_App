@@ -61,23 +61,36 @@ export function trimMemberPersonId(personId: string): string | null {
 }
 
 export function buildMemberPrayerUpdateInsertRow(
+  tenantId: string,
   personId: string,
   content: string,
   isAnswered: boolean
 ): Record<string, unknown> {
   return {
+    tenant_id: tenantId,
     person_id: personId,
     content,
     is_answered: isAnswered,
   };
 }
 
+export function memberPrayerUpdatesCacheKey(tenantId: string): string {
+  return `${MEMBER_PRAYER_UPDATES_CACHE_KEY}:${tenantId}`;
+}
+
+export function memberPrayedForCountsCacheKey(tenantId: string): string {
+  return `memberPrayedForCounts:${tenantId}`;
+}
+
 export function planningCenterListDataCacheKey(listId: string): string {
   return `planningCenterListData_${listId}`;
 }
 
-export function memberPrayerCacheKeysToInvalidate(listId?: string): string[] {
-  const keys = [MEMBER_PRAYER_UPDATES_CACHE_KEY];
+export function memberPrayerCacheKeysToInvalidate(
+  listId?: string,
+  tenantId?: string | null
+): string[] {
+  const keys = [tenantId ? memberPrayerUpdatesCacheKey(tenantId) : MEMBER_PRAYER_UPDATES_CACHE_KEY];
   if (listId) {
     keys.push(planningCenterListDataCacheKey(listId));
   }

@@ -4,6 +4,11 @@ Major features and milestones for the Prayer App.
 
 ## [Current] - September 2026
 
+### Security: RLS full sweep (prayer-paid audit)
+- Migration `20260927140000_rls_full_sweep.sql`: tenant-scoped Planning Center member updates/counts; locked `deletion_requests` and `email_queue`; closed anon `''` identity on tenants; admin-only prayer moderation; service-only billing/reminder RPCs; RPCs no longer trust caller-supplied emails; anon has no table or RPC access beyond the public allowlist.
+- Client: Planning Center member update/count paths pass active `tenant_id`; contract spec `rls-full-sweep-contract.spec.ts`.
+- **Not applied on hosted DB in this release** — Mark applies the migration to prayer-paid.
+
 ### Security: close signed-in RLS gaps (personal prayers, backup logs, admin settings)
 - Migration `20260927130000_close_signed_in_personal_rls.sql`: drop OR-combined legacy permissive policies on `personal_prayers` and `personal_prayer_updates`; restrict `backup_logs` and non–super-admin `admin_settings` access; drop GitHub PAT columns; add `get_broadcast_excluded_test_account_email()` for tenant-admin broadcasts without exposing test-account codes.
 - Client: manual broadcast uses the RPC; Backup Status loads logs via the signed-in session (not publishable-key REST).
