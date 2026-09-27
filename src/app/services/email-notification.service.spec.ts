@@ -96,17 +96,26 @@ function emailQueueInsertMock() {
   };
 }
 
-/** admin_settings: select → eq → maybeSingle */
-function mockAdminSettingsForBroadcast(testAccountEmail: string | null, error: unknown = null) {
-  return {
-    select: () => ({
-      eq: () => ({
-        maybeSingle: async () => ({
-          data: { test_account_email: testAccountEmail },
-          error,
-        }),
-      }),
-    }),
+/** RPC get_broadcast_excluded_test_account_email for manual broadcast exclusion */
+function mockBroadcastExcludedEmailRpc(email: string | null, error: unknown = null) {
+  return async (fn: string, args?: { email_to_check?: string }) => {
+    if (fn === 'is_super_admin') {
+      return {
+        data: args?.email_to_check?.toLowerCase() === 'super@platform.org',
+        error: null,
+      };
+    }
+    if (fn === 'get_broadcast_excluded_test_account_email') {
+      if (error) {
+        return { data: null, error };
+      }
+      if (email == null) {
+        return { data: null, error: null };
+      }
+      const t = email.trim().toLowerCase();
+      return { data: t.length > 0 ? t : null, error: null };
+    }
+    return { data: false, error: null };
   };
 }
 
@@ -224,7 +233,15 @@ describe('EmailNotificationService', () => {
       client: {
         functions: { invoke: vi.fn() },
         from: createDefaultSupabaseFromRouter(),
-        rpc: vi.fn().mockResolvedValue({ data: false, error: null }),
+        rpc: vi.fn(async (fn: string, args?: { email_to_check?: string }) => {
+          if (fn === 'is_super_admin') {
+            return { data: false, error: null };
+          }
+          if (fn === 'get_broadcast_excluded_test_account_email') {
+            return { data: null, error: null };
+          }
+          return { data: null, error: null };
+        }),
       },
       directQuery: vi.fn()
     };
@@ -265,10 +282,8 @@ describe('EmailNotificationService', () => {
   });
 
   it('queueAdminManualBroadcastToSubscribers returns queued 0 and does not trigger processor when no subscribers', async () => {
+    mockSupabase.client.rpc = vi.fn(mockBroadcastExcludedEmailRpc(null));
     mockSupabase.client.from = vi.fn((table: string) => {
-      if (table === 'admin_settings') {
-        return mockAdminSettingsForBroadcast(null);
-      }
       if (table === 'tenant_memberships') {
         return doubleEqThenableRow([]);
       }
@@ -284,10 +299,8 @@ describe('EmailNotificationService', () => {
 
   it('queueAdminManualBroadcastToSubscribers propagates subscriber fetch errors', async () => {
     const dbErr = { message: 'db fail' };
+    mockSupabase.client.rpc = vi.fn(mockBroadcastExcludedEmailRpc(null));
     mockSupabase.client.from = vi.fn((table: string) => {
-      if (table === 'admin_settings') {
-        return mockAdminSettingsForBroadcast(null);
-      }
       if (table === 'tenant_memberships') {
         return doubleEqThenableRow(null as unknown as unknown[], dbErr);
       }
@@ -304,10 +317,8 @@ describe('EmailNotificationService', () => {
       error: null,
     });
     const tenantEq = vi.fn().mockReturnValue({ eq: isBlockedEq });
+    mockSupabase.client.rpc = vi.fn(mockBroadcastExcludedEmailRpc(null));
     mockSupabase.client.from = vi.fn((table: string) => {
-      if (table === 'admin_settings') {
-        return mockAdminSettingsForBroadcast(null);
-      }
       if (table === 'tenant_memberships') {
         return {
           select: vi.fn().mockReturnValue({
@@ -353,10 +364,8 @@ describe('EmailNotificationService', () => {
   });
 
   it('queueAdminManualBroadcastToSubscribers sanitizes pasted HTML and keeps images', async () => {
+    mockSupabase.client.rpc = vi.fn(mockBroadcastExcludedEmailRpc(null));
     mockSupabase.client.from = vi.fn((table: string) => {
-      if (table === 'admin_settings') {
-        return mockAdminSettingsForBroadcast(null);
-      }
       if (table === 'tenant_memberships') {
         return doubleEqThenableRow([{ user_email: 'a@x.com' }]);
       }
@@ -394,10 +403,8 @@ describe('EmailNotificationService', () => {
   });
 
   it('queueAdminManualBroadcastToSubscribers excludes configured test account email (case-insensitive)', async () => {
+    mockSupabase.client.rpc = vi.fn(mockBroadcastExcludedEmailRpc('app-test@example.com'));
     mockSupabase.client.from = vi.fn((table: string) => {
-      if (table === 'admin_settings') {
-        return mockAdminSettingsForBroadcast('app-test@example.com');
-      }
       if (table === 'tenant_memberships') {
         return doubleEqThenableRow([
           { user_email: 'App-Test@Example.COM' },
@@ -432,10 +439,8 @@ describe('EmailNotificationService', () => {
   });
 
   it('queueAdminManualBroadcastToSubscribers excludes platform super admins', async () => {
+    mockSupabase.client.rpc = vi.fn(mockBroadcastExcludedEmailRpc(null));
     mockSupabase.client.from = vi.fn((table: string) => {
-      if (table === 'admin_settings') {
-        return mockAdminSettingsForBroadcast(null);
-      }
       if (table === 'tenant_memberships') {
         return doubleEqThenableRow([
           { user_email: 'super@platform.org' },
@@ -447,10 +452,6 @@ describe('EmailNotificationService', () => {
       }
       return {};
     });
-    mockSupabase.client.rpc = vi.fn(async (_fn: string, args: { email_to_check?: string }) => ({
-      data: args?.email_to_check?.toLowerCase() === 'super@platform.org',
-      error: null,
-    }));
     mockSupabase.client.functions.invoke.mockResolvedValue({
       data: { success: true, remaining: 0 },
       error: null,
@@ -474,10 +475,8 @@ describe('EmailNotificationService', () => {
   });
 
   it('getManualBroadcastRecipientCount matches post-exclusion list length', async () => {
+    mockSupabase.client.rpc = vi.fn(mockBroadcastExcludedEmailRpc('only@exclude.me'));
     mockSupabase.client.from = vi.fn((table: string) => {
-      if (table === 'admin_settings') {
-        return mockAdminSettingsForBroadcast('only@exclude.me');
-      }
       if (table === 'tenant_memberships') {
         return doubleEqThenableRow([
           { user_email: 'only@exclude.me' },
@@ -487,6 +486,23 @@ describe('EmailNotificationService', () => {
       return {};
     });
     await expect(service.getManualBroadcastRecipientCount(VITEST_TENANT_ID)).resolves.toBe(1);
+  });
+
+  it('getManualBroadcastRecipientEmails does not exclude anyone when broadcast RPC fails', async () => {
+    mockSupabase.client.rpc = vi.fn(
+      mockBroadcastExcludedEmailRpc('app-test@example.com', { message: 'rpc fail' })
+    );
+    mockSupabase.client.from = vi.fn((table: string) => {
+      if (table === 'tenant_memberships') {
+        return doubleEqThenableRow([
+          { user_email: 'app-test@example.com' },
+          { user_email: 'member@church.org' },
+        ]);
+      }
+      return {};
+    });
+    const emails = await service.getManualBroadcastRecipientEmails(VITEST_TENANT_ID);
+    expect(emails).toEqual(['app-test@example.com', 'member@church.org']);
   });
 
   it('getTemplate returns template data when present', async () => {

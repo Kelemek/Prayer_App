@@ -4,6 +4,11 @@ Major features and milestones for the Prayer App.
 
 ## [Current] - September 2026
 
+### Security: close signed-in RLS gaps (personal prayers, backup logs, admin settings)
+- Migration `20260927130000_close_signed_in_personal_rls.sql`: drop OR-combined legacy permissive policies on `personal_prayers` and `personal_prayer_updates`; restrict `backup_logs` and non–super-admin `admin_settings` access; drop GitHub PAT columns; add `get_broadcast_excluded_test_account_email()` for tenant-admin broadcasts without exposing test-account codes.
+- Client: manual broadcast uses the RPC; Backup Status loads logs via the signed-in session (not publishable-key REST).
+- **Not applied on hosted DB in this release** — Mark applies the migration to prayer-paid, then rotates the GitHub PAT and test-account codes (assume leaked).
+
 ### Church access requests replace invite tokens
 - Self-service **request access** per church tenant (`/request-access`, `tenant-access` Edge Function, migrations `20260927120000_tenant_access_requests.sql` and `20260927121000_deprecate_tenant_invites.sql`). Deploy **`tenant-access` before** shipping the client. Set secrets `APP_URL` and `TENANT_HOST_SUFFIX` on the function (see `docs/SETUP.md`).
 - Admins approve or deny in **Admin → Accounts**. `/join/:token` redirects into the request-access flow.

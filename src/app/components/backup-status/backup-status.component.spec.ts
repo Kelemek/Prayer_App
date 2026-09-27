@@ -11,6 +11,15 @@ const createMockFile = (content: string | object, filename: string = 'backup.jso
   return mockFile;
 };
 
+function signedInAuth(accessToken = 'user-jwt') {
+  return {
+    getSession: vi.fn().mockResolvedValue({
+      data: { session: { access_token: accessToken } },
+      error: null,
+    }),
+  };
+}
+
 const makeMockSupabaseClient = (overrides: any = {}) => {
   const insert = vi.fn().mockResolvedValue({});
   const upsert = vi.fn().mockResolvedValue({});
@@ -28,6 +37,7 @@ const makeMockSupabaseClient = (overrides: any = {}) => {
 
   return {
     from,
+    auth: signedInAuth(),
     insert,
     upsert,
     select,
@@ -36,6 +46,17 @@ const makeMockSupabaseClient = (overrides: any = {}) => {
     ...overrides,
   };
 };
+
+/** Chain for fetchBackupLogs: from → select → order → limit → abortSignal → Promise */
+function mockBackupLogsSelectChain(result: { data: unknown; error: unknown }) {
+  const queryPromise = Promise.resolve(result);
+  const abortSignal = vi.fn().mockReturnValue(queryPromise);
+  const limit = vi.fn().mockReturnValue({ abortSignal });
+  const order = vi.fn().mockReturnValue({ limit });
+  const select = vi.fn().mockReturnValue({ order });
+  const from = vi.fn().mockReturnValue({ select });
+  return { from, select, order, limit, abortSignal, queryPromise };
+}
 
 describe('BackupStatusComponent', () => {
   let component: BackupStatusComponent;
@@ -125,21 +146,43 @@ describe('BackupStatusComponent', () => {
       { id: '1', backup_date: '2020-01-01', status: 'success', tables_backed_up: {}, total_records: 0, created_at: '2020-01-01' },
     ];
 
-    fetchSpy.mockResolvedValueOnce({ ok: true, json: async () => mockData } as any);
+    const chain = mockBackupLogsSelectChain({ data: mockData, error: null });
+    supabaseService.getClient = vi.fn().mockReturnValue({ from: chain.from });
 
     await component.fetchBackupLogs();
 
+    expect(chain.from).toHaveBeenCalledWith('backup_logs');
+    expect(chain.select).toHaveBeenCalledWith('*');
+    expect(chain.order).toHaveBeenCalledWith('backup_date', { ascending: false });
+    expect(chain.limit).toHaveBeenCalledWith(100);
+    expect(fetchSpy).not.toHaveBeenCalled();
     expect(component.loading).toBe(false);
     expect(component.latestBackup).toEqual(mockData[0]);
     expect(component.allBackups).toEqual(mockData);
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  it('fetchBackupLogs handles fetch throwing or non-ok', async () => {
-    fetchSpy.mockRejectedValueOnce(new Error('network'));
+  it('fetchBackupLogs clears lists when query returns no rows', async () => {
+    const chain = mockBackupLogsSelectChain({ data: [], error: null });
+    supabaseService.getClient = vi.fn().mockReturnValue({ from: chain.from });
+    component.latestBackup = { id: 'old' } as any;
+    component.allBackups = [{ id: 'old' } as any];
 
     await component.fetchBackupLogs();
 
+    expect(component.latestBackup).toBeNull();
+    expect(component.allBackups).toEqual([]);
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('fetchBackupLogs handles fetch throwing or non-ok', async () => {
+    const chain = mockBackupLogsSelectChain({ data: null, error: { message: 'network' } });
+    supabaseService.getClient = vi.fn().mockReturnValue({ from: chain.from });
+
+    await component.fetchBackupLogs();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
     expect(component.loading).toBe(false);
     expect(toast.error).toHaveBeenCalledWith('Failed to load backup logs');
   });
@@ -251,10 +294,15 @@ describe('BackupStatusComponent', () => {
     expect(component.restoring).toBe(false);
   });
 
-  it('onConfirmBackup does not request verification_codes with the publishable key', async () => {
+  it('onConfirmBackup reads tables with the signed-in token and skips verification_codes', async () => {
     const urls: string[] = [];
-    fetchSpy.mockImplementation(async (url: string) => {
+    const authorizations: string[] = [];
+    fetchSpy.mockImplementation(async (url: string, init?: RequestInit) => {
       urls.push(String(url));
+      const headers = init?.headers as Record<string, string> | undefined;
+      if (headers?.Authorization) {
+        authorizations.push(headers.Authorization);
+      }
       if (String(url).includes('/backup_tables')) {
         return {
           ok: true,
@@ -282,6 +330,28 @@ describe('BackupStatusComponent', () => {
 
     expect(urls.some((url) => url.includes('verification_codes'))).toBe(false);
     expect(urls.some((url) => url.includes('/rest/v1/prayers'))).toBe(true);
+    expect(authorizations.length).toBeGreaterThan(0);
+    expect(authorizations.every((value) => value === 'Bearer user-jwt')).toBe(true);
+  });
+
+  it('onConfirmBackup fails when there is no signed-in session', async () => {
+    const client = makeMockSupabaseClient({
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: null },
+          error: null,
+        }),
+      },
+    });
+    supabaseService.getClient = vi.fn().mockReturnValue(client);
+
+    await component.onConfirmBackup();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.stringContaining('Sign in is required to create a backup')
+    );
+    expect(component.backingUp).toBe(false);
   });
 
   it('onConfirmRestore skips verification_codes', async () => {
@@ -517,6 +587,7 @@ describe('BackupStatusComponent', () => {
       getSupabaseUrl: vi.fn().mockReturnValue('https://test.supabase.co'),
       getPublishableKey: vi.fn().mockReturnValue('test-key'),
       getClient: vi.fn().mockReturnValue({
+        auth: signedInAuth(),
         from: vi.fn().mockReturnValue({
           insert: vi.fn().mockReturnValue({ error: null }),
           select: vi.fn().mockReturnValue({ eq: vi.fn() }),
@@ -594,20 +665,20 @@ describe('BackupStatusComponent', () => {
 
   describe('fetchBackupLogs', () => {
     it('should fetch and set backup logs successfully', async () => {
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => [mockBackupLog]
-      });
+      const chain = mockBackupLogsSelectChain({ data: [mockBackupLog], error: null });
+      mockSupabaseService.getClient = vi.fn().mockReturnValue({ from: chain.from });
 
       await component.fetchBackupLogs();
 
       expect(component.latestBackup).toEqual(mockBackupLog);
       expect(component.allBackups).toEqual([mockBackupLog]);
       expect(component.loading).toBe(false);
+      expect(global.fetch).not.toHaveBeenCalled();
     });
 
     it('should handle fetch error', async () => {
-      (global.fetch as any).mockRejectedValue(new Error('Network error'));
+      const chain = mockBackupLogsSelectChain({ data: null, error: { message: 'Network error' } });
+      mockSupabaseService.getClient = vi.fn().mockReturnValue({ from: chain.from });
 
       await component.fetchBackupLogs();
 
@@ -616,10 +687,8 @@ describe('BackupStatusComponent', () => {
     });
 
     it('should handle non-ok response', async () => {
-      (global.fetch as any).mockResolvedValue({
-        ok: false,
-        status: 500
-      });
+      const chain = mockBackupLogsSelectChain({ data: null, error: { message: 'Query failed' } });
+      mockSupabaseService.getClient = vi.fn().mockReturnValue({ from: chain.from });
 
       await component.fetchBackupLogs();
 
@@ -627,10 +696,10 @@ describe('BackupStatusComponent', () => {
     });
 
     it('should handle empty response', async () => {
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => []
-      });
+      const chain = mockBackupLogsSelectChain({ data: [], error: null });
+      mockSupabaseService.getClient = vi.fn().mockReturnValue({ from: chain.from });
+      component.latestBackup = { id: 'old' } as any;
+      component.allBackups = [{ id: 'old' } as any];
 
       await component.fetchBackupLogs();
 
