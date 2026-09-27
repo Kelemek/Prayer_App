@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Recreate local Postgres (127.0.0.1:54322) with all repo migrations through 20260927140000.
+# Recreate local Postgres (127.0.0.1:54322) with all repo migrations through 20260927150000.
 # No hosted Supabase access. Requires Docker (sudo).
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
@@ -51,7 +51,8 @@ for f in \
   20260927120000_tenant_access_requests.sql \
   20260927121000_deprecate_tenant_invites.sql \
   20260927130000_close_signed_in_personal_rls.sql \
-  20260927140000_rls_full_sweep.sql; do
+  20260927140000_rls_full_sweep.sql \
+  20260927150000_tenant_billing_guard.sql; do
   path="$MIG_DIR/$f"
   if [[ -f "$path" ]]; then
     psql -h "$PG_HOST" -p "$PG_PORT" -U postgres -d postgres -v ON_ERROR_STOP=1 -f "$path" >/dev/null
