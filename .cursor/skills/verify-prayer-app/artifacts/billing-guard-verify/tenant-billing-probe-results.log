@@ -1,0 +1,50 @@
+Tenant billing guard probe 2026-09-27T16:37:44Z UTC
+Host: 127.0.0.1:54322 (local Docker only)
+
+=== Path (a): insert tenant with churches plan + creator bootstrap ===
+BEGIN
+SET
+SET
+psql:/workspace/.cursor/skills/verify-prayer-app/artifacts/billing-guard-verify/tenant-billing-self-grant-probe.sql:11: ERROR:  Tenant plan tier cannot be set directly
+CONTEXT:  PL/pgSQL function tenants_billing_write_guard() line 10 at RAISE
+psql:/workspace/.cursor/skills/verify-prayer-app/artifacts/billing-guard-verify/tenant-billing-self-grant-probe.sql:15: ERROR:  current transaction is aborted, commands ignored until end of transaction block
+psql:/workspace/.cursor/skills/verify-prayer-app/artifacts/billing-guard-verify/tenant-billing-self-grant-probe.sql:19: ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ROLLBACK
+=== Path (b): tenant admin updates billing columns on own tenant ===
+BEGIN
+SET
+SET
+psql:/workspace/.cursor/skills/verify-prayer-app/artifacts/billing-guard-verify/tenant-billing-self-grant-probe.sql:34: ERROR:  Tenant billing fields are managed by the platform
+CONTEXT:  PL/pgSQL function tenants_billing_write_guard() line 40 at RAISE
+psql:/workspace/.cursor/skills/verify-prayer-app/artifacts/billing-guard-verify/tenant-billing-self-grant-probe.sql:36: ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ROLLBACK
+=== Positive: admin can rename tenant (non-billing columns) ===
+BEGIN
+SET
+SET
+         name          
+-----------------------
+ Church A Probe Rename
+(1 row)
+
+UPDATE 1
+ROLLBACK
+=== Positive: create_tenant_for_user (groups) ===
+BEGIN
+SET
+SET
+                  id                  |     slug      | plan_tier | plan_status 
+--------------------------------------+---------------+-----------+-------------
+ 6b71d873-ddeb-41f0-a5a1-57ec0c3a1594 | rpc-org-probe | groups    | active
+(1 row)
+
+ROLLBACK
+=== Positive: apply_tenant_stripe_billing as postgres (service path) ===
+BEGIN
+ plan_tier | plan_status | stripe_customer_id 
+-----------+-------------+--------------------
+ churches  | active      | cus_service_probe
+(1 row)
+
+ROLLBACK
+

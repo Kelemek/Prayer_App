@@ -2,3 +2,5 @@
 !.gitignore
 !rls-sweep-verify/
 !rls-sweep-verify/**
+!billing-guard-verify/
+!billing-guard-verify/**
