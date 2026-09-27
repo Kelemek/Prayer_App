@@ -4,3 +4,4 @@
 !rls-sweep-verify/**
 !billing-guard-verify/
 !billing-guard-verify/**
+billing-guard-verify/tenant-billing-probe-results.log

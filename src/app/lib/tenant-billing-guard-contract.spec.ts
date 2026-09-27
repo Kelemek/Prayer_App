@@ -28,10 +28,10 @@ describe('tenant billing guard migration contract', () => {
     expect(sql).toMatch(/set search_path = public/i);
   });
 
-  it('bypasses postgres and service_role', () => {
+  it('bypasses only trusted database roles (not JWT claims)', () => {
     expect(sql).toContain('tenants_billing_guard_bypass');
-    expect(sql).toMatch(/service_role/);
-    expect(sql).toMatch(/current_user in \('postgres'/);
+    expect(sql).toMatch(/current_user in \('postgres', 'supabase_admin', 'service_role'\)/);
+    expect(sql).not.toMatch(/request\.jwt\.claim\.role/);
   });
 
   it('blocks direct plan_tier and stripe column changes on update', () => {

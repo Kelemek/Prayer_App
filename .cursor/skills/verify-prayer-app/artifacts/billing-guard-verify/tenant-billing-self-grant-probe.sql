@@ -72,3 +72,14 @@ from public.apply_tenant_stripe_billing(
 );
 
 rollback;
+
+\echo '=== Negative: JWT role spoof must not bypass guard ==='
+begin;
+set local role authenticated;
+set local request.jwt.claims = '{"email":"spoof@example.com","role":"service_role"}';
+
+update public.tenants
+set stripe_customer_id = 'cus_spoof_probe'
+where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+
+rollback;

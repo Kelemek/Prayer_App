@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Recreate local Postgres (127.0.0.1:54322) with all repo migrations through 20260927140000.
+# Recreate local Postgres (127.0.0.1:54322) with all repo migrations through 20260927150000.
 # No hosted Supabase access. Requires Docker (sudo).
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"

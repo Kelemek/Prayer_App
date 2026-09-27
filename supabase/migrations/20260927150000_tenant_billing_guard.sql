@@ -9,12 +9,8 @@ stable
 security invoker
 set search_path = public
 as $$
-  select
-    current_user in ('postgres', 'supabase_admin', 'authenticator', 'supabase_storage_admin')
-    or coalesce(
-      nullif(current_setting('request.jwt.claim.role', true), ''),
-      nullif(auth.jwt() ->> 'role', '')
-    ) = 'service_role';
+  -- Trust only the database role, not request.jwt.claims (spoofable in raw SQL sessions).
+  select current_user in ('postgres', 'supabase_admin', 'service_role');
 $$;
 
 create or replace function public.tenants_billing_write_guard()
