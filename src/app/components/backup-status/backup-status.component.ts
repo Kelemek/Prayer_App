@@ -541,36 +541,22 @@ export class BackupStatusComponent {
     this.loading = true;
     this.cdr.markForCheck();
     try {
-      const supabaseUrl = this.supabaseService.getSupabaseUrl();
-      const supabaseKey = this.supabaseService.getPublishableKey();
-
-      const params = new URLSearchParams();
-      params.set("select", "*");
-      params.set("order", "backup_date.desc");
-      params.set("limit", "100");
-
-      const url = `${supabaseUrl}/rest/v1/backup_logs?${params.toString()}`;
-
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-          "Content-Type": "application/json",
-        },
-        signal: controller.signal,
-      });
+      const { data, error } = await this.supabaseService
+        .getClient()
+        .from("backup_logs")
+        .select("*")
+        .order("backup_date", { ascending: false })
+        .limit(100)
+        .abortSignal(controller.signal);
 
       clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        throw new Error(`Query failed: ${response.status}`);
+      if (error) {
+        throw new Error(error.message || "Query failed");
       }
-
-      const data = await response.json();
 
       if (data && data.length > 0) {
         this.latestBackup = data[0];

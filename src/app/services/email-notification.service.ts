@@ -467,24 +467,21 @@ export class EmailNotificationService {
   }
 
   /**
-   * Tester email from Admin → Security → Test Account (excluded from manual subscriber broadcasts).
+   * Tester email excluded from manual subscriber broadcasts (via security-definer RPC; no direct admin_settings read).
    */
   private async getConfiguredTestAccountEmailLower(): Promise<string | null> {
-    const { data, error } = await this.supabase.client
-      .from('admin_settings')
-      .select('test_account_email')
-      .eq('id', 1)
-      .maybeSingle();
+    const { data, error } = await this.supabase.client.rpc(
+      'get_broadcast_excluded_test_account_email'
+    );
 
     if (error) {
-      console.error('Failed to load test_account_email for broadcast exclusion:', error);
+      console.error('Failed to load test account for broadcast exclusion:', error);
       return null;
     }
-    const raw = data?.test_account_email;
-    if (raw == null || typeof raw !== 'string') {
+    if (data == null || typeof data !== 'string') {
       return null;
     }
-    const t = raw.trim().toLowerCase();
+    const t = data.trim().toLowerCase();
     return t.length > 0 ? t : null;
   }
 
