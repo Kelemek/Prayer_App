@@ -25,9 +25,8 @@ begin
   end if;
 
   if TG_OP = 'INSERT' then
-    if NEW.plan_tier is distinct from 'free'::public.plan_tier
-       and NEW.plan_tier is distinct from 'groups'::public.plan_tier then
-      raise exception 'Tenant plan tier cannot be set directly';
+    if NEW.plan_tier is distinct from 'free'::public.plan_tier then
+      raise exception 'Paid plan tiers cannot be set directly';
     end if;
 
     if NEW.plan_status is distinct from 'active'::public.plan_status then
@@ -75,4 +74,4 @@ create trigger tenants_billing_write_guard
   execute function public.tenants_billing_write_guard();
 
 comment on function public.tenants_billing_write_guard() is
-  'Rejects non-service-role writes to plan/billing columns on tenants; bypass for postgres and service_role JWT.';
+  'Rejects non-platform writes to plan/billing columns on tenants; bypass for postgres, supabase_admin, and service_role.';

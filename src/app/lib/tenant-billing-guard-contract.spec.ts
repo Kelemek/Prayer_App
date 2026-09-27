@@ -34,6 +34,14 @@ describe('tenant billing guard migration contract', () => {
     expect(sql).not.toMatch(/request\.jwt\.claim\.role/);
   });
 
+  it('allows only free plan_tier on direct insert', () => {
+    expect(sql).toMatch(
+      /NEW\.plan_tier is distinct from 'free'::public\.plan_tier/
+    );
+    expect(sql).toMatch(/Paid plan tiers cannot be set directly/);
+    expect(sql).not.toMatch(/distinct from 'groups'::public\.plan_tier/);
+  });
+
   it('blocks direct plan_tier and stripe column changes on update', () => {
     expect(sql).toMatch(/NEW\.plan_tier is distinct from OLD\.plan_tier/);
     expect(sql).toMatch(/NEW\.stripe_customer_id is distinct from OLD\.stripe_customer_id/);
@@ -45,6 +53,8 @@ describe('tenant billing guard migration contract', () => {
     expect(probe).toMatch(/rollback;/i);
     expect(probe).toMatch(/set local role authenticated/i);
     expect(probe).toMatch(/plan_tier.*churches/i);
+    expect(probe).toMatch(/probe-groups-billing/);
+    expect(probe).toMatch(/probe-free-billing/);
     expect(probe).toContain('create_tenant_for_user');
     expect(probe).toContain('apply_tenant_stripe_billing');
   });

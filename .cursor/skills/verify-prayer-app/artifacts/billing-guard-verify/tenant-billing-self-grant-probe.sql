@@ -20,6 +20,35 @@ select public.tenant_has_churches_plan(
 
 rollback;
 
+\echo '=== Path (c): insert tenant with groups plan + creator bootstrap ==='
+begin;
+set local role authenticated;
+set local request.jwt.claims = '{"email":"newgroups@example.com","role":"authenticated"}';
+
+insert into public.tenants (name, slug, plan_tier, plan_status, created_by_email)
+values ('Probe Groups', 'probe-groups-billing', 'groups', 'active', 'newgroups@example.com');
+
+insert into public.tenant_memberships (tenant_id, user_email, role, is_active, is_blocked)
+select id, 'newgroups@example.com', 'tenant_admin', true, false
+from public.tenants where slug = 'probe-groups-billing';
+
+rollback;
+
+\echo '=== Positive: direct free tier insert + creator bootstrap ==='
+begin;
+set local role authenticated;
+set local request.jwt.claims = '{"email":"newfree@example.com","role":"authenticated"}';
+
+insert into public.tenants (name, slug, plan_tier, plan_status, created_by_email)
+values ('Probe Free', 'probe-free-billing', 'free', 'active', 'newfree@example.com')
+returning id, plan_tier, plan_status;
+
+insert into public.tenant_memberships (tenant_id, user_email, role, is_active, is_blocked)
+select id, 'newfree@example.com', 'tenant_admin', true, false
+from public.tenants where slug = 'probe-free-billing';
+
+rollback;
+
 \echo '=== Path (b): tenant admin updates billing columns on own tenant ==='
 begin;
 set local role authenticated;
@@ -81,5 +110,16 @@ set local request.jwt.claims = '{"email":"spoof@example.com","role":"service_rol
 update public.tenants
 set stripe_customer_id = 'cus_spoof_probe'
 where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+
+rollback;
+
+\echo '=== Positive: SET ROLE service_role direct billing update ==='
+begin;
+set local role service_role;
+
+update public.tenants
+set stripe_customer_id = 'cus_role_probe'
+where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+returning stripe_customer_id;
 
 rollback;
