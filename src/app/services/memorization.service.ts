@@ -39,6 +39,7 @@ const PREFERRED_TRANSLATION_KEY = 'prayer_app_preferred_bible_translation';
 export class MemorizationService {
   private itemsSubject = new BehaviorSubject<MemorizedItem[]>([]);
   private loadingSubject = new BehaviorSubject<boolean>(true);
+  private loadItemsGeneration = 0;
 
   readonly memorizedItems$ = this.itemsSubject.asObservable();
   readonly loading$ = this.loadingSubject.asObservable();
@@ -61,6 +62,7 @@ export class MemorizationService {
         return;
       }
       if (initialized) {
+        this.loadItemsGeneration++;
         this.itemsSubject.next([]);
         this.loadingSubject.next(false);
       }
@@ -69,8 +71,19 @@ export class MemorizationService {
     this.tenantContext.activeTenant$
       .pipe(distinctUntilChanged((prev, curr) => prev?.id === curr?.id))
       .subscribe(() => {
+        if (!this.userSession.getCurrentSession()?.email) {
+          this.loadItemsGeneration++;
+          this.itemsSubject.next([]);
+          this.loadingSubject.next(false);
+          return;
+        }
         void this.loadItems();
       });
+  }
+
+  private sessionEmailForLoad(): string | null {
+    const email = this.userSession.getCurrentSession()?.email;
+    return email ? email.toLowerCase() : null;
   }
 
   getPreferredTranslation(): BibleTranslation {
@@ -97,8 +110,9 @@ export class MemorizationService {
 
   async loadItems(): Promise<void> {
     const tenantId = this.getActiveTenantId();
-    const userEmail = await this.getUserEmail();
+    const userEmail = this.sessionEmailForLoad();
     if (!userEmail) {
+      this.loadingSubject.next(false);
       return;
     }
 
@@ -107,6 +121,7 @@ export class MemorizationService {
       return;
     }
 
+    const generation = ++this.loadItemsGeneration;
     this.loadingSubject.next(true);
     try {
       let query = this.supabase.client
@@ -120,15 +135,23 @@ export class MemorizationService {
         .order('date_added', { ascending: false });
 
       if (error) throw error;
+      if (generation !== this.loadItemsGeneration) {
+        return;
+      }
       const items = (data as MemorizedItemRow[] | null)?.map((row) => this.rowToItem(row)) ?? [];
       this.itemsSubject.next(items);
     } catch (err) {
       console.error('[MemorizationService] loadItems failed:', err);
+      if (generation !== this.loadItemsGeneration) {
+        return;
+      }
       if (!this.supabase.isNetworkError(err) && this.connectivity.isOnline()) {
         this.toast.error('Failed to load memorization list');
       }
     } finally {
-      this.loadingSubject.next(false);
+      if (generation === this.loadItemsGeneration) {
+        this.loadingSubject.next(false);
+      }
     }
   }
 

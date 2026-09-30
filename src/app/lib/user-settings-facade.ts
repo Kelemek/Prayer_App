@@ -4,6 +4,7 @@ import type { TextSize } from '../services/text-size.service';
 import type { TenantContextService } from '../services/tenant-context.service';
 import {
   closeUserSettingsDeleteAccountVerification,
+  closeUserSettingsLogoutVerification,
   runUserSettingsDeleteAccountAndPrayers,
   runUserSettingsDeleteAccountKeepPrayers,
   runUserSettingsLogout,
@@ -96,6 +97,7 @@ export class UserSettingsFacade {
   personalCategories: string[] = [];
   selectedPersonalCategories: string[] = [];
   showDeleteAccountVerification = false;
+  showLogoutVerification = false;
   deletingAccount = false;
   exportingAccount = false;
   pendingAccountExport: { filename: string; data: unknown } | null = null;
@@ -424,6 +426,20 @@ export class UserSettingsFacade {
   }
 
   logout(): Promise<void> {
+    return runUserSettingsLogout(this);
+  }
+
+  openLogoutVerification(): void {
+    this.showLogoutVerification = true;
+    this.markForCheck();
+  }
+
+  closeLogoutVerification(): void {
+    closeUserSettingsLogoutVerification(this);
+  }
+
+  confirmLogout(): Promise<void> {
+    closeUserSettingsLogoutVerification(this);
     return runUserSettingsLogout(this);
   }
 

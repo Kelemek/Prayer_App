@@ -33,7 +33,7 @@
         (delete)="updateDelete.emit(update.id)"
         (toggleAnswered)="toggleAnswered.emit(update)"
       />
-      @if (variantLayout.showUnreadBadges && (updateBadges$.get(update.id) | async) && (badgeService.getBadgeFunctionalityEnabled$() | async) && ((showsCommunityUnreadBadges && isCommunityPrayer) || (showsGroupUnreadBadges && isGroupPrayer))) {
+      @if (variantLayout.showUnreadBadges && (updateBadges$.get(update.id) | async) && (badgeService.getBadgeFunctionalityEnabled$() | async) && ((showCommunityUpdateUnreadBadge && isCommunityPrayer) || (showGroupUpdateUnreadBadge && isGroupPrayer))) {
         <button
           updateCorner
           type="button"

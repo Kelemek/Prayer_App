@@ -48,6 +48,9 @@ export interface PrayerCardViewState {
   showDescription: boolean;
   showsCommunityUnreadBadges: boolean;
   showsGroupUnreadBadges: boolean;
+  showPrayerTitleUnreadBadge: boolean;
+  showCommunityUpdateUnreadBadge: boolean;
+  showGroupUpdateUnreadBadge: boolean;
   showStatusPillInHeader: boolean;
   showDeleteButton: boolean;
   showReminderButton: boolean;
@@ -80,6 +83,14 @@ export function computePrayerCardViewState(
   const borderClass = getPrayerCardBorderClass(prayer.status, isPersonal);
   const isVersePrayer = isVerseMemorizationPrayer(prayer);
 
+  const showsCommunityUnreadBadges = showsCommunityPrayerCardUnreadBadges(
+    input.activeFilter
+  );
+  const showsGroupUnreadBadges = showsGroupPrayerCardUnreadBadges(
+    input.activeFilter,
+    input.groupFilterMode
+  );
+
   return {
     isMember,
     displayRequester: displayPrayerCardRequester(
@@ -87,13 +98,13 @@ export function computePrayerCardViewState(
       prayer.is_anonymous
     ),
     showDescription: showPrayerCardDescription(prayer.id, prayer.description),
-    showsCommunityUnreadBadges: showsCommunityPrayerCardUnreadBadges(
-      input.activeFilter
-    ),
-    showsGroupUnreadBadges: showsGroupPrayerCardUnreadBadges(
-      input.activeFilter,
-      input.groupFilterMode
-    ),
+    showsCommunityUnreadBadges,
+    showsGroupUnreadBadges,
+    showPrayerTitleUnreadBadge:
+      (showsCommunityUnreadBadges && !isPersonal && !isMember) ||
+      (showsGroupUnreadBadges && !!prayer.group_id),
+    showCommunityUpdateUnreadBadge: showsCommunityUnreadBadges,
+    showGroupUpdateUnreadBadge: showsGroupUnreadBadges,
     showStatusPillInHeader: showPrayerCardStatusPillInHeader(prayer, isPersonal),
     showDeleteButton: showPrayerCardDeleteButton(permissionContext),
     showReminderButton: showPrayerCardReminderButton(

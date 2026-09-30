@@ -2,7 +2,7 @@
   <div [class]="subFilterGroupClass">
     @let currentGroupBadge = (currentGroupBadge$ | async) ?? 0;
     @let answeredGroupBadge = (answeredGroupBadge$ | async) ?? 0;
-    @let badgesEnabled = (badgeService.getBadgeFunctionalityEnabled$() | async);
+    @let badgesEnabled = (badgeFunctionalityEnabled$ | async);
     <div [class]="statusChipRowClass">
       @if (canCreateGroups || showProUpgrade) {
       <app-home-sub-filter-chip
@@ -32,7 +32,7 @@
           [count]="currentGroupBadge"
           title="Mark all current group prayers as read"
           ariaLabel="Mark all current group prayers as read"
-          (markRead)="badgeService.markAllGroupPrayersReadByStatus('current')"
+          (markRead)="markAllGroupPrayersRead.emit({ status: 'current' })"
         />
         }
       </app-home-sub-filter-chip>
@@ -50,7 +50,7 @@
           [count]="answeredGroupBadge"
           title="Mark all answered group prayers as read"
           ariaLabel="Mark all answered group prayers as read"
-          (markRead)="badgeService.markAllGroupPrayersReadByStatus('answered')"
+          (markRead)="markAllGroupPrayersRead.emit({ status: 'answered' })"
         />
         }
       </app-home-sub-filter-chip>

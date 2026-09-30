@@ -410,6 +410,29 @@ export function resolveAppIconBadgeCount(options: {
   return Math.floor(count);
 }
 
+export type TenantBadgeMembershipRow = {
+  tenant_id?: string;
+  role?: string;
+  user_email?: string;
+  badge_functionality_enabled?: boolean;
+};
+
+/** Stable key for membership-list changes (badge hydrate + lifecycle). */
+export function tenantBadgeMembershipCacheKey(
+  memberships: ReadonlyArray<TenantBadgeMembershipRow> | null | undefined
+): string {
+  if (!memberships || memberships.length === 0) {
+    return '';
+  }
+  return memberships
+    .map(
+      (membership) =>
+        `${membership.tenant_id ?? ''}:${membership.role ?? ''}:${(membership.user_email ?? '').toLowerCase()}:${membership.badge_functionality_enabled ? '1' : '0'}`
+    )
+    .sort()
+    .join('|');
+}
+
 export function listMemberTenantIds(input: {
   memberTenants?: Array<{ id?: string | null } | null> | null;
   memberships?: Array<{ tenant_id?: string | null } | null> | null;

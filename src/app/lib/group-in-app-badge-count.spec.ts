@@ -12,9 +12,11 @@ import {
 
 describe('group-in-app-badge-count', () => {
   const groupId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  const memberScope = { memberGroupIds: [groupId] };
 
   beforeEach(() => {
     localStorage.clear();
+    writeMemberPrayerGroupIdsToStorage(localStorage, 'user@example.com', [groupId]);
     localStorage.setItem(
       groupPrayersCacheKey(groupId),
       JSON.stringify({
@@ -40,7 +42,8 @@ describe('group-in-app-badge-count', () => {
       countDisplayedGroupBadgesAcrossCaches(
         localStorage,
         [groupId],
-        emptyGroupBadgeReadState()
+        emptyGroupBadgeReadState(),
+        memberScope
       )
     ).toBe(3);
 
@@ -49,7 +52,7 @@ describe('group-in-app-badge-count', () => {
         localStorage,
         [groupId],
         emptyGroupBadgeReadState(),
-        { status: 'current' }
+        { ...memberScope, status: 'current' }
       )
     ).toBe(2);
 
@@ -58,7 +61,7 @@ describe('group-in-app-badge-count', () => {
         localStorage,
         [groupId],
         emptyGroupBadgeReadState(),
-        { groupId }
+        { ...memberScope, groupId }
       )
     ).toBe(3);
   });
@@ -78,7 +81,7 @@ describe('group-in-app-badge-count', () => {
     ]);
 
     expect(
-      countDisplayedGroupBadgesAcrossCaches(localStorage, [groupId], readState)
+      countDisplayedGroupBadgesAcrossCaches(localStorage, [groupId], readState, memberScope)
     ).toBe(1);
   });
 
@@ -130,15 +133,16 @@ describe('group-in-app-badge-count', () => {
         localStorage,
         [groupId],
         emptyGroupBadgeReadState(),
-        { viewerEmail: 'viewer@example.com' }
+        { ...memberScope, viewerEmail: 'viewer@example.com' }
       )
     ).toBe(2);
   });
 
-  it('falls back to storage group ids before membership hydration', () => {
+  it('returns no targets when membership is not hydrated', () => {
+    localStorage.removeItem(`memberPrayerGroupIds:user@example.com`);
     expect(
       resolveGroupBadgeTargetGroupIds(localStorage, { memberGroupIds: null })
-    ).toEqual([groupId]);
+    ).toEqual([]);
   });
 
   it('parses email-scoped cache keys and legacy groupUpdates field', () => {

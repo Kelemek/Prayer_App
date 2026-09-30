@@ -114,6 +114,7 @@ import { HomePublicStatusFiltersComponent } from "../../components/home-public-s
 import { HomePromptTypeFiltersComponent } from "../../components/home-prompt-type-filters/home-prompt-type-filters.component";
 import { HomePersonalCategoryFiltersComponent } from "../../components/home-personal-category-filters/home-personal-category-filters.component";
 import { HomeGroupFiltersComponent } from "../../components/home-group-filters/home-group-filters.component";
+import type { HomeGroupBadgeMarkReadPayload } from "../../lib/home-group-badge-actions";
 import { HomeGroupEditorModalComponent } from "../../components/home-group-editor-modal/home-group-editor-modal.component";
 import { HomePersonalCategoryEditorModalComponent } from "../../components/home-personal-category-editor-modal/home-personal-category-editor-modal.component";
 import { HomeChurchOnboardingModalComponent } from "../../components/home-church-onboarding-modal/home-church-onboarding-modal.component";
@@ -744,6 +745,16 @@ export class HomeComponent
 
   markAllPromptsAsRead(): void {
     this.badgeService.markAllAsRead("prompts");
+  }
+
+  readonly groupBadgeCountForGroup = (groupId: string) =>
+    this.badgeService.getGroupBadgeCountForGroup$(groupId);
+
+  onMarkAllGroupPrayersRead(payload: HomeGroupBadgeMarkReadPayload): void {
+    this.badgeService.markAllGroupPrayersReadByStatus(
+      payload.status,
+      payload.groupId
+    );
   }
 
   openEditModal(prayer: PrayerRequest): void {

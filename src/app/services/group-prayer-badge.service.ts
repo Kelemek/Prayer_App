@@ -1,4 +1,4 @@
-import { Injectable, Injector } from '@angular/core';
+import { Injectable, Injector, OnDestroy } from '@angular/core';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { startWith } from 'rxjs/operators';
 import { SupabaseService } from './supabase.service';
@@ -7,6 +7,9 @@ import {
   countDisplayedGroupBadgesAcrossCaches,
   emptyGroupBadgeReadState,
   groupBadgeReadCacheKey,
+  MEMBER_PRAYER_GROUP_IDS_UPDATED_EVENT,
+  memberPrayerGroupIdsCacheKey,
+  listGroupIdsFromStorage,
   parseGroupBadgeReadState,
   readMemberPrayerGroupIdsFromStorage,
   resolveGroupBadgeTargetGroupIds,
@@ -26,12 +29,18 @@ interface CachedGroupItem extends InAppBadgeCachedItem {
 }
 
 @Injectable({ providedIn: 'root' })
-export class GroupPrayerBadgeService {
+export class GroupPrayerBadgeService implements OnDestroy {
   private readState: GroupBadgeReadState = emptyGroupBadgeReadState();
   private updateBadgesChanged$ = new Subject<void>();
   private badgeCountSubject$ = new Map<string, BehaviorSubject<number>>();
   private userSession: UserSessionService | null = null;
   private syncInFlight: Promise<void> | null = null;
+  private readonly onMemberGroupIdsUpdated = (event: Event): void => {
+    const email = (event as CustomEvent<{ email?: string }>).detail?.email;
+    if (email && email === this.getActiveUserEmail()) {
+      this.refreshBadgeCounts();
+    }
+  };
 
   constructor(
     private supabase: SupabaseService,
@@ -40,6 +49,34 @@ export class GroupPrayerBadgeService {
     this.badgeCountSubject$.set('groups', new BehaviorSubject<number>(0));
     this.badgeCountSubject$.set('groups_current', new BehaviorSubject<number>(0));
     this.badgeCountSubject$.set('groups_answered', new BehaviorSubject<number>(0));
+    if (typeof window !== 'undefined') {
+      window.addEventListener(
+        MEMBER_PRAYER_GROUP_IDS_UPDATED_EVENT,
+        this.onMemberGroupIdsUpdated
+      );
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener(
+        MEMBER_PRAYER_GROUP_IDS_UPDATED_EVENT,
+        this.onMemberGroupIdsUpdated
+      );
+    }
+  }
+
+  /** Cross-tab updates to `memberPrayerGroupIds:{email}`. */
+  applyMemberGroupIdsFromStorageEvent(storageKey: string): boolean {
+    const email = this.getActiveUserEmail();
+    if (!email || !storageKey.startsWith('memberPrayerGroupIds:')) {
+      return false;
+    }
+    if (storageKey !== memberPrayerGroupIdsCacheKey(email)) {
+      return false;
+    }
+    this.refreshBadgeCounts();
+    return true;
   }
 
   getUpdateBadgesChanged$(): Observable<void> {
@@ -106,7 +143,6 @@ export class GroupPrayerBadgeService {
     this.persistReadStateLocally();
     void this.upsertReceiptsToDatabase(receipts);
     this.refreshBadgeCounts();
-    this.updateBadgesChanged$.next();
   }
 
   markGroupUpdateAsRead(updateId: string, groupId: string): void {
@@ -122,7 +158,6 @@ export class GroupPrayerBadgeService {
       ]);
     }
     this.refreshBadgeCounts();
-    this.updateBadgesChanged$.next();
   }
 
   markAllGroupPrayersRead(): void {
@@ -138,6 +173,7 @@ export class GroupPrayerBadgeService {
       return;
     }
     const targets = this.listGroupIdsForBadges(groupId);
+    const viewerEmail = this.getActiveUserEmail();
 
     const receipts: GroupBadgeReceiptRow[] = [];
     for (const gid of targets) {
@@ -145,7 +181,7 @@ export class GroupPrayerBadgeService {
         (item) => item.status === status
       );
       for (const item of items) {
-        if (!item.id) {
+        if (!item.id || isOwnBadgePrayerItem(item, viewerEmail)) {
           continue;
         }
         const added = this.addIdsToReadState('groupPrayers', [item.id]);
@@ -156,14 +192,20 @@ export class GroupPrayerBadgeService {
             group_id: gid,
           });
         }
-        for (const updateId of this.collectUpdateIds([item])) {
+        if (!item.updates?.length) {
+          continue;
+        }
+        for (const update of item.updates) {
+          if (!update.id || isOwnBadgeUpdate(update, viewerEmail)) {
+            continue;
+          }
           const addedUpdate = this.addIdsToReadState('groupPrayerUpdates', [
-            updateId,
+            update.id,
           ]);
           if (addedUpdate.length > 0) {
             receipts.push({
               item_kind: 'group_prayer_update',
-              item_id: updateId,
+              item_id: update.id,
               group_id: gid,
             });
           }
@@ -174,18 +216,31 @@ export class GroupPrayerBadgeService {
     this.persistReadStateLocally();
     void this.upsertReceiptsToDatabase(receipts);
     this.refreshBadgeCounts();
-    this.updateBadgesChanged$.next();
   }
 
   markAllCachedGroupPrayersAsRead(): void {
-    if (!this.cacheHasAnyGroupItems()) {
+    if (typeof localStorage === 'undefined') {
       return;
     }
-    this.markAllGroupPrayersRead();
+    const groupIds = listGroupIdsFromStorage(localStorage).filter(
+      (groupId) => this.readCachedItems(groupId).length > 0
+    );
+    if (groupIds.length === 0) {
+      return;
+    }
+    for (const groupId of groupIds) {
+      this.markAllGroupPrayersReadByStatus('current', groupId);
+      this.markAllGroupPrayersReadByStatus('answered', groupId);
+    }
   }
 
   hasCachedGroupPrayers(): boolean {
-    return this.cacheHasAnyGroupItems();
+    if (typeof localStorage === 'undefined') {
+      return false;
+    }
+    return listGroupIdsFromStorage(localStorage).some(
+      (groupId) => this.readCachedItems(groupId).length > 0
+    );
   }
 
   applyLocalCacheToMemory(): void {
@@ -197,6 +252,11 @@ export class GroupPrayerBadgeService {
     this.readState = parseGroupBadgeReadState(
       localStorage.getItem(groupBadgeReadCacheKey(email))
     );
+  }
+
+  clearSessionBadgeState(): void {
+    this.readState = emptyGroupBadgeReadState();
+    this.refreshBadgeCounts();
   }
 
   /** Cross-tab `storage` events for `badge_read_groups:{email}`. */
@@ -330,18 +390,6 @@ export class GroupPrayerBadgeService {
     return parseCachedBadgeItems(
       localStorage.getItem(groupPrayersCacheKey(groupId))
     ) as CachedGroupItem[];
-  }
-
-  private cacheHasAnyGroupItems(): boolean {
-    if (typeof localStorage === 'undefined') {
-      return false;
-    }
-    for (const groupId of this.listGroupIdsForBadges()) {
-      if (this.readCachedItems(groupId).length > 0) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private markGroupItemUpdatesAsRead(

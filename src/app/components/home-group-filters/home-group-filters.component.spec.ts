@@ -11,7 +11,6 @@ import {
 } from "../../lib/home-sub-filter-chip-classes";
 import { HomeGroupFiltersComponent } from "./home-group-filters.component";
 import { PrayerGroupService } from "../../services/prayer-group.service";
-import { BadgeService } from "../../services/badge.service";
 import type { PrayerGroup } from "../../types/prayer-group";
 
 const componentDir = dirname(fileURLToPath(import.meta.url));
@@ -70,13 +69,6 @@ describe("HomeGroupFiltersComponent", () => {
           groupPrayerCounts$,
         },
       })
-      .overrideProvider(BadgeService, {
-        useValue: {
-          getBadgeFunctionalityEnabled$: () => of(true),
-          getGroupBadgeCountForGroup$: () => of(0),
-          markAllGroupPrayersReadByStatus: vi.fn(),
-        },
-      })
       .compileComponents();
 
     fixture = TestBed.createComponent(HomeGroupFiltersComponent);
@@ -88,6 +80,8 @@ describe("HomeGroupFiltersComponent", () => {
     fixture.componentInstance.totalCount = 3;
     fixture.componentInstance.currentGroupBadge$ = of(0);
     fixture.componentInstance.answeredGroupBadge$ = of(0);
+    fixture.componentInstance.badgeFunctionalityEnabled$ = of(true);
+    fixture.componentInstance.getGroupBadgeCount$ = () => of(0);
     fixture.detectChanges();
   });
 

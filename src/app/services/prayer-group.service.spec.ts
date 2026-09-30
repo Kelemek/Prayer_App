@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { PrayerGroupService } from "./prayer-group.service";
+import { PrayerGroupCatalogOps } from "../lib/prayer-group-catalog.ops";
 import type { PrayerRequest } from "../lib/prayer-types";
 import { groupPrayersCacheKey } from "../lib/prayer-tenant";
 
@@ -31,9 +32,7 @@ function createService() {
     set: vi.fn(),
     invalidate: vi.fn(),
   };
-  const injector = {
-    get: vi.fn(() => ({ refreshBadgeCounts: vi.fn() })),
-  };
+  const injector = { get: vi.fn() };
 
   const service = new PrayerGroupService(
     supabase as any,
@@ -149,7 +148,7 @@ describe("PrayerGroupService group management", () => {
       updated_at: "2026-02-01T00:00:00Z",
       my_role: "member" as const,
     };
-    (service as any).groupsSubject.next([older, newer]);
+    service.groupsSubject.next([older, newer]);
     rpc.mockResolvedValue({ error: null });
 
     const ok = await service.reorderGroups(["g-newer", "g-older"]);
@@ -182,7 +181,7 @@ describe("PrayerGroupService group management", () => {
       updated_at: "2026-02-01T00:00:00Z",
       my_role: "member" as const,
     };
-    (service as any).groupsSubject.next([older, newer]);
+    service.groupsSubject.next([older, newer]);
 
     rpc
       .mockResolvedValueOnce({ error: { message: "boom" } })
@@ -282,7 +281,7 @@ describe("PrayerGroupService group management", () => {
 
   it('addGroupPrayer notifies other group members after insert', async () => {
     const { service, from, emailNotification } = createService();
-    (service as any).groupsSubject.next([
+    service.groupsSubject.next([
       {
         id: 'g1',
         name: 'Family',
@@ -388,8 +387,8 @@ describe("PrayerGroupService group prayers cache", () => {
 
   it("clears stale group prayers when switching to an uncached group", async () => {
     const { service, cache, from } = createService();
-    (service as any).activeGroupId = "g1";
-    (service as any).prayersSubject.next([cachedPrayer]);
+    service.activeGroupId = "g1";
+    service.prayersSubject.next([cachedPrayer]);
     cache.get.mockReturnValue(null);
     const order = vi.fn().mockResolvedValue({ data: [], error: null });
     const inIds = vi.fn().mockReturnValue({ order });
@@ -462,8 +461,8 @@ describe("PrayerGroupService group prayers cache", () => {
     const { service, cache, from } = createService();
     const loadingStates: boolean[] = [];
     service.loadingPrayers$.subscribe((loading) => loadingStates.push(loading));
-    (service as any).prayersSubject.next([cachedPrayer]);
-    (service as any).groupsSubject.next([
+    service.prayersSubject.next([cachedPrayer]);
+    service.groupsSubject.next([
       { ...familyGroup, id: "g2" },
       { ...familyGroup, id: "g3" },
     ]);
@@ -515,7 +514,7 @@ describe("PrayerGroupService group prayers cache", () => {
 
   it("getAllCachedGroupPrayers flattens in group-chip order, newest first within a group", () => {
     const { service, cache } = createService();
-    (service as any).groupsSubject.next([
+    service.groupsSubject.next([
       { ...familyGroup, id: "g1" },
       { ...familyGroup, id: "g2" },
     ]);
@@ -552,7 +551,7 @@ describe("PrayerGroupService group prayers cache", () => {
 
   it("getAllCachedGroupPrayers follows reordered group chips over date", () => {
     const { service, cache } = createService();
-    (service as any).groupsSubject.next([
+    service.groupsSubject.next([
       { ...familyGroup, id: "g2" },
       { ...familyGroup, id: "g1" },
     ]);
@@ -582,7 +581,7 @@ describe("PrayerGroupService group prayers cache", () => {
 
   it("hydrateGroupPrayers publishes the focused group from cache without refetching it", async () => {
     const { service, cache, from } = createService();
-    (service as any).groupsSubject.next([
+    service.groupsSubject.next([
       familyGroup,
       { ...familyGroup, id: "g2" },
     ]);
@@ -602,7 +601,7 @@ describe("PrayerGroupService group prayers cache", () => {
 
   it("hydrateGroupPrayers skips groups that are already cached unless forced", async () => {
     const { service, cache, from } = createService();
-    (service as any).groupsSubject.next([familyGroup]);
+    service.groupsSubject.next([familyGroup]);
     cache.get.mockImplementation((key: string) =>
       key === groupPrayersCacheKey("g1") ? [cachedPrayer] : null
     );
@@ -620,12 +619,12 @@ describe("PrayerGroupService group prayers cache", () => {
     const { service, cache, from } = createService();
     const loadingStates: boolean[] = [];
     service.loadingPrayers$.subscribe((loading) => loadingStates.push(loading));
-    (service as any).activeGroupId = "g1";
-    (service as any).prayersSubject.next([cachedPrayer]);
+    service.activeGroupId = "g1";
+    service.prayersSubject.next([cachedPrayer]);
     cache.get.mockImplementation((key: string) =>
       key === groupPrayersCacheKey("g1") ? [cachedPrayer] : null
     );
-    vi.spyOn(service, "loadMyGroups").mockResolvedValue([familyGroup]);
+    vi.spyOn(PrayerGroupCatalogOps.prototype, "loadMyGroups").mockResolvedValue([familyGroup]);
 
     const row = {
       id: "p-fresh",
@@ -669,7 +668,7 @@ describe("PrayerGroupService group prayers cache", () => {
 
   it("hydrateGroupPrayers swallows fetch errors without throwing", async () => {
     const { service, from } = createService();
-    vi.spyOn(service, "loadMyGroups").mockResolvedValue([familyGroup]);
+    vi.spyOn(PrayerGroupCatalogOps.prototype, "loadMyGroups").mockResolvedValue([familyGroup]);
     const order = vi.fn().mockRejectedValue(new Error("network fail"));
     const inIds = vi.fn().mockReturnValue({ order });
     const select = vi.fn().mockReturnValue({ in: inIds });
@@ -735,7 +734,7 @@ describe("PrayerGroupService CRUD and membership", () => {
     expect(toast.error).toHaveBeenCalledWith("Enter a group name");
 
     rpc.mockResolvedValueOnce({ data: "g-new", error: null });
-    vi.spyOn(service, "loadMyGroups").mockResolvedValue([
+    vi.spyOn(PrayerGroupCatalogOps.prototype, "loadMyGroups").mockResolvedValue([
       {
         id: "g-new",
         name: "Family",
@@ -752,7 +751,7 @@ describe("PrayerGroupService CRUD and membership", () => {
 
   it("inviteMembers dedupes emails and sends invitations", async () => {
     const { service, rpc, toast, emailNotification } = createService();
-    (service as any).groupsSubject.next([
+    service.groupsSubject.next([
       {
         id: "g1",
         name: "Group",
@@ -780,12 +779,12 @@ describe("PrayerGroupService CRUD and membership", () => {
   it("renameGroup, deleteGroup, and leaveGroup call RPCs", async () => {
     const { service, rpc, toast } = createService();
     rpc.mockResolvedValue({ error: null });
-    vi.spyOn(service, "loadMyGroups").mockResolvedValue([]);
+    vi.spyOn(PrayerGroupCatalogOps.prototype, "loadMyGroups").mockResolvedValue([]);
 
     expect(await service.renameGroup("g1", "New name")).toBe(true);
     expect(toast.success).toHaveBeenCalledWith("Group renamed");
 
-    (service as any).prayersSubject.next([{ ...cachedPrayer, group_id: "g1" }]);
+    service.prayersSubject.next([{ ...cachedPrayer, group_id: "g1" }]);
     expect(await service.deleteGroup("g1")).toBe(true);
     expect(toast.success).toHaveBeenCalledWith("Group deleted");
 
@@ -813,7 +812,7 @@ describe("PrayerGroupService CRUD and membership", () => {
 
   it("getGroupPrayerCount reads published counts", () => {
     const { service } = createService();
-    (service as any).prayerCountsSubject.next(new Map([["g1", 3]]));
+    service.prayerCountsSubject.next(new Map([["g1", 3]]));
     expect(service.getGroupPrayerCount("g1")).toBe(3);
     expect(service.getGroupPrayerCount("missing")).toBe(0);
   });
@@ -828,7 +827,7 @@ describe("PrayerGroupService CRUD and membership", () => {
   it("addGroupPrayerUpdate validates content and marks answered", async () => {
     const { service, from, toast, connectivity } = createService();
     connectivity.requireOnline.mockReturnValue(true);
-    (service as any).prayersSubject.next([cachedPrayer]);
+    service.prayersSubject.next([cachedPrayer]);
 
     expect(await service.addGroupPrayerUpdate("p1", "  ", "a", "a@x.com")).toBe(
       false
@@ -866,8 +865,8 @@ describe("PrayerGroupService CRUD and membership", () => {
   it("addGroupPrayerUpdate reloads cache via groupId hint when active list is empty", async () => {
     const { service, from, toast, connectivity } = createService();
     connectivity.requireOnline.mockReturnValue(true);
-    (service as any).prayersSubject.next([]);
-    (service as any).groupsSubject.next([{ id: "g1", name: "Family" }]);
+    service.prayersSubject.next([]);
+    service.groupsSubject.next([{ id: "g1", name: "Family" }]);
 
     const insert = vi.fn().mockResolvedValue({ error: null });
     from.mockImplementation((table: string) => {
@@ -887,13 +886,13 @@ describe("PrayerGroupService CRUD and membership", () => {
       "g1"
     );
     expect(ok).toBe(true);
-    expect(loadSpy).toHaveBeenCalledWith("g1");
+    expect(loadSpy).toHaveBeenCalledWith("g1", undefined);
     expect(toast.success).toHaveBeenCalledWith("Update added");
   });
 
   it("deleteGroupPrayer and deleteGroupPrayerUpdate refresh group prayers", async () => {
     const { service, from, toast } = createService();
-    (service as any).prayersSubject.next([cachedPrayer]);
+    service.prayersSubject.next([cachedPrayer]);
     const deleteEq = vi.fn().mockResolvedValue({ error: null });
     const del = vi.fn().mockReturnValue({ eq: deleteEq });
     from.mockReturnValue({ delete: del });
@@ -972,7 +971,7 @@ describe("PrayerGroupService CRUD and membership", () => {
 
   it("inviteMembers reports failure when every invite fails", async () => {
     const { service, rpc, toast } = createService();
-    (service as any).groupsSubject.next([
+    service.groupsSubject.next([
       {
         id: "g1",
         name: "Group",
@@ -995,14 +994,14 @@ describe("PrayerGroupService CRUD and membership", () => {
     expect(await service.reorderGroups(["g1"])).toBe(false);
 
     connectivity.requireOnline.mockReturnValue(true);
-    (service as any).groupsSubject.next([]);
+    service.groupsSubject.next([]);
     expect(await service.reorderGroups(["missing"])).toBe(false);
     expect(await service.reorderGroups([])).toBe(true);
   });
 
   it("getAllCachedGroupPrayers skips groups without cached prayers", () => {
     const { service, cache } = createService();
-    (service as any).groupsSubject.next([
+    service.groupsSubject.next([
       { id: "g1", name: "A", created_by_email: "x", created_at: "", updated_at: "" },
       { id: "g2", name: "B", created_by_email: "x", created_at: "", updated_at: "" },
     ]);

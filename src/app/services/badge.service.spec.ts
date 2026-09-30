@@ -12,6 +12,9 @@ import { Injector } from '@angular/core';
 import { groupPrayersCacheKey } from '../lib/prayer-tenant';
 import { groupBadgeReadCacheKey } from '../lib/group-in-app-badge-count';
 import { GroupPrayerBadgeService } from './group-prayer-badge.service';
+import { TenantInAppBadgeService } from './tenant-in-app-badge.service';
+import { TenantInAppBadgeMarkReadOps } from '../lib/tenant-in-app-badge-mark-read.ops';
+import { resetBadgeLifecycleListenersForTests } from '../lib/badge-lifecycle';
 
 const TEST_EMAIL = 'test@example.com';
 const TEST_TENANT_ID = '33333333-3333-4333-8333-333333333333';
@@ -39,6 +42,7 @@ const createBadgeInjector = (
   tenantContextService = defaultTenantContextMock()
 ) => {
   let groupPrayerBadgeService: GroupPrayerBadgeService | null = null;
+  let tenantInAppBadgeService: TenantInAppBadgeService | null = null;
   const mockSupabaseForGroups = {
     client: {
       rpc: vi.fn(async () => ({ data: null, error: null })),
@@ -56,6 +60,13 @@ const createBadgeInjector = (
       if (ServiceClass === TenantContextService) {
         return tenantContextService;
       }
+      if (ServiceClass === TenantInAppBadgeService) {
+        tenantInAppBadgeService ??= new TenantInAppBadgeService(
+          mockSupabaseForGroups as unknown as SupabaseService,
+          groupInjector as unknown as Injector
+        );
+        return tenantInAppBadgeService;
+      }
       if (ServiceClass === GroupPrayerBadgeService) {
         groupPrayerBadgeService ??= new GroupPrayerBadgeService(
           mockSupabaseForGroups as unknown as SupabaseService,
@@ -65,7 +76,22 @@ const createBadgeInjector = (
       }
       return null;
     }),
+    tenantInAppBadgeService: () => tenantInAppBadgeService,
   };
+};
+
+const createBadgeService = (
+  supabase: unknown,
+  injector: unknown
+): { service: BadgeService; tenant: TenantInAppBadgeService } => {
+  const inj = injector as Injector & {
+    tenantInAppBadgeService?: () => TenantInAppBadgeService | null;
+  };
+  const tenant =
+    inj.tenantInAppBadgeService?.() ??
+    new TenantInAppBadgeService(supabase as SupabaseService, injector as Injector);
+  const service = new BadgeService(injector as Injector, tenant);
+  return { service, tenant };
 };
 
 const scopedBadgeKey = (tenantId = TEST_TENANT_ID, email = TEST_EMAIL) =>
@@ -78,7 +104,7 @@ const seedScopedReadState = (
     prompts?: string[];
     promptUpdates?: string[];
   },
-  service?: BadgeService
+  tenant: TenantInAppBadgeService
 ) => {
   localStorage.setItem(
     scopedBadgeKey(),
@@ -89,15 +115,15 @@ const seedScopedReadState = (
       promptUpdates: state.promptUpdates ?? [],
     })
   );
-  if (service) {
-    (service as any).currentUserEmail = TEST_EMAIL;
-    (service as any).applyLocalCacheToMemory();
-  }
+  tenant.currentUserEmail = TEST_EMAIL;
+  tenant.applyLocalCacheToMemory();
 };
 
 
 describe('BadgeService', () => {
   let service: BadgeService;
+  let tenantBadges: TenantInAppBadgeService;
+  let groupPrayerBadgeService: GroupPrayerBadgeService;
   let mockUserSessionService: any;
   let mockTenantContextService: any;
   let mockSupabaseService: any;
@@ -168,13 +194,17 @@ describe('BadgeService', () => {
     mockInjector = createBadgeInjector(mockUserSessionService, mockTenantContextService);
 
     // Create service with mocked dependencies
-    service = new BadgeService(mockSupabaseService, mockInjector);
-    (service as any).currentUserEmail = TEST_EMAIL;
+    const created = createBadgeService(mockSupabaseService, mockInjector);
+    service = created.service;
+    tenantBadges = created.tenant;
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+    groupPrayerBadgeService = mockInjector.get(GroupPrayerBadgeService);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
     localStorage.clear();
+    resetBadgeLifecycleListenersForTests();
   });
 
   describe('initialization', () => {
@@ -279,7 +309,7 @@ describe('BadgeService', () => {
     it('should upsert UUID receipts when marking a prayer read', async () => {
       service.markPrayerAsRead(prayerUuid);
       await Promise.resolve();
-      await (service as any).syncInFlight;
+      await tenantBadges.syncInFlight;
 
       expect(mockSupabaseService.client.rpc).toHaveBeenCalledWith(
         'upsert_badge_read_receipts',
@@ -303,7 +333,7 @@ describe('BadgeService', () => {
         return { data: [], error: null };
       });
 
-      await (service as any).loadReceiptsFromDatabase();
+      await tenantBadges.loadReceiptsFromDatabase();
 
       expect(service.isPrayerUnread(prayerUuid)).toBe(false);
       const scoped = JSON.parse(
@@ -316,7 +346,7 @@ describe('BadgeService', () => {
       mockSupabaseService.client.rpc.mockClear();
       service.markPrayerAsRead('not-a-uuid');
       await Promise.resolve();
-      await (service as any).syncInFlight;
+      await tenantBadges.syncInFlight;
 
       const upsertCalls = mockSupabaseService.client.rpc.mock.calls.filter(
         (c: any[]) => c[0] === 'upsert_badge_read_receipts'
@@ -329,7 +359,7 @@ describe('BadgeService', () => {
       mockTenantContextService.getActiveTenant.mockReturnValue(null);
       localStorage.setItem('read_prayers', JSON.stringify(['prayer-legacy']));
 
-      await (service as any).migrateLegacyLocalStorageIfNeeded();
+      await tenantBadges.migrateLegacyLocalStorageIfNeeded();
 
       expect(localStorage.getItem('read_prayers')).toBeTruthy();
       expect(service.isPrayerUnread('prayer-legacy')).toBe(true);
@@ -339,7 +369,7 @@ describe('BadgeService', () => {
         name: 'Test',
         slug: 'test',
       });
-      await (service as any).migrateLegacyLocalStorageIfNeeded();
+      await tenantBadges.migrateLegacyLocalStorageIfNeeded();
 
       expect(localStorage.getItem('read_prayers')).toBeNull();
       expect(service.isPrayerUnread('prayer-legacy')).toBe(false);
@@ -356,7 +386,7 @@ describe('BadgeService', () => {
         })
       );
 
-      await (service as any).migrateLegacyLocalStorageIfNeeded();
+      await tenantBadges.migrateLegacyLocalStorageIfNeeded();
 
       expect(localStorage.getItem(`badge_read:_none_:${TEST_EMAIL}`)).toBeNull();
       expect(service.isPrayerUnread(prayerUuid)).toBe(false);
@@ -369,7 +399,7 @@ describe('BadgeService', () => {
     it('should seed mark-all when caches load after enable', () => {
       localStorage.removeItem(`tenant_${tenantId}_prayers`);
       service.markAllCachedItemsAsRead();
-      expect((service as any).pendingSeedAllAsRead).toBe(true);
+      expect(tenantBadges.hasPendingSeedAllAsRead()).toBe(true);
 
       localStorage.setItem(
         `tenant_${tenantId}_prayers`,
@@ -380,7 +410,7 @@ describe('BadgeService', () => {
       service.refreshBadgeCounts();
 
       expect(service.isPrayerUnread(prayerUuid)).toBe(false);
-      expect((service as any).pendingSeedAllAsRead).toBe(false);
+      expect(tenantBadges.hasPendingSeedAllAsRead()).toBe(false);
     });
 
     it('marks cached prayers as read without re-entering mark-all', () => {
@@ -390,13 +420,13 @@ describe('BadgeService', () => {
           data: [{ id: prayerUuid, status: 'current', updated_at: '2024-01-01' }],
         })
       );
-      const markAll = vi.spyOn(service, 'markAllAsRead');
+      const markAll = vi.spyOn(TenantInAppBadgeMarkReadOps.prototype, 'markAllAsRead');
 
       expect(() => service.markAllCachedItemsAsRead()).not.toThrow();
 
       expect(markAll).toHaveBeenCalledTimes(2);
       expect(service.isPrayerUnread(prayerUuid)).toBe(false);
-      expect((service as any).pendingSeedAllAsRead).toBe(false);
+      expect(tenantBadges.hasPendingSeedAllAsRead()).toBe(false);
     });
   });
 
@@ -435,7 +465,7 @@ describe('BadgeService', () => {
     });
 
     it('should return false for read prayer', () => {
-      seedScopedReadState({ prayers: ['prayer-1'] }, service);
+      seedScopedReadState({ prayers: ['prayer-1'] }, tenantBadges);
       expect(service.isPrayerUnread('prayer-1')).toBe(false);
     });
 
@@ -452,7 +482,7 @@ describe('BadgeService', () => {
     });
 
     it('should return false for read prompt', () => {
-      seedScopedReadState({ prompts: ['prompt-1'] }, service);
+      seedScopedReadState({ prompts: ['prompt-1'] }, tenantBadges);
       expect(service.isPromptUnread('prompt-1')).toBe(false);
     });
   });
@@ -466,7 +496,7 @@ describe('BadgeService', () => {
           { id: 'prayer-3', status: 'answered', updated_at: '2024-01-01' }
         ]
       }));
-      seedScopedReadState({ prayers: ['prayer-1'], prayerUpdates: [] }, service);
+      seedScopedReadState({ prayers: ['prayer-1'], prayerUpdates: [] }, tenantBadges);
     });
 
     it('should return observable with badge count for prayers', async () => {
@@ -479,7 +509,7 @@ describe('BadgeService', () => {
       seedScopedReadState({
         prayers: ['prayer-1', 'prayer-2', 'prayer-3'],
         prayerUpdates: []
-      }, service);
+      }, tenantBadges);
 
       const count = await firstValueFrom(service.getBadgeCount$('prayers'));
       expect(count).toBe(0);
@@ -530,7 +560,7 @@ describe('BadgeService', () => {
           { id: 'prayer-2', status: 'current', updated_at: '2024-01-01', updates: [] }
         ]
       }));
-      seedScopedReadState({ prayers: [], prayerUpdates: [] }, service);
+      seedScopedReadState({ prayers: [], prayerUpdates: [] }, tenantBadges);
     });
 
     it('should mark all items of type as read', () => {
@@ -567,7 +597,7 @@ describe('BadgeService', () => {
           { id: 'prompt-2', status: 'answered', updated_at: '2024-01-01', updates: [{ id: 'pu1', created_at: '2024-01-01' }] }
         ]
       }));
-      seedScopedReadState({ prayers: ['prayer-3'], prayerUpdates: [], prompts: [], promptUpdates: [] }, service);
+      seedScopedReadState({ prayers: ['prayer-3'], prayerUpdates: [], prompts: [], promptUpdates: [] }, tenantBadges);
     });
 
     it('should mark only prayers with the requested status as read', () => {
@@ -634,8 +664,8 @@ describe('BadgeService', () => {
     it('should return early for invalid cached item arrays in markItemUpdatesAsRead', () => {
       const getSpy = vi.spyOn(localStorage, 'getItem').mockReturnValue(JSON.stringify({ data: { bad: true } }) as any);
 
-      (service as any).markItemUpdatesAsRead('prayer-1', 'prayers');
-      (service as any).markItemUpdatesAsRead('prompt-1', 'prompts');
+      tenantBadges.markItemUpdatesAsRead('prayer-1', 'prayers');
+      tenantBadges.markItemUpdatesAsRead('prompt-1', 'prompts');
 
       expect(getSpy).toHaveBeenCalled();
       getSpy.mockRestore();
@@ -660,9 +690,10 @@ describe('BadgeService', () => {
     });
 
     it('reloads group badge read state when badge_read_groups key changes in another tab', () => {
-      const groupBadges = (service as unknown as { getGroupPrayerBadges: () => GroupPrayerBadgeService })
-        .getGroupPrayerBadges();
-      const applySpy = vi.spyOn(groupBadges, 'applyLocalCacheFromStorageEvent');
+      const applySpy = vi.spyOn(
+        groupPrayerBadgeService,
+        'applyLocalCacheFromStorageEvent'
+      );
       applySpy.mockReturnValue(true);
       const refreshSpy = vi.spyOn(service, 'refreshBadgeCounts');
 
@@ -713,8 +744,9 @@ describe('BadgeService', () => {
         }
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     afterEach(() => {
@@ -801,8 +833,9 @@ describe('BadgeService', () => {
         }
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     it('should calculate unread count for new items', () => {
@@ -902,8 +935,9 @@ describe('BadgeService', () => {
         }
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     afterEach(() => {
@@ -981,8 +1015,9 @@ describe('BadgeService', () => {
         }
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     it('should detect new updates for item', () => {
@@ -1059,8 +1094,9 @@ describe('BadgeService', () => {
         }
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     it('should expose badge count as observable', () => {
@@ -1103,8 +1139,9 @@ describe('BadgeService', () => {
         }
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     it('should handle missing badge type gracefully', () => {
@@ -1168,8 +1205,9 @@ describe('BadgeService', () => {
         }
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     afterEach(() => {
@@ -1249,6 +1287,7 @@ describe('BadgeService', () => {
 
 describe('BadgeService - Additional Coverage Tests', () => {
   let service: any;
+  let tenantBadges: TenantInAppBadgeService;
   let mockSupabase: any;
   let mockUserSession: any;
 
@@ -1606,8 +1645,9 @@ describe('BadgeService - Additional Coverage Tests', () => {
         }
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     it('should return observable for individual prayer badge', () => {
@@ -1658,8 +1698,9 @@ describe('BadgeService - Additional Coverage Tests', () => {
         }
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     it('should return empty array when no cached prayers exist', () => {
@@ -1682,8 +1723,8 @@ describe('BadgeService - Additional Coverage Tests', () => {
         data: [{ id: 'prompt-1', status: 'current', updates: [{ id: 'pu1' }, { id: 'pu2' }] }]
       }));
 
-      (service as any).markItemUpdatesAsRead('prayer-1', 'prayers');
-      (service as any).markItemUpdatesAsRead('prompt-1', 'prompts');
+      tenantBadges.markItemUpdatesAsRead('prayer-1', 'prayers');
+      tenantBadges.markItemUpdatesAsRead('prompt-1', 'prompts');
 
       expect(service.getUnreadIds('prayers')).toEqual(['prayer-1']);
       expect(service.getUnreadIds('prompts')).toEqual(['prompt-1']);
@@ -1695,8 +1736,8 @@ describe('BadgeService - Additional Coverage Tests', () => {
         throw new Error('write failed');
       });
 
-      (service as any).currentUserEmail = TEST_EMAIL;
-      (service as any).persistReadStateLocally();
+      tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.persistReadStateLocally();
 
       expect(warnSpy).toHaveBeenCalled();
       expect(setItemSpy).toHaveBeenCalled();
@@ -1710,7 +1751,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
         throw new Error('write failed');
       });
 
-      (service as any).currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
       service.markPromptAsRead('prompt-1');
 
       expect(warnSpy).toHaveBeenCalled();
@@ -1814,15 +1855,16 @@ describe('BadgeService - Additional Coverage Tests', () => {
         activeTenant$: new BehaviorSubject({ id: TEST_TENANT_ID, name: 'T', slug: 't' })
       };
       const mockInjector = createBadgeInjector(mockUserSessionService, mockTenant);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     it('should migrate old prayers data to scoped cache', async () => {
       localStorage.setItem('read_prayers', JSON.stringify(['prayer-1', 'prayer-2']));
       localStorage.setItem('read_prayer_updates', JSON.stringify(['update-1']));
 
-      await (service as any).migrateLegacyLocalStorageIfNeeded();
+      await tenantBadges.migrateLegacyLocalStorageIfNeeded();
 
       expect(service.isPrayerUnread('prayer-1')).toBe(false);
       expect(service.isPrayerUnread('prayer-2')).toBe(false);
@@ -1836,7 +1878,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
       localStorage.setItem('read_prompts', JSON.stringify(['prompt-1', 'prompt-2']));
       localStorage.setItem('read_prompt_updates', JSON.stringify(['update-1']));
 
-      await (service as any).migrateLegacyLocalStorageIfNeeded();
+      await tenantBadges.migrateLegacyLocalStorageIfNeeded();
 
       expect(service.isPromptUnread('prompt-1')).toBe(false);
       expect(service.isPromptUnread('prompt-2')).toBe(false);
@@ -1852,37 +1894,37 @@ describe('BadgeService - Additional Coverage Tests', () => {
         updates: ['update-9']
       }));
 
-      await (service as any).migrateLegacyLocalStorageIfNeeded();
+      await tenantBadges.migrateLegacyLocalStorageIfNeeded();
 
       expect(service.isPrayerUnread('prayer-9')).toBe(false);
       expect(localStorage.getItem('read_prayers_data')).toBeNull();
     });
 
     it('should handle missing old prayers data', async () => {
-      await (service as any).migrateLegacyLocalStorageIfNeeded();
+      await tenantBadges.migrateLegacyLocalStorageIfNeeded();
       expect(service.isPrayerUnread('prayer-1')).toBe(true);
     });
 
     it('should handle missing old prompts data', async () => {
-      await (service as any).migrateLegacyLocalStorageIfNeeded();
+      await tenantBadges.migrateLegacyLocalStorageIfNeeded();
       expect(service.isPromptUnread('prompt-1')).toBe(true);
     });
 
     it('should handle corrupted JSON in old prayers migration', async () => {
       localStorage.setItem('read_prayers', 'invalid-json');
-      await (service as any).migrateLegacyLocalStorageIfNeeded();
+      await tenantBadges.migrateLegacyLocalStorageIfNeeded();
       expect(service.isPrayerUnread('prayer-1')).toBe(true);
     });
 
     it('should handle corrupted JSON in old prompts migration', async () => {
       localStorage.setItem('read_prompts', 'invalid-json');
-      await (service as any).migrateLegacyLocalStorageIfNeeded();
+      await tenantBadges.migrateLegacyLocalStorageIfNeeded();
       expect(service.isPromptUnread('prompt-1')).toBe(true);
     });
 
     it('should preserve non-array old data as empty arrays', async () => {
       localStorage.setItem('read_prayers', JSON.stringify({ not: 'array' }));
-      await (service as any).migrateLegacyLocalStorageIfNeeded();
+      await tenantBadges.migrateLegacyLocalStorageIfNeeded();
       expect(service.isPrayerUnread('prayer-1')).toBe(true);
     });
   });
@@ -1912,8 +1954,9 @@ describe('BadgeService - Additional Coverage Tests', () => {
         activeTenant$: new BehaviorSubject({ id: TEST_TENANT_ID, name: 'T', slug: 't' })
       };
       const mockInjector = createBadgeInjector(mockUserSessionService, mockTenant);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     it('should persist read prayer data to scoped localStorage', () => {
@@ -1969,8 +2012,9 @@ describe('BadgeService - Additional Coverage Tests', () => {
         }
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     it('should expose badge functionality enabled observable', () => {
@@ -2007,8 +2051,9 @@ describe('BadgeService - Additional Coverage Tests', () => {
         }
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     it('should expose update badges changed observable', () => {
@@ -2045,8 +2090,9 @@ describe('BadgeService - Additional Coverage Tests', () => {
         }
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     it('should get badge count for current status', () => {
@@ -2143,8 +2189,9 @@ describe('BadgeService - Additional Coverage Tests', () => {
         activeTenant$: new BehaviorSubject({ id: TEST_TENANT_ID, name: 'T', slug: 't' })
       };
       const mockInjector = createBadgeInjector(mockUserSessionService, mockTenant);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     it('should check if update is unread', () => {
@@ -2211,8 +2258,9 @@ describe('BadgeService - Additional Coverage Tests', () => {
         }
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     it('should check if prayer is unread', () => {
@@ -2266,8 +2314,9 @@ describe('BadgeService - Additional Coverage Tests', () => {
         }
       };
       const mockInjector = createBadgeInjector(mockUserSessionService);
-      service = new BadgeService(mockSupabaseService as any, mockInjector as any);
-      (service as any).currentUserEmail = TEST_EMAIL;
+      ({ service, tenant: tenantBadges } = createBadgeService(mockSupabaseService, mockInjector));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+      tenantBadges.currentUserEmail = TEST_EMAIL;
     });
 
     it('should refresh badge counts', () => {
@@ -2302,6 +2351,7 @@ describe('BadgeService - Additional Coverage Tests', () => {
 describe('BadgeService all-tenant app icon count', () => {
   const otherTenantId = '44444444-4444-4444-8444-444444444444';
   let service: BadgeService;
+  let tenantBadges: TenantInAppBadgeService;
   let mockUserSessionService: {
     userSession$: BehaviorSubject<{
       email: string;
@@ -2349,13 +2399,12 @@ describe('BadgeService all-tenant app icon count', () => {
         rpc: vi.fn(async () => ({ data: [], error: null })),
       },
     };
-    service = new BadgeService(
+    ({ service, tenant: tenantBadges } = createBadgeService(
       mockSupabaseService as unknown as SupabaseService,
       createBadgeInjector(mockUserSessionService, mockTenantContextService) as unknown as Injector
-    );
-    (service as unknown as { currentUserEmail: string }).currentUserEmail = TEST_EMAIL;
-    (service as unknown as { badgeFunctionalityEnabled$: BehaviorSubject<boolean> })
-      .badgeFunctionalityEnabled$.next(true);
+    ));
+    tenantBadges.currentUserEmail = TEST_EMAIL;
+    tenantBadges.getBadgeEnabledSubjectForTests().next(true);
 
     localStorage.setItem(
       `tenant_${TEST_TENANT_ID}_prayers`,
@@ -2377,7 +2426,7 @@ describe('BadgeService all-tenant app icon count', () => {
         data: [{ id: 'p-other', status: 'current' }],
       })
     );
-    seedScopedReadState({ prayers: [], prayerUpdates: [], prompts: [] }, service);
+    seedScopedReadState({ prayers: [], prayerUpdates: [], prompts: [] }, tenantBadges);
   });
 
   afterEach(() => {
@@ -2389,6 +2438,10 @@ describe('BadgeService all-tenant app icon count', () => {
   });
 
   it('includes group prayer badges in the app icon total', () => {
+    localStorage.setItem(
+      'memberPrayerGroupIds:test@example.com',
+      JSON.stringify(['group-a'])
+    );
     localStorage.setItem(
       groupPrayersCacheKey('group-a'),
       JSON.stringify({
@@ -2409,9 +2462,7 @@ describe('BadgeService all-tenant app icon count', () => {
   });
 
   it('returns 0 when badge functionality is disabled', () => {
-    (
-      service as unknown as { badgeFunctionalityEnabled$: BehaviorSubject<boolean> }
-    ).badgeFunctionalityEnabled$.next(false);
+    tenantBadges.getBadgeEnabledSubjectForTests().next(false);
     expect(service.getAllTenantDisplayedBadgeCount()).toBe(0);
   });
 
@@ -2427,10 +2478,13 @@ describe('BadgeService all-tenant app icon count', () => {
 });
 
 describe('BadgeService foreground resume', () => {
+  let tenantBadges: TenantInAppBadgeService;
+
   const receiptCalls = (rpc: ReturnType<typeof vi.fn>) =>
     rpc.mock.calls.filter((call) => call[0] === 'get_badge_read_receipts');
 
   function createForegroundService(memberships$?: BehaviorSubject<unknown[]>) {
+    resetBadgeLifecycleListenersForTests();
     const rpc = vi.fn(async (fn: string) => {
       if (fn === 'get_badge_read_receipts') {
         return { data: [], error: null };
@@ -2455,12 +2509,17 @@ describe('BadgeService foreground resume', () => {
     if (memberships$) {
       (tenant as { memberships$: BehaviorSubject<unknown[]> }).memberships$ = memberships$;
     }
-    const service = new BadgeService(
+    const created = createBadgeService(
       { client: { rpc } } as unknown as SupabaseService,
       createBadgeInjector(userSession, tenant) as unknown as Injector
     );
-    (service as unknown as { currentUserEmail: string }).currentUserEmail = TEST_EMAIL;
-    return { service, rpc, userSession };
+    created.tenant.currentUserEmail = TEST_EMAIL;
+    return {
+      service: created.service,
+      tenantBadges: created.tenant,
+      rpc,
+      userSession,
+    };
   }
 
   it('revalidates receipts on foreground only when the warm cache is stale', async () => {
@@ -2473,18 +2532,18 @@ describe('BadgeService foreground resume', () => {
         promptUpdates: [],
       })
     );
-    const { service, rpc } = createForegroundService();
+    const { service, tenantBadges, rpc } = createForegroundService();
     await new Promise((resolve) => setTimeout(resolve, 0));
     rpc.mockClear();
-    (service as unknown as { lastReceiptNetworkSyncAt: number }).lastReceiptNetworkSyncAt =
-      Date.now();
+    tenantBadges.setLastReceiptNetworkSyncAtForTests(Date.now());
 
     window.dispatchEvent(new CustomEvent('app-became-visible'));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(receiptCalls(rpc)).toHaveLength(0);
 
-    (service as unknown as { lastReceiptNetworkSyncAt: number }).lastReceiptNetworkSyncAt =
-      Date.now() - BADGE_FOREGROUND_RECEIPT_REVALIDATE_MS - 5;
+    tenantBadges.setLastReceiptNetworkSyncAtForTests(
+      Date.now() - BADGE_FOREGROUND_RECEIPT_REVALIDATE_MS - 5
+    );
     window.dispatchEvent(new CustomEvent('app-became-visible'));
     await new Promise((resolve) => setTimeout(resolve, 0));
     await Promise.resolve();
@@ -2492,31 +2551,23 @@ describe('BadgeService foreground resume', () => {
   });
 
   it('caps per-id badge subjects', () => {
-    const { service } = createForegroundService();
+    const { service, tenantBadges } = createForegroundService();
     for (let i = 0; i < INDIVIDUAL_BADGE_SUBJECT_CAP + 25; i++) {
       service.hasIndividualBadge$('prayers', `prayer-${i}`);
     }
-    const subjects = (
-      service as unknown as { individualBadgeSubject$: Map<string, unknown> }
-    ).individualBadgeSubject$;
+    const subjects = tenantBadges.getIndividualBadgeSubjectsForTests();
     expect(subjects.size).toBeLessThanOrEqual(INDIVIDUAL_BADGE_SUBJECT_CAP);
   });
 
   it('clears per-id badge subjects when the session ends', async () => {
-    const { service, userSession } = createForegroundService();
+    const { service, tenantBadges, userSession } = createForegroundService();
     await new Promise((resolve) => setTimeout(resolve, 0));
     service.hasIndividualBadge$('prayers', 'prayer-1');
-    expect(
-      (service as unknown as { individualBadgeSubject$: Map<string, unknown> })
-        .individualBadgeSubject$.size
-    ).toBe(1);
+    expect(tenantBadges.getIndividualBadgeSubjectsForTests().size).toBe(1);
 
     userSession.userSession$.next(null);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(
-      (service as unknown as { individualBadgeSubject$: Map<string, unknown> })
-        .individualBadgeSubject$.size
-    ).toBe(0);
+    expect(tenantBadges.getIndividualBadgeSubjectsForTests().size).toBe(0);
   });
 
   it('does not rebuild badge caches when memberships are unchanged', async () => {

@@ -30,6 +30,7 @@ import { Router } from '@angular/router';
 import { UserSettingsFacade } from '../../lib/user-settings-facade';
 import { UserSettingsPanelComponent } from './user-settings-panel/user-settings-panel.component';
 import { UserSettingsDeleteAccountDialogComponent } from './user-settings-delete-account-dialog/user-settings-delete-account-dialog.component';
+import { UserSettingsLogoutDialogComponent } from './user-settings-logout-dialog/user-settings-logout-dialog.component';
 import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-overlay.directive';
 
 @Component({
@@ -38,6 +39,7 @@ import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-ov
   imports: [
     UserSettingsPanelComponent,
     UserSettingsDeleteAccountDialogComponent,
+    UserSettingsLogoutDialogComponent,
     AppTopChromeOverlayDirective,
   ],
   templateUrl: './user-settings.component.html',

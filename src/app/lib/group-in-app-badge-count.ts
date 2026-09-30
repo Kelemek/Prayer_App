@@ -66,12 +66,27 @@ export function writeMemberPrayerGroupIdsToStorage(
   try {
     if (unique.length === 0) {
       storage.setItem(key, JSON.stringify([]));
-      return;
+    } else {
+      storage.setItem(key, JSON.stringify(unique));
     }
-    storage.setItem(key, JSON.stringify(unique));
+    dispatchMemberPrayerGroupIdsUpdated(email);
   } catch {
     // ignore quota errors
   }
+}
+
+export const MEMBER_PRAYER_GROUP_IDS_UPDATED_EVENT =
+  'prayer-app-member-prayer-group-ids-updated';
+
+export function dispatchMemberPrayerGroupIdsUpdated(email: string): void {
+  if (typeof window === 'undefined' || !email.trim()) {
+    return;
+  }
+  window.dispatchEvent(
+    new CustomEvent(MEMBER_PRAYER_GROUP_IDS_UPDATED_EVENT, {
+      detail: { email: email.trim().toLowerCase() },
+    })
+  );
 }
 
 export function parseGroupBadgeReadState(raw: unknown): GroupBadgeReadState {
@@ -177,7 +192,7 @@ export function resolveGroupBadgeTargetGroupIds(
   if (explicitGroupIds.length > 0) {
     return explicitGroupIds;
   }
-  return listGroupIdsFromStorage(storage);
+  return [];
 }
 
 export function readGroupPrayerItemsFromStorage(

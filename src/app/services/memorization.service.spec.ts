@@ -65,6 +65,9 @@ describe('MemorizationService', () => {
           getUser: vi.fn().mockResolvedValue({
             data: { user: { email: 'auth@test.com' } },
           }),
+          getSession: vi.fn().mockResolvedValue({
+            data: { session: { user: { email: 'user@test.com' } } },
+          }),
         },
       },
     };
@@ -151,6 +154,30 @@ describe('MemorizationService', () => {
     order.mockResolvedValue({ data: null, error: { message: 'db' } });
     await service.loadItems();
     expect(toast.error).toHaveBeenCalledWith('Failed to load memorization list');
+    consoleError.mockRestore();
+  });
+
+  it('loadItems does not toast after session ends during fetch', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    toast.error.mockClear();
+    let resolveOrder: (value: unknown) => void = () => {};
+    const orderPromise = new Promise((resolve) => {
+      resolveOrder = resolve;
+    });
+    const order = vi.fn(() => orderPromise);
+    const ilike = vi.fn(() => ({ order }));
+    const eq = vi.fn(() => ({ ilike }));
+    const select = vi.fn(() => ({ eq }));
+    supabase.client.from.mockReturnValue({ select });
+    supabase.client.auth.getSession.mockResolvedValue({ data: { session: null } });
+
+    const loadPromise = service.loadItems();
+    userSession$.next(null);
+    userSession.getCurrentSession.mockReturnValue(null);
+    resolveOrder({ data: null, error: { message: 'db' } });
+    await loadPromise;
+
+    expect(toast.error).not.toHaveBeenCalled();
     consoleError.mockRestore();
   });
 
@@ -365,15 +392,8 @@ describe('MemorizationService', () => {
     supabase.client.auth.getUser.mockResolvedValue({
       data: { user: { email: 'Auth@Test.com' } },
     });
-    const order = vi.fn().mockResolvedValue({ data: [], error: null });
-    supabase.client.from.mockReturnValue({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          ilike: vi.fn(() => ({ order })),
-        })),
-      })),
-    });
-    await service.loadItems();
+    const email = await (service as any).getUserEmail();
+    expect(email).toBe('auth@test.com');
     expect(supabase.client.auth.getUser).toHaveBeenCalled();
   });
 });

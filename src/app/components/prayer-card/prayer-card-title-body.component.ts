@@ -34,6 +34,7 @@ export class PrayerCardTitleBodyComponent {
   @Input() isVerseMemorization = false;
   @Input() showsCommunityUnreadBadges = false;
   @Input() showsGroupUnreadBadges = false;
+  @Input() showPrayerTitleUnreadBadge = false;
   @Input() prayerBadge$: Observable<boolean> | null = null;
   @Input({ required: true }) badgeService!: BadgeService;
 

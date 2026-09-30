@@ -13,6 +13,13 @@ export function closeUserSettingsDeleteAccountVerification(
   }
 }
 
+export function closeUserSettingsLogoutVerification(
+  host: UserSettingsFacade
+): void {
+  host.showLogoutVerification = false;
+  host.markForCheck();
+}
+
 async function invokeDeleteAccount(
   host: UserSettingsFacade,
   mode: AccountEraseMode

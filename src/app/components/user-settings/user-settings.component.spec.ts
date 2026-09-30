@@ -866,6 +866,19 @@ describe('UserSettingsComponent', () => {
 
       expect(mockAdminAuthService.logout).toHaveBeenCalled();
     });
+
+    it('opens verification before signing out', () => {
+      expect(component.showLogoutVerification).toBe(false);
+      component.openLogoutVerification();
+      expect(component.showLogoutVerification).toBe(true);
+    });
+
+    it('confirmLogout signs out and closes verification', async () => {
+      component.showLogoutVerification = true;
+      await component.confirmLogout();
+      expect(mockAdminAuthService.logout).toHaveBeenCalled();
+      expect(component.showLogoutVerification).toBe(false);
+    });
   });
 
   describe('delete account', () => {

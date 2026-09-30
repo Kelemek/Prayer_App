@@ -34,6 +34,8 @@ export class PrayerCardUpdatesSectionComponent {
   @Input({ required: true }) showTourAnchors!: boolean;
   @Input({ required: true }) showsCommunityUnreadBadges!: boolean;
   @Input() showsGroupUnreadBadges = false;
+  @Input() showCommunityUpdateUnreadBadge = false;
+  @Input() showGroupUpdateUnreadBadge = false;
   @Input({ required: true }) isCommunityPrayer!: boolean;
   @Input() isGroupPrayer = false;
   @Input({ required: true }) updateBadges$!: Map<string, BehaviorSubject<boolean>>;

@@ -1,158 +1,55 @@
 import { Injectable, Injector } from '@angular/core';
-import { BehaviorSubject, Observable, Subject, merge } from 'rxjs';
-import { distinctUntilChanged, startWith } from 'rxjs/operators';
-import { APP_BECAME_VISIBLE_EVENT } from '../lib/app-foreground';
-import { SupabaseService } from './supabase.service';
-import { UserSessionService } from './user-session.service';
-import { TenantContextService } from './tenant-context.service';
-import {
-  countDisplayedInAppPrayerBadgesAcrossTenants,
-  countInAppPrayerBadgesForItems,
-  isOwnBadgePrayerItem,
-  isOwnBadgeUpdate,
-  listMemberTenantIds,
-  parseCachedBadgeItems,
-  readAllTenantInAppBadgeSnapshots,
-  receiptsToReadState,
-  resolveAppIconBadgeCount,
-  unionInAppBadgeReadState,
-  type InAppBadgeCachedItem,
-  type InAppBadgeReceiptRow,
-} from '../lib/in-app-prayer-badge-count';
-import {
-  createLocalStorageAllTenantInAppBadgeHydrateDeps,
-  hydrateMissingTenantInAppBadgeCaches,
-} from '../lib/all-tenant-in-app-badge-hydrate';
+import { merge, type Observable } from 'rxjs';
+import { resolveAppIconBadgeCount } from '../lib/in-app-prayer-badge-count';
+import { attachBadgeServiceLifecycle } from '../lib/badge-lifecycle';
 import { GroupPrayerBadgeService } from './group-prayer-badge.service';
+import {
+  BADGE_FOREGROUND_RECEIPT_REVALIDATE_MS,
+  INDIVIDUAL_BADGE_SUBJECT_CAP,
+  TenantInAppBadgeService,
+} from './tenant-in-app-badge.service';
+
+export {
+  BADGE_FOREGROUND_RECEIPT_REVALIDATE_MS,
+  INDIVIDUAL_BADGE_SUBJECT_CAP,
+};
 
 /**
- * Prayer or Prompt object structure
- */
-interface CachedItem {
-  id: string;
-  status?: 'current' | 'answered' | 'archived';
-  type?: string;
-  updated_at: string;
-  email?: string | null;
-  user_email?: string | null;
-  updates?: Array<{
-    id: string;
-    created_at: string;
-    updated_at?: string;
-    author_email?: string | null;
-  }>;
-}
-
-type BadgeItemKind = 'prayer' | 'prayer_update' | 'prompt' | 'prompt_update';
-
-interface BadgeReadState {
-  prayers: string[];
-  prayerUpdates: string[];
-  prompts: string[];
-  promptUpdates: string[];
-}
-
-interface BadgeReceiptRow {
-  item_kind: BadgeItemKind;
-  item_id: string;
-}
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Foreground receipt revalidation interval when a local mirror is already warm. */
-export const BADGE_FOREGROUND_RECEIPT_REVALIDATE_MS = 60_000;
-
-/** Bound per-id badge subjects so a long session cannot grow the map forever. */
-export const INDIVIDUAL_BADGE_SUBJECT_CAP = 200;
-
-function membershipCacheKey(
-  memberships: ReadonlyArray<{
-    tenant_id?: string;
-    role?: string;
-    user_email?: string;
-    badge_functionality_enabled?: boolean;
-  }> | null | undefined
-): string {
-  if (!memberships || memberships.length === 0) {
-    return '';
-  }
-  return memberships
-    .map(
-      (membership) =>
-        `${membership.tenant_id ?? ''}:${membership.role ?? ''}:${(membership.user_email ?? '').toLowerCase()}:${membership.badge_functionality_enabled ? '1' : '0'}`
-    )
-    .sort()
-    .join('|');
-}
-
-function emptyReadState(): BadgeReadState {
-  return {
-    prayers: [],
-    prayerUpdates: [],
-    prompts: [],
-    promptUpdates: [],
-  };
-}
-
-/**
- * BadgeService tracks read/unread prayers and prompts to display notification badges.
- *
- * Read receipts are stored in Supabase (`badge_read_receipts`) per tenant membership
- * so unread badges sync across devices. A tenant+email localStorage cache is used
- * as a write-through mirror for snappy UI and offline use.
+ * Facade for in-app unread badges: tenant prayers/prompts plus group prayers.
+ * Read receipts sync via Supabase; see TenantInAppBadgeService and GroupPrayerBadgeService.
  */
 @Injectable({
   providedIn: 'root',
 })
 export class BadgeService {
-  /** @deprecated Legacy global keys; migrated once into DB + scoped cache. */
-  private readonly LEGACY_READ_PRAYERS_DATA_KEY = 'read_prayers_data';
-  private readonly LEGACY_READ_PROMPTS_DATA_KEY = 'read_prompts_data';
-
-  private badgeCountSubject$ = new Map<string, BehaviorSubject<number>>();
-  private statusBadgeCountSubject$ = new Map<string, BehaviorSubject<number>>();
-  private individualBadgeSubject$ = new Map<string, BehaviorSubject<boolean>>();
-  private updateBadgesChanged$ = new Subject<void>();
-  private badgeFunctionalityEnabled$ = new BehaviorSubject<boolean>(false);
-  private storageListenerAttached = false;
-  private visibilityListenerAttached = false;
-
-  private readState: BadgeReadState = emptyReadState();
-  private loadGeneration = 0;
-  private syncInFlight: Promise<void> | null = null;
-  private lastReceiptNetworkSyncAt: number | null = null;
-  private otherTenantHydrateInFlight: Promise<void> | null = null;
-  private otherTenantHydrateRequested = false;
-  private currentUserEmail: string | null = null;
-  /** When true, mark all cached items read once prayer/prompt caches are available. */
-  private pendingSeedAllAsRead = false;
-
-  // Use Injector to avoid circular dependency with UserSessionService
-  private userSessionService: UserSessionService | null = null;
-  private tenantContext: TenantContextService | null = null;
   private groupPrayerBadges: GroupPrayerBadgeService | null = null;
 
   constructor(
-    private supabase: SupabaseService,
-    private injector: Injector
+    private injector: Injector,
+    private readonly tenantBadges: TenantInAppBadgeService
   ) {
-    this.initializeBadgeSubjects();
-    this.attachStorageListener();
-    this.attachVisibilityListener();
-    this.attachUserSessionListener();
-    this.attachTenantChangeListener();
-  }
-
-  /** localStorage keys must match PrayerService / PromptService cache keys for the active tenant. */
-  private getPrayersCacheStorageKey(): string {
-    const tid = this.getTenantContext().getActiveTenant()?.id;
-    return tid ? `tenant_${tid}_prayers` : 'prayers_cache';
-  }
-
-  private getPromptsCacheStorageKey(): string {
-    const tid = this.getTenantContext().getActiveTenant()?.id;
-    return tid ? `prompts:${tid}` : 'prompts_cache';
+    attachBadgeServiceLifecycle({
+      injector: this.injector,
+      tenantBadges: this.tenantBadges,
+      clearSessionBadgeState: () => this.clearSessionBadgeState(),
+      reloadReadStateFromSources: () => this.reloadReadStateFromSources(),
+      refreshReadStateOnForeground: () => this.refreshReadStateOnForeground(),
+      ensureAllTenantInAppBadgeCaches: () =>
+        this.ensureAllTenantInAppBadgeCaches(),
+      onScopedBadgeReadStorageKey: (key) => {
+        const scopedKey =
+          this.tenantBadges.getScopedReadCacheKeyForActiveUser();
+        if (scopedKey && key === scopedKey) {
+          this.tenantBadges.applyLocalCacheToMemory();
+          this.refreshBadgeCounts();
+        }
+      },
+      onGroupBadgeReadStorageKey: (key) =>
+        this.getGroupPrayerBadges().applyLocalCacheFromStorageEvent(key),
+      onMemberPrayerGroupIdsStorageKey: (key) =>
+        this.getGroupPrayerBadges().applyMemberGroupIdsFromStorageEvent(key),
+      refreshBadgeCounts: () => this.refreshBadgeCounts(),
+    });
   }
 
   private getGroupPrayerBadges(): GroupPrayerBadgeService {
@@ -162,236 +59,48 @@ export class BadgeService {
     return this.groupPrayerBadges;
   }
 
-  private getTenantContext(): TenantContextService {
-    if (!this.tenantContext) {
-      this.tenantContext = this.injector.get(TenantContextService);
-    }
-    return this.tenantContext;
-  }
-
-  private getUserSessionService(): UserSessionService {
-    if (!this.userSessionService) {
-      this.userSessionService = this.injector.get(UserSessionService);
-    }
-    return this.userSessionService;
-  }
-
-  private getActiveTenantId(): string | null {
-    return this.getTenantContext().getActiveTenant()?.id ?? null;
-  }
-
-  private getActiveUserEmail(): string | null {
-    const fromSession = this.getUserSessionService().getUserEmail?.() ?? null;
-    const email = (fromSession || this.currentUserEmail || '').trim();
-    return email ? email.toLowerCase() : null;
-  }
-
-  /** Active member email used to exclude own prayers/updates from badges. */
-  getViewerEmailForBadges(): string | null {
-    return this.getActiveUserEmail();
-  }
-
-  private getScopedReadCacheKey(): string | null {
-    const email = this.getActiveUserEmail();
-    const tenantId = this.getActiveTenantId();
-    // Require a real tenant so we never orphan receipts under badge_read:_none_:...
-    if (!email || !tenantId) {
-      return null;
-    }
-    return `badge_read:${tenantId}:${email}`;
-  }
-
-  private getPendingSeedKey(): string | null {
-    const email = this.getActiveUserEmail();
-    const tenantId = this.getActiveTenantId();
-    if (!email || !tenantId) {
-      return null;
-    }
-    return `badge_seed_pending:${tenantId}:${email}`;
-  }
-
-  private getOrphanNoneCacheKey(email: string): string {
-    return `badge_read:_none_:${email}`;
-  }
-
-  private attachTenantChangeListener(): void {
-    setTimeout(() => {
-      try {
-        const ctx = this.getTenantContext();
-        ctx.activeTenant$
-          .pipe(distinctUntilChanged((a, b) => a?.id === b?.id))
-          .subscribe(() => {
-            void this.reloadReadStateFromSources();
-          });
-        const memberships$ = ctx.memberships$;
-        if (memberships$) {
-          memberships$
-            .pipe(
-              distinctUntilChanged(
-                (prev, next) => membershipCacheKey(prev) === membershipCacheKey(next)
-              )
-            )
-            .subscribe(() => {
-              void this.ensureAllTenantInAppBadgeCaches();
-            });
-        }
-      } catch {
-        // ignore
-      }
-    }, 0);
-  }
-
-  private attachUserSessionListener(): void {
-    setTimeout(() => {
-      this.getUserSessionService()
-        .userSession$.pipe(
-          distinctUntilChanged(
-            (prev, curr) =>
-              prev?.email === curr?.email &&
-              prev?.badgeFunctionalityEnabled === curr?.badgeFunctionalityEnabled
-          )
-        )
-        .subscribe((session) => {
-          if (session) {
-            this.currentUserEmail = session.email
-              ? session.email.toLowerCase().trim()
-              : null;
-            const isEnabled = session.badgeFunctionalityEnabled ?? false;
-            this.badgeFunctionalityEnabled$.next(isEnabled);
-            void this.reloadReadStateFromSources();
-          } else {
-            this.currentUserEmail = null;
-            this.badgeFunctionalityEnabled$.next(false);
-            this.pendingSeedAllAsRead = false;
-            this.readState = emptyReadState();
-            this.clearIndividualBadgeSubjects();
-            this.refreshBadgeCounts();
-          }
-        });
-    }, 0);
-  }
-
-  private initializeBadgeSubjects(): void {
-    this.badgeCountSubject$.set('prayers', new BehaviorSubject<number>(0));
-    this.badgeCountSubject$.set('prompts', new BehaviorSubject<number>(0));
-    this.statusBadgeCountSubject$.set(
-      'prayers_current',
-      new BehaviorSubject<number>(0)
-    );
-    this.statusBadgeCountSubject$.set(
-      'prayers_answered',
-      new BehaviorSubject<number>(0)
-    );
-  }
-
-  private attachStorageListener(): void {
-    if (this.storageListenerAttached) return;
-
-    window.addEventListener('storage', (event) => {
-      if (!event.key) {
-        return;
-      }
-      if (event.key.startsWith('badge_read:')) {
-        const scopedKey = this.getScopedReadCacheKey();
-        if (scopedKey && event.key === scopedKey) {
-          this.applyLocalCacheToMemory();
-          this.refreshBadgeCounts();
-        }
-        return;
-      }
-      if (
-        event.key.startsWith('badge_read_groups:') &&
-        this.getGroupPrayerBadges().applyLocalCacheFromStorageEvent(event.key)
-      ) {
-        this.refreshBadgeCounts();
-      }
-    });
-
-    this.storageListenerAttached = true;
-  }
-
-  private attachVisibilityListener(): void {
-    if (this.visibilityListenerAttached || typeof document === 'undefined') {
-      return;
-    }
-
-    window.addEventListener(APP_BECAME_VISIBLE_EVENT, () => {
-      void this.refreshReadStateOnForeground();
-    });
-
-    this.visibilityListenerAttached = true;
-  }
-
-  private hasWarmReadCache(): boolean {
-    const key = this.getScopedReadCacheKey();
-    if (!key || typeof localStorage === 'undefined') {
-      return false;
-    }
-    return localStorage.getItem(key) != null;
-  }
-
-  /**
-   * Show the local mirror immediately. Hit the database only when that mirror
-   * is missing or the last successful sync is older than the revalidate window.
-   */
   private async refreshReadStateOnForeground(): Promise<void> {
-    const warm = this.hasWarmReadCache();
-    const fresh =
-      this.lastReceiptNetworkSyncAt != null &&
-      Date.now() - this.lastReceiptNetworkSyncAt < BADGE_FOREGROUND_RECEIPT_REVALIDATE_MS;
-    if (warm && fresh) {
-      this.applyLocalCacheToMemory();
-      this.getGroupPrayerBadges().applyLocalCacheToMemory();
-      this.refreshBadgeCounts();
-      return;
-    }
-    await this.reloadReadStateFromSources();
+    await this.tenantBadges.refreshReadStateOnForeground();
+    const groupBadges = this.getGroupPrayerBadges();
+    groupBadges.applyLocalCacheToMemory();
+    await groupBadges.reloadFromDatabase();
+    this.refreshBadgeCounts();
   }
 
-  /**
-   * Load local mirror first (snappy), optionally migrate legacy keys, then sync from DB.
-   */
   private async reloadReadStateFromSources(): Promise<void> {
-    const generation = ++this.loadGeneration;
-
-    this.restorePendingSeedFlag();
-    this.applyLocalCacheToMemory();
-    this.getGroupPrayerBadges().applyLocalCacheToMemory();
-    await this.migrateLegacyLocalStorageIfNeeded();
-    if (generation !== this.loadGeneration) {
-      return;
-    }
+    await this.tenantBadges.reloadReadStateFromSources();
+    const groupBadges = this.getGroupPrayerBadges();
+    groupBadges.applyLocalCacheToMemory();
+    await groupBadges.reloadFromDatabase();
     this.refreshBadgeCounts();
+  }
 
-    await this.loadReceiptsFromDatabase();
-    if (generation !== this.loadGeneration) {
-      return;
-    }
-    await this.getGroupPrayerBadges().reloadFromDatabase();
-    if (generation !== this.loadGeneration) {
-      return;
-    }
-    this.refreshBadgeCounts();
-    void this.ensureAllTenantInAppBadgeCaches();
+  private clearSessionBadgeState(): void {
+    this.tenantBadges.clearSessionBadgeState();
+    this.getGroupPrayerBadges().clearSessionBadgeState();
   }
 
   getUpdateBadgesChanged$(): Observable<void> {
     return merge(
-      this.updateBadgesChanged$.asObservable(),
+      this.tenantBadges.getUpdateBadgesChanged$(),
       this.getGroupPrayerBadges().getUpdateBadgesChanged$()
     );
   }
 
   getBadgeFunctionalityEnabled$(): Observable<boolean> {
-    return this.badgeFunctionalityEnabled$.asObservable();
+    return this.tenantBadges.getBadgeFunctionalityEnabled$();
   }
 
   getPrayerBadgesChanged$(_status: 'current' | 'answered'): Observable<void> {
-    return this.updateBadgesChanged$.asObservable();
+    return this.tenantBadges.getUpdateBadgesChanged$();
+  }
+
+  getViewerEmailForBadges(): string | null {
+    return this.tenantBadges.getViewerEmailForBadges();
   }
 
   markPrayerAsRead(prayerId: string): void {
-    this.markItemAsRead(prayerId, 'prayers');
+    this.tenantBadges.markPrayerAsRead(prayerId);
   }
 
   markGroupPrayerAsRead(prayerId: string, groupId: string): void {
@@ -424,15 +133,8 @@ export class BadgeService {
     this.getGroupPrayerBadges().markAllGroupPrayersRead();
   }
 
-  markAllGroupPrayersReadByStatus(
-    status: 'current' | 'answered',
-    groupId?: string
-  ): void {
-    this.getGroupPrayerBadges().markAllGroupPrayersReadByStatus(status, groupId);
-  }
-
   markPromptAsRead(promptId: string): void {
-    this.markItemAsRead(promptId, 'prompts');
+    this.tenantBadges.markPromptAsRead(promptId);
   }
 
   markUpdateAsRead(
@@ -440,1178 +142,117 @@ export class BadgeService {
     itemId: string,
     type: 'prayers' | 'prompts'
   ): void {
-    try {
-      const kind: BadgeItemKind =
-        type === 'prayers' ? 'prayer_update' : 'prompt_update';
-      const added = this.addIdsToReadState(
-        type === 'prayers' ? 'prayerUpdates' : 'promptUpdates',
-        [updateId]
-      );
-      if (added.length > 0) {
-        this.persistReadStateLocally();
-        void this.upsertReceiptsToDatabase([{ item_kind: kind, item_id: updateId }]);
-      }
+    this.tenantBadges.markUpdateAsRead(updateId, itemId, type);
+  }
 
-      const cacheKey =
-        type === 'prayers'
-          ? this.getPrayersCacheStorageKey()
-          : this.getPromptsCacheStorageKey();
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        const parsedCache = JSON.parse(cached);
-        const items = parsedCache?.data || parsedCache || [];
-        const item = items.find((i: CachedItem) => i.id === itemId);
-        const itemStatus = item?.status;
-
-        this.updateBadgeCount(type);
-
-        if (type === 'prayers' && itemStatus) {
-          this.updateStatusBadgeCount(
-            type,
-            itemStatus as 'current' | 'answered'
-          );
-        }
-      }
-
-      const key = `${type}_${itemId}`;
-      if (this.individualBadgeSubject$.has(key)) {
-        const hasBadge = this.checkIndividualBadge(type, itemId);
-        (
-          this.individualBadgeSubject$.get(key) as BehaviorSubject<boolean>
-        ).next(hasBadge);
-      }
-
-      this.updateBadgesChanged$.next();
-    } catch (error) {
-      console.warn(`Failed to mark update as read:`, error);
+  markAllCachedItemsAsRead(): void {
+    const groupBadges = this.getGroupPrayerBadges();
+    const hasContent =
+      this.tenantBadges.hasCachedTenantBadgeContent() ||
+      groupBadges.hasCachedGroupPrayers();
+    if (!hasContent) {
+      this.tenantBadges.setPendingSeedAllAsRead(true);
+      this.tenantBadges.persistPendingSeedFlag(true);
+      return;
     }
+    this.tenantBadges.setPendingSeedAllAsRead(false);
+    this.tenantBadges.persistPendingSeedFlag(false);
+    this.tenantBadges.markAllAsRead('prayers');
+    this.tenantBadges.markAllAsRead('prompts');
+    groupBadges.markAllCachedGroupPrayersAsRead();
   }
 
   markAllAsRead(type: 'prayers' | 'prompts'): void {
-    const cacheKey =
-      type === 'prayers'
-        ? this.getPrayersCacheStorageKey()
-        : this.getPromptsCacheStorageKey();
-
-    try {
-      const cached = localStorage.getItem(cacheKey);
-      if (!cached) {
-        return;
-      }
-      const parsedCache = JSON.parse(cached);
-      const items = parsedCache?.data || parsedCache || [];
-      if (!Array.isArray(items)) {
-        return;
-      }
-
-      const ids = items.map((item: CachedItem) => item.id).filter(Boolean);
-      const updateIds = this.collectUpdateIds(items);
-
-      const receipts: BadgeReceiptRow[] = [];
-      if (type === 'prayers') {
-        this.addIdsToReadState('prayers', ids).forEach((id) =>
-          receipts.push({ item_kind: 'prayer', item_id: id })
-        );
-        this.addIdsToReadState('prayerUpdates', updateIds).forEach((id) =>
-          receipts.push({ item_kind: 'prayer_update', item_id: id })
-        );
-      } else {
-        this.addIdsToReadState('prompts', ids).forEach((id) =>
-          receipts.push({ item_kind: 'prompt', item_id: id })
-        );
-        this.addIdsToReadState('promptUpdates', updateIds).forEach((id) =>
-          receipts.push({ item_kind: 'prompt_update', item_id: id })
-        );
-      }
-
-      this.persistReadStateLocally();
-      void this.upsertReceiptsToDatabase(receipts);
-
-      items.forEach((item: CachedItem) => {
-        const key = `${type}_${item.id}`;
-        if (this.individualBadgeSubject$.has(key)) {
-          (
-            this.individualBadgeSubject$.get(key) as BehaviorSubject<boolean>
-          ).next(false);
-        }
-      });
-
-      this.refreshBadgeCounts();
-      this.updateBadgesChanged$.next();
-    } catch (error) {
-      console.warn(`Failed to mark all ${type} as read:`, error);
-    }
+    this.tenantBadges.markAllAsRead(type);
   }
 
   markAllAsReadByStatus(
     type: 'prayers' | 'prompts',
     status: 'current' | 'answered'
   ): void {
-    const cacheKey =
-      type === 'prayers'
-        ? this.getPrayersCacheStorageKey()
-        : this.getPromptsCacheStorageKey();
-
-    try {
-      const cached = localStorage.getItem(cacheKey);
-      if (!cached) {
-        return;
-      }
-      const parsedCache = JSON.parse(cached);
-      const items = parsedCache?.data || parsedCache || [];
-      if (!Array.isArray(items)) {
-        return;
-      }
-
-      const itemsWithStatus = items.filter(
-        (item: CachedItem) => item.status === status
-      );
-      const ids = itemsWithStatus.map((item: CachedItem) => item.id).filter(Boolean);
-      const updateIds = this.collectUpdateIds(itemsWithStatus);
-
-      const receipts: BadgeReceiptRow[] = [];
-      if (type === 'prayers') {
-        this.addIdsToReadState('prayers', ids).forEach((id) =>
-          receipts.push({ item_kind: 'prayer', item_id: id })
-        );
-        this.addIdsToReadState('prayerUpdates', updateIds).forEach((id) =>
-          receipts.push({ item_kind: 'prayer_update', item_id: id })
-        );
-      } else {
-        this.addIdsToReadState('prompts', ids).forEach((id) =>
-          receipts.push({ item_kind: 'prompt', item_id: id })
-        );
-        this.addIdsToReadState('promptUpdates', updateIds).forEach((id) =>
-          receipts.push({ item_kind: 'prompt_update', item_id: id })
-        );
-      }
-
-      this.persistReadStateLocally();
-      void this.upsertReceiptsToDatabase(receipts);
-
-      itemsWithStatus.forEach((item: CachedItem) => {
-        const key = `${type}_${item.id}`;
-        if (this.individualBadgeSubject$.has(key)) {
-          (
-            this.individualBadgeSubject$.get(key) as BehaviorSubject<boolean>
-          ).next(false);
-        }
-      });
-
-      this.refreshBadgeCounts();
-      this.updateBadgesChanged$.next();
-    } catch (error) {
-      console.warn(
-        `Failed to mark all ${type} with status ${status} as read:`,
-        error
-      );
-    }
+    this.tenantBadges.markAllAsReadByStatus(type, status);
   }
 
   markAllAsReadByPromptType(promptType: string): void {
-    const cacheKey = this.getPromptsCacheStorageKey();
-
-    try {
-      const cached = localStorage.getItem(cacheKey);
-      if (!cached) {
-        return;
-      }
-      const parsedCache = JSON.parse(cached);
-      const items = parsedCache?.data || parsedCache || [];
-      if (!Array.isArray(items)) {
-        return;
-      }
-
-      const itemsWithType = items.filter(
-        (item: CachedItem) => item.type === promptType
-      );
-      if (itemsWithType.length === 0) {
-        return;
-      }
-
-      const ids = itemsWithType.map((item: CachedItem) => item.id).filter(Boolean);
-      const updateIds = this.collectUpdateIds(itemsWithType);
-
-      const receipts: BadgeReceiptRow[] = [];
-      this.addIdsToReadState('prompts', ids).forEach((id) =>
-        receipts.push({ item_kind: 'prompt', item_id: id })
-      );
-      this.addIdsToReadState('promptUpdates', updateIds).forEach((id) =>
-        receipts.push({ item_kind: 'prompt_update', item_id: id })
-      );
-
-      this.persistReadStateLocally();
-      void this.upsertReceiptsToDatabase(receipts);
-
-      itemsWithType.forEach((item: CachedItem) => {
-        const key = `prompts_${item.id}`;
-        if (this.individualBadgeSubject$.has(key)) {
-          (
-            this.individualBadgeSubject$.get(key) as BehaviorSubject<boolean>
-          ).next(false);
-        }
-      });
-
-      this.refreshBadgeCounts();
-      this.updateBadgesChanged$.next();
-    } catch (error) {
-      console.warn(
-        `Failed to mark all prompts with type ${promptType} as read:`,
-        error
-      );
-    }
+    this.tenantBadges.markAllAsReadByPromptType(promptType);
   }
 
-  /**
-   * Mark every cached prayer and prompt (and their updates) as read for the
-   * active tenant. Used when enabling badge functionality. If caches are not
-   * loaded yet, defers until refreshBadgeCounts sees content.
-   */
-  markAllCachedItemsAsRead(): void {
-    const hasContent =
-      this.cacheHasItems('prayers') ||
-      this.cacheHasItems('prompts') ||
-      this.getGroupPrayerBadges().hasCachedGroupPrayers();
-    if (!hasContent) {
-      this.pendingSeedAllAsRead = true;
-      this.persistPendingSeedFlag(true);
-      return;
-    }
-    // Clear the seed flag before marking. markAllAsRead refreshes counts, and
-    // that refresh replays a still-pending seed, which calls markAllAsRead again.
-    this.pendingSeedAllAsRead = false;
-    this.persistPendingSeedFlag(false);
-    this.markAllAsRead('prayers');
-    this.markAllAsRead('prompts');
-    this.getGroupPrayerBadges().markAllCachedGroupPrayersAsRead();
-  }
-
-  private persistPendingSeedFlag(pending: boolean): void {
-    const key = this.getPendingSeedKey();
-    if (!key) {
-      return;
-    }
-    try {
-      if (pending) {
-        localStorage.setItem(key, '1');
-      } else {
-        localStorage.removeItem(key);
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  private restorePendingSeedFlag(): void {
-    const key = this.getPendingSeedKey();
-    if (!key) {
-      return;
-    }
-    try {
-      if (localStorage.getItem(key) === '1') {
-        this.pendingSeedAllAsRead = true;
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  private cacheHasItems(type: 'prayers' | 'prompts'): boolean {
-    const cacheKey =
-      type === 'prayers'
-        ? this.getPrayersCacheStorageKey()
-        : this.getPromptsCacheStorageKey();
-    try {
-      const cached = localStorage.getItem(cacheKey);
-      if (!cached) {
-        return false;
-      }
-      const parsedCache = JSON.parse(cached);
-      const items = parsedCache?.data || parsedCache || [];
-      return Array.isArray(items) && items.length > 0;
-    } catch {
-      return false;
-    }
-  }
-
-  private maybeClearPendingSeedAfterMarkAll(): void {
-    if (!this.pendingSeedAllAsRead) {
-      return;
-    }
-    // Clear only once at least one content cache has loaded (or both exist empty
-    // after a successful load attempt is hard to detect). Prefer: clear when we
-    // observed cache content and marked it, or when both caches exist as arrays.
-    const prayersPresent = this.cacheHasItems('prayers');
-    const promptsPresent = this.cacheHasItems('prompts');
-    if (prayersPresent || promptsPresent) {
-      this.pendingSeedAllAsRead = false;
-      this.persistPendingSeedFlag(false);
-    }
-  }
-
-  private maybeSeedPendingMarkAll(): void {
-    this.restorePendingSeedFlag();
-    if (!this.pendingSeedAllAsRead) {
-      return;
-    }
-    if (
-      !this.cacheHasItems('prayers') &&
-      !this.cacheHasItems('prompts') &&
-      !this.getGroupPrayerBadges().hasCachedGroupPrayers()
-    ) {
-      return;
-    }
-    this.pendingSeedAllAsRead = false;
-    this.persistPendingSeedFlag(false);
-    this.markAllAsRead('prayers');
-    this.markAllAsRead('prompts');
-    this.getGroupPrayerBadges().markAllCachedGroupPrayersAsRead();
+  markAllGroupPrayersReadByStatus(
+    status: 'current' | 'answered',
+    groupId?: string
+  ): void {
+    this.getGroupPrayerBadges().markAllGroupPrayersReadByStatus(status, groupId);
   }
 
   getBadgeCount$(
     type: 'prayers' | 'prompts',
     status?: 'current' | 'answered'
   ): Observable<number> {
-    return this.getBadgeCountInternal$(type, status);
-  }
-
-  /**
-   * All-tenant sum of in-app prayer badges currently displayed
-   * (Current + Answered + Prompts across every church membership).
-   * Returns 0 when badge functionality is disabled.
-   */
-  getAllTenantDisplayedBadgeCount(): number {
-    const churchAndPrompts = this.sumAllTenantDisplayedBadgeCount();
-    const groups = this.getGroupPrayerBadges().getDisplayedBadgeCount();
-    return resolveAppIconBadgeCount({
-      badgesEnabled: this.badgeFunctionalityEnabled$.value,
-      allTenantDisplayedCount: churchAndPrompts + groups,
-    });
-  }
-
-  private sumAllTenantDisplayedBadgeCount(): number {
-    const email = this.getActiveUserEmail();
-    if (!email || typeof localStorage === 'undefined') {
-      return 0;
-    }
-    const tenantIds = this.getAllMemberTenantIds();
-    if (tenantIds.length === 0) {
-      return 0;
-    }
-    return countDisplayedInAppPrayerBadgesAcrossTenants(
-      readAllTenantInAppBadgeSnapshots(
-        localStorage,
-        tenantIds,
-        email,
-        this.getActiveTenantId(),
-        this.readState
-      ),
-      email
-    );
-  }
-
-  private getAllMemberTenantIds(): string[] {
-    try {
-      const ctx = this.getTenantContext();
-      return listMemberTenantIds({
-        memberTenants: ctx.getMemberTenants?.() ?? [],
-        memberships: ctx.getMemberships?.() ?? [],
-        activeTenantId: this.getActiveTenantId(),
-      });
-    } catch {
-      return listMemberTenantIds({
-        activeTenantId: this.getActiveTenantId(),
-      });
-    }
-  }
-
-  /**
-   * Load other-tenant receipts + badge-owned item snapshots so the icon
-   * sum is not limited to churches the member has already opened.
-   */
-  async ensureAllTenantInAppBadgeCaches(): Promise<void> {
-    this.otherTenantHydrateRequested = true;
-    if (this.otherTenantHydrateInFlight) {
-      return this.otherTenantHydrateInFlight;
-    }
-    this.otherTenantHydrateInFlight = this.runOtherTenantHydrateLoop().finally(
-      () => {
-        this.otherTenantHydrateInFlight = null;
-      }
-    );
-    return this.otherTenantHydrateInFlight;
-  }
-
-  private async runOtherTenantHydrateLoop(): Promise<void> {
-    while (this.otherTenantHydrateRequested) {
-      this.otherTenantHydrateRequested = false;
-      const email = this.getActiveUserEmail();
-      const tenantIds = this.getAllMemberTenantIds();
-      const skipTenantId = this.getActiveTenantId();
-      if (
-        !email ||
-        typeof localStorage === 'undefined' ||
-        tenantIds.every((id) => !id || id === skipTenantId)
-      ) {
-        continue;
-      }
-      await hydrateMissingTenantInAppBadgeCaches(
-        createLocalStorageAllTenantInAppBadgeHydrateDeps({
-          storage: localStorage,
-          client: this.supabase.client,
-          email,
-          tenantIds,
-          skipTenantId,
-        })
-      );
-      this.updateBadgesChanged$.next();
-    }
+    return this.tenantBadges.getBadgeCount$(type, status);
   }
 
   hasIndividualBadge$(
     type: 'prayers' | 'prompts',
     id: string
   ): Observable<boolean> {
-    const key = `${type}_${id}`;
-    let subject = this.individualBadgeSubject$.get(key);
-    if (!subject) {
-      this.evictIdleIndividualBadgeSubjects();
-      subject = new BehaviorSubject<boolean>(false);
-      this.individualBadgeSubject$.set(key, subject);
-    }
-
-    return subject.asObservable().pipe(startWith(this.checkIndividualBadge(type, id)));
-  }
-
-  private clearIndividualBadgeSubjects(): void {
-    for (const subject of this.individualBadgeSubject$.values()) {
-      subject.complete();
-    }
-    this.individualBadgeSubject$.clear();
-  }
-
-  private evictIdleIndividualBadgeSubjects(): void {
-    const overCap = () =>
-      this.individualBadgeSubject$.size >= INDIVIDUAL_BADGE_SUBJECT_CAP;
-    if (!overCap()) {
-      return;
-    }
-
-    for (const [key, subject] of [...this.individualBadgeSubject$.entries()]) {
-      if (!overCap()) {
-        return;
-      }
-      if (!subject.observed) {
-        subject.complete();
-        this.individualBadgeSubject$.delete(key);
-      }
-    }
-
-    while (overCap()) {
-      const oldest = this.individualBadgeSubject$.keys().next().value;
-      if (oldest === undefined) {
-        return;
-      }
-      this.individualBadgeSubject$.get(oldest)?.complete();
-      this.individualBadgeSubject$.delete(oldest);
-    }
+    return this.tenantBadges.hasIndividualBadge$(type, id);
   }
 
   getUnreadIds(type: 'prayers' | 'prompts'): string[] {
-    const cacheKey =
-      type === 'prayers'
-        ? this.getPrayersCacheStorageKey()
-        : this.getPromptsCacheStorageKey();
-
-    try {
-      const cached = localStorage.getItem(cacheKey);
-      if (!cached) {
-        return [];
-      }
-
-      const parsedCache = JSON.parse(cached);
-      const items = parsedCache?.data || parsedCache || [];
-
-      if (!Array.isArray(items)) {
-        return [];
-      }
-
-      const readIds =
-        type === 'prayers' ? this.readState.prayers : this.readState.prompts;
-
-      return items
-        .filter((item: CachedItem) => !readIds.includes(item.id))
-        .map((item: CachedItem) => item.id);
-    } catch (error) {
-      console.warn(`Failed to get unread IDs for ${type}:`, error);
-      return [];
-    }
+    return this.tenantBadges.getUnreadIds(type);
   }
 
-  private markItemAsRead(itemId: string, type: 'prayers' | 'prompts'): void {
-    try {
-      let itemStatus: string | undefined;
-      const receipts: BadgeReceiptRow[] = [];
-
-      if (type === 'prayers') {
-        const added = this.addIdsToReadState('prayers', [itemId]);
-        if (added.length > 0) {
-          receipts.push({ item_kind: 'prayer', item_id: itemId });
-        }
-        const cacheKey = this.getPrayersCacheStorageKey();
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const parsedCache = JSON.parse(cached);
-          const items = parsedCache?.data || parsedCache || [];
-          const item = items.find((i: CachedItem) => i.id === itemId);
-          itemStatus = item?.status;
-        }
-      } else {
-        const added = this.addIdsToReadState('prompts', [itemId]);
-        if (added.length > 0) {
-          receipts.push({ item_kind: 'prompt', item_id: itemId });
-        }
-      }
-
-      const updateReceipts = this.markItemUpdatesAsRead(itemId, type);
-      receipts.push(...updateReceipts);
-
-      this.persistReadStateLocally();
-      void this.upsertReceiptsToDatabase(receipts);
-
-      this.updateBadgeCount(type);
-
-      if (type === 'prayers' && itemStatus) {
-        this.updateStatusBadgeCount(
-          type,
-          itemStatus as 'current' | 'answered'
-        );
-      }
-
-      const key = `${type}_${itemId}`;
-      if (this.individualBadgeSubject$.has(key)) {
-        (
-          this.individualBadgeSubject$.get(key) as BehaviorSubject<boolean>
-        ).next(false);
-      }
-
-      this.updateBadgesChanged$.next();
-    } catch (error) {
-      console.warn(`Failed to mark ${itemId} as read:`, error);
-    }
+  getAllTenantDisplayedBadgeCount(): number {
+    const tenantTotal = this.tenantBadges.sumAllTenantDisplayedBadgeCount();
+    const groupTotal = this.getGroupPrayerBadges().getDisplayedBadgeCount();
+    return resolveAppIconBadgeCount({
+      badgesEnabled: this.tenantBadges.isBadgeFunctionalityEnabled(),
+      allTenantDisplayedCount: tenantTotal + groupTotal,
+    });
   }
 
-  private getBadgeCountInternal$(
-    type: 'prayers' | 'prompts',
-    status?: 'current' | 'answered'
-  ): Observable<number> {
-    const key = status ? `${type}_${status}` : type;
+  async ensureAllTenantInAppBadgeCaches(): Promise<void> {
+    await this.tenantBadges.ensureAllTenantInAppBadgeCaches();
+  }
 
-    let subject = status
-      ? this.statusBadgeCountSubject$.get(key)
-      : this.badgeCountSubject$.get(type);
+  isUpdateUnread(updateId: string): boolean {
+    return this.tenantBadges.isUpdateUnread(updateId);
+  }
 
-    if (!subject) {
-      subject = new BehaviorSubject<number>(0);
-      if (status) {
-        this.statusBadgeCountSubject$.set(key, subject);
-      } else {
-        this.badgeCountSubject$.set(type, subject);
-      }
-    }
+  isPrayerUnread(prayerId: string): boolean {
+    return this.tenantBadges.isPrayerUnread(prayerId);
+  }
 
-    const currentCount = this.calculateBadgeCount(type, status);
-    subject.next(currentCount);
-
-    return subject.asObservable();
+  isPromptUnread(promptId: string): boolean {
+    return this.tenantBadges.isPromptUnread(promptId);
   }
 
   refreshBadgeCounts(): void {
     this.maybeSeedPendingMarkAll();
-
-    this.badgeCountSubject$.forEach((subject, key) => {
-      if (key === 'prayers') {
-        subject.next(this.calculateBadgeCount('prayers'));
-      } else if (key === 'prompts') {
-        subject.next(this.calculateBadgeCount('prompts'));
-      }
-    });
-
-    this.statusBadgeCountSubject$.forEach((subject, key) => {
-      const [type, status] = key.split('_') as [
-        'prayers' | 'prompts',
-        'current' | 'answered',
-      ];
-      subject.next(this.calculateBadgeCount(type, status));
-    });
-
-    this.individualBadgeSubject$.forEach((subject, key) => {
-      const [type, ...idParts] = key.split('_');
-      const id = idParts.join('_');
-      subject.next(this.checkIndividualBadge(type as 'prayers' | 'prompts', id));
-    });
-
-    this.updateBadgesChanged$.next();
+    this.tenantBadges.refreshBadgeCounts();
     this.getGroupPrayerBadges().refreshBadgeCounts();
   }
 
-  private calculateBadgeCount(
-    type: 'prayers' | 'prompts',
-    status?: 'current' | 'answered'
-  ): number {
-    try {
-      const cached = localStorage.getItem(
-        type === 'prayers'
-          ? this.getPrayersCacheStorageKey()
-          : this.getPromptsCacheStorageKey()
-      );
-      if (!cached) {
-        return 0;
-      }
-      return countInAppPrayerBadgesForItems(
-        parseCachedBadgeItems(cached),
-        type === 'prayers' ? this.readState.prayers : this.readState.prompts,
-        type === 'prayers'
-          ? this.readState.prayerUpdates
-          : this.readState.promptUpdates,
-        status,
-        this.getActiveUserEmail()
-      );
-    } catch (error) {
-      console.warn(`Failed to calculate badge count for ${type}:`, error);
-      return 0;
-    }
-  }
-
-  isUpdateUnread(updateId: string): boolean {
-    const viewerEmail = this.getActiveUserEmail();
-    const found = this.findCachedPrayerUpdate(updateId);
-    if (found && isOwnBadgeUpdate(found.update, viewerEmail)) {
-      return false;
-    }
-    return !this.readState.prayerUpdates.includes(updateId);
-  }
-
-  isPrayerUnread(prayerId: string): boolean {
-    const viewerEmail = this.getActiveUserEmail();
-    const item = this.findCachedPrayerItem(prayerId);
-    if (item && isOwnBadgePrayerItem(item, viewerEmail)) {
-      return false;
-    }
-    return !this.readState.prayers.includes(prayerId);
-  }
-
-  isPromptUnread(promptId: string): boolean {
-    return !this.readState.prompts.includes(promptId);
-  }
-
-  private checkIndividualBadge(
-    type: 'prayers' | 'prompts',
-    id: string
-  ): boolean {
-    const cacheKey =
-      type === 'prayers'
-        ? this.getPrayersCacheStorageKey()
-        : this.getPromptsCacheStorageKey();
-
-    try {
-      const cached = localStorage.getItem(cacheKey);
-      if (!cached) {
-        return false;
-      }
-
-      const parsedCache = JSON.parse(cached);
-      const items = parsedCache?.data || parsedCache || [];
-
-      if (!Array.isArray(items)) {
-        return false;
-      }
-
-      const item = items.find((i: CachedItem) => i.id === id);
-      if (!item) {
-        return false;
-      }
-
-      const readIds =
-        type === 'prayers' ? this.readState.prayers : this.readState.prompts;
-      if (readIds.includes(id)) {
-        return false;
-      }
-      const viewerEmail = this.getActiveUserEmail();
-      if (type === 'prayers' && isOwnBadgePrayerItem(item, viewerEmail)) {
-        return false;
-      }
-      return true;
-    } catch (error) {
-      console.warn(`Failed to check individual badge for ${type}:${id}:`, error);
-      return false;
-    }
-  }
-
-  private collectUpdateIds(items: CachedItem[]): string[] {
-    const allUpdateIds: string[] = [];
-    items.forEach((item: CachedItem) => {
-      if (item.updates && Array.isArray(item.updates)) {
-        item.updates.forEach((update: { id?: string }) => {
-          if (update.id && !allUpdateIds.includes(update.id)) {
-            allUpdateIds.push(update.id);
-          }
-        });
-      }
-    });
-    return allUpdateIds;
-  }
-
-  private findCachedPrayerItem(prayerId: string): InAppBadgeCachedItem | null {
-    if (typeof localStorage === 'undefined') {
-      return null;
-    }
-    try {
-      const cached = localStorage.getItem(this.getPrayersCacheStorageKey());
-      if (!cached) {
-        return null;
-      }
-      const items = parseCachedBadgeItems(cached);
-      return items.find((item) => item.id === prayerId) ?? null;
-    } catch {
-      return null;
-    }
-  }
-
-  private findCachedPrayerUpdate(
-    updateId: string
-  ): { update: NonNullable<InAppBadgeCachedItem['updates']>[number] } | null {
-    if (typeof localStorage === 'undefined') {
-      return null;
-    }
-    try {
-      const cached = localStorage.getItem(this.getPrayersCacheStorageKey());
-      if (!cached) {
-        return null;
-      }
-      const items = parseCachedBadgeItems(cached);
-      for (const item of items) {
-        if (!item.updates?.length) {
-          continue;
-        }
-        const update = item.updates.find((row) => row.id === updateId);
-        if (update) {
-          return { update };
-        }
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  }
-
-  private markItemUpdatesAsRead(
-    itemId: string,
-    type: 'prayers' | 'prompts'
-  ): BadgeReceiptRow[] {
-    const cacheKey =
-      type === 'prayers'
-        ? this.getPrayersCacheStorageKey()
-        : this.getPromptsCacheStorageKey();
-    const receipts: BadgeReceiptRow[] = [];
-
-    try {
-      const cached = localStorage.getItem(cacheKey);
-      if (!cached) {
-        return receipts;
-      }
-
-      const parsedCache = JSON.parse(cached);
-      const items = parsedCache?.data || parsedCache || [];
-      if (!Array.isArray(items)) {
-        return receipts;
-      }
-
-      const item = items.find((i: CachedItem) => i.id === itemId);
-      if (!item?.updates || !Array.isArray(item.updates)) {
-        return receipts;
-      }
-
-      const updateIds = item.updates
-        .map((u: { id?: string }) => u.id)
-        .filter((id: string | undefined): id is string => !!id);
-
-      const field = type === 'prayers' ? 'prayerUpdates' : 'promptUpdates';
-      const kind: BadgeItemKind =
-        type === 'prayers' ? 'prayer_update' : 'prompt_update';
-      this.addIdsToReadState(field, updateIds).forEach((id) =>
-        receipts.push({ item_kind: kind, item_id: id })
-      );
-    } catch (error) {
-      console.warn(`Failed to mark item updates as read:`, error);
-    }
-
-    return receipts;
-  }
-
-  private addIdsToReadState(
-    field: keyof BadgeReadState,
-    ids: string[]
-  ): string[] {
-    const added: string[] = [];
-    const existing = new Set(this.readState[field]);
-    for (const id of ids) {
-      if (!id || existing.has(id)) {
-        continue;
-      }
-      existing.add(id);
-      added.push(id);
-    }
-    if (added.length > 0) {
-      this.readState = {
-        ...this.readState,
-        [field]: Array.from(existing),
-      };
-    }
-    return added;
-  }
-
-  private applyLocalCacheToMemory(): void {
-    const key = this.getScopedReadCacheKey();
-    if (!key) {
-      // Keep in-memory marks until we know tenant+email.
+  private maybeSeedPendingMarkAll(): void {
+    const groupBadges = this.getGroupPrayerBadges();
+    this.tenantBadges.syncPendingSeedFlagFromStorage();
+    if (!this.tenantBadges.hasPendingSeedAllAsRead()) {
       return;
     }
-
-    try {
-      const stored = localStorage.getItem(key);
-      if (!stored) {
-        // Persist any optimistic in-memory marks into the new scoped key.
-        this.persistReadStateLocally();
-        return;
-      }
-      const parsed = JSON.parse(stored);
-      const fromCache: BadgeReadState = {
-        prayers: Array.isArray(parsed?.prayers) ? parsed.prayers : [],
-        prayerUpdates: Array.isArray(parsed?.prayerUpdates)
-          ? parsed.prayerUpdates
-          : Array.isArray(parsed?.updates)
-            ? parsed.updates
-            : [],
-        prompts: Array.isArray(parsed?.prompts) ? parsed.prompts : [],
-        promptUpdates: Array.isArray(parsed?.promptUpdates)
-          ? parsed.promptUpdates
-          : [],
-      };
-      // Union so optimistic marks are not wiped by a stale/empty cache read.
-      this.readState = {
-        prayers: Array.from(
-          new Set([...fromCache.prayers, ...this.readState.prayers])
-        ),
-        prayerUpdates: Array.from(
-          new Set([...fromCache.prayerUpdates, ...this.readState.prayerUpdates])
-        ),
-        prompts: Array.from(
-          new Set([...fromCache.prompts, ...this.readState.prompts])
-        ),
-        promptUpdates: Array.from(
-          new Set([...fromCache.promptUpdates, ...this.readState.promptUpdates])
-        ),
-      };
-    } catch (error) {
-      console.warn('[Badge] Failed to parse scoped read cache:', error);
-    }
-  }
-
-  private persistReadStateLocally(): void {
-    const key = this.getScopedReadCacheKey();
-    if (!key) {
-      return;
-    }
-    try {
-      localStorage.setItem(key, JSON.stringify(this.readState));
-    } catch (error) {
-      console.warn('[Badge] Failed to persist scoped read cache:', error);
-    }
-  }
-
-  private async migrateLegacyLocalStorageIfNeeded(): Promise<void> {
-    const email = this.getActiveUserEmail();
-    const tenantId = this.getActiveTenantId();
-    // Defer until tenant+email are known so we never write/delete under _none_
-    // or drop legacy keys before a DB upsert is possible.
-    if (!email || !tenantId) {
-      return;
-    }
-
-    const scopedKey = this.getScopedReadCacheKey();
-    if (!scopedKey) {
-      return;
-    }
-
-    const orphanNoneKey = this.getOrphanNoneCacheKey(email);
-    const orphanNoneRaw = localStorage.getItem(orphanNoneKey);
-    const hasScoped = !!localStorage.getItem(scopedKey);
-    const legacyPrayers = localStorage.getItem(this.LEGACY_READ_PRAYERS_DATA_KEY);
-    const legacyPrompts = localStorage.getItem(this.LEGACY_READ_PROMPTS_DATA_KEY);
-    const veryOldPrayers = localStorage.getItem('read_prayers');
-    const veryOldUpdates = localStorage.getItem('read_prayer_updates');
-    const veryOldPrompts = localStorage.getItem('read_prompts');
-    const veryOldPromptUpdates = localStorage.getItem('read_prompt_updates');
-
     if (
-      hasScoped &&
-      !orphanNoneRaw &&
-      !legacyPrayers &&
-      !legacyPrompts &&
-      !veryOldPrayers &&
-      !veryOldUpdates &&
-      !veryOldPrompts &&
-      !veryOldPromptUpdates
+      !this.tenantBadges.hasCachedTenantBadgeContent() &&
+      !groupBadges.hasCachedGroupPrayers()
     ) {
       return;
     }
-
-    const merged = { ...this.readState };
-
-    const mergeLegacyPrayers = (raw: string | null) => {
-      if (!raw) return;
-      try {
-        const parsed = JSON.parse(raw);
-        const prayers = Array.isArray(parsed?.prayers)
-          ? parsed.prayers
-          : Array.isArray(parsed)
-            ? parsed
-            : [];
-        const updates = Array.isArray(parsed?.updates)
-          ? parsed.updates
-          : Array.isArray(parsed?.prayerUpdates)
-            ? parsed.prayerUpdates
-            : [];
-        merged.prayers = Array.from(new Set([...merged.prayers, ...prayers]));
-        merged.prayerUpdates = Array.from(
-          new Set([...merged.prayerUpdates, ...updates])
-        );
-      } catch {
-        // ignore
-      }
-    };
-
-    const mergeLegacyPrompts = (raw: string | null) => {
-      if (!raw) return;
-      try {
-        const parsed = JSON.parse(raw);
-        const prompts = Array.isArray(parsed?.prompts)
-          ? parsed.prompts
-          : Array.isArray(parsed)
-            ? parsed
-            : [];
-        const updates = Array.isArray(parsed?.updates)
-          ? parsed.updates
-          : Array.isArray(parsed?.promptUpdates)
-            ? parsed.promptUpdates
-            : [];
-        merged.prompts = Array.from(new Set([...merged.prompts, ...prompts]));
-        merged.promptUpdates = Array.from(
-          new Set([...merged.promptUpdates, ...updates])
-        );
-      } catch {
-        // ignore
-      }
-    };
-
-    // Prefer merging orphan _none_ cache first, then legacy keys.
-    if (orphanNoneRaw) {
-      try {
-        const parsed = JSON.parse(orphanNoneRaw);
-        mergeLegacyPrayers(JSON.stringify({
-          prayers: parsed?.prayers,
-          updates: parsed?.prayerUpdates ?? parsed?.updates,
-        }));
-        mergeLegacyPrompts(JSON.stringify({
-          prompts: parsed?.prompts,
-          updates: parsed?.promptUpdates ?? parsed?.updates,
-        }));
-      } catch {
-        // ignore
-      }
-    }
-
-    mergeLegacyPrayers(legacyPrayers);
-    mergeLegacyPrompts(legacyPrompts);
-
-    if (veryOldPrayers) {
-      try {
-        const prayers = JSON.parse(veryOldPrayers);
-        if (Array.isArray(prayers)) {
-          merged.prayers = Array.from(new Set([...merged.prayers, ...prayers]));
-        }
-      } catch {
-        // ignore
-      }
-    }
-    if (veryOldUpdates) {
-      try {
-        const updates = JSON.parse(veryOldUpdates);
-        if (Array.isArray(updates)) {
-          merged.prayerUpdates = Array.from(
-            new Set([...merged.prayerUpdates, ...updates])
-          );
-        }
-      } catch {
-        // ignore
-      }
-    }
-    if (veryOldPrompts) {
-      try {
-        const prompts = JSON.parse(veryOldPrompts);
-        if (Array.isArray(prompts)) {
-          merged.prompts = Array.from(new Set([...merged.prompts, ...prompts]));
-        }
-      } catch {
-        // ignore
-      }
-    }
-    if (veryOldPromptUpdates) {
-      try {
-        const updates = JSON.parse(veryOldPromptUpdates);
-        if (Array.isArray(updates)) {
-          merged.promptUpdates = Array.from(
-            new Set([...merged.promptUpdates, ...updates])
-          );
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    this.readState = merged;
-    this.persistReadStateLocally();
-
-    const receipts: BadgeReceiptRow[] = [
-      ...merged.prayers.map((id) => ({
-        item_kind: 'prayer' as const,
-        item_id: id,
-      })),
-      ...merged.prayerUpdates.map((id) => ({
-        item_kind: 'prayer_update' as const,
-        item_id: id,
-      })),
-      ...merged.prompts.map((id) => ({
-        item_kind: 'prompt' as const,
-        item_id: id,
-      })),
-      ...merged.promptUpdates.map((id) => ({
-        item_kind: 'prompt_update' as const,
-        item_id: id,
-      })),
-    ];
-
-    if (receipts.length > 0) {
-      await this.upsertReceiptsToDatabase(receipts);
-    }
-
-    // Only remove legacy/orphan keys after tenant-scoped persist (+ attempted upsert).
-    localStorage.removeItem(orphanNoneKey);
-    localStorage.removeItem(this.LEGACY_READ_PRAYERS_DATA_KEY);
-    localStorage.removeItem(this.LEGACY_READ_PROMPTS_DATA_KEY);
-    localStorage.removeItem('read_prayers');
-    localStorage.removeItem('read_prayer_updates');
-    localStorage.removeItem('read_prompts');
-    localStorage.removeItem('read_prompt_updates');
+    this.tenantBadges.setPendingSeedAllAsRead(false);
+    this.tenantBadges.persistPendingSeedFlag(false);
+    this.tenantBadges.markAllAsRead('prayers');
+    this.tenantBadges.markAllAsRead('prompts');
+    groupBadges.markAllCachedGroupPrayersAsRead();
   }
 
-  private async loadReceiptsFromDatabase(): Promise<void> {
-    const tenantId = this.getActiveTenantId();
-    const email = this.getActiveUserEmail();
-    if (!tenantId || !email) {
-      return;
-    }
-
-    try {
-      const { data, error } = await this.supabase.client.rpc(
-        'get_badge_read_receipts',
-        {
-          p_tenant_id: tenantId,
-          p_user_email: email,
-        }
-      );
-
-      if (error) {
-        console.warn('[Badge] Failed to load read receipts:', error.message);
-        return;
-      }
-
-      const rows = (data || []) as InAppBadgeReceiptRow[];
-      this.readState = unionInAppBadgeReadState(
-        this.readState,
-        receiptsToReadState(rows)
-      );
-      this.persistReadStateLocally();
-      this.lastReceiptNetworkSyncAt = Date.now();
-    } catch (error) {
-      console.warn('[Badge] Failed to load read receipts:', error);
-    }
-  }
-
-  private async upsertReceiptsToDatabase(
-    receipts: BadgeReceiptRow[]
-  ): Promise<void> {
-    const tenantId = this.getActiveTenantId();
-    const email = this.getActiveUserEmail();
-    if (!tenantId || !email || receipts.length === 0) {
-      return;
-    }
-
-    const valid = receipts.filter(
-      (r) => r.item_id && UUID_RE.test(r.item_id)
-    );
-    if (valid.length === 0) {
-      return;
-    }
-
-    const run = async () => {
-      const chunkSize = 200;
-      for (let i = 0; i < valid.length; i += chunkSize) {
-        const chunk = valid.slice(i, i + chunkSize);
-        const { error } = await this.supabase.client.rpc(
-          'upsert_badge_read_receipts',
-          {
-            p_tenant_id: tenantId,
-            p_item_kinds: chunk.map((r) => r.item_kind),
-            p_item_ids: chunk.map((r) => r.item_id),
-            p_user_email: email,
-          }
-        );
-        if (error) {
-          console.warn('[Badge] Failed to upsert read receipts:', error.message);
-        }
-      }
-    };
-
-    // Serialize writes so bulk enable + rapid taps don't race.
-    this.syncInFlight = (this.syncInFlight ?? Promise.resolve())
-      .then(run)
-      .catch((error) => {
-        console.warn('[Badge] Upsert queue failed:', error);
-      });
-    await this.syncInFlight;
-  }
-
-  private updateBadgeCount(type: 'prayers' | 'prompts'): void {
-    const count = this.calculateBadgeCount(type);
-    const subject = this.badgeCountSubject$.get(type);
-    if (subject) {
-      subject.next(count);
-    }
-  }
-
-  private updateStatusBadgeCount(
-    type: 'prayers' | 'prompts',
-    status?: 'current' | 'answered'
-  ): void {
-    if (!status || type !== 'prayers') return;
-
-    const key = `${type}_${status}`;
-    const count = this.calculateBadgeCount(type, status);
-    const subject = this.statusBadgeCountSubject$.get(key);
-    if (subject) {
-      subject.next(count);
-    }
+  checkIndividualBadge(type: 'prayers' | 'prompts', id: string): boolean {
+    return this.tenantBadges.checkIndividualBadge(type, id);
   }
 }
