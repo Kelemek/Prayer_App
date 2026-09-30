@@ -1,5 +1,9 @@
 import { BehaviorSubject, type Observable, Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
+import {
+  isOwnBadgePrayerItem,
+  isOwnBadgeUpdate,
+} from './in-app-prayer-badge-count';
 import type { BadgeService } from '../services/badge.service';
 import type { PrayerRequest } from '../services/prayer.service';
 import type { PrayerUpdateRecord } from './prayer-update-header';
@@ -33,7 +37,11 @@ export class PrayerCardBadgeWire {
       });
 
     this.storageListener = (event: StorageEvent) => {
-      if (event.key === 'read_prayers_data') {
+      if (
+        event.key === 'read_prayers_data' ||
+        event.key?.startsWith('badge_read_groups:')
+      ) {
+        this.syncPrayerBadge();
         this.syncAllUpdateBadges(this.getPrayer().updates);
       }
     };
@@ -71,7 +79,12 @@ export class PrayerCardBadgeWire {
   }
 
   markUpdateRead(updateId: string, prayerId: string): void {
-    this.badgeService.markUpdateAsRead(updateId, prayerId, 'prayers');
+    const prayer = this.getPrayer();
+    if (prayer?.group_id) {
+      this.badgeService.markGroupUpdateAsRead(updateId, prayer.group_id);
+    } else {
+      this.badgeService.markUpdateAsRead(updateId, prayerId, 'prayers');
+    }
     const subject = this.updateBadges$.get(updateId);
     if (subject) {
       subject.next(false);
@@ -89,9 +102,7 @@ export class PrayerCardBadgeWire {
     if (!this.updateBadges$.has(updateId)) {
       this.updateBadges$.set(
         updateId,
-        new BehaviorSubject<boolean>(
-          this.badgeService.isUpdateUnread(updateId)
-        )
+        new BehaviorSubject<boolean>(this.isUpdateUnread(updateId))
       );
       return;
     }
@@ -103,15 +114,37 @@ export class PrayerCardBadgeWire {
     if (!prayer?.id) {
       return;
     }
-    this.prayerBadgeSubject$.next(
-      this.badgeService.isPrayerUnread(prayer.id)
-    );
+    this.prayerBadgeSubject$.next(this.isPrayerUnread(prayer));
+  }
+
+  private isPrayerUnread(prayer: PrayerRequest): boolean {
+    const viewerEmail = this.badgeService.getViewerEmailForBadges();
+    if (isOwnBadgePrayerItem(prayer, viewerEmail)) {
+      return false;
+    }
+    if (prayer.group_id) {
+      return this.badgeService.isGroupPrayerUnread(prayer.id);
+    }
+    return this.badgeService.isPrayerUnread(prayer.id);
+  }
+
+  private isUpdateUnread(updateId: string): boolean {
+    const prayer = this.getPrayer();
+    const update = prayer.updates?.find((row) => row.id === updateId);
+    const viewerEmail = this.badgeService.getViewerEmailForBadges();
+    if (update && isOwnBadgeUpdate(update, viewerEmail)) {
+      return false;
+    }
+    if (prayer?.group_id) {
+      return this.badgeService.isGroupUpdateUnread(updateId);
+    }
+    return this.badgeService.isUpdateUnread(updateId);
   }
 
   private syncUpdateBadge(updateId: string): void {
     const subject = this.updateBadges$.get(updateId);
     if (subject) {
-      subject.next(this.badgeService.isUpdateUnread(updateId));
+      subject.next(this.isUpdateUnread(updateId));
     }
   }
 

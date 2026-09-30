@@ -4,13 +4,14 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { ɵresolveComponentResources as resolveComponentResources } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
-import { BehaviorSubject } from "rxjs";
+import { BehaviorSubject, of } from "rxjs";
 import {
   HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS,
   HOME_WRAP_FILTER_CHIP_FLEX_CLASS,
 } from "../../lib/home-sub-filter-chip-classes";
 import { HomeGroupFiltersComponent } from "./home-group-filters.component";
 import { PrayerGroupService } from "../../services/prayer-group.service";
+import { BadgeService } from "../../services/badge.service";
 import type { PrayerGroup } from "../../types/prayer-group";
 
 const componentDir = dirname(fileURLToPath(import.meta.url));
@@ -69,6 +70,13 @@ describe("HomeGroupFiltersComponent", () => {
           groupPrayerCounts$,
         },
       })
+      .overrideProvider(BadgeService, {
+        useValue: {
+          getBadgeFunctionalityEnabled$: () => of(true),
+          getGroupBadgeCountForGroup$: () => of(0),
+          markAllGroupPrayersReadByStatus: vi.fn(),
+        },
+      })
       .compileComponents();
 
     fixture = TestBed.createComponent(HomeGroupFiltersComponent);
@@ -78,6 +86,8 @@ describe("HomeGroupFiltersComponent", () => {
     fixture.componentInstance.currentCount = 2;
     fixture.componentInstance.answeredCount = 1;
     fixture.componentInstance.totalCount = 3;
+    fixture.componentInstance.currentGroupBadge$ = of(0);
+    fixture.componentInstance.answeredGroupBadge$ = of(0);
     fixture.detectChanges();
   });
 

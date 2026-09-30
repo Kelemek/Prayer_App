@@ -7,6 +7,7 @@ import {
   showPrayerCardReminderButton,
   showPrayerCardStatusPillInHeader,
   showsCommunityPrayerCardUnreadBadges,
+  showsGroupPrayerCardUnreadBadges,
   usesPrayerCardPersonalCooldown,
   type PrayerCardActiveFilter,
 } from './prayer-card-display';
@@ -15,6 +16,7 @@ import {
   isMemberPrayerId,
   isVerseMemorizationPrayer,
 } from './prayer-card-kind';
+import type { GroupFilterMode } from './home-group-catalog';
 import type { PrayerCardVariant } from './prayer-card-layout';
 import {
   getPrayerCardBorderClass,
@@ -37,6 +39,7 @@ export interface PrayerCardViewStateInput {
   updatesAllowed: PrayerCardPermissionContext['updatesAllowed'];
   reminderSessionEmail: string;
   currentUserEmail: string;
+  groupFilterMode?: GroupFilterMode | null;
 }
 
 export interface PrayerCardViewState {
@@ -44,6 +47,7 @@ export interface PrayerCardViewState {
   displayRequester: string;
   showDescription: boolean;
   showsCommunityUnreadBadges: boolean;
+  showsGroupUnreadBadges: boolean;
   showStatusPillInHeader: boolean;
   showDeleteButton: boolean;
   showReminderButton: boolean;
@@ -85,6 +89,10 @@ export function computePrayerCardViewState(
     showDescription: showPrayerCardDescription(prayer.id, prayer.description),
     showsCommunityUnreadBadges: showsCommunityPrayerCardUnreadBadges(
       input.activeFilter
+    ),
+    showsGroupUnreadBadges: showsGroupPrayerCardUnreadBadges(
+      input.activeFilter,
+      input.groupFilterMode
     ),
     showStatusPillInHeader: showPrayerCardStatusPillInHeader(prayer, isPersonal),
     showDeleteButton: showPrayerCardDeleteButton(permissionContext),

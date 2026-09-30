@@ -36,6 +36,7 @@ describe("HomeFilterTabsComponent", () => {
           getBadgeFunctionalityEnabled$: () => of(false),
           markAllAsReadByStatus: vi.fn(),
           markAllAsRead: vi.fn(),
+          markAllGroupPrayersRead: vi.fn(),
         },
       })
       .compileComponents();
@@ -44,6 +45,8 @@ describe("HomeFilterTabsComponent", () => {
     fixture.componentInstance.activeFilter = "current";
     fixture.componentInstance.currentPrayerBadge$ = of(0);
     fixture.componentInstance.answeredPrayerBadge$ = of(0);
+    fixture.componentInstance.currentGroupBadge$ = of(0);
+    fixture.componentInstance.answeredGroupBadge$ = of(0);
     fixture.componentInstance.canAccessShared = true;
     fixture.detectChanges();
   });

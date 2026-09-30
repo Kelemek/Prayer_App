@@ -188,6 +188,8 @@ export class HomeComponent
   currentPrayerBadge$!: Observable<number>;
   answeredPrayerBadge$!: Observable<number>;
   promptBadge$!: Observable<number>;
+  currentGroupBadge$!: Observable<number>;
+  answeredGroupBadge$!: Observable<number>;
 
   currentPrayersCount = 0;
   answeredPrayersCount = 0;
@@ -983,6 +985,7 @@ export class HomeComponent
       selectedGroupId: this.selectedGroupId,
       searchTerm: this.filters.searchTerm,
     });
+    this.badgeService.refreshBadgeCounts();
   }
 
   openChurchOnboardingModal(): void {

@@ -93,7 +93,7 @@ describe("HomePrayerCardActionsController", () => {
     controller.deleteCard({ id: "pc-member-abc" } as any);
     expect(prayerService.deletePrayer).not.toHaveBeenCalled();
     controller.deleteCard({ id: "g1", group_id: "grp" } as any);
-    expect(prayerGroupService.deleteGroupPrayer).toHaveBeenCalledWith("g1");
+    expect(prayerGroupService.deleteGroupPrayer).toHaveBeenCalledWith("g1", "grp");
   });
 
   it("routes group and member card updates", async () => {
@@ -108,7 +108,14 @@ describe("HomePrayerCardActionsController", () => {
       { id: "gp1", group_id: "grp" } as any,
       { prayer_id: "gp1", content: "thanks", mark_as_answered: true } as any
     );
-    expect(prayerGroupService.addGroupPrayerUpdate).toHaveBeenCalled();
+    expect(prayerGroupService.addGroupPrayerUpdate).toHaveBeenCalledWith(
+      "gp1",
+      "thanks",
+      expect.any(String),
+      expect.any(String),
+      true,
+      "grp"
+    );
   });
 
   it("handles delete update paths and errors", async () => {
@@ -116,7 +123,11 @@ describe("HomePrayerCardActionsController", () => {
       { id: "gp1", group_id: "grp" } as any,
       { prayerId: "gp1", updateId: "u1" } as any
     );
-    expect(prayerGroupService.deleteGroupPrayerUpdate).toHaveBeenCalled();
+    expect(prayerGroupService.deleteGroupPrayerUpdate).toHaveBeenCalledWith(
+      "u1",
+      "gp1",
+      "grp"
+    );
 
     prayerService.addUpdate.mockRejectedValueOnce(new Error("fail"));
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});

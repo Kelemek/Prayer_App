@@ -1,5 +1,5 @@
 import { Injectable, Injector } from '@angular/core';
-import { BehaviorSubject, Observable, Subject } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, merge } from 'rxjs';
 import { distinctUntilChanged, startWith } from 'rxjs/operators';
 import { APP_BECAME_VISIBLE_EVENT } from '../lib/app-foreground';
 import { SupabaseService } from './supabase.service';
@@ -8,18 +8,22 @@ import { TenantContextService } from './tenant-context.service';
 import {
   countDisplayedInAppPrayerBadgesAcrossTenants,
   countInAppPrayerBadgesForItems,
+  isOwnBadgePrayerItem,
+  isOwnBadgeUpdate,
   listMemberTenantIds,
   parseCachedBadgeItems,
   readAllTenantInAppBadgeSnapshots,
   receiptsToReadState,
   resolveAppIconBadgeCount,
   unionInAppBadgeReadState,
+  type InAppBadgeCachedItem,
   type InAppBadgeReceiptRow,
 } from '../lib/in-app-prayer-badge-count';
 import {
   createLocalStorageAllTenantInAppBadgeHydrateDeps,
   hydrateMissingTenantInAppBadgeCaches,
 } from '../lib/all-tenant-in-app-badge-hydrate';
+import { GroupPrayerBadgeService } from './group-prayer-badge.service';
 
 /**
  * Prayer or Prompt object structure
@@ -29,7 +33,14 @@ interface CachedItem {
   status?: 'current' | 'answered' | 'archived';
   type?: string;
   updated_at: string;
-  updates?: Array<{ id: string; created_at: string; updated_at?: string }>;
+  email?: string | null;
+  user_email?: string | null;
+  updates?: Array<{
+    id: string;
+    created_at: string;
+    updated_at?: string;
+    author_email?: string | null;
+  }>;
 }
 
 type BadgeItemKind = 'prayer' | 'prayer_update' | 'prompt' | 'prompt_update';
@@ -120,6 +131,7 @@ export class BadgeService {
   // Use Injector to avoid circular dependency with UserSessionService
   private userSessionService: UserSessionService | null = null;
   private tenantContext: TenantContextService | null = null;
+  private groupPrayerBadges: GroupPrayerBadgeService | null = null;
 
   constructor(
     private supabase: SupabaseService,
@@ -141,6 +153,13 @@ export class BadgeService {
   private getPromptsCacheStorageKey(): string {
     const tid = this.getTenantContext().getActiveTenant()?.id;
     return tid ? `prompts:${tid}` : 'prompts_cache';
+  }
+
+  private getGroupPrayerBadges(): GroupPrayerBadgeService {
+    if (!this.groupPrayerBadges) {
+      this.groupPrayerBadges = this.injector.get(GroupPrayerBadgeService);
+    }
+    return this.groupPrayerBadges;
   }
 
   private getTenantContext(): TenantContextService {
@@ -165,6 +184,11 @@ export class BadgeService {
     const fromSession = this.getUserSessionService().getUserEmail?.() ?? null;
     const email = (fromSession || this.currentUserEmail || '').trim();
     return email ? email.toLowerCase() : null;
+  }
+
+  /** Active member email used to exclude own prayers/updates from badges. */
+  getViewerEmailForBadges(): string | null {
+    return this.getActiveUserEmail();
   }
 
   private getScopedReadCacheKey(): string | null {
@@ -264,12 +288,21 @@ export class BadgeService {
     if (this.storageListenerAttached) return;
 
     window.addEventListener('storage', (event) => {
-      if (!event.key || !event.key.startsWith('badge_read:')) {
+      if (!event.key) {
         return;
       }
-      const scopedKey = this.getScopedReadCacheKey();
-      if (scopedKey && event.key === scopedKey) {
-        this.applyLocalCacheToMemory();
+      if (event.key.startsWith('badge_read:')) {
+        const scopedKey = this.getScopedReadCacheKey();
+        if (scopedKey && event.key === scopedKey) {
+          this.applyLocalCacheToMemory();
+          this.refreshBadgeCounts();
+        }
+        return;
+      }
+      if (
+        event.key.startsWith('badge_read_groups:') &&
+        this.getGroupPrayerBadges().applyLocalCacheFromStorageEvent(event.key)
+      ) {
         this.refreshBadgeCounts();
       }
     });
@@ -308,6 +341,7 @@ export class BadgeService {
       Date.now() - this.lastReceiptNetworkSyncAt < BADGE_FOREGROUND_RECEIPT_REVALIDATE_MS;
     if (warm && fresh) {
       this.applyLocalCacheToMemory();
+      this.getGroupPrayerBadges().applyLocalCacheToMemory();
       this.refreshBadgeCounts();
       return;
     }
@@ -322,6 +356,7 @@ export class BadgeService {
 
     this.restorePendingSeedFlag();
     this.applyLocalCacheToMemory();
+    this.getGroupPrayerBadges().applyLocalCacheToMemory();
     await this.migrateLegacyLocalStorageIfNeeded();
     if (generation !== this.loadGeneration) {
       return;
@@ -332,12 +367,19 @@ export class BadgeService {
     if (generation !== this.loadGeneration) {
       return;
     }
+    await this.getGroupPrayerBadges().reloadFromDatabase();
+    if (generation !== this.loadGeneration) {
+      return;
+    }
     this.refreshBadgeCounts();
     void this.ensureAllTenantInAppBadgeCaches();
   }
 
   getUpdateBadgesChanged$(): Observable<void> {
-    return this.updateBadgesChanged$.asObservable();
+    return merge(
+      this.updateBadgesChanged$.asObservable(),
+      this.getGroupPrayerBadges().getUpdateBadgesChanged$()
+    );
   }
 
   getBadgeFunctionalityEnabled$(): Observable<boolean> {
@@ -350,6 +392,43 @@ export class BadgeService {
 
   markPrayerAsRead(prayerId: string): void {
     this.markItemAsRead(prayerId, 'prayers');
+  }
+
+  markGroupPrayerAsRead(prayerId: string, groupId: string): void {
+    this.getGroupPrayerBadges().markGroupPrayerAsRead(prayerId, groupId);
+  }
+
+  markGroupUpdateAsRead(updateId: string, groupId: string): void {
+    this.getGroupPrayerBadges().markGroupUpdateAsRead(updateId, groupId);
+  }
+
+  isGroupPrayerUnread(prayerId: string): boolean {
+    return this.getGroupPrayerBadges().isGroupPrayerUnread(prayerId);
+  }
+
+  isGroupUpdateUnread(updateId: string): boolean {
+    return this.getGroupPrayerBadges().isGroupUpdateUnread(updateId);
+  }
+
+  getGroupBadgeCount$(
+    status?: 'current' | 'answered'
+  ): Observable<number> {
+    return this.getGroupPrayerBadges().getBadgeCount$(status);
+  }
+
+  getGroupBadgeCountForGroup$(groupId: string): Observable<number> {
+    return this.getGroupPrayerBadges().getBadgeCountForGroup$(groupId);
+  }
+
+  markAllGroupPrayersRead(): void {
+    this.getGroupPrayerBadges().markAllGroupPrayersRead();
+  }
+
+  markAllGroupPrayersReadByStatus(
+    status: 'current' | 'answered',
+    groupId?: string
+  ): void {
+    this.getGroupPrayerBadges().markAllGroupPrayersReadByStatus(status, groupId);
   }
 
   markPromptAsRead(promptId: string): void {
@@ -590,7 +669,9 @@ export class BadgeService {
    */
   markAllCachedItemsAsRead(): void {
     const hasContent =
-      this.cacheHasItems('prayers') || this.cacheHasItems('prompts');
+      this.cacheHasItems('prayers') ||
+      this.cacheHasItems('prompts') ||
+      this.getGroupPrayerBadges().hasCachedGroupPrayers();
     if (!hasContent) {
       this.pendingSeedAllAsRead = true;
       this.persistPendingSeedFlag(true);
@@ -602,6 +683,7 @@ export class BadgeService {
     this.persistPendingSeedFlag(false);
     this.markAllAsRead('prayers');
     this.markAllAsRead('prompts');
+    this.getGroupPrayerBadges().markAllCachedGroupPrayersAsRead();
   }
 
   private persistPendingSeedFlag(pending: boolean): void {
@@ -672,13 +754,18 @@ export class BadgeService {
     if (!this.pendingSeedAllAsRead) {
       return;
     }
-    if (!this.cacheHasItems('prayers') && !this.cacheHasItems('prompts')) {
+    if (
+      !this.cacheHasItems('prayers') &&
+      !this.cacheHasItems('prompts') &&
+      !this.getGroupPrayerBadges().hasCachedGroupPrayers()
+    ) {
       return;
     }
     this.pendingSeedAllAsRead = false;
     this.persistPendingSeedFlag(false);
     this.markAllAsRead('prayers');
     this.markAllAsRead('prompts');
+    this.getGroupPrayerBadges().markAllCachedGroupPrayersAsRead();
   }
 
   getBadgeCount$(
@@ -694,9 +781,11 @@ export class BadgeService {
    * Returns 0 when badge functionality is disabled.
    */
   getAllTenantDisplayedBadgeCount(): number {
+    const churchAndPrompts = this.sumAllTenantDisplayedBadgeCount();
+    const groups = this.getGroupPrayerBadges().getDisplayedBadgeCount();
     return resolveAppIconBadgeCount({
       badgesEnabled: this.badgeFunctionalityEnabled$.value,
-      allTenantDisplayedCount: this.sumAllTenantDisplayedBadgeCount(),
+      allTenantDisplayedCount: churchAndPrompts + groups,
     });
   }
 
@@ -716,7 +805,8 @@ export class BadgeService {
         email,
         this.getActiveTenantId(),
         this.readState
-      )
+      ),
+      email
     );
   }
 
@@ -962,6 +1052,7 @@ export class BadgeService {
     });
 
     this.updateBadgesChanged$.next();
+    this.getGroupPrayerBadges().refreshBadgeCounts();
   }
 
   private calculateBadgeCount(
@@ -983,7 +1074,8 @@ export class BadgeService {
         type === 'prayers'
           ? this.readState.prayerUpdates
           : this.readState.promptUpdates,
-        status
+        status,
+        this.getActiveUserEmail()
       );
     } catch (error) {
       console.warn(`Failed to calculate badge count for ${type}:`, error);
@@ -992,10 +1084,20 @@ export class BadgeService {
   }
 
   isUpdateUnread(updateId: string): boolean {
+    const viewerEmail = this.getActiveUserEmail();
+    const found = this.findCachedPrayerUpdate(updateId);
+    if (found && isOwnBadgeUpdate(found.update, viewerEmail)) {
+      return false;
+    }
     return !this.readState.prayerUpdates.includes(updateId);
   }
 
   isPrayerUnread(prayerId: string): boolean {
+    const viewerEmail = this.getActiveUserEmail();
+    const item = this.findCachedPrayerItem(prayerId);
+    if (item && isOwnBadgePrayerItem(item, viewerEmail)) {
+      return false;
+    }
     return !this.readState.prayers.includes(prayerId);
   }
 
@@ -1032,7 +1134,14 @@ export class BadgeService {
 
       const readIds =
         type === 'prayers' ? this.readState.prayers : this.readState.prompts;
-      return !readIds.includes(id);
+      if (readIds.includes(id)) {
+        return false;
+      }
+      const viewerEmail = this.getActiveUserEmail();
+      if (type === 'prayers' && isOwnBadgePrayerItem(item, viewerEmail)) {
+        return false;
+      }
+      return true;
     } catch (error) {
       console.warn(`Failed to check individual badge for ${type}:${id}:`, error);
       return false;
@@ -1051,6 +1160,49 @@ export class BadgeService {
       }
     });
     return allUpdateIds;
+  }
+
+  private findCachedPrayerItem(prayerId: string): InAppBadgeCachedItem | null {
+    if (typeof localStorage === 'undefined') {
+      return null;
+    }
+    try {
+      const cached = localStorage.getItem(this.getPrayersCacheStorageKey());
+      if (!cached) {
+        return null;
+      }
+      const items = parseCachedBadgeItems(cached);
+      return items.find((item) => item.id === prayerId) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private findCachedPrayerUpdate(
+    updateId: string
+  ): { update: NonNullable<InAppBadgeCachedItem['updates']>[number] } | null {
+    if (typeof localStorage === 'undefined') {
+      return null;
+    }
+    try {
+      const cached = localStorage.getItem(this.getPrayersCacheStorageKey());
+      if (!cached) {
+        return null;
+      }
+      const items = parseCachedBadgeItems(cached);
+      for (const item of items) {
+        if (!item.updates?.length) {
+          continue;
+        }
+        const update = item.updates.find((row) => row.id === updateId);
+        if (update) {
+          return { update };
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   private markItemUpdatesAsRead(

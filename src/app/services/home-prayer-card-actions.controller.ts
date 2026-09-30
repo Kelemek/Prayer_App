@@ -42,7 +42,7 @@ export class HomePrayerCardActionsController {
       return;
     }
     if (prayer.group_id) {
-      void this.prayerGroupService.deleteGroupPrayer(prayer.id);
+      void this.prayerGroupService.deleteGroupPrayer(prayer.id, prayer.group_id);
       return;
     }
     void this.prayerService.deletePrayer(prayer.id);
@@ -144,7 +144,8 @@ export class HomePrayerCardActionsController {
         event.content,
         userSession?.fullName || "Anonymous",
         userSession?.email || "",
-        event.mark_as_answered || false
+        event.mark_as_answered || false,
+        prayer.group_id
       );
       return;
     }
@@ -185,7 +186,8 @@ export class HomePrayerCardActionsController {
     if (prayer.group_id) {
       await this.prayerGroupService.deleteGroupPrayerUpdate(
         event.updateId,
-        prayer.id
+        prayer.id,
+        prayer.group_id
       );
       return;
     }

@@ -76,6 +76,7 @@ import {
   prayerCardUpdateActionsMode,
   prayerUpdateFromRecord,
 } from '../../lib/prayer-card-mutations';
+import type { GroupFilterMode } from '../../lib/home-group-catalog';
 import { computePrayerCardViewState } from '../../lib/prayer-card-view-state';
 import type {
   PrayerCardAddUpdateEvent,
@@ -140,6 +141,7 @@ export class PrayerCardComponent
   @Input() updatesAllowed: PrayerCardPermissionContext['updatesAllowed'] =
     'everyone';
   @Input() activeFilter: PrayerCardActiveFilter = 'total';
+  @Input() groupFilterMode: GroupFilterMode | null = null;
   @Input() tourUpdateAnchors = false;
   @Input() tourPrayForEncouragementAnchors = false;
   @Input() tourPrayerReminderBellAnchors = false;
@@ -272,6 +274,7 @@ export class PrayerCardComponent
       isAdmin: this.isAdmin,
       isPersonal: this.isPersonal,
       activeFilter: this.activeFilter,
+      groupFilterMode: this.groupFilterMode,
       deletionsAllowed: this.deletionsAllowed,
       updatesAllowed: this.updatesAllowed,
       reminderSessionEmail: getPrayerCardUserEmail(this.userSessionService),
@@ -529,7 +532,7 @@ export class PrayerCardComponent
         this.prayer.id,
         payload,
         this.userSessionService,
-        this.isPersonal
+        this.prayer.group_id ? false : this.isPersonal
       )
     );
     this.showAddUpdateForm = false;
@@ -611,6 +614,13 @@ export class PrayerCardComponent
   }
 
   markPrayerAsRead(): void {
+    if (this.prayer.group_id) {
+      this.badgeService.markGroupPrayerAsRead(
+        this.prayer.id,
+        this.prayer.group_id
+      );
+      return;
+    }
     this.badgeService.markPrayerAsRead(this.prayer.id);
   }
 

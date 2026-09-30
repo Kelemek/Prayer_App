@@ -42,6 +42,9 @@ import {
   unlockHomePersonalCategoryDragScroll,
 } from "../../lib/personal-category-drag-scroll";
 import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
+import { BadgeService } from "../../services/badge.service";
+import { HomeFilterBadgeButtonComponent } from "../home-filter-badge-button/home-filter-badge-button.component";
+import type { Observable } from "rxjs";
 
 @Component({
   selector: "app-home-group-filters",
@@ -56,6 +59,7 @@ import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-ov
     ConfirmationDialogComponent,
     HomeGroupMembersModalComponent,
     AppTopChromeOverlayDirective,
+    HomeFilterBadgeButtonComponent,
   ],
   templateUrl: "./home-group-filters.component.html",
   host: { class: "block" },
@@ -73,6 +77,8 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
   @Input() showMemberProUpgrade = false;
   @Input() currentUserEmail = "";
   @Input() membersGroupIdToOpen: string | null = null;
+  @Input({ required: true }) currentGroupBadge$!: Observable<number>;
+  @Input({ required: true }) answeredGroupBadge$!: Observable<number>;
 
   @Output() addGroup = new EventEmitter<void>();
   @Output() upgradePro = new EventEmitter<void>();
@@ -86,6 +92,9 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
   private readonly prayerGroupService = inject(PrayerGroupService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  readonly badgeService = inject(BadgeService);
+
+  private groupBadgeObs = new Map<string, Observable<number>>();
 
   pendingDeleteGroup: PrayerGroup | null = null;
   renameTarget: PrayerGroup | null = null;
@@ -119,6 +128,9 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes["groups"]) {
+      this.groupBadgeObs.clear();
+    }
     const groupId = changes["membersGroupIdToOpen"]?.currentValue as string | null;
     if (!groupId) {
       return;
@@ -133,6 +145,20 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
 
   groupPrayerCount(groupId: string): number {
     return this.groupPrayerCounts.get(groupId) ?? 0;
+  }
+
+  groupBadge$(groupId: string): Observable<number> {
+    let obs = this.groupBadgeObs.get(groupId);
+    if (!obs) {
+      obs = this.badgeService.getGroupBadgeCountForGroup$(groupId);
+      this.groupBadgeObs.set(groupId, obs);
+    }
+    return obs;
+  }
+
+  markGroupRead(groupId: string): void {
+    this.badgeService.markAllGroupPrayersReadByStatus("current", groupId);
+    this.badgeService.markAllGroupPrayersReadByStatus("answered", groupId);
   }
 
   isGroupChipActive(groupId: string): boolean {

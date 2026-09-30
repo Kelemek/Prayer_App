@@ -56,9 +56,10 @@
   variantLayout.showUnreadBadges &&
   (prayerBadge$ | async) &&
   (badgeService.getBadgeFunctionalityEnabled$() | async) &&
-  showsCommunityUnreadBadges &&
-  !isPersonal &&
-  !isMemberPrayer()
+  (
+    (showsCommunityUnreadBadges && !isPersonal && !isMemberPrayer()) ||
+    (showsGroupUnreadBadges && !!prayer.group_id)
+  )
 ) {
   <button
     type="button"

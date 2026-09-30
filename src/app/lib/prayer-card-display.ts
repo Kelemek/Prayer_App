@@ -63,6 +63,20 @@ export function showsCommunityPrayerCardUnreadBadges(
   return activeFilter === 'current' || activeFilter === 'answered';
 }
 
+export function showsGroupPrayerCardUnreadBadges(
+  activeFilter: PrayerCardActiveFilter,
+  groupFilterMode?: 'current' | 'answered' | 'total' | 'named' | null
+): boolean {
+  if (activeFilter !== 'groups' || !groupFilterMode) {
+    return false;
+  }
+  return (
+    groupFilterMode === 'current' ||
+    groupFilterMode === 'answered' ||
+    groupFilterMode === 'named'
+  );
+}
+
 export function showPrayerCardReminderButton(
   sessionEmail: string,
   prayerId: string | null | undefined,

@@ -9,6 +9,9 @@ import { TenantContextService } from './tenant-context.service';
 import { SupabaseService } from './supabase.service';
 import { BehaviorSubject, firstValueFrom, skip, take } from 'rxjs';
 import { Injector } from '@angular/core';
+import { groupPrayersCacheKey } from '../lib/prayer-tenant';
+import { groupBadgeReadCacheKey } from '../lib/group-in-app-badge-count';
+import { GroupPrayerBadgeService } from './group-prayer-badge.service';
 
 const TEST_EMAIL = 'test@example.com';
 const TEST_TENANT_ID = '33333333-3333-4333-8333-333333333333';
@@ -34,17 +37,36 @@ const defaultTenantContextMock = () => ({
 const createBadgeInjector = (
   userSessionService: any,
   tenantContextService = defaultTenantContextMock()
-) => ({
-  get: vi.fn((ServiceClass: any) => {
-    if (ServiceClass === UserSessionService) {
-      return userSessionService;
-    }
-    if (ServiceClass === TenantContextService) {
-      return tenantContextService;
-    }
-    return null;
-  })
-});
+) => {
+  let groupPrayerBadgeService: GroupPrayerBadgeService | null = null;
+  const mockSupabaseForGroups = {
+    client: {
+      rpc: vi.fn(async () => ({ data: null, error: null })),
+    },
+  };
+  const groupInjector = {
+    get: (ServiceClass: unknown) =>
+      ServiceClass === UserSessionService ? userSessionService : null,
+  };
+  return {
+    get: vi.fn((ServiceClass: any) => {
+      if (ServiceClass === UserSessionService) {
+        return userSessionService;
+      }
+      if (ServiceClass === TenantContextService) {
+        return tenantContextService;
+      }
+      if (ServiceClass === GroupPrayerBadgeService) {
+        groupPrayerBadgeService ??= new GroupPrayerBadgeService(
+          mockSupabaseForGroups as unknown as SupabaseService,
+          groupInjector as unknown as Injector
+        );
+        return groupPrayerBadgeService;
+      }
+      return null;
+    }),
+  };
+};
 
 const scopedBadgeKey = (tenantId = TEST_TENANT_ID, email = TEST_EMAIL) =>
   `badge_read:${tenantId}:${email}`;
@@ -635,6 +657,24 @@ describe('BadgeService', () => {
 
       // If no error is thrown, the handler worked
       expect(true).toBe(true);
+    });
+
+    it('reloads group badge read state when badge_read_groups key changes in another tab', () => {
+      const groupBadges = (service as unknown as { getGroupPrayerBadges: () => GroupPrayerBadgeService })
+        .getGroupPrayerBadges();
+      const applySpy = vi.spyOn(groupBadges, 'applyLocalCacheFromStorageEvent');
+      applySpy.mockReturnValue(true);
+      const refreshSpy = vi.spyOn(service, 'refreshBadgeCounts');
+
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: groupBadgeReadCacheKey(TEST_EMAIL),
+          newValue: JSON.stringify({ groupPrayers: ['gp-1'], groupPrayerUpdates: [] }),
+        })
+      );
+
+      expect(applySpy).toHaveBeenCalledWith(groupBadgeReadCacheKey(TEST_EMAIL));
+      expect(refreshSpy).toHaveBeenCalled();
     });
   });
 
@@ -2345,6 +2385,18 @@ describe('BadgeService all-tenant app icon count', () => {
   });
 
   it('sums Current + Answered + Prompts across every member tenant', () => {
+    expect(service.getAllTenantDisplayedBadgeCount()).toBe(5);
+  });
+
+  it('includes group prayer badges in the app icon total', () => {
+    localStorage.setItem(
+      groupPrayersCacheKey('group-a'),
+      JSON.stringify({
+        data: [{ id: 'gp-1', status: 'current' }],
+      })
+    );
+    expect(service.getAllTenantDisplayedBadgeCount()).toBe(6);
+    service.markGroupPrayerAsRead('gp-1', 'group-a');
     expect(service.getAllTenantDisplayedBadgeCount()).toBe(5);
   });
 

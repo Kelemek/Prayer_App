@@ -2,6 +2,9 @@
         @let currentBadge = (currentPrayerBadge$ | async) ?? 0;
         @let answeredBadge = (answeredPrayerBadge$ | async) ?? 0;
         @let aggregateBadge = currentBadge + answeredBadge;
+        @let currentGroupBadge = (currentGroupBadge$ | async) ?? 0;
+        @let answeredGroupBadge = (answeredGroupBadge$ | async) ?? 0;
+        @let aggregateGroupBadge = currentGroupBadge + answeredGroupBadge;
         @let badgesEnabled = (badgeService.getBadgeFunctionalityEnabled$() | async);
         <button
           id="tour-filter-public"
@@ -28,6 +31,15 @@
           title="Show group prayers"
           [class]="tabClass('groups', activeFilter === 'groups')"
         >
+          @if (canAccessGroupsTab && badgesEnabled && aggregateGroupBadge > 0) {
+          <app-home-filter-badge-button
+            [count]="aggregateGroupBadge"
+            [compact]="true"
+            title="Mark all group prayers as read"
+            ariaLabel="Mark all group prayers as read"
+            (markRead)="markAllGroupPrayersRead()"
+          />
+          }
           Groups
         </button>
         }

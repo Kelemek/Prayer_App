@@ -102,6 +102,29 @@ describe('in-app prayer badge count', () => {
     ).toBe(1);
   });
 
+  it('does not count prayers or updates authored by the viewer', () => {
+    const items: InAppBadgeCachedItem[] = [
+      {
+        id: 'mine',
+        status: 'current',
+        email: 'Me@Example.com',
+        updates: [{ id: 'u-mine', author_email: 'me@example.com' }],
+      },
+      {
+        id: 'theirs',
+        status: 'current',
+        email: 'other@example.com',
+        updates: [{ id: 'u-theirs', author_email: 'other@example.com' }],
+      },
+    ];
+    expect(
+      countInAppPrayerBadgesForItems(items, [], [], 'current', 'me@example.com')
+    ).toBe(2);
+    expect(
+      countInAppPrayerBadgesForItems(items, [], [], 'current', 'other@example.com')
+    ).toBe(2);
+  });
+
   it('displayed count is Current + Answered + Prompts, not archived', () => {
     // current prayer + current update + answered prayer + prompt + prompt update
     expect(countDisplayedInAppPrayerBadges(snapshot)).toBe(5);

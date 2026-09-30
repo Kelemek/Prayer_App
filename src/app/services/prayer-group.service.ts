@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Injector } from '@angular/core';
 import { BehaviorSubject, fromEvent, type Subscription } from 'rxjs';
 import { SupabaseService } from './supabase.service';
 import { AuthIdentityService } from './auth-identity.service';
@@ -9,6 +9,8 @@ import { EmailNotificationService } from './email-notification.service';
 import { CacheService } from './cache.service';
 import { APP_BECAME_VISIBLE_EVENT } from '../lib/app-foreground';
 import { groupPrayersCacheKey } from '../lib/prayer-tenant';
+import { writeMemberPrayerGroupIdsToStorage } from '../lib/group-in-app-badge-count';
+import { GroupPrayerBadgeService } from './group-prayer-badge.service';
 import {
   scheduleDebouncedResumeRefresh,
   shouldSchedulePrayerResumeRefresh,
@@ -101,7 +103,8 @@ export class PrayerGroupService {
     private readonly toast: ToastService,
     private readonly userSession: UserSessionService,
     private readonly emailNotification: EmailNotificationService,
-    private readonly cache: CacheService
+    private readonly cache: CacheService,
+    private readonly injector: Injector
   ) {
     this.setupResumeListeners();
   }
@@ -188,6 +191,7 @@ export class PrayerGroupService {
       }[];
       if (rows.length === 0) {
         this.groupsSubject.next([]);
+        this.persistMemberGroupIdsForBadges(email, []);
         return [];
       }
 
@@ -223,6 +227,10 @@ export class PrayerGroupService {
         );
       });
       this.groupsSubject.next(mapped);
+      this.persistMemberGroupIdsForBadges(
+        email,
+        mapped.map((group) => group.id)
+      );
       return mapped;
     } catch (error) {
       console.error('[PrayerGroup] loadMyGroups failed:', error);
@@ -751,12 +759,37 @@ export class PrayerGroupService {
     }
   }
 
+  private resolveGroupIdForPrayer(
+    prayerId: string,
+    groupIdHint?: string | null
+  ): string | null {
+    if (groupIdHint) {
+      return groupIdHint;
+    }
+    const fromActive = this.prayersSubject.value.find(
+      (prayer) => prayer.id === prayerId
+    )?.group_id;
+    if (fromActive) {
+      return fromActive;
+    }
+    for (const group of this.groupsSubject.value) {
+      const cached =
+        this.getCachedGroupPrayers(group.id) ??
+        this.getStaleGroupPrayers(group.id);
+      if (cached?.some((prayer) => prayer.id === prayerId)) {
+        return group.id;
+      }
+    }
+    return null;
+  }
+
   async addGroupPrayerUpdate(
     prayerId: string,
     content: string,
     author: string,
     authorEmail: string,
-    markAsAnswered = false
+    markAsAnswered = false,
+    groupIdHint?: string | null
   ): Promise<boolean> {
     if (!this.connectivity.requireOnline('add a group prayer update')) {
       return false;
@@ -784,12 +817,15 @@ export class PrayerGroupService {
           })
           .eq('id', prayerId);
       }
-      const groupId = this.prayersSubject.value.find((prayer) => prayer.id === prayerId)
-        ?.group_id;
+      const groupId = this.resolveGroupIdForPrayer(prayerId, groupIdHint);
       if (groupId) {
         await this.loadGroupPrayers(groupId);
       }
-      const prayer = this.prayersSubject.value.find((row) => row.id === prayerId);
+      const prayer = groupId
+        ? (this.getCachedGroupPrayers(groupId) ??
+            this.getStaleGroupPrayers(groupId))?.find((row) => row.id === prayerId) ??
+          this.prayersSubject.value.find((row) => row.id === prayerId)
+        : this.prayersSubject.value.find((row) => row.id === prayerId);
       if (prayer?.group_id) {
         void this.notifyGroupPrayerUpdate(prayer, trimmed, author, authorEmail, markAsAnswered);
       }
@@ -802,12 +838,14 @@ export class PrayerGroupService {
     }
   }
 
-  async deleteGroupPrayer(prayerId: string): Promise<boolean> {
+  async deleteGroupPrayer(
+    prayerId: string,
+    groupIdHint?: string | null
+  ): Promise<boolean> {
     if (!this.connectivity.requireOnline('delete a group prayer')) {
       return false;
     }
-    const groupId = this.prayersSubject.value.find((prayer) => prayer.id === prayerId)
-      ?.group_id;
+    const groupId = this.resolveGroupIdForPrayer(prayerId, groupIdHint);
     try {
       const { error } = await this.supabase.client
         .from('group_prayers')
@@ -825,7 +863,11 @@ export class PrayerGroupService {
     }
   }
 
-  async deleteGroupPrayerUpdate(updateId: string, prayerId: string): Promise<boolean> {
+  async deleteGroupPrayerUpdate(
+    updateId: string,
+    prayerId: string,
+    groupIdHint?: string | null
+  ): Promise<boolean> {
     if (!this.connectivity.requireOnline('delete a group prayer update')) {
       return false;
     }
@@ -835,8 +877,7 @@ export class PrayerGroupService {
         .delete()
         .eq('id', updateId);
       if (error) throw error;
-      const groupId = this.prayersSubject.value.find((prayer) => prayer.id === prayerId)
-        ?.group_id;
+      const groupId = this.resolveGroupIdForPrayer(prayerId, groupIdHint);
       if (groupId) {
         await this.loadGroupPrayers(groupId);
       }
@@ -959,5 +1000,20 @@ export class PrayerGroupService {
       if (message) return message;
     }
     return fallback;
+  }
+
+  private persistMemberGroupIdsForBadges(
+    email: string,
+    groupIds: string[]
+  ): void {
+    if (typeof localStorage === 'undefined' || !email.trim()) {
+      return;
+    }
+    writeMemberPrayerGroupIdsToStorage(localStorage, email, groupIds);
+    try {
+      this.injector.get(GroupPrayerBadgeService).refreshBadgeCounts();
+    } catch {
+      // unit tests may omit GroupPrayerBadgeService
+    }
   }
 }

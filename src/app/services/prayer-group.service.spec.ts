@@ -31,6 +31,9 @@ function createService() {
     set: vi.fn(),
     invalidate: vi.fn(),
   };
+  const injector = {
+    get: vi.fn(() => ({ refreshBadgeCounts: vi.fn() })),
+  };
 
   const service = new PrayerGroupService(
     supabase as any,
@@ -39,7 +42,8 @@ function createService() {
     toast as any,
     userSession as any,
     emailNotification as any,
-    cache as any
+    cache as any,
+    injector as any
   );
 
   return {
@@ -856,6 +860,34 @@ describe("PrayerGroupService CRUD and membership", () => {
       true
     );
     expect(ok).toBe(true);
+    expect(toast.success).toHaveBeenCalledWith("Update added");
+  });
+
+  it("addGroupPrayerUpdate reloads cache via groupId hint when active list is empty", async () => {
+    const { service, from, toast, connectivity } = createService();
+    connectivity.requireOnline.mockReturnValue(true);
+    (service as any).prayersSubject.next([]);
+    (service as any).groupsSubject.next([{ id: "g1", name: "Family" }]);
+
+    const insert = vi.fn().mockResolvedValue({ error: null });
+    from.mockImplementation((table: string) => {
+      if (table === "group_prayer_updates") {
+        return { insert };
+      }
+      throw new Error(table);
+    });
+    const loadSpy = vi.spyOn(service, "loadGroupPrayers").mockResolvedValue([]);
+
+    const ok = await service.addGroupPrayerUpdate(
+      "p1",
+      "Thanks",
+      "Author",
+      "a@example.com",
+      false,
+      "g1"
+    );
+    expect(ok).toBe(true);
+    expect(loadSpy).toHaveBeenCalledWith("g1");
     expect(toast.success).toHaveBeenCalledWith("Update added");
   });
 

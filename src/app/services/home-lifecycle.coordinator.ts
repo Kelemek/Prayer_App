@@ -46,6 +46,8 @@ export interface HomeObservableStreams {
   currentPrayerBadge$: Observable<number>;
   answeredPrayerBadge$: Observable<number>;
   promptBadge$: Observable<number>;
+  currentGroupBadge$: Observable<number>;
+  answeredGroupBadge$: Observable<number>;
 }
 
 export interface HomeLifecycleHost {
@@ -209,6 +211,8 @@ export class HomeLifecycleCoordinator {
         "answered"
       ),
       promptBadge$: services.badgeService.getBadgeCount$("prompts"),
+      currentGroupBadge$: services.badgeService.getGroupBadgeCount$("current"),
+      answeredGroupBadge$: services.badgeService.getGroupBadgeCount$("answered"),
     });
 
     services.promptService.loadPrompts();

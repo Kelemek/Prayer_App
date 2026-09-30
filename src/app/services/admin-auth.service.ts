@@ -576,6 +576,12 @@ export class AdminAuthService {
     localStorage.removeItem('read_prompts_data');
     if (userEmail) {
       localStorage.removeItem(`last_activity_update_${userEmail}`);
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key?.startsWith('memberPrayerGroupIds:')) {
+          localStorage.removeItem(key);
+        }
+      }
     }
   }
 

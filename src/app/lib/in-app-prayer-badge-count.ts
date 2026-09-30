@@ -11,10 +11,48 @@ import { sharedPrayersCacheKey } from './prayer-tenant';
  *   paths as the in-app pills). App open alone does not clear.
  */
 
+export interface InAppBadgeCachedUpdate {
+  id?: string;
+  author_email?: string | null;
+}
+
 export interface InAppBadgeCachedItem {
   id: string;
   status?: string;
-  updates?: Array<{ id?: string }>;
+  email?: string | null;
+  user_email?: string | null;
+  updates?: InAppBadgeCachedUpdate[];
+}
+
+export function normalizeBadgeViewerEmail(
+  email: string | null | undefined
+): string | null {
+  const trimmed = email?.trim().toLowerCase();
+  return trimmed || null;
+}
+
+export function creatorEmailForBadgeItem(
+  item: Pick<InAppBadgeCachedItem, 'email' | 'user_email'>
+): string | null {
+  return normalizeBadgeViewerEmail(item.email ?? item.user_email);
+}
+
+export function isOwnBadgePrayerItem(
+  item: Pick<InAppBadgeCachedItem, 'email' | 'user_email'>,
+  viewerEmail: string | null | undefined
+): boolean {
+  const viewer = normalizeBadgeViewerEmail(viewerEmail);
+  const creator = creatorEmailForBadgeItem(item);
+  return !!viewer && !!creator && viewer === creator;
+}
+
+export function isOwnBadgeUpdate(
+  update: Pick<InAppBadgeCachedUpdate, 'author_email'>,
+  viewerEmail: string | null | undefined
+): boolean {
+  const viewer = normalizeBadgeViewerEmail(viewerEmail);
+  const author = normalizeBadgeViewerEmail(update.author_email);
+  return !!viewer && !!author && viewer === author;
 }
 
 export interface InAppBadgeReadState {
@@ -185,7 +223,8 @@ export function countInAppPrayerBadgesForItems(
   items: InAppBadgeCachedItem[],
   readIds: string[],
   readUpdateIds: string[],
-  status?: 'current' | 'answered'
+  status?: 'current' | 'answered',
+  viewerEmail?: string | null
 ): number {
   if (!Array.isArray(items)) {
     return 0;
@@ -195,12 +234,20 @@ export function countInAppPrayerBadgesForItems(
     if (status && item.status !== status) {
       continue;
     }
-    if (item.id && !readIds.includes(item.id)) {
+    if (
+      item.id &&
+      !readIds.includes(item.id) &&
+      !isOwnBadgePrayerItem(item, viewerEmail)
+    ) {
       count++;
     }
     if (item.updates && Array.isArray(item.updates)) {
       for (const update of item.updates) {
-        if (update.id && !readUpdateIds.includes(update.id)) {
+        if (
+          update.id &&
+          !readUpdateIds.includes(update.id) &&
+          !isOwnBadgeUpdate(update, viewerEmail)
+        ) {
           count++;
         }
       }
@@ -214,33 +261,40 @@ export function countInAppPrayerBadgesForItems(
  * Current + Answered + Prompts (not archived, personal, groups, or memorize).
  */
 export function countDisplayedInAppPrayerBadges(
-  snapshot: Pick<TenantInAppBadgeSnapshot, 'prayers' | 'prompts' | 'readState'>
+  snapshot: Pick<TenantInAppBadgeSnapshot, 'prayers' | 'prompts' | 'readState'>,
+  viewerEmail?: string | null
 ): number {
   const current = countInAppPrayerBadgesForItems(
     snapshot.prayers,
     snapshot.readState.prayers,
     snapshot.readState.prayerUpdates,
-    'current'
+    'current',
+    viewerEmail
   );
   const answered = countInAppPrayerBadgesForItems(
     snapshot.prayers,
     snapshot.readState.prayers,
     snapshot.readState.prayerUpdates,
-    'answered'
+    'answered',
+    viewerEmail
   );
   const prompts = countInAppPrayerBadgesForItems(
     snapshot.prompts,
     snapshot.readState.prompts,
-    snapshot.readState.promptUpdates
+    snapshot.readState.promptUpdates,
+    undefined,
+    viewerEmail
   );
   return current + answered + prompts;
 }
 
 export function countDisplayedInAppPrayerBadgesAcrossTenants(
-  snapshots: TenantInAppBadgeSnapshot[]
+  snapshots: TenantInAppBadgeSnapshot[],
+  viewerEmail?: string | null
 ): number {
   return snapshots.reduce(
-    (sum, snapshot) => sum + countDisplayedInAppPrayerBadges(snapshot),
+    (sum, snapshot) =>
+      sum + countDisplayedInAppPrayerBadges(snapshot, viewerEmail),
     0
   );
 }
@@ -324,13 +378,17 @@ export function markInAppBadgeSurfaceRead(
 
 export function countDisplayedInAppPrayerBadgesAfterOpeningSurface(
   snapshot: Pick<TenantInAppBadgeSnapshot, 'prayers' | 'prompts' | 'readState'>,
-  surface: InAppBadgeSurface
+  surface: InAppBadgeSurface,
+  viewerEmail?: string | null
 ): number {
-  return countDisplayedInAppPrayerBadges({
-    prayers: snapshot.prayers,
-    prompts: snapshot.prompts,
-    readState: markInAppBadgeSurfaceRead(snapshot, surface),
-  });
+  return countDisplayedInAppPrayerBadges(
+    {
+      prayers: snapshot.prayers,
+      prompts: snapshot.prompts,
+      readState: markInAppBadgeSurfaceRead(snapshot, surface),
+    },
+    viewerEmail
+  );
 }
 
 /** App launch / resume must not wipe the icon badge. */

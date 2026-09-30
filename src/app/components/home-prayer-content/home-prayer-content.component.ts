@@ -25,6 +25,7 @@ import type { AllowanceLevel } from "../../types/prayer";
 import { PrayerRequest } from "../../services/prayer.service";
 import type { PrayerGroup } from "../../types/prayer-group";
 import type { MemorizedItem } from "../../types/memorization";
+import type { GroupFilterMode } from "../../lib/home-group-catalog";
 import type { HomePrayerContentHandlers } from "../../lib/home-prayer-content-handlers";
 import { isChurchDemoFilter, isCommunityPrayerFilter } from "../../lib/home-community-filter";
 import { HomeChurchDemoPanelComponent } from "../home-church-demo-panel/home-church-demo-panel.component";
@@ -85,6 +86,7 @@ export class HomePrayerContentComponent implements OnChanges {
   @Input({ required: true }) displayedPublicPrayers!: PrayerRequest[];
   @Input() groupPrayers: PrayerRequest[] = [];
   @Input() prayerGroups: PrayerGroup[] = [];
+  @Input() groupFilterMode: GroupFilterMode | null = null;
   @Input({ required: true }) displayedPrompts!: PrayerPrompt[];
   @Input({ required: true }) loadingPersonalPrayers$!: Observable<boolean>;
   @Input({ required: true }) loadingGroupPrayers$!: Observable<boolean>;

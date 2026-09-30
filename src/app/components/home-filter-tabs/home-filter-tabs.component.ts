@@ -25,6 +25,8 @@ export class HomeFilterTabsComponent {
   @Input({ required: true }) activeFilter!: HomeActiveFilter;
   @Input({ required: true }) currentPrayerBadge$!: Observable<number>;
   @Input({ required: true }) answeredPrayerBadge$!: Observable<number>;
+  @Input({ required: true }) currentGroupBadge$!: Observable<number>;
+  @Input({ required: true }) answeredGroupBadge$!: Observable<number>;
   /** When false, Church is still shown; unread badges stay hidden. */
   @Input() canAccessShared = true;
   /** When false, Groups stays hidden. */
@@ -58,5 +60,9 @@ export class HomeFilterTabsComponent {
   markAllPublicPrayersRead(): void {
     this.badgeService.markAllAsReadByStatus("prayers", "current");
     this.badgeService.markAllAsReadByStatus("prayers", "answered");
+  }
+
+  markAllGroupPrayersRead(): void {
+    this.badgeService.markAllGroupPrayersRead();
   }
 }

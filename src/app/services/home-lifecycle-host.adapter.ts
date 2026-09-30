@@ -19,6 +19,8 @@ export interface HomeLifecyclePageBindings {
   currentPrayerBadge$?: Observable<number>;
   answeredPrayerBadge$?: Observable<number>;
   promptBadge$?: Observable<number>;
+  currentGroupBadge$?: Observable<number>;
+  answeredGroupBadge$?: Observable<number>;
   currentPrayers: PrayerRequest[];
   personalPrayers: PrayerRequest[];
   currentPrayersCount: number;
@@ -76,6 +78,8 @@ export class HomeLifecycleHostAdapter implements HomeLifecycleHost {
     this.deps.page.currentPrayerBadge$ = streams.currentPrayerBadge$;
     this.deps.page.answeredPrayerBadge$ = streams.answeredPrayerBadge$;
     this.deps.page.promptBadge$ = streams.promptBadge$;
+    this.deps.page.currentGroupBadge$ = streams.currentGroupBadge$;
+    this.deps.page.answeredGroupBadge$ = streams.answeredGroupBadge$;
   }
 
   getPendingHomeReturnContext(): HomeReturnContext | null {
