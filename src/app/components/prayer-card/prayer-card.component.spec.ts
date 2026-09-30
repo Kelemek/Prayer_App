@@ -66,9 +66,14 @@ describe('PrayerCardComponent', () => {
     mockBadgeService = {
       isPrayerUnread: vi.fn().mockReturnValue(false),
       isUpdateUnread: vi.fn().mockReturnValue(false),
+      isGroupPrayerUnread: vi.fn().mockReturnValue(false),
+      isGroupUpdateUnread: vi.fn().mockReturnValue(false),
+      getViewerEmailForBadges: vi.fn().mockReturnValue(null),
       getUpdateBadgesChanged$: vi.fn().mockReturnValue(of(null)),
       markPrayerAsRead: vi.fn(),
       markUpdateAsRead: vi.fn(),
+      markGroupPrayerAsRead: vi.fn(),
+      markGroupUpdateAsRead: vi.fn(),
       getBadgeFunctionalityEnabled$: vi.fn().mockReturnValue(of(true)),
     };
 

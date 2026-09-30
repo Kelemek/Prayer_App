@@ -90,6 +90,7 @@ describe("HomeLifecycleCoordinator", () => {
       } as any,
       badgeService: {
         getBadgeCount$: vi.fn(() => of(0)),
+        getGroupBadgeCount$: vi.fn(() => of(0)),
         refreshBadgeCounts: vi.fn(),
       } as any,
       personalCategoryColorService: { loadColors: vi.fn() } as any,
@@ -153,6 +154,7 @@ describe("HomeLifecycleCoordinator", () => {
       userSessionService: { userSession$: userSessionSubject.asObservable() } as any,
       badgeService: {
         getBadgeCount$: vi.fn(() => of(0)),
+        getGroupBadgeCount$: vi.fn(() => of(0)),
         refreshBadgeCounts: vi.fn(),
       } as any,
       personalCategoryColorService: personalCategoryColorService as any,

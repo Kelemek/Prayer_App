@@ -93,6 +93,7 @@ const makeMocks = () => {
     getUnreadPromptCountByType: vi.fn().mockReturnValue(0),
     refreshBadgeCounts: vi.fn(),
     getBadgeCount$: vi.fn().mockReturnValue(of(0)),
+    getGroupBadgeCount$: vi.fn().mockReturnValue(of(0)),
     markAllAsReadByStatus: vi.fn(),
     markAllAsRead: vi.fn()
   };
