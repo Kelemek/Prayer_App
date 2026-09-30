@@ -4,6 +4,11 @@ import { TenantContextService } from './tenant-context.service';
 
 export type TenantMembershipPreferenceUpdate = Record<string, unknown>;
 
+type MembershipWriteResult = {
+  data: { id: string }[] | null;
+  error: { message?: string } | null;
+};
+
 @Injectable({ providedIn: 'root' })
 export class TenantMembershipPreferencesService {
   constructor(
@@ -60,15 +65,12 @@ export class TenantMembershipPreferencesService {
     }
 
     if (existing) {
-      const { error: updateError } = await this.supabase.client
+      const updated = await this.supabase.client
         .from('tenant_memberships')
         .update(update)
-        .eq('id', existing.id);
-
-      if (updateError) {
-        return { ok: false, error: updateError };
-      }
-      return { ok: true };
+        .eq('id', existing.id)
+        .select('id');
+      return this.requireUpdatedRow(updated);
     }
 
     const { error: insertError } = await this.supabase.client
@@ -93,13 +95,21 @@ export class TenantMembershipPreferencesService {
       return { ok: false, error: new Error('Email not found') };
     }
 
-    const { error } = await this.supabase.client
+    const updated = await this.supabase.client
       .from('tenant_memberships')
       .update(update)
-      .match(this.matchFilter(normalized));
+      .match(this.matchFilter(normalized))
+      .select('id');
+    return this.requireUpdatedRow(updated);
+  }
 
-    if (error) {
-      return { ok: false, error };
+  /** PostgREST returns no error when RLS hides every row. An empty result is a failed save. */
+  private requireUpdatedRow(
+    result: MembershipWriteResult
+  ): { ok: true } | { ok: false; error: unknown } {
+    if (result.error) return { ok: false, error: result.error };
+    if (!result.data?.length) {
+      return { ok: false, error: new Error('Could not save preference') };
     }
     return { ok: true };
   }

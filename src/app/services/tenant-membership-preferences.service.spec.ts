@@ -15,7 +15,13 @@ describe('TenantMembershipPreferencesService', () => {
   beforeEach(() => {
     maybeSingleMock = vi.fn();
     matchMock = vi.fn(() => ({ maybeSingle: maybeSingleMock }));
-    updateMock = vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: null }) }));
+    const selectAfterUpdate = vi
+      .fn()
+      .mockResolvedValue({ data: [{ id: 'row-1' }], error: null });
+    updateMock = vi.fn(() => ({
+      eq: vi.fn(() => ({ select: selectAfterUpdate })),
+      match: vi.fn(() => ({ select: selectAfterUpdate })),
+    }));
     insertMock = vi.fn().mockResolvedValue({ error: null });
     fromMock = vi.fn(() => ({
       select: vi.fn(() => ({ match: matchMock })),
@@ -62,7 +68,9 @@ describe('TenantMembershipPreferencesService', () => {
 
   it('updateOnly matches email and tenant', async () => {
     updateMock.mockReturnValue({
-      match: vi.fn().mockResolvedValue({ error: null }),
+      match: vi.fn(() => ({
+        select: vi.fn().mockResolvedValue({ data: [{ id: 'row-1' }], error: null }),
+      })),
     });
     const result = await service.updateOnly('user@example.com', {
       memorization_strict_mode: true,
@@ -74,11 +82,24 @@ describe('TenantMembershipPreferencesService', () => {
   it('upsert returns error when update fails', async () => {
     maybeSingleMock.mockResolvedValue({ data: { id: 'row-1' }, error: null });
     updateMock.mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ error: new Error('update failed') }),
+      eq: vi.fn(() => ({
+        select: vi.fn().mockResolvedValue({ error: new Error('update failed'), data: null }),
+      })),
     });
     const result = await service.upsert('user@example.com', { is_active: false });
     expect(result.ok).toBe(false);
     expect(result.error).toBeInstanceOf(Error);
+  });
+
+  it('upsert fails when the update changes no row', async () => {
+    maybeSingleMock.mockResolvedValue({ data: { id: 'row-1' }, error: null });
+    updateMock.mockReturnValue({
+      eq: vi.fn(() => ({
+        select: vi.fn().mockResolvedValue({ data: [], error: null }),
+      })),
+    });
+    const result = await service.upsert('user@example.com', { is_active: false });
+    expect(result.ok).toBe(false);
   });
 
   it('matchFilter omits tenant_id when no active tenant', () => {
