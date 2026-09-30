@@ -188,6 +188,14 @@ export class PrayerGroupService {
     );
   }
 
+  setGroupPrayerAnswered(
+    prayerId: string,
+    answered: boolean,
+    groupIdHint?: string | null
+  ): Promise<boolean> {
+    return this.prayers.setGroupPrayerAnswered(prayerId, answered, groupIdHint);
+  }
+
   deleteGroupPrayer(prayerId: string, groupIdHint?: string | null): Promise<boolean> {
     return this.prayers.deleteGroupPrayer(prayerId, groupIdHint);
   }

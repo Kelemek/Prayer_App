@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildPrayerCardAddUpdateEvent,
-  personalAnsweredStatusModalMode,
   prayerCardUpdateActionsMode,
   prayerUpdateFromRecord,
 } from './prayer-card-mutations';
@@ -45,7 +44,6 @@ describe('prayer-card-mutations', () => {
 
   it('mode helpers', () => {
     expect(prayerCardUpdateActionsMode(true)).toBe('personal');
-    expect(personalAnsweredStatusModalMode('Answered')).toBe('unmark');
-    expect(personalAnsweredStatusModalMode('Health')).toBe('mark');
+    expect(prayerCardUpdateActionsMode(false)).toBe('readonly');
   });
 });

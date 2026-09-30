@@ -2,7 +2,6 @@ import type { PrayerUpdate } from '../services/prayer.service';
 import type { PrayerCardAddUpdateEvent } from './prayer-card-events';
 import type { PrayerAddUpdatePayload } from '../components/prayer-add-update-modal/prayer-add-update-modal.component';
 import type { PrayerUpdateActionsMode } from '../components/prayer-update-actions/prayer-update-actions.component';
-import type { PersonalPrayerAnsweredStatusMode } from '../components/personal-prayer-answered-status-modal/personal-prayer-answered-status-modal.component';
 import type { PrayerUpdateRecord } from './prayer-update-header';
 import {
   getPrayerCardUserEmail,
@@ -59,10 +58,4 @@ export function prayerCardUpdateActionsMode(
   isPersonal: boolean
 ): PrayerUpdateActionsMode {
   return isPersonal ? 'personal' : 'readonly';
-}
-
-export function personalAnsweredStatusModalMode(
-  category: string | null | undefined
-): PersonalPrayerAnsweredStatusMode {
-  return category === 'Answered' ? 'unmark' : 'mark';
 }

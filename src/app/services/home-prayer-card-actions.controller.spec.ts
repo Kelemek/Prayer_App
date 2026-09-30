@@ -17,6 +17,7 @@ describe("HomePrayerCardActionsController", () => {
     deleteGroupPrayer: vi.fn(),
     addGroupPrayerUpdate: vi.fn().mockResolvedValue(true),
     deleteGroupPrayerUpdate: vi.fn().mockResolvedValue(true),
+    setGroupPrayerAnswered: vi.fn().mockResolvedValue(true),
   };
   const promptService = {
     deletePrompt: vi.fn(),
@@ -87,6 +88,20 @@ describe("HomePrayerCardActionsController", () => {
     );
     expect(prayerCardActions.addUpdateForCard).toHaveBeenCalled();
     expect(prayerService.addUpdate).not.toHaveBeenCalled();
+  });
+
+  it("sets group prayer answered status", () => {
+    controller.setGroupPrayerAnswered(
+      { id: "gp1", group_id: "grp" } as any,
+      true
+    );
+    expect(prayerGroupService.setGroupPrayerAnswered).toHaveBeenCalledWith(
+      "gp1",
+      true,
+      "grp"
+    );
+    controller.setGroupPrayerAnswered({ id: "p1" } as any, true);
+    expect(prayerGroupService.setGroupPrayerAnswered).toHaveBeenCalledTimes(1);
   });
 
   it("skips delete for member cards and deletes group prayers", () => {

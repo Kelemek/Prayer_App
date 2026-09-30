@@ -37,6 +37,17 @@ export class HomePrayerCardActionsController {
     private readonly planningCenter: HomePlanningCenterController
   ) {}
 
+  setGroupPrayerAnswered(prayer: PrayerRequest, answered: boolean): void {
+    if (!prayer.group_id) {
+      return;
+    }
+    void this.prayerGroupService.setGroupPrayerAnswered(
+      prayer.id,
+      answered,
+      prayer.group_id
+    );
+  }
+
   deleteCard(prayer: PrayerRequest): void {
     if (isMemberPrayerId(prayer.id)) {
       return;

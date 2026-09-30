@@ -66,20 +66,20 @@
       </button>
       <button
         type="button"
-        (click)="setPreviewFilter('archived')"
-        [class]="churchStatusChipClass('archived')"
+        (click)="setPreviewFilter('total')"
+        [class]="churchStatusChipClass('total')"
       >
-        <app-home-sub-filter-count label="Archived" [count]="21" />
+        <app-home-sub-filter-count label="Total" [count]="47" />
       </button>
     </div>
     <div [class]="publicChipRowClass + ' mt-2'">
       <div [class]="publicChipHostClass">
         <button
           type="button"
-          (click)="setPreviewFilter('total')"
-          [class]="subFilterChipClass('total')"
+          (click)="setPreviewFilter('archived')"
+          [class]="subFilterChipClass('archived')"
         >
-          <app-home-sub-filter-count label="Total" [count]="47" />
+          <app-home-sub-filter-count label="Archived" [count]="21" />
         </button>
       </div>
       <div [class]="publicChipHostClass">

@@ -12,6 +12,7 @@ import {
 import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
 import { PersonalPrayerAnsweredStatusModalComponent } from '../personal-prayer-answered-status-modal/personal-prayer-answered-status-modal.component';
 import type { PersonalPrayerAnsweredStatusMode } from '../personal-prayer-answered-status-modal/personal-prayer-answered-status-modal.component';
+import type { AnsweredPrompt } from '../../lib/prayer-card-answered-menu';
 import { PrayerAddUpdateModalComponent } from '../prayer-add-update-modal/prayer-add-update-modal.component';
 import type { PrayerAddUpdatePayload } from '../prayer-add-update-modal/prayer-add-update-modal.component';
 import { PrayerDeleteRequestModalComponent } from '../prayer-delete-request-modal/prayer-delete-request-modal.component';
@@ -61,8 +62,7 @@ export class PrayerCardModalsStackComponent implements OnChanges, OnDestroy {
   @Input() showUpdateConfirmationDialog = false;
   @Input() updateConfirmationTitle = '';
   @Input() updateConfirmationMessage = '';
-  @Input() personalAnsweredStatusModalMode: PersonalPrayerAnsweredStatusMode | null =
-    null;
+  @Input() answeredPrompt: AnsweredPrompt | null = null;
   @Input() showReminderModal = false;
   @Input({ required: true }) reminderSessionEmail!: string;
   @Input({ required: true }) prayerItemKind!: PrayerItemReminderKind;
@@ -83,6 +83,8 @@ export class PrayerCardModalsStackComponent implements OnChanges, OnDestroy {
   @Output() closePersonalAnsweredStatus = new EventEmitter<void>();
   @Output() confirmPersonalAnswered = new EventEmitter<void>();
   @Output() confirmPersonalUnanswered = new EventEmitter<string | null>();
+  @Output() confirmGroupAnswered = new EventEmitter<void>();
+  @Output() cancelGroupAnswered = new EventEmitter<void>();
   @Output() closeReminder = new EventEmitter<void>();
   @Output() remindersChange = new EventEmitter<PrayerItemReminder[]>();
   @Output() confirmPrayFor = new EventEmitter<boolean>();
@@ -98,6 +100,14 @@ export class PrayerCardModalsStackComponent implements OnChanges, OnDestroy {
       this.portalAnchor
     );
     this.portalAnchor = null;
+  }
+
+  get personalAnsweredMode(): PersonalPrayerAnsweredStatusMode | null {
+    return this.answeredPrompt?.kind === 'personal' ? this.answeredPrompt.mode : null;
+  }
+
+  get groupAnsweredPrompt(): Extract<AnsweredPrompt, { kind: 'group' }> | null {
+    return this.answeredPrompt?.kind === 'group' ? this.answeredPrompt : null;
   }
 
   private syncBodyPortal(): void {
@@ -116,7 +126,7 @@ export class PrayerCardModalsStackComponent implements OnChanges, OnDestroy {
         showUpdateDeleteRequestForm: this.showUpdateDeleteRequestForm,
         showConfirmationDialog: this.showConfirmationDialog,
         showUpdateConfirmationDialog: this.showUpdateConfirmationDialog,
-        personalAnsweredStatusModalMode: this.personalAnsweredStatusModalMode,
+        answeredPrompt: this.answeredPrompt,
         showReminderModal: this.showReminderModal,
         showPrayForModal: this.showPrayForModal,
       })

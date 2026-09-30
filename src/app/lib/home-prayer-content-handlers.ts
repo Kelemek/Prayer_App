@@ -12,6 +12,7 @@ import type { MemorizedItem } from "../types/memorization";
 
 export interface HomePrayerContentHandlers {
   deleteCard(prayer: PrayerRequest): void;
+  setGroupPrayerAnswered(prayer: PrayerRequest, answered: boolean): void;
   deletePrompt(promptId: string): void;
   onCardAddUpdate(prayer: PrayerRequest, event: PrayerCardAddUpdateEvent): void;
   onCardDeleteUpdate(

@@ -57,27 +57,27 @@
     </app-home-sub-filter-chip>
 
     <app-home-sub-filter-chip
-      chipId="tour-filter-archived"
-      [active]="activeFilter === 'archived'"
-      [activeClass]="chipThemes.archived.active"
-      [inactiveClass]="statusChipInactiveClass"
-      (chipClick)="selectFilter.emit('archived')"
-    >
-      <app-home-sub-filter-count label="Archived" [count]="archivedPrayersCount" />
-    </app-home-sub-filter-chip>
-  </div>
-
-  <div [class]="chipRowClass + ' mt-2'">
-    <div [class]="chipHostClass">
-    <app-home-sub-filter-chip
       chipId="tour-filter-total"
-      [layoutClass]="chipButtonClass"
       [active]="activeFilter === 'total'"
       [activeClass]="chipThemes.total.active"
       [inactiveClass]="statusChipInactiveClass"
       (chipClick)="selectFilter.emit('total')"
     >
       <app-home-sub-filter-count label="Total" [count]="totalPrayersCount" />
+    </app-home-sub-filter-chip>
+  </div>
+
+  <div [class]="chipRowClass + ' mt-2'">
+    <div [class]="chipHostClass">
+    <app-home-sub-filter-chip
+      chipId="tour-filter-archived"
+      [layoutClass]="chipButtonClass"
+      [active]="activeFilter === 'archived'"
+      [activeClass]="chipThemes.archived.active"
+      [inactiveClass]="statusChipInactiveClass"
+      (chipClick)="selectFilter.emit('archived')"
+    >
+      <app-home-sub-filter-count label="Archived" [count]="archivedPrayersCount" />
     </app-home-sub-filter-chip>
     </div>
 

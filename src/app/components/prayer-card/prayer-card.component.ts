@@ -31,6 +31,12 @@ import {
 } from '../../lib/prayer-card-display';
 import { applyPersonalPrayerCategoryUpdate } from '../../lib/prayer-card-personal-answered';
 import {
+  answeredPromptFor,
+  answeredSubjectForPrayer,
+  type AnsweredPrompt,
+  type AnsweredSubject,
+} from '../../lib/prayer-card-answered-menu';
+import {
   persistPrayForModalDoNotShowAgain,
   shouldSkipPrayForExplanationModal,
 } from '../../lib/prayer-card-pray-for-modal';
@@ -72,7 +78,6 @@ import {
 } from '../../lib/prayer-card-delete-ui';
 import {
   buildPrayerCardAddUpdateEvent,
-  personalAnsweredStatusModalMode,
   prayerCardUpdateActionsMode,
   prayerUpdateFromRecord,
 } from '../../lib/prayer-card-mutations';
@@ -95,7 +100,6 @@ import {
 } from '../prayer-add-update-modal/prayer-add-update-modal.component';
 import { PrayerDeleteRequestPayload } from '../prayer-delete-request-modal/prayer-delete-request-modal.component';
 import { PrayerCardMetaHeaderComponent } from '../prayer-card-meta-header/prayer-card-meta-header.component';
-import type { PersonalPrayerAnsweredStatusMode } from '../personal-prayer-answered-status-modal/personal-prayer-answered-status-modal.component';
 import {
   getPrayerStatusLabel,
   getPrayerStatusPillClasses,
@@ -171,6 +175,7 @@ export class PrayerCardComponent
     category: string | null;
     status: string;
   }>();
+  @Output() groupAnsweredChange = new EventEmitter<boolean>();
   @Output() memorizeVerse = new EventEmitter<void>();
 
   prayerBadge$: Observable<boolean> | null = null;
@@ -184,8 +189,7 @@ export class PrayerCardComponent
   showAllUpdates = false;
   showConfirmationDialog = false;
   showUpdateConfirmationDialog = false;
-  personalAnsweredStatusModalMode: PersonalPrayerAnsweredStatusMode | null =
-    null;
+  answeredPrompt: AnsweredPrompt | null = null;
   updateConfirmationTitle = '';
   updateConfirmationMessage = '';
   updateConfirmationId: string | null = null;
@@ -654,28 +658,54 @@ export class PrayerCardComponent
     });
   }
 
-  onPersonalAnsweredClick(): void {
-    if (!this.isPersonal || this.isTogglingPersonalAnswered) {
+  get answeredSubject(): AnsweredSubject | null {
+    return answeredSubjectForPrayer({
+      groupId: this.prayer.group_id,
+      status: this.prayer.status,
+      category: this.prayer.category,
+      isPersonal: this.isPersonal,
+    });
+  }
+
+  onAnsweredMenuClick(): void {
+    if (this.isTogglingPersonalAnswered) {
       return;
     }
-
-    this.personalAnsweredStatusModalMode =
-      personalAnsweredStatusModalMode(this.prayer.category);
+    const subject = this.answeredSubject;
+    if (!subject) {
+      return;
+    }
+    this.answeredPrompt = answeredPromptFor(subject);
     this.cdr.markForCheck();
   }
 
-  closePersonalAnsweredStatusModal(): void {
-    this.personalAnsweredStatusModalMode = null;
+  closeAnsweredPrompt(): void {
+    this.answeredPrompt = null;
+    this.cdr.markForCheck();
+  }
+
+  onConfirmGroupAnswered(): void {
+    const prompt = this.answeredPrompt;
+    this.answeredPrompt = null;
+    if (prompt?.kind === 'group') {
+      this.groupAnsweredChange.emit(prompt.nextAnswered);
+    }
     this.cdr.markForCheck();
   }
 
   onConfirmPersonalAnswered(): void {
-    this.personalAnsweredStatusModalMode = null;
+    if (this.answeredPrompt?.kind !== 'personal') {
+      return;
+    }
+    this.answeredPrompt = null;
     void this.applyPersonalAnsweredCategory('Answered');
   }
 
   onConfirmPersonalUnanswered(category: string | null): void {
-    this.personalAnsweredStatusModalMode = null;
+    if (this.answeredPrompt?.kind !== 'personal') {
+      return;
+    }
+    this.answeredPrompt = null;
     void this.applyPersonalAnsweredCategory(category);
   }
 

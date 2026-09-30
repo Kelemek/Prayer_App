@@ -196,6 +196,7 @@
       (delete)="handlers.deleteCard(prayer)"
       (addUpdate)="handlers.onCardAddUpdate(prayer, $event)"
       (deleteUpdate)="handlers.onCardDeleteUpdate(prayer, $event)"
+      (groupAnsweredChange)="handlers.setGroupPrayerAnswered(prayer, $event)"
     ></app-prayer-card>
     }
   </div>

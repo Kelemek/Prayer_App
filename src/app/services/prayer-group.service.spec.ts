@@ -810,6 +810,39 @@ describe("PrayerGroupService CRUD and membership", () => {
     expect(await service.setMemberName("New Name")).toBe(true);
   });
 
+  it("setGroupPrayerAnswered updates status in the cache so Answered can list it", async () => {
+    const { service, from, cache, toast, connectivity } = createService();
+    connectivity.requireOnline.mockReturnValue(true);
+    service.groupsSubject.next([{ id: "g1", name: "Family" } as never]);
+    service.activeGroupId = "g1";
+    service.prayersSubject.next([cachedPrayer]);
+    let stored: PrayerRequest[] | null = [cachedPrayer];
+    cache.get.mockImplementation((key: string) =>
+      key === groupPrayersCacheKey("g1") ? stored : null
+    );
+    cache.set.mockImplementation((_key: string, data: PrayerRequest[]) => {
+      stored = data;
+    });
+    const eq = vi.fn().mockResolvedValue({ error: null });
+    const update = vi.fn().mockReturnValue({ eq });
+    from.mockReturnValue({ update });
+
+    const ok = await service.setGroupPrayerAnswered("p1", true, "g1");
+
+    expect(ok).toBe(true);
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "answered" })
+    );
+    expect(eq).toHaveBeenCalledWith("id", "p1");
+    expect(cache.set).toHaveBeenCalledWith(
+      groupPrayersCacheKey("g1"),
+      [expect.objectContaining({ id: "p1", status: "answered" })],
+      expect.any(Number)
+    );
+    expect(service.getGroupPrayers()[0]?.status).toBe("answered");
+    expect(toast.success).toHaveBeenCalledWith("Marked as answered");
+  });
+
   it("getGroupPrayerCount reads published counts", () => {
     const { service } = createService();
     service.prayerCountsSubject.next(new Map([["g1", 3]]));

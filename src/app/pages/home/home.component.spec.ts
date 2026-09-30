@@ -2320,6 +2320,100 @@ describe('HomeComponent', () => {
       expect(comp.showGroupEditor).toBe(true);
     });
 
+    it('opening Groups from another tab selects the Current group filter', () => {
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+
+      comp.activeFilter = 'personal';
+      comp.groupFilterMode = 'named';
+      comp.onMainTabSelected('groups');
+
+      expect(comp.groupFilterMode).toBe('current');
+      expect(comp.activeFilter).toBe('groups');
+    });
+
+    it('staying on Groups keeps the selected group filter', () => {
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+
+      comp.activeFilter = 'groups';
+      comp.groupFilterMode = 'answered';
+      comp.onMainTabSelected('groups');
+
+      expect(comp.groupFilterMode).toBe('answered');
+      expect(comp.activeFilter).toBe('groups');
+    });
+
+    it('opening Personal from another tab selects the Current personal filter', () => {
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+
+      comp.activeFilter = 'groups';
+      comp.personalCategory.personalCategoryFilterMode = 'named';
+      comp.personalCategory.selectedPersonalCategories = ['Family'];
+      comp.onMainTabSelected('personal');
+
+      expect(comp.personalCategory.personalCategoryFilterMode).toBe('current');
+      expect(comp.personalCategory.selectedPersonalCategories).toEqual([]);
+      expect(comp.activeFilter).toBe('personal');
+    });
+
+    it('staying on Personal keeps the selected category filter', () => {
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService
+      );
+
+      comp.activeFilter = 'personal';
+      comp.personalCategory.personalCategoryFilterMode = 'answered';
+      comp.onMainTabSelected('personal');
+
+      expect(comp.personalCategory.personalCategoryFilterMode).toBe('answered');
+      expect(comp.activeFilter).toBe('personal');
+    });
+
     it('setFilter personal sets activeFilter and calls applyFilters', () => {
       const comp = createHomeComponent(
         mocks.prayerService,

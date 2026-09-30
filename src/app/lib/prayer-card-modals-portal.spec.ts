@@ -16,7 +16,7 @@ describe("prayerCardModalsStackHasOpenModal", () => {
         showUpdateDeleteRequestForm: null,
         showConfirmationDialog: false,
         showUpdateConfirmationDialog: false,
-        personalAnsweredStatusModalMode: null,
+        answeredPrompt: null,
         showReminderModal: false,
         showPrayForModal: false,
       })
@@ -31,7 +31,7 @@ describe("prayerCardModalsStackHasOpenModal", () => {
         showUpdateDeleteRequestForm: null,
         showConfirmationDialog: false,
         showUpdateConfirmationDialog: false,
-        personalAnsweredStatusModalMode: null,
+        answeredPrompt: null,
         showReminderModal: false,
         showPrayForModal: false,
       })

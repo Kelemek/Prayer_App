@@ -39,13 +39,25 @@
   />
 }
 
+@if (personalAnsweredMode; as mode) {
 <app-personal-prayer-answered-status-modal
-  [isOpen]="personalAnsweredStatusModalMode !== null"
-  [mode]="personalAnsweredStatusModalMode ?? 'mark'"
+  [isOpen]="true"
+  [mode]="mode"
   (close)="closePersonalAnsweredStatus.emit()"
   (confirmMark)="confirmPersonalAnswered.emit()"
   (confirmUnmark)="confirmPersonalUnanswered.emit($event)"
 />
+}
+
+@if (groupAnsweredPrompt; as groupAnswered) {
+<app-confirmation-dialog
+  [title]="groupAnswered.title"
+  [message]="groupAnswered.message"
+  [confirmText]="groupAnswered.confirmText"
+  (confirm)="confirmGroupAnswered.emit()"
+  (cancel)="cancelGroupAnswered.emit()"
+/>
+}
 
 @if (showReminderModal) {
 <app-prayer-item-reminder-modal

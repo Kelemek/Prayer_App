@@ -19,6 +19,10 @@ import {
   type MetaHeaderBandSize,
 } from '../../lib/prayer-card-layout';
 import { personalCategoryHeaderBandStyles } from '../../../utils/personalCategoryColor';
+import {
+  answeredMenuState,
+  type AnsweredSubject,
+} from '../../lib/prayer-card-answered-menu';
 
 @Component({
   selector: 'app-prayer-card-meta-header',
@@ -103,6 +107,8 @@ export class PrayerCardMetaHeaderComponent {
   @Input() category: string | null = null;
   /** When set (group prayers), shown in the left header like a personal category name. */
   @Input() groupName: string | null = null;
+  /** When set, the overflow menu includes Answered for this personal or group prayer. */
+  @Input() answeredSubject: AnsweredSubject | null = null;
   @Input() status = 'current';
   @Input() showStatus = false;
   @Input() showCenterDateTime = true;
@@ -126,10 +132,6 @@ export class PrayerCardMetaHeaderComponent {
     PRAYER_CARD_PERSONAL_CATEGORY_HEADER_INSET_CLASSES;
   readonly categoryHeaderTextClasses =
     PRAYER_CARD_PERSONAL_CATEGORY_HEADER_TEXT_CLASSES;
-
-  get isAnswered(): boolean {
-    return this.category === 'Answered';
-  }
 
   get groupNameStyles(): Record<string, string> {
     return personalCategoryHeaderBandStyles(this.groupName ?? '');
@@ -168,15 +170,19 @@ export class PrayerCardMetaHeaderComponent {
         onSelect: () => this.reminder.emit(),
       });
     }
-    if (this.isPersonal) {
+    if (this.answeredSubject) {
+      const answered = answeredMenuState(this.answeredSubject);
       items.push({
         id: 'answered',
-        label: this.isAnswered ? 'Mark as unanswered' : 'Mark as answered',
+        label: answered.label,
         icon: 'check',
-        tone: this.isAnswered ? 'green' : 'gray',
+        tone: answered.tone,
+        filled: answered.filled,
         tourAnchorId: this.personalAnsweredTourId,
         onSelect: () => this.toggleAnswered.emit(),
       });
+    }
+    if (this.isPersonal) {
       items.push({
         id: 'edit',
         label: 'Edit prayer',

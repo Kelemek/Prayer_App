@@ -52,6 +52,7 @@ function readComponentResource(url: string): string {
 
 const handlers: HomePrayerContentHandlers = {
   deleteCard: vi.fn(),
+  setGroupPrayerAnswered: vi.fn(),
   deletePrompt: vi.fn(),
   onCardAddUpdate: vi.fn(),
   onCardDeleteUpdate: vi.fn(),

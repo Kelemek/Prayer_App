@@ -891,6 +891,16 @@ export class HomeComponent
     this.filter.setFilter(filter);
   }
 
+  onMainTabSelected(filter: HomeActiveFilter): void {
+    if (filter === "groups" && this.activeFilter !== "groups") {
+      this.groupFilterMode = "current";
+    }
+    if (filter === "personal" && this.activeFilter !== "personal") {
+      this.personalCategory.selectPersonalCategoryFilterMode("current");
+    }
+    this.filter.setFilter(filter);
+  }
+
   get canCreatePrayerGroups(): boolean {
     return this.tenantPermissionService.canCreatePrayerGroups();
   }

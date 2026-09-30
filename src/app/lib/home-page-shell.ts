@@ -351,6 +351,8 @@ export function createHomePageShellHandlers(
     },
     prayerContent: {
       deleteCard: (prayer) => deps.prayerCardActions.deleteCard(prayer),
+      setGroupPrayerAnswered: (prayer, answered) =>
+        deps.prayerCardActions.setGroupPrayerAnswered(prayer, answered),
       deletePrompt: (id) => void deps.prayerCardActions.deletePrompt(id),
       onCardAddUpdate: (prayer, event) =>
         void deps.memberCardActions.onCardAddUpdate(prayer, event),

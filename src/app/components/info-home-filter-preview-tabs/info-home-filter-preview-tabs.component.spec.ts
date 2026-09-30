@@ -81,7 +81,7 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
     );
   });
 
-  it("puts Add, Current, Answered, and Archived on the first public preview row", () => {
+  it("puts Add, Current, Answered, and Total on the first public preview row", () => {
     fixture.detectChanges();
     const panel = fixture.nativeElement.querySelector(
       ".rounded-b-lg, .rounded-b-none"
@@ -100,10 +100,10 @@ describe("InfoHomeFilterPreviewTabsComponent", () => {
       "Add",
       "Current 22",
       "Answered 4",
-      "Archived 21",
+      "Total 47",
     ]);
     expect(secondRowLabels.map((label) => label.replace(/\s+/g, " "))).toEqual([
-      "Total 47",
+      "Archived 21",
       "Prompts 12",
     ]);
   });

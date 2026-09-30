@@ -58,7 +58,7 @@ describe("HomePublicStatusFiltersComponent", () => {
     fixture?.destroy();
   });
 
-  it("puts Add, Current, Answered, and Archived on the first status row", () => {
+  it("puts Add, Current, Answered, and Total on the first status row", () => {
     const panel = fixture.nativeElement.querySelector(
       ".rounded-b-lg, .rounded-b-none"
     ) as HTMLElement;
@@ -76,10 +76,10 @@ describe("HomePublicStatusFiltersComponent", () => {
       "tour-filter-add-church",
       "tour-filter-current",
       "tour-filter-answered",
-      "tour-filter-archived",
+      "tour-filter-total",
     ]);
     expect(secondRowIds).toEqual([
-      "tour-filter-total",
+      "tour-filter-archived",
       "tour-filter-prompts",
     ]);
   });

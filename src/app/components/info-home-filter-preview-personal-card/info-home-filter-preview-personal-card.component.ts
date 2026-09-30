@@ -45,7 +45,7 @@ export class InfoHomeFilterPreviewPersonalCardComponent {
       id: "answered",
       label: "Mark as answered",
       icon: "check",
-      tone: "gray",
+      tone: "blue",
       onSelect: () => this.openPersonalAction.emit("answered"),
     },
     {

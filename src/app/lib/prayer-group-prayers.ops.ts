@@ -302,6 +302,53 @@ export class PrayerGroupPrayersOps {
     }
   }
 
+  async setGroupPrayerAnswered(
+    prayerId: string,
+    answered: boolean,
+    groupIdHint?: string | null
+  ): Promise<boolean> {
+    const action = answered
+      ? 'mark a group prayer answered'
+      : 'move a group prayer back to current';
+    if (!this.deps.connectivity.requireOnline(action)) {
+      return false;
+    }
+
+    const groupId = this.resolveGroupIdForPrayer(prayerId, groupIdHint);
+    if (!groupId) {
+      this.deps.toast.error('Failed to update prayer');
+      return false;
+    }
+
+    const status = answered ? 'answered' : 'current';
+    const dateAnswered = answered ? new Date().toISOString() : null;
+
+    try {
+      const { error } = await this.deps.supabase.client
+        .from('group_prayers')
+        .update({
+          status,
+          date_answered: dateAnswered,
+        })
+        .eq('id', prayerId);
+      if (error) {
+        throw error;
+      }
+      this.patchCachedGroupPrayer(groupId, prayerId, {
+        status,
+        date_answered: dateAnswered,
+      });
+      this.deps.toast.success(
+        answered ? 'Marked as answered' : 'Moved back to current'
+      );
+      return true;
+    } catch (error) {
+      console.error('[PrayerGroup] setGroupPrayerAnswered failed:', error);
+      this.deps.toast.error('Failed to update prayer');
+      return false;
+    }
+  }
+
   async deleteGroupPrayer(
     prayerId: string,
     groupIdHint?: string | null
@@ -423,6 +470,27 @@ export class PrayerGroupPrayersOps {
       this.getCachedGroupPrayers(groupId) ?? this.getStaleGroupPrayers(groupId);
     if (cached) {
       this.publishGroupPrayerCount(groupId, cached.length);
+    }
+  }
+
+  private patchCachedGroupPrayer(
+    groupId: string,
+    prayerId: string,
+    patch: Partial<PrayerRequest>
+  ): void {
+    const cached =
+      this.getCachedGroupPrayers(groupId) ?? this.getStaleGroupPrayers(groupId);
+    if (cached) {
+      this.setCachedGroupPrayers(
+        groupId,
+        cached.map((prayer) =>
+          prayer.id === prayerId ? { ...prayer, ...patch } : prayer
+        )
+      );
+    }
+
+    if (this.state.activeGroupId === groupId) {
+      this.publishFocusedGroupFromCache();
     }
   }
 

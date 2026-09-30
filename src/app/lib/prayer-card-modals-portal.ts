@@ -9,7 +9,7 @@ export function prayerCardModalsStackHasOpenModal(state: {
   showUpdateDeleteRequestForm: string | null;
   showConfirmationDialog: boolean;
   showUpdateConfirmationDialog: boolean;
-  personalAnsweredStatusModalMode: unknown;
+  answeredPrompt: unknown;
   showReminderModal: boolean;
   showPrayForModal: boolean;
 }): boolean {
@@ -19,7 +19,7 @@ export function prayerCardModalsStackHasOpenModal(state: {
     state.showUpdateDeleteRequestForm !== null ||
     state.showConfirmationDialog ||
     state.showUpdateConfirmationDialog ||
-    state.personalAnsweredStatusModalMode !== null ||
+    state.answeredPrompt != null ||
     state.showReminderModal ||
     state.showPrayForModal
   );

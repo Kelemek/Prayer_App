@@ -86,7 +86,13 @@ function minimalDeps(overrides: Record<string, unknown> = {}) {
       togglePromptType: vi.fn(),
       setFilter: vi.fn(),
     },
-    prayerCardActions: { deleteCard: vi.fn(), deletePrompt: vi.fn(), requestDeletion: vi.fn(), requestUpdateDeletion: vi.fn() },
+    prayerCardActions: {
+      deleteCard: vi.fn(),
+      setGroupPrayerAnswered: vi.fn(),
+      deletePrompt: vi.fn(),
+      requestDeletion: vi.fn(),
+      requestUpdateDeletion: vi.fn(),
+    },
     memberCardActions: {
       onCardAddUpdate: vi.fn(),
       onCardDeleteUpdate: vi.fn(),

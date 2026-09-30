@@ -104,6 +104,32 @@ describe('PrayerCardComponent', () => {
     localStorage.clear();
   });
 
+  it('asks before marking a group prayer answered', () => {
+    const emitted: boolean[] = [];
+    component.groupAnsweredChange.subscribe((answered) => emitted.push(answered));
+    component.prayer = {
+      ...component.prayer,
+      id: 'gp1',
+      group_id: 'g1',
+      status: 'current',
+    } as any;
+
+    component.onAnsweredMenuClick();
+
+    expect(component.answeredPrompt).toMatchObject({
+      kind: 'group',
+      confirmText: 'Mark as answered',
+      nextAnswered: true,
+    });
+    expect(emitted).toEqual([]);
+
+    component.onConfirmGroupAnswered();
+
+    expect(emitted).toEqual([true]);
+    expect(component.answeredPrompt).toBeNull();
+    expect(component.prayer.status).toBe('current');
+  });
+
   it('getBorderClass uses church blue for community prayers of any status', () => {
     (component.prayer as any).status = 'current';
     expect(component.getBorderClass()).toContain('0047AB');

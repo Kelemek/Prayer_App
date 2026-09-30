@@ -39,6 +39,11 @@ import type {
         }
       }
       @case ('check') {
+        @if (filled) {
+        <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" />
+        </svg>
+        } @else {
         <svg
           class="size-5 shrink-0"
           viewBox="0 0 24 24"
@@ -51,6 +56,7 @@ import type {
         >
           <polyline points="20 6 9 17 4 12"></polyline>
         </svg>
+        }
       }
       @case ('edit') {
         <svg

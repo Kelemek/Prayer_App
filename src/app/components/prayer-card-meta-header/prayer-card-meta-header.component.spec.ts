@@ -9,7 +9,7 @@ describe('PrayerCardMetaHeaderComponent overflow items', () => {
     component.showReminder = true;
     component.hasReminder = false;
     component.showDelete = true;
-    component.category = 'Health';
+    component.answeredSubject = { kind: 'personal', category: 'Health' };
     component.reminderBellTourId = 'tour-prayer-reminder-bell';
     component.personalAnsweredTourId = 'tour-walkthrough-personal-answered';
     component.personalEditTourId = 'tour-walkthrough-personal-edit';
@@ -35,6 +35,46 @@ describe('PrayerCardMetaHeaderComponent overflow items', () => {
     );
   });
 
+  it('shows a green Answered action when a personal prayer is answered', () => {
+    const component = new PrayerCardMetaHeaderComponent();
+    component.prayerCreatedAt = '2026-01-01T00:00:00Z';
+    component.isPersonal = true;
+    component.answeredSubject = { kind: 'personal', category: 'Answered' };
+
+    const answered = component.overflowItems.find((item) => item.id === 'answered');
+    expect(answered?.label).toBe('Answered');
+    expect(answered?.tone).toBe('green');
+    expect(answered?.icon).toBe('check');
+    expect(answered?.filled).toBe(true);
+  });
+
+  it('shows a green Answered action when a group prayer is answered', () => {
+    const component = new PrayerCardMetaHeaderComponent();
+    component.prayerCreatedAt = '2026-01-01T00:00:00Z';
+    component.isPersonal = true;
+    component.groupName = 'Family';
+    component.answeredSubject = { kind: 'group', status: 'answered' };
+
+    const answered = component.overflowItems.find((item) => item.id === 'answered');
+    expect(answered?.label).toBe('Answered');
+    expect(answered?.tone).toBe('green');
+    expect(answered?.icon).toBe('check');
+    expect(answered?.filled).toBe(true);
+  });
+
+  it('keeps Mark as answered for a current group prayer', () => {
+    const component = new PrayerCardMetaHeaderComponent();
+    component.prayerCreatedAt = '2026-01-01T00:00:00Z';
+    component.isPersonal = true;
+    component.groupName = 'Family';
+    component.answeredSubject = { kind: 'group', status: 'current' };
+
+    const answered = component.overflowItems.find((item) => item.id === 'answered');
+    expect(answered?.label).toBe('Mark as answered');
+    expect(answered?.tone).toBe('blue');
+    expect(answered?.filled).toBe(false);
+  });
+
   it('exposes stable styles for a group name header label', () => {
     const component = new PrayerCardMetaHeaderComponent();
     component.groupName = 'Family';
@@ -50,6 +90,7 @@ describe('PrayerCardMetaHeaderComponent overflow items', () => {
     component.reminder.subscribe(() => emitted.push('reminder'));
     component.toggleAnswered.subscribe(() => emitted.push('answered'));
     component.isPersonal = true;
+    component.answeredSubject = { kind: 'personal', category: null };
     component.showReminder = true;
     component.showDelete = true;
     component.prayerCreatedAt = '2026-01-01T00:00:00Z';
