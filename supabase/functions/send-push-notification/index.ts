@@ -112,12 +112,51 @@ async function getApnsJwt(): Promise<string> {
   return jwt;
 }
 
+/**
+ * Absolute icon badge for each recipient. Null means the lookup failed and
+ * the payload must leave the existing badge alone.
+ */
+async function loadAppIconBadgeCounts(
+  emails: string[]
+): Promise<Map<string, number> | null> {
+  const unique = Array.from(
+    new Set(emails.map((email) => email.trim()).filter((email) => email.length > 0))
+  );
+  if (unique.length === 0) {
+    return new Map();
+  }
+  const { data, error } = await supabase.rpc('app_icon_badge_counts', {
+    p_emails: unique,
+  });
+  if (error) {
+    console.error('app_icon_badge_counts failed:', error);
+    return null;
+  }
+  const counts = new Map<string, number>();
+  for (const row of data ?? []) {
+    const email = String(row.user_email ?? '').trim().toLowerCase();
+    const count = Number(row.badge_count);
+    if (!email || !Number.isFinite(count)) continue;
+    counts.set(email, Math.max(0, Math.floor(count)));
+  }
+  return counts;
+}
+
+function badgeCountForEmail(
+  counts: Map<string, number> | null,
+  email: string | null | undefined
+): number | undefined {
+  if (!counts || !email) return undefined;
+  return counts.get(email.trim().toLowerCase());
+}
+
 /** Send one notification via APNs (iOS device token). */
 async function sendViaApns(
   deviceToken: string,
   title: string,
   body: string,
-  dataPayload: Record<string, string>
+  dataPayload: Record<string, string>,
+  badgeCount?: number
 ): Promise<{ ok: boolean; errorData?: unknown }> {
   const jwt = await getApnsJwt();
   const host = apnsSandbox ? 'api.sandbox.push.apple.com' : 'api.push.apple.com';
@@ -126,6 +165,9 @@ async function sendViaApns(
     alert: { title, body },
     sound: 'default',
   };
+  if (badgeCount !== undefined) {
+    aps.badge = badgeCount;
+  }
   const bodyObj: Record<string, unknown> = { aps };
   for (const [k, v] of Object.entries(dataPayload)) {
     bodyObj[k] = v;
@@ -329,6 +371,9 @@ serve(async (req) => {
     }
 
     const dataPayload = stringifyData(payload.data);
+    const badgeCounts = await loadAppIconBadgeCounts(
+      tokens.map((token) => token.user_email)
+    );
     let successCount = 0;
     let failureCount = 0;
     let firstFailureReason: string | null = null;
@@ -357,13 +402,16 @@ serve(async (req) => {
       };
 
       try {
+        const badgeCount = badgeCountForEmail(badgeCounts, tokenRecord.user_email);
         if (tokenRecord.platform === 'ios') {
-          // iOS: Capacitor gives APNs device token → send via APNs
+          // iOS: Capacitor gives APNs device token → send via APNs.
+          // aps.badge sets the icon even when the app is not running.
           const result = await sendViaApns(
             tokenRecord.token,
             payload.title,
             payload.body,
-            dataPayload
+            dataPayload,
+            badgeCount
           );
           if (result.ok) {
             successCount++;
@@ -407,7 +455,10 @@ serve(async (req) => {
           data: Object.keys(dataPayload).length ? dataPayload : undefined,
           android: {
             priority: 'high' as const,
-            notification: { channelId: 'prayers' },
+            notification: {
+              channelId: 'prayers',
+              ...(badgeCount !== undefined ? { notificationCount: badgeCount } : {}),
+            },
           },
         };
 
