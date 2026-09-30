@@ -4,6 +4,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'happy-dom',
+    // Coverage makes the main thread slow to ack console RPCs. Vitest then
+    // fails the run with "Closing rpc while onUserConsoleLog was pending"
+    // even when every test passed. On CI, write console straight to the
+    // worker pipes instead. Local runs keep per-test log attribution.
+    disableConsoleIntercept: !!process.env.CI,
     setupFiles: ['./src/test-setup.ts'],
     include: ['src/**/*.spec.ts'],
     exclude: [
