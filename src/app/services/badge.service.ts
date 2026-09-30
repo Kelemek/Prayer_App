@@ -589,11 +589,19 @@ export class BadgeService {
    * loaded yet, defers until refreshBadgeCounts sees content.
    */
   markAllCachedItemsAsRead(): void {
-    this.pendingSeedAllAsRead = true;
-    this.persistPendingSeedFlag(true);
+    const hasContent =
+      this.cacheHasItems('prayers') || this.cacheHasItems('prompts');
+    if (!hasContent) {
+      this.pendingSeedAllAsRead = true;
+      this.persistPendingSeedFlag(true);
+      return;
+    }
+    // Clear the seed flag before marking. markAllAsRead refreshes counts, and
+    // that refresh replays a still-pending seed, which calls markAllAsRead again.
+    this.pendingSeedAllAsRead = false;
+    this.persistPendingSeedFlag(false);
     this.markAllAsRead('prayers');
     this.markAllAsRead('prompts');
-    this.maybeClearPendingSeedAfterMarkAll();
   }
 
   private persistPendingSeedFlag(pending: boolean): void {
@@ -667,10 +675,10 @@ export class BadgeService {
     if (!this.cacheHasItems('prayers') && !this.cacheHasItems('prompts')) {
       return;
     }
-    this.markAllAsRead('prayers');
-    this.markAllAsRead('prompts');
     this.pendingSeedAllAsRead = false;
     this.persistPendingSeedFlag(false);
+    this.markAllAsRead('prayers');
+    this.markAllAsRead('prompts');
   }
 
   getBadgeCount$(

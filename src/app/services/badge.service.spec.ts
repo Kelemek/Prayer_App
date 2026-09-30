@@ -360,6 +360,22 @@ describe('BadgeService', () => {
       expect(service.isPrayerUnread(prayerUuid)).toBe(false);
       expect((service as any).pendingSeedAllAsRead).toBe(false);
     });
+
+    it('marks cached prayers as read without re-entering mark-all', () => {
+      localStorage.setItem(
+        `tenant_${tenantId}_prayers`,
+        JSON.stringify({
+          data: [{ id: prayerUuid, status: 'current', updated_at: '2024-01-01' }],
+        })
+      );
+      const markAll = vi.spyOn(service, 'markAllAsRead');
+
+      expect(() => service.markAllCachedItemsAsRead()).not.toThrow();
+
+      expect(markAll).toHaveBeenCalledTimes(2);
+      expect(service.isPrayerUnread(prayerUuid)).toBe(false);
+      expect((service as any).pendingSeedAllAsRead).toBe(false);
+    });
   });
 
   describe('markPromptAsRead', () => {
