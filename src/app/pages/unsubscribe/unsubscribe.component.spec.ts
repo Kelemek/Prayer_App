@@ -34,7 +34,6 @@ describe('UnsubscribeComponent', () => {
         {
           provide: BrandingService,
           useValue: {
-            initialize: vi.fn(async () => undefined),
             branding$: new BehaviorSubject({ useLogo: false }),
             getImageUrl: vi.fn(() => ''),
           },
@@ -69,7 +68,6 @@ describe('UnsubscribeComponent', () => {
         {
           provide: BrandingService,
           useValue: {
-            initialize: vi.fn(async () => undefined),
             branding$: new BehaviorSubject({ useLogo: false }),
             getImageUrl: vi.fn(() => ''),
           },

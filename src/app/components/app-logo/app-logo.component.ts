@@ -58,25 +58,19 @@ export class AppLogoComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
-    this.initializeBranding();
-  }
-
-  ngOnDestroy() {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-
-  private async initializeBranding() {
-    await this.brandingService.initialize();
-    
     this.brandingService.branding$
       .pipe(takeUntil(this.destroy$))
-      .subscribe(branding => {
+      .subscribe((branding) => {
         this.useLogo = branding.useLogo;
         this.appTitle = branding.appTitle;
         this.updateImageUrl(branding);
         this.cdr?.markForCheck();
       });
+  }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   private updateImageUrl(branding: any) {

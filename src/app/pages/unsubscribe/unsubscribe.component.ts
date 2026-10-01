@@ -147,7 +147,12 @@ export class UnsubscribeComponent implements OnInit {
   private hintTimer: ReturnType<typeof setInterval> | undefined;
 
   ngOnInit(): void {
-    void this.initializeBranding();
+    this.branding.branding$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((branding) => {
+        this.useLogo.set(branding.useLogo);
+        this.logoUrl.set(this.branding.getImageUrl(branding));
+      });
 
     const token = this.route.snapshot.queryParamMap.get("token")?.trim();
     if (!token) {
@@ -168,16 +173,6 @@ export class UnsubscribeComponent implements OnInit {
     this.destroyRef.onDestroy(() => this.clearHintTimer());
 
     void this.runUnsubscribe(fnUrl, key, token);
-  }
-
-  private async initializeBranding(): Promise<void> {
-    await this.branding.initialize();
-    this.branding.branding$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((branding) => {
-        this.useLogo.set(branding.useLogo);
-        this.logoUrl.set(this.branding.getImageUrl(branding));
-      });
   }
 
   private clearHintTimer(): void {

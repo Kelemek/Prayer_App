@@ -88,15 +88,10 @@ describe('AppLogoComponent', () => {
   });
 
   describe('ngOnInit', () => {
-    it('should initialize branding service', async () => {
+    it('should subscribe to branding without starting the service', async () => {
       await component.ngOnInit();
 
-      expect(mockBrandingService.initialize).toHaveBeenCalled();
-    });
-
-    it('should subscribe to branding observable', async () => {
-      await component.ngOnInit();
-
+      expect(mockBrandingService.initialize).not.toHaveBeenCalled();
       expect(component.useLogo).toBe(false);
       expect(component.appTitle).toBe('Church Prayer Manager');
     });

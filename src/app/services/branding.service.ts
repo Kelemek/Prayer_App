@@ -61,7 +61,8 @@ export class BrandingService implements OnDestroy {
   }
 
   /**
-   * Lazy-load branding data after tenant context is ready.
+   * Load branding after tenant context is ready. Bootstrap starts this
+   * without awaiting; print awaits a snapshot. Views subscribe to branding$.
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;

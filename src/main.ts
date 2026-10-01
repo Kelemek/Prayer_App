@@ -105,18 +105,13 @@ function startApp(): void {
       },
       {
         provide: APP_INITIALIZER,
-        useFactory: (brandingService: BrandingService) => {
-          return async () => {
-            try {
-              await brandingService.initialize();
-            } catch (error) {
-              console.error(
-                "[AppInitialization] BrandingService initialization failed:",
-                error
-              );
-              // Continue initialization even if branding fails
-            }
-          };
+        useFactory: (brandingService: BrandingService) => () => {
+          void brandingService.initialize().catch((error) => {
+            console.error(
+              "[BrandingService] Initialization failed:",
+              error
+            );
+          });
         },
         deps: [BrandingService],
         multi: true,
