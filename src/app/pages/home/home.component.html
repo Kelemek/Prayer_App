@@ -179,7 +179,21 @@
         (publicTabSelected)="filter.selectPublicTab()"
       ></app-home-filter-tabs>
 
-      @if (isPublicAreaFilter(activeFilter)) {
+      @let displayedPublicPrayers = (prayers$ | async) ?? [];
+      @let tenantStillLoading = (tenantLoading$ | async) ?? true;
+      @let hidePrayerContentForLoading = catalogGate.awaiting({
+        activeFilter: activeFilter,
+        viewReady: viewReady,
+        tenantLoading: tenantStillLoading,
+        canAccessShared: canAccessShared,
+        planningCenterSettled: planningCenter.catalogSettled
+      });
+
+      @if (hidePrayerContentForLoading) {
+      <app-skeleton-loader [count]="5" type="card"></app-skeleton-loader>
+      }
+
+      @if (!hidePrayerContentForLoading && isPublicAreaFilter(activeFilter)) {
       <div class="mb-2 sm:mb-3">
         <app-home-public-status-filters
           [activeFilter]="activeFilter"
@@ -232,40 +246,6 @@
       </div>
       }
 
-      @let displayedPublicPrayers = (prayers$ | async) ?? [];
-      @let promptsCatalogCount = (prompts$ | async)?.length ?? 0;
-      @let contentLoading =
-        !viewReady ||
-        (canAccessShared &&
-          isPublicTabFilter(activeFilter) &&
-          !!(loading$ | async)) ||
-        (activeFilter === 'personal' &&
-          !!(prayerService.loadingPersonalPrayers$ | async)) ||
-        (activeFilter === 'memorize' &&
-          !!(memorizationService.loading$ | async)) ||
-        (activeFilter === 'groups' &&
-          groupFilterMode === 'named' &&
-          !!(prayerGroupService.loadingPrayers$ | async));
-      @let hasCachedContentForTab =
-        (activeFilter === 'memorize' && memorizationPanel.memorizedItemsCount > 0) ||
-        (viewReady &&
-          !canAccessShared &&
-          isPublicAreaFilter(activeFilter)) ||
-        (activeFilter === 'prompts' &&
-          (catalog.displayedPrompts.length > 0 || promptsCatalogCount > 0)) ||
-        (activeFilter === 'personal' &&
-          (catalog.filteredPersonalPrayers.length > 0 ||
-            personalPrayersCount > 0)) ||
-        (activeFilter === 'groups' &&
-          (groupPrayers.length > 0 || prayerGroups.length > 0)) ||
-        (isPublicTabFilter(activeFilter) && displayedPublicPrayers.length > 0) ||
-        (activeFilter === 'planning_center_list' &&
-          planningCenter.filteredPlanningCenterPrayers.length > 0);
-      @let hidePrayerContentForLoading = contentLoading && !hasCachedContentForTab;
-      @if (hidePrayerContentForLoading) {
-      <app-skeleton-loader [count]="5" type="card"></app-skeleton-loader>
-      }
-
       @if ((error$ | async); as error) {
       <div
         class="bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-800 dark:text-red-300 px-4 py-3 rounded-lg mb-6"
@@ -274,7 +254,7 @@
       </div>
       }
 
-      @if (activeFilter === 'groups' && canAccessGroupsTab) {
+      @if (!hidePrayerContentForLoading && activeFilter === 'groups' && canAccessGroupsTab) {
       @if (showGroupsNearQuotaBanner) {
       <div
         class="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-100"
@@ -328,7 +308,7 @@
       ></app-home-group-filters>
       }
 
-      @if (activeFilter === 'personal') {
+      @if (!hidePrayerContentForLoading && activeFilter === 'personal') {
       <app-home-personal-category-filters
         [personalPrayersCount]="personalPrayersCount"
         [filterMode]="shell.personalCategory.filterMode"

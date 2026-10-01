@@ -36,6 +36,19 @@ export class HomePlanningCenterController {
     return !!this.planningCenterListId;
   }
 
+  get catalogSettled(): boolean {
+    if (!this.planningCenterListResolved || this.loadingMemberPrayers) {
+      return false;
+    }
+    if (
+      this.planningCenterListMembers.length > 0 &&
+      !this.memberPrayersLoadAttempted
+    ) {
+      return false;
+    }
+    return true;
+  }
+
   get planningCenterMembersDisplayCount(): string {
     if (
       this.loadingPlanningCenterList &&

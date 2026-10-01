@@ -52,6 +52,8 @@ describe("HomeLifecycleCoordinator", () => {
         host.setFilter(nextFilter as any);
         host.setViewReady(true);
       }),
+      catalogReloadGeneration: vi.fn(() => 1),
+      markTenantCatalogsSettled: vi.fn(),
     };
 
     coordinator.bindHost(host, {
@@ -203,6 +205,81 @@ describe("HomeLifecycleCoordinator", () => {
     expect(host.setPendingHomeReturnContext).toHaveBeenCalledWith({
       activeFilter: "personal",
     });
+
+    destroy$.next();
+    destroy$.complete();
+  });
+
+  it("marks the view for check when the active tenant changes and when tenant loading finishes", async () => {
+    const destroy$ = new Subject<void>();
+    const activeTenant$ = new BehaviorSubject<{ id: string } | null>(null);
+    const loading$ = new BehaviorSubject(true);
+    coordinator.bindHost(host, {
+      router: {
+        url: "/",
+        parseUrl: vi.fn(() => ({ queryParams: {} })),
+        events: of(),
+      } as any,
+      analyticsService: { trackPageView: vi.fn() } as any,
+      deepLinkCoordinator: {
+        captureInitialQueryParams: vi.fn(),
+        consumeInitialEmailFilterTab: vi.fn(() => null),
+        handleNavigationDeepLinks: vi.fn(),
+        applyPendingDeepLinksOnViewReady: vi.fn(),
+        retryPendingPrayerDeepLinkIfNeeded: vi.fn(),
+        retryPendingPromptDeepLinkIfNeeded: vi.fn(),
+      } as any,
+      helpTourLauncher: null,
+      prayerService: {
+        prayers$: of([]),
+        allPrayers$: of([]),
+        allPersonalPrayers$: of([]),
+        loading$: of(false),
+        error$: of(null),
+        loadPrayers: vi.fn().mockResolvedValue(undefined),
+        loadPersonalPrayers: vi.fn().mockResolvedValue(undefined),
+      } as any,
+      promptService: {
+        prompts$: of([]),
+        loadPrompts: vi.fn().mockResolvedValue(undefined),
+      } as any,
+      adminAuthService: { isAdmin$: of(false), hasAdminEmail$: of(false) } as any,
+      userSessionService: {
+        userSession$: userSessionSubject.asObservable(),
+        isLoading$: of(false),
+      } as any,
+      badgeService: {
+        getBadgeCount$: vi.fn(() => of(0)),
+        getGroupBadgeCount$: vi.fn(() => of(0)),
+        refreshBadgeCounts: vi.fn(),
+      } as any,
+      personalCategoryColorService: { loadColors: vi.fn() } as any,
+      memorizationService: {
+        memorizedItems$: of([]),
+        loadItems: vi.fn().mockResolvedValue(undefined),
+      } as any,
+      memorizationRecommendationsService: { items$: of([]) } as any,
+      tenantPermissionService: { canAccessShared: vi.fn(() => true) } as any,
+      tenantContextService: {
+        activeTenant$,
+        loading$,
+        memberships$: of([]),
+        isSuperAdmin$: of(false),
+        availableTenants$: of([]),
+        subscriberTenants$: of([]),
+      } as any,
+    });
+
+    coordinator.initialize(destroy$);
+    vi.mocked(host.markForCheck).mockClear();
+    activeTenant$.next({ id: "church-1" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(host.markTenantCatalogsSettled).toHaveBeenCalledWith(1);
+    expect(host.markForCheck).toHaveBeenCalled();
+
+    vi.mocked(host.markForCheck).mockClear();
+    loading$.next(false);
+    expect(host.markForCheck).toHaveBeenCalled();
 
     destroy$.next();
     destroy$.complete();

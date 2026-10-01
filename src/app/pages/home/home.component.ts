@@ -25,7 +25,7 @@ import { AdminAuthService } from "../../services/admin-auth.service";
 import { UserSessionService, type UserSessionData } from "../../services/user-session.service";
 import { SupabaseService } from "../../services/supabase.service";
 import { BadgeService } from "../../services/badge.service";
-import { Observable, Subject, takeUntil } from "rxjs";
+import { Observable, Subject, map, takeUntil } from "rxjs";
 import { ToastService } from "../../services/toast.service";
 import { PersonalCategoryColorService } from "../../services/personal-category-color.service";
 import { AnalyticsService } from "../../services/analytics.service";
@@ -100,12 +100,13 @@ import {
 import type { HomeLifecyclePageBindings } from "../../services/home-lifecycle-host.adapter";
 import {
   parseHomeDefaultPrayerView,
-  resolveHomeFilterForDefaultView,
+  resolveInitialHomeFilter,
   updateHomeDefaultViewPreference,
   type HomeDefaultPrayerView,
 } from "../../lib/home-default-view-preference";
 import type { HomeActiveFilter } from "../../services/home-deep-link-host.adapter";
-import { isPublicAreaFilter, isPublicTabFilter, isCommunityPrayerFilter } from "../../lib/home-community-filter";
+import { isPublicAreaFilter, isCommunityPrayerFilter } from "../../lib/home-community-filter";
+import { HomeCatalogGate } from "../../lib/home-catalog-gate";
 import { HOME_SHELL_FOOTER_BORDER_TOP_CLASS } from "../../lib/home-sub-filter-chip-classes";
 import { HomeHeaderComponent } from "../../components/home-header/home-header.component";
 import { HomeModalsHostComponent } from "../../components/home-modals-host/home-modals-host.component";
@@ -204,13 +205,13 @@ export class HomeComponent
   hasLogo = false;
   activeFilter: HomeActiveFilter = "current";
   viewReady = false;
+  readonly catalogGate = new HomeCatalogGate();
   pendingHomeReturnContext: HomeReturnContext | null = null;
   selectedPromptTypes: string[] = [];
   lastExplicitRefreshAt = 0;
   isOnline = true;
   isAdmin = false;
-  canAccessShared = false;
-  canAccessGroupsTab = false;
+  readonly tenantLoading$: Observable<boolean>;
   prayerGroups: PrayerGroup[] = [];
   selectedGroupId: string | null = null;
   groupFilterMode: GroupFilterMode = "current";
@@ -243,7 +244,6 @@ export class HomeComponent
   readonly personalWalkthroughPrayerFor = PERSONAL_PRAYER_WALKTHROUGH_PRAYER_FOR;
   readonly personalWalkthroughDescription =
     PERSONAL_PRAYER_WALKTHROUGH_DESCRIPTION;
-  readonly isPublicTabFilter = isPublicTabFilter;
   readonly isPublicAreaFilter = isPublicAreaFilter;
   readonly bottomSafeBarClass = `bottom-safe-bar w-full bg-white/50 dark:bg-gray-800/50 backdrop-blur-md ${HOME_SHELL_FOOTER_BORDER_TOP_CLASS} sticky bottom-0 z-50`;
 
@@ -307,6 +307,7 @@ export class HomeComponent
     readonly planningCenterListService: PlanningCenterListService,
     readonly planningCenter: HomePlanningCenterController
   ) {
+    this.tenantLoading$ = this.tenantContextService.loading$;
     this.memberCardActions = this.prayerCardActions;
 
     const windowCache = (window as { __cachedLogos?: { tenantId?: string | null; useLogo?: boolean } }).__cachedLogos;
@@ -359,6 +360,7 @@ export class HomeComponent
       presentationNav: this.presentationNav,
     });
     this.deepLinkHost = wired.deepLinkHost;
+    this.seedInitialActiveFilter();
 
     this.shell = createHomePageShell({
       prayerCardActions: this.prayerCardActions,
@@ -392,6 +394,20 @@ export class HomeComponent
     });
     this.planningCenter.subscribe(this.destroy$);
     this.planningCenter.loadForCurrentUser();
+    this.catalogGate.bind(
+      this.destroy$,
+      {
+        communityLoading$: this.prayerService.loading$,
+        promptsLoading$: this.promptService.loading$,
+        personalLoading$: this.prayerService.loadingPersonalPrayers$,
+        memorizeLoading$: this.memorizationService.loading$,
+        tenantId$: this.tenantContextService.activeTenant$.pipe(
+          map((tenant) => tenant?.id ?? null)
+        ),
+        hasEmail: () => !!this.userSessionService.getCurrentSession()?.email,
+      },
+      () => this.cdr.markForCheck()
+    );
     this.lifecycleCoordinator.initialize(this.destroy$);
     void this.userSubscriptionService.refreshCapabilities();
     void this.loadPrayerGroups();
@@ -400,8 +416,6 @@ export class HomeComponent
       .pipe(takeUntil(this.destroy$))
       .subscribe((groups) => {
         this.prayerGroups = groups;
-        this.canAccessGroupsTab =
-          this.tenantPermissionService.canAccessGroupsTab();
         if (
           this.selectedGroupId &&
           !groups.some((group) => group.id === this.selectedGroupId)
@@ -548,28 +562,67 @@ export class HomeComponent
     }
   }
 
+  get canAccessShared(): boolean {
+    return this.tenantPermissionService.canAccessShared();
+  }
+
+  get canAccessGroupsTab(): boolean {
+    return this.tenantPermissionService.canAccessGroupsTab();
+  }
+
+  catalogReloadGeneration(): number {
+    return this.catalogGate.reloadGeneration();
+  }
+
+  markTenantCatalogsSettled(generation: number): void {
+    this.catalogGate.finishTenantReload(generation);
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * Paint the cached default tab before tenant loading finishes.
+   * applyInitialView is the only place that commits the filter.
+   */
+  private seedInitialActiveFilter(): void {
+    const returnContext = parseHomeReturnContextFromState(
+      history.state as Record<string, unknown> | null
+    );
+    if (returnContext) {
+      this.activeFilter = returnContext.activeFilter;
+      return;
+    }
+
+    const next = this.resolveInitialFilter(
+      this.userSessionService.getCurrentSession()?.defaultPrayerView
+    );
+    if (next) {
+      this.activeFilter = next;
+    }
+  }
+
+  private resolveInitialFilter(
+    preferred: string | null | undefined
+  ): HomeDefaultPrayerView | null {
+    return resolveInitialHomeFilter({
+      memorizeQuery: this.route.snapshot.queryParamMap.get("filter") === "memorize",
+      preferred: preferred ? parseHomeDefaultPrayerView(preferred) : null,
+      canAccessShared: this.canAccessShared,
+      canAccessGroupsTab: this.canAccessGroupsTab,
+    });
+  }
+
   applyInitialView(session: UserSessionData): void {
     if (this.viewReady) {
       return;
     }
 
-    if (this.route.snapshot.queryParamMap.get("filter") === "memorize") {
-      this.filter.setFilter("memorize");
-      this.clearMemorizeFilterQueryParam();
-      this.viewReady = true;
-      this.cdr.markForCheck();
-      return;
-    }
-
-    this.canAccessShared = this.tenantPermissionService.canAccessShared();
-    this.canAccessGroupsTab = this.tenantPermissionService.canAccessGroupsTab();
-    const preferred = parseHomeDefaultPrayerView(session.defaultPrayerView);
-    this.filter.setFilter(
-      resolveHomeFilterForDefaultView(preferred, {
-        canAccessShared: this.canAccessShared,
-        canAccessGroupsTab: this.canAccessGroupsTab,
-      })
+    const next = this.resolveInitialFilter(
+      parseHomeDefaultPrayerView(session.defaultPrayerView)
     );
+    if (next) {
+      this.filter.setFilter(next);
+    }
+    this.clearMemorizeFilterQueryParam();
     this.viewReady = true;
     this.cdr.markForCheck();
   }
@@ -964,20 +1017,23 @@ export class HomeComponent
   }
 
   async loadPrayerGroups(): Promise<void> {
-    await this.userSubscriptionService.refreshCapabilities();
-    const groups = await this.prayerGroupService.loadMyGroups();
-    this.prayerGroups = groups;
-    this.canAccessGroupsTab = this.tenantPermissionService.canAccessGroupsTab();
-    if (!this.selectedGroupId && groups.length > 0) {
-      this.selectedGroupId = groups[0].id;
+    try {
+      await this.userSubscriptionService.refreshCapabilities();
+      const groups = await this.prayerGroupService.loadMyGroups();
+      this.prayerGroups = groups;
+      if (!this.selectedGroupId && groups.length > 0) {
+        this.selectedGroupId = groups[0].id;
+      }
+      await this.prayerGroupService.hydrateGroupPrayers({
+        force: false,
+        focusGroupId:
+          this.groupFilterMode === "named" ? this.selectedGroupId : null,
+      });
+      this.refreshDisplayedGroupPrayers();
+    } finally {
+      this.catalogGate.finish(["groups"]);
+      this.cdr.markForCheck();
     }
-    await this.prayerGroupService.hydrateGroupPrayers({
-      force: false,
-      focusGroupId:
-        this.groupFilterMode === "named" ? this.selectedGroupId : null,
-    });
-    this.refreshDisplayedGroupPrayers();
-    this.cdr.markForCheck();
   }
 
   async loadSelectedGroupPrayers(): Promise<void> {
@@ -1036,7 +1092,6 @@ export class HomeComponent
 
   onChurchOnboardingCompleted(): void {
     this.showChurchOnboardingModal = false;
-    this.canAccessShared = this.tenantPermissionService.canAccessShared();
     this.filter.setFilter("current");
     this.cdr.markForCheck();
   }

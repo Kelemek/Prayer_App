@@ -100,6 +100,22 @@ export function resolveHomeFilterForDefaultView(
   return preferred;
 }
 
+/** Shared by the first paint and the later commit of the home filter. */
+export function resolveInitialHomeFilter(params: {
+  memorizeQuery: boolean;
+  preferred: HomeDefaultPrayerView | null | undefined;
+  canAccessShared: boolean;
+  canAccessGroupsTab: boolean;
+}): HomeDefaultPrayerView | null {
+  if (params.memorizeQuery) {
+    return "memorize";
+  }
+  if (!params.preferred) {
+    return null;
+  }
+  return resolveHomeFilterForDefaultView(params.preferred, params);
+}
+
 export async function updateHomeDefaultViewPreference(
   client: SupabaseClient,
   userSessionService: UserSessionService,

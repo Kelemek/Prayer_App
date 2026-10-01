@@ -83,6 +83,8 @@ export interface HomeLifecycleHost {
   syncRecommendationGroups(): void;
   loadAdminSettings(): void;
   applyInitialView(session: UserSessionData): void;
+  catalogReloadGeneration(): number;
+  markTenantCatalogsSettled(generation: number): void;
 }
 
 export interface HomeLifecycleServices {
@@ -361,6 +363,7 @@ export class HomeLifecycleCoordinator {
         takeUntil(destroy$)
       )
       .subscribe(async () => {
+        const generation = host.catalogReloadGeneration();
         const canAccessShared = services.tenantPermissionService.canAccessShared();
         const activeFilter = host.getActiveFilter();
         if (
@@ -368,15 +371,20 @@ export class HomeLifecycleCoordinator {
           !isAllowedHomeFilterWithoutSharedAccess(activeFilter)
         ) {
           host.setFilter("personal");
-        } else {
+          host.markForCheck();
+          return;
+        }
+        try {
           await Promise.all([
             services.prayerService.loadPrayers(),
             services.promptService.loadPrompts(),
             services.prayerService.loadPersonalPrayers(false),
             services.memorizationService.loadItems(),
           ]);
+        } finally {
+          host.markTenantCatalogsSettled(generation);
+          host.markForCheck();
         }
-        host.markForCheck();
       });
 
     tenant.memberships$?.pipe(takeUntil(destroy$)).subscribe(() => {

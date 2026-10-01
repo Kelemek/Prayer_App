@@ -31,6 +31,7 @@ export class TenantContextService {
   private activeTenantSubject = new BehaviorSubject<Tenant | null>(null);
   private isSuperAdminSubject = new BehaviorSubject<boolean>(false);
   private loadingSubject = new BehaviorSubject<boolean>(true);
+  private refreshInFlight = 0;
 
   public memberships$ = this.membershipsSubject.asObservable();
   public availableTenants$ = this.availableTenantsSubject.asObservable();
@@ -120,12 +121,31 @@ export class TenantContextService {
   }
 
   async refresh(): Promise<void> {
+    this.beginRefresh();
+    try {
+      await this.refreshTenantContext();
+    } finally {
+      this.endRefresh();
+    }
+  }
+
+  private beginRefresh(): void {
+    this.refreshInFlight += 1;
     this.loadingSubject.next(true);
+  }
+
+  private endRefresh(): void {
+    this.refreshInFlight = Math.max(0, this.refreshInFlight - 1);
+    if (this.refreshInFlight === 0) {
+      this.loadingSubject.next(false);
+    }
+  }
+
+  private async refreshTenantContext(): Promise<void> {
     const userEmail = await this.authIdentity.getEmail();
 
     if (!userEmail) {
       this.clearContext(true);
-      this.loadingSubject.next(false);
       return;
     }
 
@@ -135,7 +155,6 @@ export class TenantContextService {
       } else {
         console.warn('[TenantContext] Offline with no tenant snapshot');
       }
-      this.loadingSubject.next(false);
       return;
     }
 
@@ -165,7 +184,6 @@ export class TenantContextService {
 
       if (networkFailed && this.restoreSnapshot()) {
         console.warn('[TenantContext] Network error during refresh; using snapshot');
-        this.loadingSubject.next(false);
         return;
       }
 
@@ -173,7 +191,6 @@ export class TenantContextService {
       if (membershipsError) {
         console.error('[TenantContext] Failed to load memberships:', membershipsError);
         if (this.restoreSnapshot()) {
-          this.loadingSubject.next(false);
           return;
         }
         this.membershipsSubject.next([]);
@@ -203,8 +220,6 @@ export class TenantContextService {
       if (!this.restoreSnapshot()) {
         // Keep any existing in-memory state; do not wipe active_tenant_id
       }
-    } finally {
-      this.loadingSubject.next(false);
     }
   }
 
@@ -433,9 +448,11 @@ export class TenantContextService {
     this.refresh().catch((error) => {
       console.error('[TenantContext] Failed to refresh tenant context:', error);
       if (!this.restoreSnapshot()) {
-        // leave loading false below
+        // Keep any existing in-memory state.
       }
-      this.loadingSubject.next(false);
+      if (this.refreshInFlight === 0) {
+        this.loadingSubject.next(false);
+      }
     });
   }
 }

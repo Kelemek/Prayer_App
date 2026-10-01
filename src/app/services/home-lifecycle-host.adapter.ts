@@ -34,7 +34,6 @@ export interface HomeLifecyclePageBindings {
   viewReady: boolean;
   isOnline?: boolean;
   tenantMemberships?: TenantMembership[];
-  canAccessShared?: boolean;
   memorizedItems?: MemorizedItem[];
   memorizedItemsCount?: number;
   memorizedLearning?: MemorizedItem[];
@@ -63,6 +62,8 @@ export interface HomeLifecycleHostAdapterDeps {
   applyInitialView(session: {
     defaultPrayerView?: HomeDefaultPrayerView | null;
   }): void;
+  catalogReloadGeneration(): number;
+  markTenantCatalogsSettled(generation: number): void;
 }
 
 export class HomeLifecycleHostAdapter implements HomeLifecycleHost {
@@ -202,5 +203,13 @@ export class HomeLifecycleHostAdapter implements HomeLifecycleHost {
     defaultPrayerView?: HomeDefaultPrayerView | null;
   }): void {
     this.deps.applyInitialView(session);
+  }
+
+  catalogReloadGeneration(): number {
+    return this.deps.catalogReloadGeneration();
+  }
+
+  markTenantCatalogsSettled(generation: number): void {
+    this.deps.markTenantCatalogsSettled(generation);
   }
 }

@@ -411,4 +411,67 @@ describe('TenantContextService', () => {
       expect(service.getActiveTenant()).toBeNull();
     });
   });
+
+  it('stays loading until overlapping refreshes finish', async () => {
+    const pending: Array<(value: { data: unknown; error: null }) => void> = [];
+    supabase.client.from.mockImplementation((table: string) => {
+      if (table === 'tenant_memberships') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockImplementation(
+              () =>
+                new Promise((resolve) => {
+                  pending.push(resolve);
+                })
+            ),
+          }),
+        };
+      }
+      if (table === 'global_roles') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            }),
+          }),
+        };
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+        }),
+      };
+    });
+
+    const local = new TenantContextService(supabase, authIdentity, connectivity);
+    const explicit = local.refresh();
+    const membership = {
+      tenant_id: tenantA.id,
+      user_email: 'user@example.com',
+      role: 'member',
+      tenants: tenantA,
+    };
+
+    await vi.waitFor(() => {
+      expect(pending.length).toBeGreaterThanOrEqual(2);
+    });
+    expect(local.isLoading()).toBe(true);
+
+    pending[0]({ data: [], error: null });
+    await vi.waitFor(() => {
+      expect(local.getActiveTenant()).toBeNull();
+    });
+    expect(local.isLoading()).toBe(true);
+
+    for (const resolve of pending.slice(1)) {
+      resolve({ data: [membership], error: null });
+    }
+    await explicit;
+    await vi.waitFor(() => {
+      expect(local.isLoading()).toBe(false);
+    });
+    expect(local.getActiveTenant()?.id).toBe('tenant-a');
+  });
 });

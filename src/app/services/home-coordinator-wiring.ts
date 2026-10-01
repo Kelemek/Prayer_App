@@ -72,6 +72,8 @@ export interface HomeCoordinatorWiringPage {
   scrollHomePrayerIntoView(prayerId: string): boolean;
   loadAdminSettings(): Promise<void>;
   applyInitialView(session: { defaultPrayerView?: HomeDefaultPrayerView | null }): void;
+  catalogReloadGeneration(): number;
+  markTenantCatalogsSettled(generation: number): void;
   loadSelectedGroupPrayers(): Promise<void>;
   consumeHomeReturnContext(): HomeReturnContext | null;
   applyHomeReturnContext(context: HomeReturnContext): void;
@@ -199,10 +201,7 @@ export function wireHomeCoordinators(
     promptService: deps.promptService,
     memorizationService: deps.memorizationService,
     badgeService: deps.badgeService,
-    canAccessShared: () => {
-      page.canAccessShared = deps.tenantPermissionService.canAccessShared();
-      return page.canAccessShared;
-    },
+    canAccessShared: () => deps.tenantPermissionService.canAccessShared(),
     canAccessGroupsArea: () => deps.tenantPermissionService.canAccessGroupsTab(),
     loadGroupPrayers: () => {
       void page.loadSelectedGroupPrayers();
@@ -278,6 +277,8 @@ export function wireHomeCoordinators(
       void page.loadAdminSettings();
     },
     applyInitialView: (session) => page.applyInitialView(session),
+    catalogReloadGeneration: () => page.catalogReloadGeneration(),
+    markTenantCatalogsSettled: (generation) => page.markTenantCatalogsSettled(generation),
   });
   deps.lifecycleCoordinator.bindHost(lifecycleHost, {
     router: deps.router,

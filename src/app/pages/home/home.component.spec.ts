@@ -42,6 +42,7 @@ const makeMocks = () => {
     applyFilters: vi.fn(),
     loadPrayers: vi.fn().mockResolvedValue(undefined),
     loadPersonalPrayers: vi.fn().mockResolvedValue(undefined),
+    loadingPersonalPrayers$: of(false),
     getAllCommunityPrayersSnapshot: vi.fn(() => prayersSubject.value),
     getPersonalPrayersSnapshot: vi.fn(() => allPersonalPrayersSubject.value),
     updatePrayerStatus: vi.fn(),
@@ -63,6 +64,7 @@ const makeMocks = () => {
 
   const promptService: any = {
     prompts$: promptsSubject.asObservable(),
+    loading$: of(false),
     promptsSubject,
     deletePrompt: vi.fn(),
     loadPrompts: vi.fn(() => Promise.resolve()),
@@ -415,7 +417,6 @@ const createHomeComponent = (
     planningCenterListService,
     planningCenter
   );
-  comp.canAccessShared = permissions.canAccessShared();
   return comp;
 };
 
@@ -526,7 +527,10 @@ describe('HomeComponent', () => {
   });
 
   it('getUserEmail returns cached email from UserSessionService if available', () => {
-    const mockServiceWithEmail = { getUserEmail: () => 'cached@example.com' };
+    const mockServiceWithEmail = {
+      getUserEmail: () => 'cached@example.com',
+      getCurrentSession: () => null,
+    };
     const comp = createHomeComponent(
       mocks.prayerService,
       mocks.promptService,
@@ -3997,12 +4001,67 @@ describe('HomeComponent', () => {
         mocks.supabaseService,
         mocks.tenantPermissionService
       );
+      mocks.tenantPermissionService.canAccessShared.mockReturnValue(false);
       comp.showChurchOnboardingModal = true;
-      comp.canAccessShared = false;
+      expect(comp.canAccessShared).toBe(false);
+      mocks.tenantPermissionService.canAccessShared.mockReturnValue(true);
       comp.onChurchOnboardingCompleted();
       expect(comp.showChurchOnboardingModal).toBe(false);
       expect(comp.canAccessShared).toBe(true);
       expect(comp.activeFilter).toBe('current');
+    });
+
+    it('reads church access live so a membership change leaves the preview', () => {
+      mocks = makeMocks();
+      mocks.tenantPermissionService.canAccessShared.mockReturnValue(false);
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService,
+        mocks.tenantPermissionService
+      );
+      comp.activeFilter = 'current';
+      comp.viewReady = true;
+      expect(comp.catalogGate.awaiting({
+        activeFilter: 'current',
+        viewReady: true,
+        tenantLoading: true,
+        canAccessShared: false,
+        planningCenterSettled: true,
+      })).toBe(true);
+      expect(comp.catalogGate.awaiting({
+        activeFilter: 'current',
+        viewReady: true,
+        tenantLoading: false,
+        canAccessShared: false,
+        planningCenterSettled: true,
+      })).toBe(false);
+
+      mocks.tenantPermissionService.canAccessShared.mockReturnValue(true);
+      expect(comp.canAccessShared).toBe(true);
+      expect(comp.catalogGate.awaiting({
+        activeFilter: 'current',
+        viewReady: true,
+        tenantLoading: false,
+        canAccessShared: true,
+        planningCenterSettled: true,
+      })).toBe(true);
+      comp.catalogGate.finish(['community', 'prompts']);
+      expect(comp.catalogGate.awaiting({
+        activeFilter: 'current',
+        viewReady: true,
+        tenantLoading: false,
+        canAccessShared: true,
+        planningCenterSettled: true,
+      })).toBe(false);
     });
 
     it('shows Pro tour entry when free group cap is reached', () => {
@@ -4478,6 +4537,81 @@ describe('HomeComponent', () => {
       comp.ngOnInit();
       groups$.next([{ id: 'g-default', name: 'Default' }]);
       expect(comp.selectedGroupId).toBe('g-default');
+    });
+
+    it('opens the cached default tab before tenant loading finishes', () => {
+      mocks = makeMocks();
+      mocks.userSessionService.getCurrentSession.mockReturnValue({
+        email: 'user@example.com',
+        defaultPrayerView: 'personal',
+      });
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService,
+        mocks.tenantPermissionService
+      );
+      expect(comp.activeFilter).toBe('personal');
+      expect(comp.viewReady).toBe(false);
+    });
+
+    it('keeps each tab on skeletons until that tab catalog has finished loading', async () => {
+      mocks = makeMocks();
+      let resolveHydrate: () => void = () => undefined;
+      const hydrate = new Promise<void>((resolve) => {
+        resolveHydrate = resolve;
+      });
+      const comp = createHomeComponent(
+        mocks.prayerService,
+        mocks.promptService,
+        mocks.adminAuthService,
+        mocks.userSessionService,
+        mocks.badgeService,
+        mocks.toastService,
+        mocks.analyticsService,
+        mocks.cdr,
+        mocks.router,
+        mocks.route,
+        mocks.supabaseService,
+        mocks.tenantPermissionService
+      );
+      comp.viewReady = true;
+      comp.activeFilter = 'current';
+      const awaiting = (activeFilter: 'current' | 'personal' | 'groups') =>
+        comp.catalogGate.awaiting({
+          activeFilter,
+          viewReady: true,
+          tenantLoading: false,
+          canAccessShared: true,
+          planningCenterSettled: true,
+        });
+      expect(awaiting('current')).toBe(true);
+      comp.catalogGate.finish(['community']);
+      expect(awaiting('current')).toBe(true);
+      comp.catalogGate.finish(['prompts']);
+      expect(awaiting('current')).toBe(false);
+
+      comp.activeFilter = 'personal';
+      expect(awaiting('personal')).toBe(true);
+      comp.catalogGate.finish(['personal']);
+      expect(awaiting('personal')).toBe(false);
+
+      comp.activeFilter = 'groups';
+      comp.prayerGroupService.hydrateGroupPrayers.mockReturnValue(hydrate);
+      const pending = comp.loadPrayerGroups();
+      expect(awaiting('groups')).toBe(true);
+      resolveHydrate();
+      await pending;
+      expect(comp.catalogGate.isSettled('groups')).toBe(true);
+      expect(awaiting('groups')).toBe(false);
     });
 
     it('applyInitialView switches to memorize and clears the query param', () => {
