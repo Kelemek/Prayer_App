@@ -122,6 +122,53 @@ describe('BrandingService', () => {
       expect(rpcMock).toHaveBeenCalledTimes(1);
     });
 
+    it('should apply a newer branding row from the single startup RPC', async () => {
+      const cachedTimestamp = new Date('2024-01-01').toISOString();
+      const newerTimestamp = new Date('2024-06-01').toISOString();
+      const freshLightLogo = 'data:image/webp;base64,fresh-light';
+      const freshDarkLogo = 'data:image/webp;base64,fresh-dark';
+
+      localStorage.setItem(tenantKey(BRANDING_CACHE_KEYS.useLogo), 'false');
+      localStorage.setItem(
+        tenantKey(BRANDING_CACHE_KEYS.lightLogo),
+        'data:image/webp;base64,stale'
+      );
+      localStorage.setItem(tenantKey(BRANDING_CACHE_KEYS.appTitle), 'Stale Title');
+      localStorage.setItem(tenantKey(BRANDING_CACHE_KEYS.lastModified), cachedTimestamp);
+
+      rpcMock.mockResolvedValue({
+        data: [
+          {
+            use_logo: true,
+            light_mode_logo_blob: freshLightLogo,
+            dark_mode_logo_blob: freshDarkLogo,
+            app_title: 'Fresh Church',
+            branding_last_modified: newerTimestamp,
+          },
+        ],
+        error: null,
+      });
+
+      await service.initialize();
+
+      expect(rpcMock).toHaveBeenCalledTimes(1);
+      expect(rpcMock).toHaveBeenCalledWith('get_public_tenant_branding', {
+        p_tenant_id: TENANT_ID,
+      });
+      const branding = service.getBranding();
+      expect(branding.useLogo).toBe(true);
+      expect(branding.lightLogo).toBe(freshLightLogo);
+      expect(branding.darkLogo).toBe(freshDarkLogo);
+      expect(branding.appTitle).toBe('Fresh Church');
+      expect(branding.lastModified?.toISOString()).toBe(newerTimestamp);
+      expect(localStorage.getItem(tenantKey(BRANDING_CACHE_KEYS.lightLogo))).toBe(
+        freshLightLogo
+      );
+      expect(localStorage.getItem(tenantKey(BRANDING_CACHE_KEYS.appTitle))).toBe(
+        'Fresh Church'
+      );
+    });
+
     it('should refetch from Supabase when the active tenant switches', async () => {
       const cachedTimestamp = new Date('2024-06-01').toISOString();
       const tenantALogo = 'data:image/webp;base64,tenant-a';
@@ -144,7 +191,15 @@ describe('BrandingService', () => {
 
       rpcMock
         .mockResolvedValueOnce({
-          data: [{ branding_last_modified: cachedTimestamp }],
+          data: [
+            {
+              use_logo: true,
+              light_mode_logo_blob: tenantALogo,
+              dark_mode_logo_blob: null,
+              app_title: 'Test Church',
+              branding_last_modified: cachedTimestamp,
+            },
+          ],
           error: null,
         })
         .mockResolvedValueOnce({

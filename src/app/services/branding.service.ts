@@ -163,19 +163,22 @@ export class BrandingService implements OnDestroy {
         return;
       }
 
-      const shouldFetch =
-        tenantSwitched ||
-        (await this.shouldFetchFromSupabase(cached.lastModified));
-
-      if (shouldFetch) {
-        console.log(
-          tenantSwitched
-            ? '[BrandingService] Tenant switched, fetching branding from Supabase'
-            : '[BrandingService] Branding changed, fetching tenant settings from Supabase'
-        );
+      if (tenantSwitched) {
+        console.log('[BrandingService] Tenant switched, fetching branding from Supabase');
         await this.fetchFromSupabase(tenantId);
       } else {
-        console.log('[BrandingService] Using cached branding (no tenant updates)');
+        const row = await this.fetchPublicBrandingRowIfNewer(
+          tenantId,
+          cached.lastModified
+        );
+        if (row) {
+          console.log(
+            '[BrandingService] Branding changed, applying tenant settings from Supabase'
+          );
+          this.applyBrandingRow(row, tenantId);
+        } else {
+          console.log('[BrandingService] Using cached branding (no tenant updates)');
+        }
       }
 
       if (this.tenantContext.getActiveTenant()?.id === tenantId) {
@@ -274,40 +277,75 @@ export class BrandingService implements OnDestroy {
     this.syncWindowLogoCache(branding);
   }
 
-  private async shouldFetchFromSupabase(cachedLastModified: Date | null): Promise<boolean> {
+  /**
+   * One public-branding RPC. Returns the row when it is newer than the cache
+   * (or the cache has no timestamp) so the caller can apply it without a second download.
+   * An unchanged timestamp returns null and leaves cached logos in place.
+   */
+  private async fetchPublicBrandingRowIfNewer(
+    tenantId: string,
+    cachedLastModified: Date | null
+  ): Promise<Record<string, unknown> | null> {
     try {
-      const tenantId = this.tenantContext.getActiveTenant()?.id;
-      if (!tenantId) {
-        return false;
+      const activeId = this.tenantContext.getActiveTenant()?.id;
+      if (!activeId || activeId !== tenantId) {
+        return null;
       }
 
-      const { data, error } = await this.supabaseService.client.rpc(
-        'get_public_tenant_branding',
-        { p_tenant_id: tenantId }
-      );
-
-      if (error || !data) {
-        return false;
-      }
-
-      const row = (data as Array<Record<string, unknown>>)[0];
+      const row = await this.rpcPublicBranding(tenantId);
       if (!row) {
-        return false;
+        return null;
       }
 
       const lastModifiedStr = row['branding_last_modified'] as string | null;
       if (!lastModifiedStr) {
-        return false;
+        return null;
       }
 
       const dbLastModified = new Date(lastModifiedStr);
-      if (!cachedLastModified) {
-        return true;
+      if (!cachedLastModified || dbLastModified > cachedLastModified) {
+        return row;
       }
-      return dbLastModified > cachedLastModified;
+      return null;
     } catch (error) {
       console.warn('[BrandingService] Failed to check metadata:', error);
-      return false;
+      return null;
+    }
+  }
+
+  private async rpcPublicBranding(
+    tenantId: string
+  ): Promise<Record<string, unknown> | null> {
+    const { data, error } = await this.supabaseService.client.rpc(
+      'get_public_tenant_branding',
+      { p_tenant_id: tenantId }
+    );
+
+    if (error || !data) {
+      return null;
+    }
+
+    const row = (data as Array<Record<string, unknown>>)[0];
+    return row ?? null;
+  }
+
+  private mapBrandingRow(settings: Record<string, unknown>): BrandingData {
+    return {
+      useLogo: (settings['use_logo'] as boolean | null) ?? false,
+      lightLogo: (settings['light_mode_logo_blob'] as string | null) || null,
+      darkLogo: (settings['dark_mode_logo_blob'] as string | null) || null,
+      appTitle: (settings['app_title'] as string | null) || 'Church Prayer Manager',
+      lastModified: settings['branding_last_modified']
+        ? new Date(settings['branding_last_modified'] as string)
+        : null
+    };
+  }
+
+  private applyBrandingRow(settings: Record<string, unknown>, forTenantId: string): void {
+    const branding = this.mapBrandingRow(settings);
+    this.persistBrandingToCache(branding);
+    if (this.tenantContext.getActiveTenant()?.id === forTenantId) {
+      this.brandingSubject.next(branding);
     }
   }
 
@@ -318,34 +356,12 @@ export class BrandingService implements OnDestroy {
         return;
       }
 
-      const { data, error } = await this.supabaseService.client.rpc(
-        'get_public_tenant_branding',
-        { p_tenant_id: tenantId }
-      );
-
-      if (error || !data) {
-        return;
-      }
-
-      const settings = (data as Array<Record<string, unknown>>)[0];
+      const settings = await this.rpcPublicBranding(tenantId);
       if (!settings) {
         return;
       }
 
-      const branding: BrandingData = {
-        useLogo: (settings['use_logo'] as boolean | null) ?? false,
-        lightLogo: (settings['light_mode_logo_blob'] as string | null) || null,
-        darkLogo: (settings['dark_mode_logo_blob'] as string | null) || null,
-        appTitle: (settings['app_title'] as string | null) || 'Church Prayer Manager',
-        lastModified: settings['branding_last_modified']
-          ? new Date(settings['branding_last_modified'] as string)
-          : null
-      };
-
-      this.persistBrandingToCache(branding);
-      if (this.tenantContext.getActiveTenant()?.id === forTenantId) {
-        this.brandingSubject.next(branding);
-      }
+      this.applyBrandingRow(settings, forTenantId);
     } catch (error) {
       console.warn('[BrandingService] Failed to fetch branding from Supabase:', error);
     }
