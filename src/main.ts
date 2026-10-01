@@ -1,5 +1,5 @@
 import { bootstrapApplication } from "@angular/platform-browser";
-import { provideRouter, withInMemoryScrolling } from "@angular/router";
+import { provideRouter, Router, withInMemoryScrolling } from "@angular/router";
 import { provideHttpClient, withXhr } from "@angular/common/http";
 import { provideAnimations } from "@angular/platform-browser/animations";
 import { provideServiceWorker } from "@angular/service-worker";
@@ -23,6 +23,11 @@ import {
 } from "./lib/capacitor-live-boot";
 import { maybeAutoReloadWebOnce } from "./lib/client-version-gate";
 import { installAppForegroundSignal } from "./app/lib/app-foreground";
+import {
+  armAppBootScreenFailsafe,
+  bindAppBootScreenDismissal,
+  dismissAppBootScreen,
+} from "./app/lib/app-boot-screen";
 
 // One foreground signal: visibility → app-became-visible. Focus is not a second path.
 const setupVisibilityRecovery = () => {
@@ -46,6 +51,8 @@ const serviceWorkerEnabled =
   !isDevMode() && !Capacitor.isNativePlatform();
 
 function startApp(): void {
+  armAppBootScreenFailsafe();
+
   bootstrapApplication(AppComponent, {
     providers: [
       providePostHogErrorHandler(),
@@ -115,12 +122,17 @@ function startApp(): void {
         multi: true,
       },
     ],
-  }).catch((err) => {
-    console.error("[AppInitialization] Bootstrap error:", err);
-    // Ensure user sees something instead of blank page
-    const rootElement = document.querySelector("app-root");
-    if (rootElement) {
-      rootElement.innerHTML = `
+  })
+    .then((appRef) => {
+      bindAppBootScreenDismissal(appRef.injector.get(Router));
+    })
+    .catch((err) => {
+      console.error("[AppInitialization] Bootstrap error:", err);
+      dismissAppBootScreen();
+      // Ensure user sees something instead of blank page
+      const rootElement = document.querySelector("app-root");
+      if (rootElement) {
+        rootElement.innerHTML = `
       <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #f3f4f6; font-family: system-ui, -apple-system, sans-serif;">
         <div style="text-align: center; padding: 2rem; background: white; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
           <h1 style="color: #374151; margin-bottom: 1rem;">Oops, something went wrong</h1>
@@ -129,12 +141,12 @@ function startApp(): void {
         </div>
       </div>
     `;
-    }
-    // Attempt automatic reload
-    setTimeout(() => {
-      window.location.reload();
-    }, 3000);
-  });
+      }
+      // Attempt automatic reload
+      setTimeout(() => {
+        window.location.reload();
+      }, 3000);
+    });
 }
 
 void (async () => {
