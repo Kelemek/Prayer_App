@@ -87,6 +87,7 @@ import type {
   PrayerCardAddUpdateEvent,
   PrayerCardDeleteUpdateEvent,
   PrayerCardDeletionRequest,
+  PrayerCardEditUpdateEvent,
   PrayerCardToggleAnsweredEvent,
   PrayerCardUpdateDeletionRequest,
 } from '../../lib/prayer-card-events';
@@ -158,10 +159,7 @@ export class PrayerCardComponent
   @Output() requestUpdateDeletion =
     new EventEmitter<PrayerCardUpdateDeletionRequest>();
   @Output() editPersonalPrayer = new EventEmitter<PrayerRequest>();
-  @Output() editPersonalUpdate = new EventEmitter<{
-    update: PrayerUpdate;
-    prayerId: string;
-  }>();
+  @Output() editPersonalUpdate = new EventEmitter<PrayerCardEditUpdateEvent>();
   @Output() edit = new EventEmitter<PrayerRequest>();
   @Output() toggleUpdateAnswered =
     new EventEmitter<PrayerCardToggleAnsweredEvent>();
@@ -646,6 +644,7 @@ export class PrayerCardComponent
       this.editPersonalUpdate.emit({
         update: payload,
         prayerId: this.prayer.id,
+        groupId: this.prayer.group_id ?? null,
       });
     }
   }

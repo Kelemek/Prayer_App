@@ -9,6 +9,7 @@ import { of } from 'rxjs';
 describe('PersonalPrayerUpdateEditModalComponent', () => {
   let component: PersonalPrayerUpdateEditModalComponent;
   let prayerService: any;
+  let prayerGroupService: { updateGroupPrayerUpdate: ReturnType<typeof vi.fn> };
   let toastService: any;
   let changeDetectorRef: any;
 
@@ -23,6 +24,9 @@ describe('PersonalPrayerUpdateEditModalComponent', () => {
   beforeEach(() => {
     prayerService = {
       updatePersonalPrayerUpdate: vi.fn()
+    };
+    prayerGroupService = {
+      updateGroupPrayerUpdate: vi.fn().mockResolvedValue(true),
     };
 
     toastService = {
@@ -41,7 +45,8 @@ describe('PersonalPrayerUpdateEditModalComponent', () => {
       { onDestroy: vi.fn() } as any,
       {
         getRichTextEditorsEnabled$: vi.fn(() => of(true)),
-      } as unknown as RichTextEditorsSettingsService
+      } as unknown as RichTextEditorsSettingsService,
+      prayerGroupService as never
     );
   });
 
@@ -152,6 +157,21 @@ describe('PersonalPrayerUpdateEditModalComponent', () => {
 
       await component.handleSubmit();
 
+      expect(prayerService.updatePersonalPrayerUpdate).not.toHaveBeenCalled();
+    });
+
+    it('saves a group prayer update through the group service', async () => {
+      component.groupId = 'g1';
+      component.formData.content = 'Updated Content';
+
+      await component.handleSubmit();
+
+      expect(prayerGroupService.updateGroupPrayerUpdate).toHaveBeenCalledWith(
+        'update-123',
+        'prayer-123',
+        'Updated Content',
+        'g1'
+      );
       expect(prayerService.updatePersonalPrayerUpdate).not.toHaveBeenCalled();
     });
 

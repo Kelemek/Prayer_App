@@ -181,16 +181,15 @@ export class GroupPrayerBadgeService implements OnDestroy {
         (item) => item.status === status
       );
       for (const item of items) {
-        if (!item.id || isOwnBadgePrayerItem(item, viewerEmail)) {
-          continue;
-        }
-        const added = this.addIdsToReadState('groupPrayers', [item.id]);
-        if (added.length > 0) {
-          receipts.push({
-            item_kind: 'group_prayer',
-            item_id: item.id,
-            group_id: gid,
-          });
+        if (item.id && !isOwnBadgePrayerItem(item, viewerEmail)) {
+          const added = this.addIdsToReadState('groupPrayers', [item.id]);
+          if (added.length > 0) {
+            receipts.push({
+              item_kind: 'group_prayer',
+              item_id: item.id,
+              group_id: gid,
+            });
+          }
         }
         if (!item.updates?.length) {
           continue;

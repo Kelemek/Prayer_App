@@ -76,6 +76,7 @@ export interface HomePageShell {
     readonly showEditPersonalUpdate: boolean;
     readonly editingUpdate: PrayerUpdate | null;
     readonly editingUpdatePrayerId: string;
+    readonly editingUpdateGroupId: string | null;
     readonly showAddMemorizedVerse: boolean;
     readonly showAddMemorizedBibleBooks: boolean;
     readonly showMemorizationRecommendations: boolean;
@@ -170,6 +171,9 @@ export function createHomePageShell(deps: HomePageShellDeps): HomePageShell {
     },
     get editingUpdatePrayerId() {
       return deps.modals.editingUpdatePrayerId;
+    },
+    get editingUpdateGroupId() {
+      return deps.modals.editingUpdateGroupId;
     },
     get showAddMemorizedVerse() {
       return deps.memorizationPanel.showAddMemorizedVerse;

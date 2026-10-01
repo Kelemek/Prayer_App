@@ -765,7 +765,11 @@ export class HomeComponent
     this.modals.onPersonalPrayerSaved();
   }
 
-  openEditUpdateModal(event: { update: PrayerUpdate; prayerId: string }): void {
+  openEditUpdateModal(event: {
+    update: PrayerUpdate;
+    prayerId: string;
+    groupId?: string | null;
+  }): void {
     this.modals.openEditUpdateModal(event);
   }
 

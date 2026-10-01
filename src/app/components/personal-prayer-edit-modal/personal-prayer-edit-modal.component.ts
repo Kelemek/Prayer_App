@@ -16,6 +16,7 @@ import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { PrayerRequest } from "../../services/prayer.service";
 import { PrayerService } from "../../services/prayer.service";
+import { PrayerGroupService } from "../../services/prayer-group.service";
 import { ToastService } from "../../services/toast.service";
 import { RichTextEditorsSettingsService } from "../../services/rich-text-editors-settings.service";
 import { PersonalCategoryColorService } from "../../services/personal-category-color.service";
@@ -97,6 +98,7 @@ import {
             }
           </div>
 
+          @if (!prayer.group_id) {
           <!-- Category -->
           <div class="relative">
             <label
@@ -158,6 +160,7 @@ import {
               }
             </div>
           </div>
+          }
 
           <div class="flex justify-end pt-4">
             <button
@@ -205,7 +208,8 @@ export class PersonalPrayerEditModalComponent implements OnInit, OnChanges {
     private personalCategoryColorService: PersonalCategoryColorService,
     private cdr: ChangeDetectorRef,
     private destroyRef: DestroyRef,
-    richTextEditorsSettings: RichTextEditorsSettingsService
+    richTextEditorsSettings: RichTextEditorsSettingsService,
+    private prayerGroupService: PrayerGroupService
   ) {
     richTextEditorsSettings
       .getRichTextEditorsEnabled$()
@@ -240,9 +244,11 @@ export class PersonalPrayerEditModalComponent implements OnInit, OnChanges {
         category: this.prayer.category || "",
       };
       this.categoryColorDirty = false;
-      this.refreshCategoryColorFromService();
-      void this.personalCategoryColorService.loadColors();
-      this.loadAvailableCategories();
+      if (!this.prayer.group_id) {
+        this.refreshCategoryColorFromService();
+        void this.personalCategoryColorService.loadColors();
+        this.loadAvailableCategories();
+      }
     }
   }
 
@@ -360,14 +366,24 @@ export class PersonalPrayerEditModalComponent implements OnInit, OnChanges {
           this.formData.category.trim() === "" ? null : this.formData.category,
       };
 
-      const success = await this.prayerService.updatePersonalPrayer(
-        this.prayer.id,
-        updates
-      );
+      const success = this.prayer.group_id
+        ? await this.prayerGroupService.updateGroupPrayer(
+            this.prayer.id,
+            {
+              prayer_for: this.formData.prayer_for,
+              description: this.formData.description,
+            },
+            this.prayer.group_id
+          )
+        : await this.prayerService.updatePersonalPrayer(this.prayer.id, updates);
 
       if (success) {
         let closeAfterSave = true;
-        if (this.formData.category.trim() && this.categoryColorDirty) {
+        if (
+          !this.prayer.group_id &&
+          this.formData.category.trim() &&
+          this.categoryColorDirty
+        ) {
           const colorSaved = await this.personalCategoryColorService.setColor(
             this.formData.category,
             this.categoryColor

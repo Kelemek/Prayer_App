@@ -8,6 +8,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { AsyncPipe } from '@angular/common';
 import type { BehaviorSubject } from 'rxjs';
+import { showPrayerCardUpdateAuthor } from '../../lib/prayer-card-display';
 import type { PrayerCardVariantLayout } from '../../lib/prayer-card-layout';
 import type { PrayerUpdateRecord } from '../../lib/prayer-update-header';
 import type { BadgeService } from '../../services/badge.service';
@@ -48,4 +49,11 @@ export class PrayerCardUpdatesSectionComponent {
   @Output() updateDelete = new EventEmitter<string>();
   @Output() toggleAnswered = new EventEmitter<PrayerUpdateRecord>();
   @Output() markUpdateRead = new EventEmitter<string>();
+
+  get showUpdateAuthor(): boolean {
+    return showPrayerCardUpdateAuthor({
+      isCommunityPrayer: this.isCommunityPrayer,
+      isGroupPrayer: this.isGroupPrayer,
+    });
+  }
 }

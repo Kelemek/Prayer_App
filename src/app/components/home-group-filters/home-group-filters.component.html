@@ -1,7 +1,5 @@
 <div [class]="sectionGapClass">
   <div [class]="subFilterGroupClass">
-    @let currentGroupBadge = (currentGroupBadge$ | async) ?? 0;
-    @let answeredGroupBadge = (answeredGroupBadge$ | async) ?? 0;
     @let badgesEnabled = (badgeFunctionalityEnabled$ | async);
     <div [class]="statusChipRowClass">
       @if (canCreateGroups || showProUpgrade) {
@@ -21,38 +19,20 @@
       <app-home-sub-filter-chip
         chipId="tour-filter-groups-current"
         [active]="filterMode === 'current'"
-        [badgeOverlay]="true"
         [activeClass]="chipThemes.members.active"
         [inactiveClass]="statusChipInactiveClass"
         (chipClick)="selectFilterMode.emit('current')"
       >
         <app-home-sub-filter-count label="Current" [count]="currentCount" />
-        @if (badgesEnabled && currentGroupBadge > 0) {
-        <app-home-filter-badge-button
-          [count]="currentGroupBadge"
-          title="Mark all current group prayers as read"
-          ariaLabel="Mark all current group prayers as read"
-          (markRead)="markAllGroupPrayersRead.emit({ status: 'current' })"
-        />
-        }
       </app-home-sub-filter-chip>
       <app-home-sub-filter-chip
         chipId="tour-filter-groups-answered"
         [active]="filterMode === 'answered'"
-        [badgeOverlay]="true"
         [activeClass]="chipThemes.members.active"
         [inactiveClass]="statusChipInactiveClass"
         (chipClick)="selectFilterMode.emit('answered')"
       >
         <app-home-sub-filter-count label="Answered" [count]="answeredCount" />
-        @if (badgesEnabled && answeredGroupBadge > 0) {
-        <app-home-filter-badge-button
-          [count]="answeredGroupBadge"
-          title="Mark all answered group prayers as read"
-          ariaLabel="Mark all answered group prayers as read"
-          (markRead)="markAllGroupPrayersRead.emit({ status: 'answered' })"
-        />
-        }
       </app-home-sub-filter-chip>
       <app-home-sub-filter-chip
         chipId="tour-filter-groups-total"

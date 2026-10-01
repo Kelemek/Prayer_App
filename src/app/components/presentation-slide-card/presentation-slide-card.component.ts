@@ -77,6 +77,7 @@ import { isPersonalPrayerCard } from "../../lib/prayer-card-kind";
       [isOpen]="showEditPersonalUpdate"
       [update]="editingUpdate"
       [prayerId]="editingUpdatePrayerId"
+      [groupId]="prayer?.group_id ?? null"
       (close)="showEditPersonalUpdate = false"
       (save)="onPersonalUpdateSaved()"
     />

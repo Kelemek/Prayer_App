@@ -12,6 +12,7 @@ describe('PersonalPrayerEditModalComponent', () => {
   let toastService: any;
   let changeDetectorRef: any;
   let personalCategoryColorService: any;
+  let prayerGroupService: { updateGroupPrayer: ReturnType<typeof vi.fn> };
   let destroyCallbacks: Array<() => void>;
 
   const mockPrayer: PrayerRequest = {
@@ -44,6 +45,9 @@ describe('PersonalPrayerEditModalComponent', () => {
       getColor: vi.fn(() => '#2563EB'),
       setColor: vi.fn().mockResolvedValue(true),
     };
+    prayerGroupService = {
+      updateGroupPrayer: vi.fn().mockResolvedValue(true),
+    };
 
     component = new PersonalPrayerEditModalComponent(
       prayerService,
@@ -53,7 +57,8 @@ describe('PersonalPrayerEditModalComponent', () => {
       { onDestroy: (cb: () => void) => destroyCallbacks.push(cb) } as any,
       {
         getRichTextEditorsEnabled$: vi.fn(() => of(true)),
-      } as unknown as RichTextEditorsSettingsService
+      } as unknown as RichTextEditorsSettingsService,
+      prayerGroupService as never
     );
   });
 
@@ -184,6 +189,26 @@ describe('PersonalPrayerEditModalComponent', () => {
       await component.handleSubmit();
 
       expect(prayerService.updatePersonalPrayer).not.toHaveBeenCalled();
+    });
+
+    it('saves a group prayer without the personal category', async () => {
+      component.prayer = { ...mockPrayer, group_id: 'g1' } as PrayerRequest;
+      component.formData.prayer_for = 'Updated Prayer';
+      component.formData.description = 'Updated Description';
+      component.formData.category = 'Family';
+
+      await component.handleSubmit();
+
+      expect(prayerGroupService.updateGroupPrayer).toHaveBeenCalledWith(
+        '123',
+        {
+          prayer_for: 'Updated Prayer',
+          description: 'Updated Description',
+        },
+        'g1'
+      );
+      expect(prayerService.updatePersonalPrayer).not.toHaveBeenCalled();
+      expect(personalCategoryColorService.setColor).not.toHaveBeenCalled();
     });
 
     it('should submit form with all fields populated', async () => {

@@ -843,6 +843,81 @@ describe("PrayerGroupService CRUD and membership", () => {
     expect(toast.success).toHaveBeenCalledWith("Marked as answered");
   });
 
+  it("updateGroupPrayer writes prayer_for and description into the cache", async () => {
+    const { service, from, cache, toast, connectivity } = createService();
+    connectivity.requireOnline.mockReturnValue(true);
+    service.groupsSubject.next([{ id: "g1", name: "Family" } as never]);
+    service.activeGroupId = "g1";
+    service.prayersSubject.next([cachedPrayer]);
+    let stored: PrayerRequest[] | null = [cachedPrayer];
+    cache.get.mockImplementation((key: string) =>
+      key === groupPrayersCacheKey("g1") ? stored : null
+    );
+    cache.set.mockImplementation((_key: string, data: PrayerRequest[]) => {
+      stored = data;
+    });
+    const eq = vi.fn().mockResolvedValue({ error: null });
+    const update = vi.fn().mockReturnValue({ eq });
+    from.mockReturnValue({ update });
+
+    const ok = await service.updateGroupPrayer(
+      "p1",
+      { prayer_for: "Mom", description: "Healing" },
+      "g1"
+    );
+
+    expect(ok).toBe(true);
+    expect(update).toHaveBeenCalledWith({
+      prayer_for: "Mom",
+      description: "Healing",
+      title: "Prayer for Mom",
+    });
+    expect(service.getGroupPrayers()[0]).toEqual(
+      expect.objectContaining({
+        prayer_for: "Mom",
+        description: "Healing",
+        title: "Prayer for Mom",
+      })
+    );
+    expect(toast.success).toHaveBeenCalledWith("Prayer updated");
+  });
+
+  it("updateGroupPrayerUpdate replaces the cached update content", async () => {
+    const { service, from, cache, toast, connectivity } = createService();
+    connectivity.requireOnline.mockReturnValue(true);
+    service.activeGroupId = "g1";
+    const withUpdate: PrayerRequest = {
+      ...cachedPrayer,
+      updates: [
+        {
+          id: "u1",
+          prayer_id: "p1",
+          content: "Old",
+          author: "Owner",
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+    };
+    let stored: PrayerRequest[] | null = [withUpdate];
+    cache.get.mockImplementation((key: string) =>
+      key === groupPrayersCacheKey("g1") ? stored : null
+    );
+    cache.set.mockImplementation((_key: string, data: PrayerRequest[]) => {
+      stored = data;
+    });
+    const eq = vi.fn().mockResolvedValue({ error: null });
+    const update = vi.fn().mockReturnValue({ eq });
+    from.mockReturnValue({ update });
+
+    const ok = await service.updateGroupPrayerUpdate("u1", "p1", "New note", "g1");
+
+    expect(ok).toBe(true);
+    expect(update).toHaveBeenCalledWith({ content: "New note" });
+    expect(eq).toHaveBeenCalledWith("id", "u1");
+    expect(service.getGroupPrayers()[0]?.updates?.[0]?.content).toBe("New note");
+    expect(toast.success).toHaveBeenCalledWith("Prayer update saved");
+  });
+
   it("getGroupPrayerCount reads published counts", () => {
     const { service } = createService();
     service.prayerCountsSubject.next(new Map([["g1", 3]]));

@@ -77,8 +77,6 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
   @Input() showMemberProUpgrade = false;
   @Input() currentUserEmail = "";
   @Input() membersGroupIdToOpen: string | null = null;
-  @Input({ required: true }) currentGroupBadge$!: Observable<number>;
-  @Input({ required: true }) answeredGroupBadge$!: Observable<number>;
   @Input({ required: true }) badgeFunctionalityEnabled$!: Observable<boolean>;
   @Input({ required: true }) getGroupBadgeCount$!: (
     groupId: string

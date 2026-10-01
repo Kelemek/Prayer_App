@@ -16,6 +16,12 @@ export interface PrayerCardDeleteUpdateEvent {
   prayerId: string;
 }
 
+export interface PrayerCardEditUpdateEvent {
+  update: PrayerUpdate;
+  prayerId: string;
+  groupId?: string | null;
+}
+
 export interface PrayerCardDeletionRequest {
   prayer_id: string;
   requester_first_name: string;

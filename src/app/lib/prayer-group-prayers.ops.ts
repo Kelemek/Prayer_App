@@ -349,6 +349,88 @@ export class PrayerGroupPrayersOps {
     }
   }
 
+  async updateGroupPrayer(
+    prayerId: string,
+    fields: { prayer_for: string; description: string },
+    groupIdHint?: string | null
+  ): Promise<boolean> {
+    if (!this.deps.connectivity.requireOnline('update a group prayer')) {
+      return false;
+    }
+    const prayerFor = fields.prayer_for.trim();
+    if (!prayerFor) {
+      this.deps.toast.error('Prayer for is required');
+      return false;
+    }
+    const groupId = this.resolveGroupIdForPrayer(prayerId, groupIdHint);
+    if (!groupId) {
+      this.deps.toast.error('Failed to update prayer');
+      return false;
+    }
+    const title = `Prayer for ${prayerFor}`;
+    try {
+      const { error } = await this.deps.supabase.client
+        .from('group_prayers')
+        .update({
+          prayer_for: prayerFor,
+          description: fields.description,
+          title,
+        })
+        .eq('id', prayerId);
+      if (error) {
+        throw error;
+      }
+      this.patchCachedGroupPrayer(groupId, prayerId, {
+        prayer_for: prayerFor,
+        description: fields.description,
+        title,
+      });
+      this.deps.toast.success('Prayer updated');
+      return true;
+    } catch (error) {
+      console.error('[PrayerGroup] updateGroupPrayer failed:', error);
+      this.deps.toast.error('Failed to update prayer');
+      return false;
+    }
+  }
+
+  async updateGroupPrayerUpdate(
+    updateId: string,
+    prayerId: string,
+    content: string,
+    groupIdHint?: string | null
+  ): Promise<boolean> {
+    if (!this.deps.connectivity.requireOnline('update a group prayer update')) {
+      return false;
+    }
+    const trimmed = content.trim();
+    if (!trimmed) {
+      this.deps.toast.error('Update content is required');
+      return false;
+    }
+    const groupId = this.resolveGroupIdForPrayer(prayerId, groupIdHint);
+    if (!groupId) {
+      this.deps.toast.error('Failed to update prayer update');
+      return false;
+    }
+    try {
+      const { error } = await this.deps.supabase.client
+        .from('group_prayer_updates')
+        .update({ content: trimmed })
+        .eq('id', updateId);
+      if (error) {
+        throw error;
+      }
+      this.patchCachedGroupPrayerUpdate(groupId, prayerId, updateId, trimmed);
+      this.deps.toast.success('Prayer update saved');
+      return true;
+    } catch (error) {
+      console.error('[PrayerGroup] updateGroupPrayerUpdate failed:', error);
+      this.deps.toast.error('Failed to update prayer update');
+      return false;
+    }
+  }
+
   async deleteGroupPrayer(
     prayerId: string,
     groupIdHint?: string | null
@@ -492,6 +574,25 @@ export class PrayerGroupPrayersOps {
     if (this.state.activeGroupId === groupId) {
       this.publishFocusedGroupFromCache();
     }
+  }
+
+  private patchCachedGroupPrayerUpdate(
+    groupId: string,
+    prayerId: string,
+    updateId: string,
+    content: string
+  ): void {
+    const cached =
+      this.getCachedGroupPrayers(groupId) ?? this.getStaleGroupPrayers(groupId);
+    const prayer = cached?.find((row) => row.id === prayerId);
+    if (!prayer) {
+      return;
+    }
+    this.patchCachedGroupPrayer(groupId, prayerId, {
+      updates: (prayer.updates ?? []).map((update) =>
+        update.id === updateId ? { ...update, content } : update
+      ),
+    });
   }
 
   private publishGroupPrayerCount(groupId: string, count: number | null): void {

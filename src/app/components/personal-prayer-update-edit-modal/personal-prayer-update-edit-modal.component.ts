@@ -14,6 +14,7 @@ import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { PrayerService, PrayerUpdate } from "../../services/prayer.service";
+import { PrayerGroupService } from "../../services/prayer-group.service";
 import { ToastService } from "../../services/toast.service";
 import { RichTextEditorsSettingsService } from "../../services/rich-text-editors-settings.service";
 import { RichTextEditorComponent } from "../rich-text-editor/rich-text-editor.component";
@@ -93,6 +94,7 @@ export class PersonalPrayerUpdateEditModalComponent
   @Input() isOpen = false;
   @Input() update: PrayerUpdate | null = null;
   @Input() prayerId = "";
+  @Input() groupId: string | null = null;
   @Output() close = new EventEmitter<void>();
   @Output() save = new EventEmitter<Partial<PrayerUpdate>>();
 
@@ -108,7 +110,8 @@ export class PersonalPrayerUpdateEditModalComponent
     private toast: ToastService,
     private cdr: ChangeDetectorRef,
     private destroyRef: DestroyRef,
-    richTextEditorsSettings: RichTextEditorsSettingsService
+    richTextEditorsSettings: RichTextEditorsSettingsService,
+    private prayerGroupService: PrayerGroupService
   ) {
     richTextEditorsSettings
       .getRichTextEditorsEnabled$()
@@ -151,11 +154,18 @@ export class PersonalPrayerUpdateEditModalComponent
         content,
       };
 
-      const success = await this.prayerService.updatePersonalPrayerUpdate(
-        this.update.id,
-        this.prayerId,
-        updates
-      );
+      const success = this.groupId
+        ? await this.prayerGroupService.updateGroupPrayerUpdate(
+            this.update.id,
+            this.prayerId,
+            content,
+            this.groupId
+          )
+        : await this.prayerService.updatePersonalPrayerUpdate(
+            this.update.id,
+            this.prayerId,
+            updates
+          );
 
       if (success) {
         this.save.emit(updates);

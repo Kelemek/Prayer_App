@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { firstValueFrom } from 'rxjs';
 import { GroupPrayerBadgeService } from './group-prayer-badge.service';
 import {
   groupBadgeReadCacheKey,
@@ -68,5 +69,45 @@ describe('GroupPrayerBadgeService', () => {
     ]);
 
     expect(service.getDisplayedBadgeCount()).toBe(1);
+  });
+
+  it('mark-all read clears answered and group-chip badges, including updates on your own prayers', async () => {
+    const groupId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    localStorage.setItem(
+      groupPrayersCacheKey(groupId),
+      JSON.stringify({
+        data: [
+          {
+            id: 'gp-mine',
+            status: 'answered',
+            email: 'user@example.com',
+            updates: [{ id: 'u-theirs', author_email: 'other@example.com' }],
+          },
+          {
+            id: 'gp-current',
+            status: 'current',
+            email: 'other@example.com',
+          },
+        ],
+      })
+    );
+    writeMemberPrayerGroupIdsToStorage(localStorage, 'user@example.com', [
+      groupId,
+    ]);
+
+    expect(await firstValueFrom(service.getBadgeCount$('answered'))).toBe(1);
+    expect(await firstValueFrom(service.getBadgeCount$('current'))).toBe(1);
+    expect(await firstValueFrom(service.getBadgeCountForGroup$(groupId))).toBe(2);
+
+    service.markAllGroupPrayersReadByStatus('answered');
+
+    expect(await firstValueFrom(service.getBadgeCount$('answered'))).toBe(0);
+    expect(await firstValueFrom(service.getBadgeCount$('current'))).toBe(1);
+    expect(await firstValueFrom(service.getBadgeCountForGroup$(groupId))).toBe(1);
+
+    service.markAllGroupPrayersRead();
+
+    expect(await firstValueFrom(service.getBadgeCount$('current'))).toBe(0);
+    expect(await firstValueFrom(service.getBadgeCountForGroup$(groupId))).toBe(0);
   });
 });

@@ -226,6 +226,7 @@ describe("createHomePageShellHandlers", () => {
         showEditPersonalUpdate: true,
         editingUpdate: { id: "u1" },
         editingUpdatePrayerId: "p-edit",
+        editingUpdateGroupId: "g1",
       },
       memorizationPanel: {
         ...base.memorizationPanel,
@@ -265,6 +266,7 @@ describe("createHomePageShellHandlers", () => {
     expect(shell.modals.showEditPersonalUpdate).toBe(true);
     expect(shell.modals.editingUpdate).toEqual({ id: "u1" });
     expect(shell.modals.editingUpdatePrayerId).toBe("p-edit");
+    expect(shell.modals.editingUpdateGroupId).toBe("g1");
     expect(shell.modals.showAddMemorizedVerse).toBe(true);
     expect(shell.modals.showAddMemorizedBibleBooks).toBe(true);
     expect(shell.modals.showMemorizationRecommendations).toBe(true);

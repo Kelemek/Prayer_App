@@ -78,8 +78,6 @@ describe("HomeGroupFiltersComponent", () => {
     fixture.componentInstance.currentCount = 2;
     fixture.componentInstance.answeredCount = 1;
     fixture.componentInstance.totalCount = 3;
-    fixture.componentInstance.currentGroupBadge$ = of(0);
-    fixture.componentInstance.answeredGroupBadge$ = of(0);
     fixture.componentInstance.badgeFunctionalityEnabled$ = of(true);
     fixture.componentInstance.getGroupBadgeCount$ = () => of(0);
     fixture.detectChanges();

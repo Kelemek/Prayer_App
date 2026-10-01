@@ -196,6 +196,28 @@ export class PrayerGroupService {
     return this.prayers.setGroupPrayerAnswered(prayerId, answered, groupIdHint);
   }
 
+  updateGroupPrayer(
+    prayerId: string,
+    fields: { prayer_for: string; description: string },
+    groupIdHint?: string | null
+  ): Promise<boolean> {
+    return this.prayers.updateGroupPrayer(prayerId, fields, groupIdHint);
+  }
+
+  updateGroupPrayerUpdate(
+    updateId: string,
+    prayerId: string,
+    content: string,
+    groupIdHint?: string | null
+  ): Promise<boolean> {
+    return this.prayers.updateGroupPrayerUpdate(
+      updateId,
+      prayerId,
+      content,
+      groupIdHint
+    );
+  }
+
   deleteGroupPrayer(prayerId: string, groupIdHint?: string | null): Promise<boolean> {
     return this.prayers.deleteGroupPrayer(prayerId, groupIdHint);
   }

@@ -1,10 +1,10 @@
 import type { CdkDragDrop } from "@angular/cdk/drag-drop";
 import type { PrayerRequest } from "../services/prayer.service";
-import type { PrayerUpdate } from "../services/prayer.service";
 import type {
   PrayerCardAddUpdateEvent,
   PrayerCardDeletionRequest,
   PrayerCardDeleteUpdateEvent,
+  PrayerCardEditUpdateEvent,
   PrayerCardToggleAnsweredEvent,
   PrayerCardUpdateDeletionRequest,
 } from "./prayer-card-events";
@@ -23,7 +23,7 @@ export interface HomePrayerContentHandlers {
   requestUpdateDeletion(request: PrayerCardUpdateDeletionRequest): void;
   toggleMemberUpdateAnswered(event: PrayerCardToggleAnsweredEvent): void;
   editPersonalPrayer(prayer: PrayerRequest): void;
-  editPersonalUpdate(event: { update: PrayerUpdate; prayerId: string }): void;
+  editPersonalUpdate(event: PrayerCardEditUpdateEvent): void;
   togglePromptType(type: string): void;
   onPersonalPrayerDrop(event: CdkDragDrop<PrayerRequest[]>): void;
   openMemorizationAddVerses(): void;

@@ -1,5 +1,6 @@
 import { Injectable } from "@angular/core";
 import type { PrayerRequest, PrayerUpdate } from "./prayer.service";
+import type { PrayerCardEditUpdateEvent } from "../lib/prayer-card-events";
 import type { AdminAuthService } from "./admin-auth.service";
 
 export interface HomeModalHost {
@@ -22,6 +23,7 @@ export class HomeModalController {
   showEditPersonalUpdate = false;
   editingUpdate: PrayerUpdate | null = null;
   editingUpdatePrayerId = "";
+  editingUpdateGroupId: string | null = null;
 
   bindHost(
     host: HomeModalHost,
@@ -106,9 +108,10 @@ export class HomeModalController {
     this.requireHost().markForCheck();
   }
 
-  openEditUpdateModal(event: { update: PrayerUpdate; prayerId: string }): void {
+  openEditUpdateModal(event: PrayerCardEditUpdateEvent): void {
     this.editingUpdate = event.update;
     this.editingUpdatePrayerId = event.prayerId;
+    this.editingUpdateGroupId = event.groupId ?? null;
     this.showEditPersonalUpdate = true;
     this.requireHost().markForCheck();
   }
@@ -117,6 +120,7 @@ export class HomeModalController {
     this.showEditPersonalUpdate = false;
     this.editingUpdate = null;
     this.editingUpdatePrayerId = "";
+    this.editingUpdateGroupId = null;
     this.requireHost().markForCheck();
   }
 
