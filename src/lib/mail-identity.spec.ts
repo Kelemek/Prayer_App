@@ -6,6 +6,7 @@ import {
   mailFromNameError,
   mailReplyToError,
   platformDomainFromSenderAddress,
+  resendListUnsubscribeHeaders,
   resolveMailIdentity,
 } from './mail-identity';
 
@@ -68,6 +69,24 @@ describe('mail-identity', () => {
     const identity = resolveMailIdentity(PLATFORM, null);
     expect(identity.fromAddress).toBe(PLATFORM.senderAddress);
     expect(identity.fromName).toBe(PLATFORM.fromName);
+  });
+
+  it('omits List-Unsubscribe headers for transactional mail', () => {
+    expect(resendListUnsubscribeHeaders(PLATFORM.senderAddress)).toEqual({});
+    expect(resendListUnsubscribeHeaders(PLATFORM.senderAddress, '  ')).toEqual({});
+  });
+
+  it('adds one-click List-Unsubscribe when a HTTPS URL is provided', () => {
+    expect(
+      resendListUnsubscribeHeaders(
+        PLATFORM.senderAddress,
+        'https://example.com/functions/v1/email-unsubscribe?token=abc'
+      )
+    ).toEqual({
+      'List-Unsubscribe':
+        '<https://example.com/functions/v1/email-unsubscribe?token=abc>, <mailto:noreply@prayer.example.com?subject=unsubscribe>',
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    });
   });
 
   it('rejects from-addresses that leave the platform domain', () => {

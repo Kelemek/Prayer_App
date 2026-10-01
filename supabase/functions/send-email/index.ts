@@ -118,16 +118,17 @@ async function resolveMailIdentity(
   return tenantMailIdentity(data)
 }
 
+/** Keep aligned with src/lib/mail-identity.ts resendListUnsubscribeHeaders */
 function listUnsubscribeHeaders(listUnsubscribeHttpsUrl?: string): Record<string, string> {
-  const mailto = `<mailto:${MAIL_SENDER_ADDRESS}?subject=unsubscribe>`
   const u = listUnsubscribeHttpsUrl?.trim()
-  if (u) {
-    return {
-      'List-Unsubscribe': `<${u}>, ${mailto}`,
-      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-    }
+  if (!u) {
+    return {}
   }
-  return { 'List-Unsubscribe': mailto }
+  const mailto = `<mailto:${MAIL_SENDER_ADDRESS}?subject=unsubscribe>`
+  return {
+    'List-Unsubscribe': `<${u}>, ${mailto}`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+  }
 }
 
 function basePayload(
@@ -141,7 +142,10 @@ function basePayload(
   const payload: Record<string, unknown> = {
     from,
     subject,
-    headers: listUnsubscribeHeaders(listUnsubscribeHttpsUrl),
+  }
+  const headers = listUnsubscribeHeaders(listUnsubscribeHttpsUrl)
+  if (Object.keys(headers).length > 0) {
+    payload.headers = headers
   }
   if (htmlBody) payload.html = htmlBody
   if (textBody !== undefined) payload.text = textBody

@@ -55,15 +55,19 @@ function formatStripePrice(price: {
 }
 
 function churchFallbackHtml(vars: Record<string, string>): string {
-  return `<p>Hi ${vars.recipientEmail}, continue on the web to subscribe and then name your church.</p>
+  return `<p>Hi ${vars.recipientEmail},</p>
+<p>You asked the Prayer App to email this link so you can finish Church setup in a browser. This is not a newsletter.</p>
 <p>Church plan: <strong>${vars.pricing_display}</strong>. This link expires on ${vars.expiresAt}.</p>
-<p><a href="${vars.web_url}">${vars.web_url}</a></p>`;
+<p><a href="${vars.web_url}">${vars.web_url}</a></p>
+<p>Prayer App sent this because you tapped Email me a link to set up.</p>`;
 }
 
 function proFallbackHtml(vars: Record<string, string>): string {
-  return `<p>Hi ${vars.recipientEmail}, continue on the web to subscribe to Pro and unlock extra groups.</p>
+  return `<p>Hi ${vars.recipientEmail},</p>
+<p>You asked the Prayer App to email this link so you can finish Pro setup in a browser. This is not a newsletter.</p>
 <p>Pro plan: <strong>${vars.pricing_display}</strong>. This link expires on ${vars.expiresAt}.</p>
-<p><a href="${vars.web_url}">${vars.web_url}</a></p>`;
+<p><a href="${vars.web_url}">${vars.web_url}</a></p>
+<p>Prayer App sent this because you tapped Email me a link to set up.</p>`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -186,8 +190,8 @@ Deno.serve(async (req: Request) => {
   const templateKey = kind === 'church' ? 'church_signup_web' : 'pro_signup_web';
   let subject =
     kind === 'church'
-      ? `Finish setting up your church — ${pricingDisplay}`
-      : `Upgrade to Pro on the web — ${pricingDisplay}`;
+      ? 'Your Church setup link from Prayer App'
+      : 'Your Pro setup link from Prayer App';
   const vars = {
     pricing_display: pricingDisplay,
     web_url: webUrl,
@@ -197,8 +201,8 @@ Deno.serve(async (req: Request) => {
   let htmlBody = kind === 'church' ? churchFallbackHtml(vars) : proFallbackHtml(vars);
   let textBody =
     kind === 'church'
-      ? `Finish setting up your church\n\nChurch plan: ${pricingDisplay}\nExpires: ${vars.expiresAt}\n${webUrl}`
-      : `Upgrade to Pro on the web\n\nPro plan: ${pricingDisplay}\nExpires: ${vars.expiresAt}\n${webUrl}`;
+      ? `Your Church setup link from Prayer App\n\nYou asked the Prayer App to email this link so you can finish Church setup in a browser. This is not a newsletter.\n\n${webUrl}\n\nChurch plan: ${pricingDisplay}\nThis link expires on ${vars.expiresAt}.`
+      : `Your Pro setup link from Prayer App\n\nYou asked the Prayer App to email this link so you can finish Pro setup in a browser. This is not a newsletter.\n\n${webUrl}\n\nPro plan: ${pricingDisplay}\nThis link expires on ${vars.expiresAt}.`;
 
   if (defaultTenant?.id) {
     const { data: template } = await adminClient

@@ -99,6 +99,28 @@ export function coerceMailReplyTo(raw: string | null | undefined): string | null
   return v.toLowerCase();
 }
 
+/**
+ * Resend List-Unsubscribe headers for bulk/reminder mail.
+ * Pass a one-click HTTPS URL for newsletters and reminders.
+ * Omit the URL for transactional mail (signup links, verification codes) so
+ * providers do not treat the message as a mailing list.
+ * Keep send-email Edge Function inlined copy aligned with this helper.
+ */
+export function resendListUnsubscribeHeaders(
+  senderAddress: string,
+  listUnsubscribeHttpsUrl?: string | null
+): Record<string, string> {
+  const httpsUrl = listUnsubscribeHttpsUrl?.trim() ?? '';
+  if (!httpsUrl) {
+    return {};
+  }
+  const mailto = `<mailto:${senderAddress}?subject=unsubscribe>`;
+  return {
+    'List-Unsubscribe': `<${httpsUrl}>, ${mailto}`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+  };
+}
+
 export function assertFromAddressOnPlatformDomain(
   fromAddress: string,
   platformSender: string

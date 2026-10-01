@@ -36,4 +36,15 @@ describe('pay-first billing contracts', () => {
       "raise exception 'Church tenants are created after payment via complete_church_setup_for_user'"
     );
   });
+
+  it('send-email omits List-Unsubscribe unless a one-click HTTPS URL is provided', () => {
+    const sendEmail = readFileSync(
+      join(repoRoot, 'supabase/functions/send-email/index.ts'),
+      'utf-8'
+    );
+    expect(sendEmail).toContain(
+      'Keep aligned with src/lib/mail-identity.ts resendListUnsubscribeHeaders'
+    );
+    expect(sendEmail).toMatch(/if \(!u\) \{\s*return \{\}/);
+  });
 });
