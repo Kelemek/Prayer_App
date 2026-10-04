@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   HOME_FILTER_TAB_ACTIVE_FILL,
+  HOME_INFO_PREVIEW_MEMORIZE_CARD_SHELL_CLASS,
+  HOME_INFO_PREVIEW_PROMPTS_CARD_SHELL_CLASS,
   HOME_GROUPS_SUB_FILTER_GROUP_CLASS,
+  HOME_PROMPTS_CHIP_ACTIVE_CLASS,
   HOME_MEMORIZE_SUB_FILTER_GROUP_CLASS,
   HOME_PERSONAL_SUB_FILTER_GROUP_CLASS,
   HOME_PROMPTS_SUB_FILTER_GROUP_CLASS,
@@ -16,6 +19,24 @@ import {
   homeFilterTabClass,
 } from "./home-sub-filter-chip-classes";
 
+describe("info preview shell classes", () => {
+  it("uses 1px borders on tour mock cards", () => {
+    for (const cls of [
+      HOME_INFO_PREVIEW_PROMPTS_CARD_SHELL_CLASS,
+      HOME_INFO_PREVIEW_MEMORIZE_CARD_SHELL_CLASS,
+    ]) {
+      expect(cls.split(/\s+/)).toContain("border");
+      expect(cls).not.toContain("border-[2px]");
+    }
+  });
+
+  it("exports prompts chip active chrome aligned with HOME_CHURCH_BLUE pattern", () => {
+    expect(HOME_PROMPTS_CHIP_ACTIVE_CLASS).toContain("border-[#988F83]");
+    expect(HOME_PROMPTS_CHIP_ACTIVE_CLASS.split(/\s+/)).toContain("border");
+    expect(HOME_PROMPTS_CHIP_ACTIVE_CLASS).not.toMatch(/\bring\b/);
+  });
+});
+
 describe("HOME_*_SUB_FILTER_GROUP_CLASS", () => {
   it("uses static folder-panel fills matching each tab (Tailwind must see full literals)", () => {
     expect(HOME_PERSONAL_SUB_FILTER_GROUP_CLASS).toContain("bg-church-green-tint");
@@ -26,8 +47,10 @@ describe("HOME_*_SUB_FILTER_GROUP_CLASS", () => {
     expect(HOME_PUBLIC_SUB_FILTER_GROUP_CLASS).toContain("rounded-b-lg");
     expect(HOME_PUBLIC_SUB_FILTER_GROUP_CLASS).toContain("border-[#0047AB]");
     expect(HOME_PUBLIC_SUB_FILTER_GROUP_CLASS).toContain("border-t-0");
-    expect(HOME_PUBLIC_SUB_FILTER_GROUP_CLASS).toContain("border-x-[2px]");
-    expect(HOME_PUBLIC_SUB_FILTER_GROUP_CLASS).toContain("border-b-[2px]");
+    expect(HOME_PUBLIC_SUB_FILTER_GROUP_CLASS).toContain("border-x");
+    expect(HOME_PUBLIC_SUB_FILTER_GROUP_CLASS).toContain("border-b");
+    expect(HOME_PUBLIC_SUB_FILTER_GROUP_CLASS).not.toContain("border-x-[2px]");
+    expect(HOME_PUBLIC_SUB_FILTER_GROUP_CLASS).not.toContain("border-b-[2px]");
     expect(HOME_PUBLIC_SUB_FILTER_GROUP_CLASS.split(" ")).not.toContain(
       "border-[2px]"
     );
@@ -94,8 +117,10 @@ describe("homeFilterTabClass", () => {
     expect(tokens).toContain("rounded-t-lg");
     expect(tokens).not.toContain("rounded-lg");
     expect(cls).toContain("z-10");
-    expect(cls).toContain("border-t-[2px]");
-    expect(cls).toContain("border-x-[2px]");
+    expect(cls).toContain("border-t");
+    expect(cls).toContain("border-x");
+    expect(cls).not.toContain("border-t-[2px]");
+    expect(cls).not.toContain("border-x-[2px]");
     expect(cls).toContain("border-b-0");
     expect(cls).not.toContain("-mb-[2px]");
     expect(cls).toContain("bg-blue-200");
@@ -112,7 +137,9 @@ describe("homeFilterTabClass", () => {
     expect(cls).toContain("rounded-lg");
     expect(cls).toContain(HOME_FILTER_TAB_ACTIVE_FILL.members.split(" ")[0]);
     expect(cls).toContain("border-[#0047AB]");
+    expect(cls.split(" ")).toContain("border");
     expect(cls).not.toContain("border-b-0");
+    expect(cls).not.toContain("border-[2px]");
   });
 
   it("uses inactive chrome for unselected tabs", () => {
@@ -141,7 +168,7 @@ describe("HOME_PUBLIC_STATUS_CHIP layout classes", () => {
 });
 
 describe("HOME_PUBLIC_STATUS_CHIP_THEMES", () => {
-  it("uses bordered chips with church blue accent rings", () => {
+  it("uses 1px bordered chips for the selected state (no accent ring)", () => {
     for (const key of [
       "current",
       "answered",
@@ -150,10 +177,11 @@ describe("HOME_PUBLIC_STATUS_CHIP_THEMES", () => {
       "prompts",
       "members",
     ] as const) {
-      expect(HOME_PUBLIC_STATUS_CHIP_THEMES[key].active).toContain("ring");
-      expect(HOME_PUBLIC_STATUS_CHIP_THEMES[key].active).toContain(
-        "border-[#0047AB]"
-      );
+      const active = HOME_PUBLIC_STATUS_CHIP_THEMES[key].active;
+      expect(active).toContain("border-[#0047AB]");
+      expect(active.split(/\s+/)).toContain("border");
+      expect(active).not.toMatch(/\bring\b/);
+      expect(active).not.toContain("ring-[#0047AB]");
     }
   });
 

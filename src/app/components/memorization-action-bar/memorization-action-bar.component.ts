@@ -2,9 +2,9 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import type { MemorizeListView } from '../../lib/memorization/memorization-list-prefs';
 import {
+  HOME_CHURCH_BLUE_CHIP_ACTIVE_CLASS,
   HOME_INACTIVE_SURFACE_BG_CLASS,
   HOME_MEMORIZE_SUB_FILTER_GROUP_CLASS,
-  HOME_PUBLIC_PANEL_CHIP_ACTIVE_FILL_CLASS,
   HOME_PUBLIC_STATUS_CHIP_ROW_CLASS,
   HOME_SUB_FILTER_CHIP_SIZE_CLASS,
   MEMORIZE_CARD_SHELL_BORDER_CLASS,
@@ -16,18 +16,14 @@ import { HomeSubFilterStackedLabelComponent } from '../home-sub-filter-stacked-l
 const ACTION_BTN_BASE =
   `flex flex-1 items-center justify-center border transition-[color,background-color,border-color,box-shadow] duration-150 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer sm:flex-none ${HOME_SUB_FILTER_CHIP_SIZE_CLASS}`;
 
-/** Outlined blue — lighter fill than the Memorize panel (`bg-blue-200`). */
-const MEMORIZE_TAB_CHIP =
-  `!border-[#0047AB] ${HOME_PUBLIC_PANEL_CHIP_ACTIVE_FILL_CLASS} text-gray-700 ring ring-[#0047AB] ring-offset-0 dark:!border-[#0047AB] dark:text-gray-300 dark:ring-[#0047AB]`;
-
-const SOFT_BLUE_BTN = `border ${MEMORIZE_TAB_CHIP}`;
+const SOFT_BLUE_BTN = HOME_CHURCH_BLUE_CHIP_ACTIVE_CLASS;
 
 /** Hover/active on inactive buttons — same outlined blue as Add Verses. */
 const MEMORIZE_TAB_CHIP_HOVER =
-  'hover:border hover:!border-[#0047AB] hover:!bg-home-panel-blue-chip-active hover:!text-gray-700 hover:shadow-[0_6px_16px_-6px_rgb(0_71_171/0.55)] hover:ring hover:ring-[#0047AB] hover:ring-offset-0 dark:hover:!border-[#0047AB] dark:hover:!bg-home-panel-blue-chip-active-dark dark:hover:!text-gray-300 dark:hover:ring-[#0047AB]';
+  'hover:border hover:!border-[#0047AB] hover:!bg-home-panel-blue-chip-active hover:!text-gray-700 hover:shadow-[0_6px_16px_-6px_rgb(0_71_171/0.55)] dark:hover:!border-[#0047AB] dark:hover:!bg-home-panel-blue-chip-active-dark dark:hover:!text-gray-300';
 
 const MEMORIZE_TAB_CHIP_ACTIVE =
-  'active:border active:!border-[#0047AB] active:!bg-home-panel-blue-chip-active active:!text-gray-700 active:ring active:ring-[#0047AB] active:ring-offset-0 dark:active:!border-[#0047AB] dark:active:!bg-home-panel-blue-chip-active-dark dark:active:!text-gray-300 dark:active:ring-[#0047AB]';
+  'active:border active:!border-[#0047AB] active:!bg-home-panel-blue-chip-active active:!text-gray-700 dark:active:!border-[#0047AB] dark:active:!bg-home-panel-blue-chip-active-dark dark:active:!text-gray-300';
 
 /**
  * Neutral at rest; hover/active match Verses / active Memorize tab.

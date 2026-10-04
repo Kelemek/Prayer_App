@@ -53,8 +53,9 @@ describe('MemorizationActionBarComponent', () => {
     const bibleBooks = screen.getByRole('button', { name: /Bible Book Names/i });
     const recommended = screen.getByRole('button', { name: /Recommended Verses/i });
 
-    expect(bibleBooks.className).toMatch(/(?:^|\s)ring(?:\s|$)/);
+    expect(bibleBooks.className).toContain('!border-[#0047AB]');
     expect(bibleBooks.className).toContain('bg-home-panel-blue-chip-active');
+    expect(bibleBooks.className).not.toContain('ring-offset');
     expect(bibleBooks.getAttribute('aria-pressed')).toBe('true');
 
     expect(recommended.className).not.toMatch(/(?:^|\s)ring(?:\s|$)/);

@@ -24,9 +24,6 @@
 @utility shell-border-w-1 {
   --shell-border-width: 1px;
 }
-@utility shell-border-w-2 {
-  --shell-border-width: 2px;
-}
 @utility rounded-t-shell-inner {
   border-top-left-radius: calc(
     var(--shell-radius, var(--radius-lg, 0.5rem)) - var(--shell-border-width, 1px)

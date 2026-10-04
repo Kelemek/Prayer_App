@@ -43,6 +43,9 @@ describe('getPrayerCardVariantLayout', () => {
     expect(promptTokens).not.toContain('overflow-hidden');
     expect(prayerTokens).not.toContain('isolate');
     expect(promptTokens).not.toContain('isolate');
+    expect(prayerTokens).toContain('shell-border-w-1');
+    expect(prayerTokens).not.toContain('border-[2px]');
+    expect(prayerTokens).toContain('border');
     expect(prayer.headerBandRoundedClasses).toBe(
       PRAYER_CARD_HEADER_BAND_ROUNDED_CLASSES
     );

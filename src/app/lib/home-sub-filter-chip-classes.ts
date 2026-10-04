@@ -59,7 +59,7 @@ export const HOME_PERSONAL_FILL_LIGHT_CLASS =
 
 /**
  * Fill + accent color only. Width is applied in {@link homeFilterTabClass}:
- * `border-[2px]` on a connected tab overrides `border-b-0` in the generated CSS.
+ * explicit `border-t` / `border-x` on a connected tab overrides `border-b-0` in generated CSS.
  */
 export const HOME_FILTER_TAB_ACTIVE_FILL = {
   public: "bg-blue-200 dark:bg-blue-950 border-[#0047AB] dark:border-[#0047AB]",
@@ -76,7 +76,7 @@ export const HOME_FILTER_TAB_ACTIVE_FILL = {
 
 /** Top + sides only so the tab joins the folder panel (no bottom stroke). */
 export const HOME_FILTER_TAB_CONNECTED_BORDER_CLASS =
-  "border-t-[2px] border-x-[2px] border-b-0 z-10";
+  "border-t border-x border-b-0 z-10";
 
 export function homeFilterTabClass(options: {
   accent: HomeFilterTabAccent;
@@ -91,7 +91,7 @@ export function homeFilterTabClass(options: {
   const fill = HOME_FILTER_TAB_ACTIVE_FILL[accent];
   const border = hasSubRow
     ? HOME_FILTER_TAB_CONNECTED_BORDER_CLASS
-    : "border-[2px]";
+    : "border";
   return `${HOME_FILTER_TAB_BASE_CLASS} ${shape} ${fill} ${border}`;
 }
 
@@ -117,7 +117,7 @@ const HOME_SUB_FILTER_ADD_CHIP_GHOST_REST_CLASS = [
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-800",
 ].join(" ");
 
-/** Hover previews the selected fill and lifts; the ring stays on the selected chip. */
+/** Hover previews the selected fill and lifts (selected chips use border only). */
 const HOME_SUB_FILTER_HOVER_BLUE_CLASS = [
   "hover:border-[#0047AB] dark:hover:border-[#0047AB]",
   "hover:bg-home-panel-blue-chip-active dark:hover:!bg-home-panel-blue-chip-active-dark",
@@ -247,9 +247,23 @@ export const HOME_PERSONAL_PANEL_CHIP_ACTIVE_FILL_CLASS =
 export const HOME_PROMPTS_PANEL_CHIP_ACTIVE_FILL_CLASS =
   "bg-home-panel-stone-chip-active dark:bg-home-panel-stone-chip-active-dark";
 
+/** Selected prompts-type chip (stone accent) — matches Prompts tab. */
+export const HOME_PROMPTS_CHIP_ACTIVE_CLASS =
+  `border !border-[#988F83] dark:!border-[#988F83] ${HOME_PROMPTS_PANEL_CHIP_ACTIVE_FILL_CLASS} text-gray-700 dark:text-gray-300 shadow-sm`;
+
+/** Info tour mock card shells — 1px accent border matching Home folder panels. */
+const HOME_INFO_PREVIEW_MOCK_CARD_SHELL_BASE =
+  "bg-gray-100/80 dark:bg-white/5 border rounded-lg p-4 sm:p-5 shadow-md";
+
+export const HOME_INFO_PREVIEW_PROMPTS_CARD_SHELL_CLASS =
+  `relative ${HOME_INFO_PREVIEW_MOCK_CARD_SHELL_BASE} !border-[#988F83] dark:!border-[#988F83]`;
+
+export const HOME_INFO_PREVIEW_MEMORIZE_CARD_SHELL_CLASS =
+  `relative w-full text-left ${HOME_INFO_PREVIEW_MOCK_CARD_SHELL_BASE} !border-[#0047AB] dark:!border-[#0047AB] space-y-3 cursor-pointer hover:bg-gray-200/70 dark:hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-[#0047AB] focus:ring-offset-2 dark:focus:ring-offset-gray-800`;
+
 /** Church blue chip styles (public status row, prompt-type row under Church, etc.). */
 export const HOME_CHURCH_BLUE_CHIP_ACTIVE_CLASS =
-  `border !border-[#0047AB] dark:!border-[#0047AB] ${HOME_PUBLIC_PANEL_CHIP_ACTIVE_FILL_CLASS} ring ring-[#0047AB] dark:ring-[#0047AB] ring-offset-0 text-gray-700 dark:text-gray-300 shadow-md`;
+  `border !border-[#0047AB] dark:!border-[#0047AB] ${HOME_PUBLIC_PANEL_CHIP_ACTIVE_FILL_CLASS} text-gray-700 dark:text-gray-300 shadow-sm`;
 
 /** Unselected Church, Groups, and Prompts chips — same ghost rest and hover as Add. */
 export const HOME_CHURCH_BLUE_CHIP_INACTIVE_CLASS =
@@ -277,7 +291,7 @@ export const HOME_PERSONAL_NAMED_CHIP_INACTIVE_CLASS =
 
 /** Personal sub-filters: selected chip (matches Personal tab accent). */
 export const HOME_PERSONAL_SUB_FILTER_CHIP_ACTIVE_CLASS =
-  `border !border-[#2F5F54] dark:!border-[#2F5F54] ${HOME_PERSONAL_PANEL_CHIP_ACTIVE_FILL_CLASS} ring ring-[#2F5F54] dark:ring-[#2F5F54] ring-offset-0 text-gray-700 dark:text-gray-300 shadow-md`;
+  `border !border-[#2F5F54] dark:!border-[#2F5F54] ${HOME_PERSONAL_PANEL_CHIP_ACTIVE_FILL_CLASS} text-gray-700 dark:text-gray-300 shadow-sm`;
 
 /** Tab accent hex values (documented; panel fills use full literals below for Tailwind). */
 export const HOME_FILTER_TAB_BORDER = {
@@ -290,9 +304,9 @@ export const HOME_FILTER_TAB_BORDER = {
 
 /** Folder-tab body: fill + side/bottom accent; no top border so it joins the selected tab. */
 export const HOME_PUBLIC_SUB_FILTER_GROUP_CLASS =
-  "rounded-b-lg bg-blue-200 dark:bg-blue-950 border-x-[2px] border-b-[2px] border-t-0 border-[#0047AB] dark:border-[#0047AB] px-3 py-2";
+  "rounded-b-lg bg-blue-200 dark:bg-blue-950 border-x border-b border-t-0 border-[#0047AB] dark:border-[#0047AB] px-3 py-2";
 export const HOME_PERSONAL_SUB_FILTER_GROUP_CLASS =
-  `rounded-b-lg ${HOME_PERSONAL_FILL_LIGHT_CLASS} border-x-[2px] border-b-[2px] border-t-0 border-[#2F5F54] dark:border-[#2F5F54] px-3 py-2`;
+  `rounded-b-lg ${HOME_PERSONAL_FILL_LIGHT_CLASS} border-x border-b border-t-0 border-[#2F5F54] dark:border-[#2F5F54] px-3 py-2`;
 /** Prompt type row under Church uses the same blue panel as public status filters. */
 export const HOME_PROMPTS_SUB_FILTER_GROUP_CLASS =
   HOME_PUBLIC_SUB_FILTER_GROUP_CLASS;
@@ -301,4 +315,4 @@ export const HOME_MEMORIZE_SUB_FILTER_GROUP_CLASS =
   HOME_PUBLIC_SUB_FILTER_GROUP_CLASS;
 /** Same slate fill as the Groups tab (`HOME_FILTER_TAB_ACTIVE_FILL.groups`). */
 export const HOME_GROUPS_SUB_FILTER_GROUP_CLASS =
-  "rounded-b-lg bg-slate-200 dark:bg-blue-900/40 border-x-[2px] border-b-[2px] border-t-0 border-[#0047AB] dark:border-[#0047AB] px-3 py-2";
+  "rounded-b-lg bg-slate-200 dark:bg-blue-900/40 border-x border-b border-t-0 border-[#0047AB] dark:border-[#0047AB] px-3 py-2";

@@ -47,7 +47,7 @@ describe('CardMetaHeaderBandComponent', () => {
 
   it('uses the inner shell radius instead of rounded-t-lg', () => {
     const component = new CardMetaHeaderBandComponent();
-    expect(component.roundedClasses).toBe('rounded-t-shell-inner shell-radius-lg shell-border-w-2');
+    expect(component.roundedClasses).toBe('rounded-t-shell-inner shell-radius-lg shell-border-w-1');
     expect(component.roundedClasses).not.toContain('rounded-t-lg');
   });
 

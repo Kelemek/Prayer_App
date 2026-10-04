@@ -11,12 +11,12 @@ export const PRAYER_CARD_SHELL_PADDING_CLASSES = 'px-4 sm:px-6';
 const CARD_SHELL_CORNER_SEAL = 'bg-shell-corner-seal overflow-visible';
 const CARD_SHELL_HEADER_BAND_ROUNDED = 'rounded-t-shell-inner';
 const CARD_SHELL_BORDER_W_1 = 'shell-border-w-1';
-const CARD_SHELL_BORDER_W_2 = 'shell-border-w-2';
 const CARD_SHELL_RADIUS_LG = 'shell-radius-lg';
 const CARD_SHELL_RADIUS_XL = 'shell-radius-xl';
 const CARD_SHELL_RADIUS_3XL = 'shell-radius-3xl';
 
-export const PRAYER_CARD_SHELL_FILL_CLASSES = `${CARD_SHELL_CORNER_SEAL} ${CARD_SHELL_BORDER_W_2}`;
+/** Matches update rows (`PRAYER_UPDATE_ROW_SHELL_FILL_CLASSES`) — 1px shell for corner seal math. */
+export const PRAYER_CARD_SHELL_FILL_CLASSES = `${CARD_SHELL_CORNER_SEAL} ${CARD_SHELL_BORDER_W_1}`;
 
 /** Seals update-row outer corners (1px border). Pair with `bg-inset-surface`. */
 export const PRAYER_UPDATE_ROW_SHELL_FILL_CLASSES = `${CARD_SHELL_CORNER_SEAL} ${CARD_SHELL_BORDER_W_1}`;
@@ -25,8 +25,8 @@ export const PRAYER_UPDATE_ROW_SHELL_FILL_CLASSES = `${CARD_SHELL_CORNER_SEAL} $
 export const CHURCH_GREEN_SHELL_BORDER_CLASS =
   'border border-church-surface-inactive-tab-border dark:border-[#2F5F54]';
 
-/** Top radius for meta header bands inside a 2px `rounded-lg` home shell. */
-export const PRAYER_CARD_HEADER_BAND_ROUNDED_CLASSES = `${CARD_SHELL_HEADER_BAND_ROUNDED} ${CARD_SHELL_RADIUS_LG} ${CARD_SHELL_BORDER_W_2}`;
+/** Top radius for meta header bands inside a 1px `rounded-lg` home shell. */
+export const PRAYER_CARD_HEADER_BAND_ROUNDED_CLASSES = `${CARD_SHELL_HEADER_BAND_ROUNDED} ${CARD_SHELL_RADIUS_LG} ${CARD_SHELL_BORDER_W_1}`;
 
 /** Top radius for meta header bands inside a 1px `rounded-3xl` presentation shell. */
 export const PRESENTATION_CARD_HEADER_BAND_ROUNDED_CLASSES = `${CARD_SHELL_HEADER_BAND_ROUNDED} ${CARD_SHELL_RADIUS_3XL} ${CARD_SHELL_BORDER_W_1}`;
@@ -191,7 +191,7 @@ export interface PrayerCardVariantLayout extends CardVariantChrome {
 const HOME_PRAYER_CARD_VARIANT_LAYOUT: PrayerCardVariantLayout = {
   ...HOME_CARD_CHROME,
   shellBaseClasses:
-    `bg-white dark:bg-gray-800 ${PRAYER_CARD_SHELL_FILL_CLASSES} rounded-lg shadow-md border-[2px] transition-colors relative`,
+    `bg-white dark:bg-gray-800 ${PRAYER_CARD_SHELL_FILL_CLASSES} rounded-lg shadow-md border transition-colors relative`,
   shellTopPadding: 'pt-0',
   shellBottomPadding: 'pb-4',
   shellOuterMargin: HOME_SHELL_SECTION_GAP_CLASSES,
@@ -269,7 +269,7 @@ export interface PromptCardVariantLayout extends CardVariantChrome {
 const HOME_PROMPT_CARD_VARIANT_LAYOUT: PromptCardVariantLayout = {
   ...HOME_CARD_CHROME,
   shellBaseClasses:
-    `prompt-card bg-white dark:bg-gray-800 ${PRAYER_CARD_SHELL_FILL_CLASSES} rounded-lg shadow-md border-[2px] !border-[#0047AB] dark:!border-[#0047AB] transition-colors relative`,
+    `prompt-card bg-white dark:bg-gray-800 ${PRAYER_CARD_SHELL_FILL_CLASSES} rounded-lg shadow-md border !border-[#0047AB] dark:!border-[#0047AB] transition-colors relative`,
   shellTopPadding: 'pt-0',
   shellBottomPadding: 'pb-4',
   shellOuterMargin: HOME_SHELL_SECTION_GAP_CLASSES,
