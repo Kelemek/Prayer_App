@@ -23,6 +23,22 @@ export class AuthIdentityService {
     return null;
   }
 
+  /** Stable per-session key for tenant-access guard cache (email preferred). */
+  async getSessionUserKey(): Promise<string | null> {
+    const email = await this.getEmail();
+    if (email) {
+      return email;
+    }
+    try {
+      const {
+        data: { session },
+      } = await this.supabase.client.auth.getSession();
+      return session?.user?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   setPendingLogin(email: string, isTestAccount = false): void {
     sessionStorage.setItem(PENDING_LOGIN_EMAIL_KEY, email.toLowerCase().trim());
     if (isTestAccount) {

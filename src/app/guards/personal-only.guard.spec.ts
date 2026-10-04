@@ -4,7 +4,10 @@ import { personalOnlyGuard } from './personal-only.guard';
 
 type MockRouter = { createUrlTree: ReturnType<typeof vi.fn> };
 type MockAdminAuthService = { loading$: BehaviorSubject<boolean> };
-type MockTenantContextService = { loading$: BehaviorSubject<boolean> };
+type MockTenantContextService = {
+  loading$: BehaviorSubject<boolean>;
+  membershipPending$: BehaviorSubject<boolean>;
+};
 type MockTenantPermissionService = { isPersonalOnlyUser: ReturnType<typeof vi.fn> };
 
 let mockRouter: MockRouter;
@@ -36,7 +39,11 @@ describe('personalOnlyGuard', () => {
       })),
     };
     mockAdminAuthService = { loading$: new BehaviorSubject(false) };
-    mockTenantContextService = { loading$: new BehaviorSubject(false) };
+    const tenantMembershipPending = new BehaviorSubject(false);
+    mockTenantContextService = {
+      loading$: tenantMembershipPending,
+      membershipPending$: tenantMembershipPending,
+    };
     mockPermissionService = { isPersonalOnlyUser: vi.fn(() => true) };
   });
 

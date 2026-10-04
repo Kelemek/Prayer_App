@@ -15,9 +15,9 @@ export const adminGuard: CanActivateFn = (route, state) => {
   // Wait for loading to complete, then check admin status in active tenant
   return combineLatest([
     adminAuthService.loading$,
-    tenantContextService.loading$
+    tenantContextService.membershipPending$,
   ]).pipe(
-    skipWhile(([authLoading, tenantLoading]) => authLoading || tenantLoading),
+    skipWhile(([authLoading, membershipPending]) => authLoading || membershipPending),
     // Fail-fast if loading never resolves
     timeout(5000),
     map(() => {

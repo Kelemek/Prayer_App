@@ -1,7 +1,7 @@
 import { bootstrapApplication } from "@angular/platform-browser";
 import { provideRouter, Router, withInMemoryScrolling } from "@angular/router";
 import { provideHttpClient, withXhr } from "@angular/common/http";
-import { provideAnimations } from "@angular/platform-browser/animations";
+import { provideAnimationsAsync } from "@angular/platform-browser/animations/async";
 import { provideServiceWorker } from "@angular/service-worker";
 import { isDevMode } from "@angular/core";
 
@@ -28,6 +28,7 @@ import {
   bindAppBootScreenDismissal,
   dismissAppBootScreen,
 } from "./app/lib/app-boot-screen";
+import { markColdBoot } from "./app/lib/cold-boot-performance";
 
 // One foreground signal: visibility → app-became-visible. Focus is not a second path.
 const setupVisibilityRecovery = () => {
@@ -51,6 +52,7 @@ const serviceWorkerEnabled =
   !isDevMode() && !Capacitor.isNativePlatform();
 
 function startApp(): void {
+  markColdBoot("start-app");
   armAppBootScreenFailsafe();
 
   bootstrapApplication(AppComponent, {
@@ -61,7 +63,7 @@ function startApp(): void {
         withInMemoryScrolling({ scrollPositionRestoration: "top" })
       ),
       provideHttpClient(withXhr()),
-      provideAnimations(),
+      provideAnimationsAsync(),
       provideServiceWorker("ngsw-worker.js", {
         enabled: serviceWorkerEnabled,
         registrationStrategy: "registerWhenStable:30000",
@@ -78,26 +80,30 @@ function startApp(): void {
       {
         provide: APP_INITIALIZER,
         useFactory: (clientVersionGate: ClientVersionGateService) => {
-          return async () => {
-            try {
-              const previewBlocked =
-                !environment.production &&
-                new URLSearchParams(window.location.search).get(
-                  "force_upgrade"
-                ) === "1";
-              await clientVersionGate.initialize({ previewBlocked });
-              const decision = clientVersionGate.getDecision();
-              maybeAutoReloadWebOnce({
-                blocked: decision.blocked,
-                upgradeKind: decision.upgradeKind,
-                reload: () => window.location.reload(),
+          return () => {
+            const previewBlocked =
+              !environment.production &&
+              new URLSearchParams(window.location.search).get(
+                "force_upgrade"
+              ) === "1";
+            // Bootstrap is not blocked; shell may paint briefly until the RPC returns.
+            void clientVersionGate
+              .initialize({ previewBlocked })
+              .then(() => {
+                markColdBoot("version-gate-ready");
+                const decision = clientVersionGate.getDecision();
+                maybeAutoReloadWebOnce({
+                  blocked: decision.blocked,
+                  upgradeKind: decision.upgradeKind,
+                  reload: () => window.location.reload(),
+                });
+              })
+              .catch((error) => {
+                console.warn(
+                  "[AppInitialization] Client version gate failed (fail-open):",
+                  error
+                );
               });
-            } catch (error) {
-              console.warn(
-                "[AppInitialization] Client version gate failed (fail-open):",
-                error
-              );
-            }
           };
         },
         deps: [ClientVersionGateService],
@@ -119,6 +125,7 @@ function startApp(): void {
     ],
   })
     .then((appRef) => {
+      markColdBoot("bootstrap-done");
       bindAppBootScreenDismissal(appRef.injector.get(Router));
     })
     .catch((err) => {
@@ -145,6 +152,7 @@ function startApp(): void {
 }
 
 void (async () => {
+  markColdBoot("main-entry");
   const isNative = Capacitor.isNativePlatform();
   const redirected = await maybeRedirectNativeToLiveSite({
     isNative,
@@ -158,6 +166,7 @@ void (async () => {
   if (redirected) {
     return;
   }
+  markColdBoot("live-redirect-done");
 
   const missingSupabase =
     !environment.supabaseUrl || !environment.supabasePublishableKey;

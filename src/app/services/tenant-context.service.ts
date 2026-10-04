@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, combineLatest } from 'rxjs';
+import { distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import {
   isPlatformLikeHost,
@@ -31,13 +32,30 @@ export class TenantContextService {
   private activeTenantSubject = new BehaviorSubject<Tenant | null>(null);
   private isSuperAdminSubject = new BehaviorSubject<boolean>(false);
   private loadingSubject = new BehaviorSubject<boolean>(true);
+  private syncingSubject = new BehaviorSubject<boolean>(false);
   private refreshInFlight = 0;
+  /** Avoid re-applying localStorage snapshot on TOKEN_REFRESHED and similar events. */
+  private snapshotHydratedForSession = false;
 
   public memberships$ = this.membershipsSubject.asObservable();
   public availableTenants$ = this.availableTenantsSubject.asObservable();
   public activeTenant$ = this.activeTenantSubject.asObservable();
   public isSuperAdmin$ = this.isSuperAdminSubject.asObservable();
   public loading$ = this.loadingSubject.asObservable();
+  /** True while a network refresh is in flight (snapshot may already be hydrated). */
+  public syncing$ = this.syncingSubject.asObservable();
+  /**
+   * True while membership or super-admin state may still change (initial load or refresh).
+   * Permission guards should wait on this; home routing may use loading$ alone for speed.
+   */
+  public readonly membershipPending$ = combineLatest([
+    this.loading$,
+    this.syncing$,
+  ]).pipe(
+    map(([loading, syncing]) => loading || syncing),
+    distinctUntilChanged(),
+    shareReplay(1)
+  );
 
   /** @deprecated Use memberships$ — kept for template compatibility during transition */
   public subscriberTenants$ = this.availableTenants$;
@@ -93,6 +111,18 @@ export class TenantContextService {
     return this.loadingSubject.value;
   }
 
+  isSyncing(): boolean {
+    return this.syncingSubject.value;
+  }
+
+  private hasHydratedContext(): boolean {
+    return (
+      this.activeTenantSubject.value !== null ||
+      this.membershipsSubject.value.length > 0 ||
+      this.availableTenantsSubject.value.length > 0
+    );
+  }
+
   getIsImpersonatingTenant(): boolean {
     const activeTenant = this.getActiveTenant();
     if (!activeTenant || !this.getIsSuperAdmin()) {
@@ -131,12 +161,16 @@ export class TenantContextService {
 
   private beginRefresh(): void {
     this.refreshInFlight += 1;
-    this.loadingSubject.next(true);
+    this.syncingSubject.next(true);
+    if (!this.hasHydratedContext()) {
+      this.loadingSubject.next(true);
+    }
   }
 
   private endRefresh(): void {
     this.refreshInFlight = Math.max(0, this.refreshInFlight - 1);
     if (this.refreshInFlight === 0) {
+      this.syncingSubject.next(false);
       this.loadingSubject.next(false);
     }
   }
@@ -440,12 +474,24 @@ export class TenantContextService {
 
   private handleAuthState(isAuthenticated: boolean): void {
     if (!isAuthenticated) {
+      this.snapshotHydratedForSession = false;
       this.clearContext(true);
       this.loadingSubject.next(false);
+      this.syncingSubject.next(false);
       return;
     }
 
-    this.refresh().catch((error) => {
+    if (!this.snapshotHydratedForSession) {
+      if (!this.hasHydratedContext()) {
+        const hydrated = this.restoreSnapshot();
+        if (hydrated) {
+          this.loadingSubject.next(false);
+        }
+      }
+      this.snapshotHydratedForSession = true;
+    }
+
+    void this.refresh().catch((error) => {
       console.error('[TenantContext] Failed to refresh tenant context:', error);
       if (!this.restoreSnapshot()) {
         // Keep any existing in-memory state.

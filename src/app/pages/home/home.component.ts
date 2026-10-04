@@ -212,6 +212,7 @@ export class HomeComponent
   isOnline = true;
   isAdmin = false;
   readonly tenantLoading$: Observable<boolean>;
+  readonly tenantSyncing$: Observable<boolean>;
   prayerGroups: PrayerGroup[] = [];
   selectedGroupId: string | null = null;
   groupFilterMode: GroupFilterMode = "current";
@@ -308,6 +309,7 @@ export class HomeComponent
     readonly planningCenter: HomePlanningCenterController
   ) {
     this.tenantLoading$ = this.tenantContextService.loading$;
+    this.tenantSyncing$ = this.tenantContextService.syncing$;
     this.memberCardActions = this.prayerCardActions;
 
     const windowCache = (window as { __cachedLogos?: { tenantId?: string | null; useLogo?: boolean } }).__cachedLogos;

@@ -43,8 +43,11 @@ describe('ClientVersionGateService', () => {
       error: null,
     });
     const service = createService();
+    const blockedStates: boolean[] = [];
+    service.blocked$.subscribe((blocked) => blockedStates.push(blocked));
     await service.initialize();
     expect(service.isBlocked()).toBe(false);
+    expect(blockedStates).toContain(false);
     expect(rpcMock).toHaveBeenCalledWith('get_public_client_min_versions');
   });
 

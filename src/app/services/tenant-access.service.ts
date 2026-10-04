@@ -1,8 +1,15 @@
 import { Injectable, inject } from '@angular/core';
+import { Router, UrlTree } from '@angular/router';
 import { environment } from '../../environments/environment';
 import { parseHost, isTenantSlugHost } from '../lib/tenant-host';
 import { parseChurchSlugFromInput } from '../lib/parse-church-slug-input';
+import {
+  clearTenantAccessMemberCache,
+  readTenantAccessMemberCache,
+  writeTenantAccessMemberCache,
+} from '../lib/tenant-access-guard-cache';
 import { SupabaseService } from './supabase.service';
+import { AuthIdentityService } from './auth-identity.service';
 import { describeFunctionInvokeFailure } from '../utils/supabase-function-invoke-error';
 import type { TenantAccessState } from '../lib/tenant-access-flow';
 
@@ -22,12 +29,87 @@ export interface TenantAccessStateResult {
 @Injectable({ providedIn: 'root' })
 export class TenantAccessService {
   private readonly supabase = inject(SupabaseService);
+  private readonly authIdentity = inject(AuthIdentityService);
+  private readonly router = inject(Router);
 
-  async resolveTargetTenant(churchQuery?: string | null): Promise<ResolvedTargetTenant | null> {
-    const config = {
+  private hostConfig() {
+    return {
       platformHosts: environment.platformHosts ?? [],
       tenantHostSuffix: environment.tenantHostSuffix ?? '',
     };
+  }
+
+  private isOnTenantSlugHost(): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return isTenantSlugHost(parseHost(window.location.hostname, this.hostConfig()));
+  }
+
+  private requestAccessUrlTree(returnUrl: string): UrlTree {
+    return this.router.createUrlTree(['/request-access'], {
+      queryParams: { returnUrl },
+    });
+  }
+
+  private scheduleMemberRevalidate(
+    tenantId: string,
+    userKey: string,
+    returnUrl: string
+  ): void {
+    void this.getState(tenantId)
+      .then((access) => {
+        if (access.state === 'member') {
+          writeTenantAccessMemberCache(tenantId, userKey);
+          return;
+        }
+        clearTenantAccessMemberCache(tenantId, userKey);
+        if (this.isOnTenantSlugHost()) {
+          void this.router.navigate(['/request-access'], {
+            queryParams: { returnUrl },
+          });
+        }
+      })
+      .catch(() => {
+        clearTenantAccessMemberCache(tenantId, userKey);
+      });
+  }
+
+  /**
+   * Slug-host route guard: member check with short-lived session cache.
+   * Returns true when no slug target or access is allowed.
+   */
+  async resolveSlugHostMemberAccess(
+    returnUrl: string
+  ): Promise<boolean | UrlTree> {
+    const target = await this.resolveTargetTenant(null);
+    if (!target) {
+      return true;
+    }
+
+    const userKey = await this.authIdentity.getSessionUserKey();
+    if (userKey && readTenantAccessMemberCache(target.id, userKey)) {
+      this.scheduleMemberRevalidate(target.id, userKey, returnUrl);
+      return true;
+    }
+
+    try {
+      const access = await this.getState(target.id);
+      if (access.state === 'member') {
+        if (userKey) {
+          writeTenantAccessMemberCache(target.id, userKey);
+        }
+        return true;
+      }
+    } catch {
+      return this.requestAccessUrlTree(returnUrl);
+    }
+
+    return this.requestAccessUrlTree(returnUrl);
+  }
+
+  async resolveTargetTenant(churchQuery?: string | null): Promise<ResolvedTargetTenant | null> {
+    const config = this.hostConfig();
 
     let slug: string | null = null;
     if (typeof window !== 'undefined') {

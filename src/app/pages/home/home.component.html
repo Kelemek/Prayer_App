@@ -109,6 +109,19 @@
         <span>Refreshing prayers…</span>
       </div>
 
+      @if (
+        (tenantSyncing$ | async) &&
+        !(tenantLoading$ | async) &&
+        !isRefreshing
+      ) {
+      <div
+        class="flex items-center justify-center mb-3 text-xs text-gray-500 dark:text-gray-400"
+        aria-live="polite"
+      >
+        <span>Syncing organization…</span>
+      </div>
+      }
+
       <app-home-modals-host
         #modalsHost
         [activeFilter]="shell.modals.activeFilter"
@@ -144,6 +157,7 @@
         [selectedGroupId]="selectedGroupId"
       ></app-home-modals-host>
 
+      @defer (on idle) {
       <app-home-group-editor-modal
         [isOpen]="showGroupEditor"
         [submitting]="groupEditorSubmitting"
@@ -166,6 +180,7 @@
         (completed)="onChurchOnboardingCompleted()"
         (startChurchTour)="onStartChurchTour()"
       ></app-home-church-onboarding-modal>
+      }
 
       <app-home-filter-tabs
         [activeFilter]="activeFilter"
@@ -180,7 +195,8 @@
       ></app-home-filter-tabs>
 
       @let displayedPublicPrayers = (prayers$ | async) ?? [];
-      @let tenantStillLoading = (tenantLoading$ | async) ?? true;
+      @let tenantStillLoading =
+        ((tenantLoading$ | async) ?? true) || ((tenantSyncing$ | async) ?? false);
       @let hidePrayerContentForLoading = catalogGate.awaiting({
         activeFilter: activeFilter,
         viewReady: viewReady,

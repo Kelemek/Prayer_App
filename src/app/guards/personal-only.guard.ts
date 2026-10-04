@@ -12,8 +12,8 @@ export const personalOnlyGuard: CanActivateFn = (_route, state) => {
   const tenantContext = inject(TenantContextService);
   const permissionService = inject(TenantPermissionService);
 
-  return combineLatest([adminAuth.loading$, tenantContext.loading$]).pipe(
-    skipWhile(([authLoading, tenantLoading]) => authLoading || tenantLoading),
+  return combineLatest([adminAuth.loading$, tenantContext.membershipPending$]).pipe(
+    skipWhile(([authLoading, membershipPending]) => authLoading || membershipPending),
     timeout(5000),
     map(() => {
       if (!permissionService.isPersonalOnlyUser()) {

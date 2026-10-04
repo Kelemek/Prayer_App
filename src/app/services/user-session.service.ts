@@ -157,14 +157,14 @@ export class UserSessionService {
         void this.reloadSessionForCurrentUser();
       });
 
-    const loading$ = this.tenantContext.loading$;
-    if (!loading$) {
+    const membershipPending$ = this.tenantContext.membershipPending$;
+    if (!membershipPending$) {
       return;
     }
-    loading$
+    membershipPending$
       .pipe(
         distinctUntilChanged(),
-        filter((loading) => !loading)
+        filter((pending) => !pending)
       )
       .subscribe(() => {
         if (this.resolveMembershipTenantId()) {

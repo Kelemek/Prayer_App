@@ -412,7 +412,7 @@ describe('TenantContextService', () => {
     });
   });
 
-  it('stays loading until overlapping refreshes finish', async () => {
+  it('stays syncing until overlapping refreshes finish', async () => {
     const pending: Array<(value: { data: unknown; error: null }) => void> = [];
     supabase.client.from.mockImplementation((table: string) => {
       if (table === 'tenant_memberships') {
@@ -457,21 +457,165 @@ describe('TenantContextService', () => {
     await vi.waitFor(() => {
       expect(pending.length).toBeGreaterThanOrEqual(2);
     });
-    expect(local.isLoading()).toBe(true);
+    expect(local.isSyncing()).toBe(true);
 
     pending[0]({ data: [], error: null });
     await vi.waitFor(() => {
       expect(local.getActiveTenant()).toBeNull();
     });
-    expect(local.isLoading()).toBe(true);
+    expect(local.isSyncing()).toBe(true);
 
     for (const resolve of pending.slice(1)) {
       resolve({ data: [membership], error: null });
     }
     await explicit;
     await vi.waitFor(() => {
-      expect(local.isLoading()).toBe(false);
+      expect(local.isSyncing()).toBe(false);
     });
     expect(local.getActiveTenant()?.id).toBe('tenant-a');
+  });
+
+  it('does not re-apply snapshot on later auth events', async () => {
+    const tenantB = {
+      id: 'tenant-b',
+      name: 'Beta Church',
+      slug: 'beta',
+      plan_tier: 'churches' as const,
+      plan_status: 'active' as const,
+    };
+    localStorage.setItem(
+      'tenant_context_snapshot',
+      JSON.stringify({
+        memberships: [
+          {
+            tenant_id: tenantA.id,
+            user_email: 'user@example.com',
+            role: 'member',
+            tenants: tenantA,
+          },
+        ],
+        availableTenants: [tenantA],
+        activeTenantId: tenantA.id,
+        isSuperAdmin: false,
+        savedAt: Date.now(),
+      })
+    );
+    membershipMocks(supabase, {
+      memberships: [
+        {
+          tenant_id: tenantB.id,
+          user_email: 'user@example.com',
+          role: 'member',
+          tenants: tenantB,
+        },
+      ],
+    });
+
+    const local = new TenantContextService(supabase, authIdentity, connectivity);
+    await vi.waitFor(() => {
+      expect(local.getActiveTenant()?.id).toBe('tenant-b');
+    });
+
+    localStorage.setItem(
+      'tenant_context_snapshot',
+      JSON.stringify({
+        memberships: [
+          {
+            tenant_id: tenantA.id,
+            user_email: 'user@example.com',
+            role: 'member',
+            tenants: tenantA,
+          },
+        ],
+        availableTenants: [tenantA],
+        activeTenantId: tenantA.id,
+        isSuperAdmin: false,
+        savedAt: Date.now(),
+      })
+    );
+
+    authStateCallback?.('TOKEN_REFRESHED', {
+      user: { email: 'user@example.com' },
+    });
+    await vi.waitFor(() => {
+      expect(local.getActiveTenant()?.id).toBe('tenant-b');
+    });
+  });
+
+  it('hydrates from snapshot before network refresh finishes', async () => {
+    localStorage.setItem(
+      'tenant_context_snapshot',
+      JSON.stringify({
+        memberships: [
+          {
+            tenant_id: tenantA.id,
+            user_email: 'user@example.com',
+            role: 'member',
+            tenants: tenantA,
+          },
+        ],
+        availableTenants: [tenantA],
+        activeTenantId: tenantA.id,
+        isSuperAdmin: false,
+        savedAt: Date.now(),
+      })
+    );
+    localStorage.setItem('active_tenant_id', tenantA.id);
+
+    const pending: Array<(value: unknown) => void> = [];
+    supabase.client.from.mockImplementation((table: string) => {
+      if (table === 'tenant_memberships') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockImplementation(
+              () =>
+                new Promise((resolve) => {
+                  pending.push(resolve);
+                })
+            ),
+          }),
+        };
+      }
+      if (table === 'global_roles') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            }),
+          }),
+        };
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+        }),
+      };
+    });
+
+    const local = new TenantContextService(supabase, authIdentity, connectivity);
+    await vi.waitFor(() => {
+      expect(local.getActiveTenant()?.id).toBe('tenant-a');
+    });
+    expect(local.isLoading()).toBe(false);
+    expect(local.isSyncing()).toBe(true);
+
+    for (const resolve of pending) {
+      resolve({
+        data: [
+          {
+            tenant_id: tenantA.id,
+            user_email: 'user@example.com',
+            role: 'member',
+            tenants: tenantA,
+          },
+        ],
+        error: null,
+      });
+    }
+    await vi.waitFor(() => {
+      expect(local.isSyncing()).toBe(false);
+    });
   });
 });

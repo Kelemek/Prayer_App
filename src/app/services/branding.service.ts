@@ -70,8 +70,8 @@ export class BrandingService implements OnDestroy {
 
     this.initializationPromise = (async () => {
       await firstValueFrom(
-        this.tenantContext.loading$.pipe(
-          filter((loading) => !loading),
+        this.tenantContext.membershipPending$.pipe(
+          filter((pending) => !pending),
           take(1)
         )
       );

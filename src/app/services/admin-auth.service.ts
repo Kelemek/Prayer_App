@@ -74,18 +74,14 @@ export class AdminAuthService {
     
     if (session?.user) {
       this.userSubject.next(session.user);
-      // Check admin status and wait for it to complete
-      try {
-        await this.checkAdminStatus(session.user);
-      } catch (error) {
-        console.error('[AdminAuth] Error checking admin status during init:', error);
-        this.isAdminSubject.next(false);
-        this.hasAdminEmailSubject.next(false);
-      }
-      // Set authenticated regardless of admin status check
       this.isAuthenticatedSubject.next(true);
       this.sessionStart = this.getPersistedSessionStart() || Date.now();
       this.persistSessionStart(this.sessionStart);
+      void this.checkAdminStatus(session.user).catch((error) => {
+        console.error('[AdminAuth] Error checking admin status during init:', error);
+        this.isAdminSubject.next(false);
+        this.hasAdminEmailSubject.next(false);
+      });
     }
 
     // Listen for auth state changes

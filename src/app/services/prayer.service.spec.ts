@@ -7,14 +7,16 @@ const PRAYER_SPEC_SHARED_CACHE_KEY = `tenant_${PRAYER_SPEC_TEST_TENANT.id}_praye
 const PRAYER_SPEC_PERSONAL_CACHE_KEY = `personalTenant_${PRAYER_SPEC_TEST_TENANT.id}`;
 
 function createPrayerSpecTenantContext() {
-  const loadingSubject = new BehaviorSubject(true);
+  const membershipPendingSubject = new BehaviorSubject(true);
   return {
     getActiveTenant: vi.fn(() => PRAYER_SPEC_TEST_TENANT),
     getIsSuperAdmin: vi.fn(() => false),
     getIsImpersonatingTenant: vi.fn(() => false),
     activeTenant$: new BehaviorSubject(PRAYER_SPEC_TEST_TENANT),
-    loading$: loadingSubject.asObservable(),
-    loadingSubject,
+    loading$: membershipPendingSubject.asObservable(),
+    loadingSubject: membershipPendingSubject,
+    membershipPending$: membershipPendingSubject.asObservable(),
+    membershipPendingSubject,
   };
 }
 

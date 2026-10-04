@@ -24,6 +24,7 @@ describe('BrandingService', () => {
     getActiveTenant: ReturnType<typeof vi.fn>;
     activeTenant$: Subject<typeof mockTenant | null>;
     loading$: BehaviorSubject<boolean>;
+    membershipPending$: BehaviorSubject<boolean>;
   };
 
   beforeEach(() => {
@@ -39,7 +40,8 @@ describe('BrandingService', () => {
     mockTenantContext = {
       getActiveTenant: vi.fn().mockReturnValue(mockTenant),
       activeTenant$: new Subject<typeof mockTenant | null>(),
-      loading$: new BehaviorSubject(false)
+      loading$: new BehaviorSubject(false),
+      membershipPending$: new BehaviorSubject(false),
     };
 
     service = new BrandingService(

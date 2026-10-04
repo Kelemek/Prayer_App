@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { BehaviorSubject } from 'rxjs';
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { APP_BUNDLE_VERSION } from '../../lib/app-analytics-context';
@@ -23,11 +24,23 @@ export class ClientVersionGateService {
   };
   private initialized = false;
   private initializationPromise: Promise<void> | null = null;
+  private readonly blockedSubject = new BehaviorSubject(false);
+
+  /**
+   * Emits when blocked state changes after initialize().
+   * Bootstrap may paint the shell briefly before the min-version RPC completes.
+   */
+  readonly blocked$ = this.blockedSubject.asObservable();
 
   constructor(private supabase: SupabaseService) {}
 
   isBlocked(): boolean {
     return this.decision.blocked;
+  }
+
+  private setDecision(decision: ClientVersionGateDecision): void {
+    this.decision = decision;
+    this.blockedSubject.next(decision.blocked);
   }
 
   getDecision(): ClientVersionGateDecision {
@@ -53,13 +66,13 @@ export class ClientVersionGateService {
     const surface = clientSurfaceFromPlatform(Capacitor.getPlatform());
 
     if (options?.previewBlocked) {
-      this.decision = {
+      this.setDecision({
         blocked: true,
         upgradeKind: 'refresh',
         surface,
         clientVersion: APP_BUNDLE_VERSION,
         minVersion: 'preview',
-      };
+      });
       return;
     }
 
@@ -88,11 +101,13 @@ export class ClientVersionGateService {
         return;
       }
 
-      this.decision = evaluateClientVersionGate(
-        surface,
-        APP_BUNDLE_VERSION,
-        normalizeMinVersionsRow(data),
-        nativeBinaryVersion
+      this.setDecision(
+        evaluateClientVersionGate(
+          surface,
+          APP_BUNDLE_VERSION,
+          normalizeMinVersionsRow(data),
+          nativeBinaryVersion
+        )
       );
     } catch (error) {
       console.warn(

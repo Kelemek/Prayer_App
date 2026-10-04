@@ -77,6 +77,7 @@ describe("HomeLifecycleCoordinator", () => {
         allPrayers$: prayersSubject.asObservable(),
         allPersonalPrayers$: allPersonalPrayersSubject.asObservable(),
         loading$: of(false),
+        membershipPending$: of(false),
         error$: of(null),
       } as any,
       promptService: {
@@ -149,6 +150,7 @@ describe("HomeLifecycleCoordinator", () => {
         allPrayers$: of([]),
         allPersonalPrayers$: of([]),
         loading$: of(false),
+        membershipPending$: of(false),
         error$: of(null),
       } as any,
       promptService: { prompts$: of([]), loadPrompts: vi.fn() } as any,
@@ -235,6 +237,7 @@ describe("HomeLifecycleCoordinator", () => {
         allPrayers$: of([]),
         allPersonalPrayers$: of([]),
         loading$: of(false),
+        membershipPending$: of(false),
         error$: of(null),
         loadPrayers: vi.fn().mockResolvedValue(undefined),
         loadPersonalPrayers: vi.fn().mockResolvedValue(undefined),

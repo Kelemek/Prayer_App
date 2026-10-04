@@ -5,6 +5,7 @@ import {
   Router,
 } from '@angular/router';
 import { filter, take } from 'rxjs/operators';
+import { markColdBoot, measureColdBoot } from './cold-boot-performance';
 
 /** Static overlay in `src/index.html` shown until the first paintable root. */
 export const APP_BOOT_SCREEN_ID = 'app-boot-screen';
@@ -27,6 +28,12 @@ export function dismissAppBootScreen(): void {
     clearTimeout(failsafeTimer);
     failsafeTimer = undefined;
   }
+  markColdBoot('boot-screen-dismissed');
+  measureColdBoot(
+    'main-to-boot-dismiss',
+    'main-entry',
+    'boot-screen-dismissed'
+  );
   document.getElementById(APP_BOOT_SCREEN_ID)?.remove();
 }
 

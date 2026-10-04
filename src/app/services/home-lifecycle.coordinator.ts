@@ -318,9 +318,9 @@ export class HomeLifecycleCoordinator {
           take(1)
         )
       : of(false);
-    const tenantLoading$ = services.tenantContextService?.loading$
-      ? services.tenantContextService.loading$.pipe(
-          filter((loading) => !loading),
+    const tenantLoading$ = services.tenantContextService?.membershipPending$
+      ? services.tenantContextService.membershipPending$.pipe(
+          filter((pending) => !pending),
           take(1)
         )
       : of(false);

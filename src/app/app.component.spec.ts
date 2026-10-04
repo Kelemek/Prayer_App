@@ -1,6 +1,8 @@
+import { AsyncPipe } from '@angular/common';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { describe, it, expect } from 'vitest';
+import { BehaviorSubject } from 'rxjs';
 import { AppComponent } from './app.component';
 import { ClientVersionGateService } from './services/client-version-gate.service';
 
@@ -26,12 +28,17 @@ describe('AppComponent', () => {
       providers: [
         {
           provide: ClientVersionGateService,
-          useValue: { isBlocked: () => blocked },
+          useValue: {
+            isBlocked: () => blocked,
+            blocked$: new BehaviorSubject(blocked),
+          },
         },
       ],
     })
       .overrideComponent(AppComponent, {
-        set: { imports: [AppShellStubComponent, ForceUpgradeStubComponent] },
+        set: {
+          imports: [AsyncPipe, AppShellStubComponent, ForceUpgradeStubComponent],
+        },
       })
       .compileComponents();
 

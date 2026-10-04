@@ -2,7 +2,8 @@ import { inject } from '@angular/core';
 import { Router, CanActivateFn } from '@angular/router';
 import { AdminAuthService } from '../services/admin-auth.service';
 import { combineLatest, of } from 'rxjs';
-import { map, skipWhile, take } from 'rxjs/operators';
+import { map, skipWhile, take, tap } from 'rxjs/operators';
+import { markColdBoot } from '../lib/cold-boot-performance';
 
 /**
  * Site-wide authentication guard
@@ -21,6 +22,7 @@ export const siteAuthGuard: CanActivateFn = (route, state) => {
     // Skip while loading
     skipWhile(([_, isLoading]) => isLoading),
     take(1),
+    tap(() => markColdBoot('site-auth-guard-ready')),
     map(([isAuthenticated]) => {
       // If not authenticated, redirect to login
       if (!isAuthenticated) {

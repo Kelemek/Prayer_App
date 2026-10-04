@@ -13,6 +13,7 @@ type MockAdminAuthService = {
 
 type MockTenantContextService = {
   loading$: BehaviorSubject<boolean>;
+  membershipPending$: BehaviorSubject<boolean>;
 };
 
 type MockTenantPermissionService = {
@@ -86,8 +87,10 @@ describe('adminGuard', () => {
       loading$: new BehaviorSubject<boolean>(true),
     };
 
+    const tenantMembershipPending = new BehaviorSubject<boolean>(true);
     mockTenantContextService = {
-      loading$: new BehaviorSubject<boolean>(true),
+      loading$: tenantMembershipPending,
+      membershipPending$: tenantMembershipPending,
     };
 
     mockTenantPermissionService = {
