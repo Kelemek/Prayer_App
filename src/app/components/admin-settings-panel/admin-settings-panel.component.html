@@ -3,7 +3,10 @@
     Admin Settings
   </h2>
 
-  <div class="flex flex-wrap gap-2 mb-6 border-b border-gray-200 dark:border-gray-700">
+  <div
+    id="admin-settings-tabs"
+    class="flex flex-wrap gap-2 mb-6 border-b border-gray-200 dark:border-gray-700"
+  >
     @for (tab of visibleSettingsTabs; track tab.id) {
       <button
         type="button"
@@ -141,7 +144,7 @@
   @switch (activeSettingsTab) {
     @case ('analytics') {
       @if (showAnalyticsTab) {
-        <div class="space-y-6">
+        <div id="admin-analytics-panel" class="space-y-6">
           <app-admin-site-analytics-panel [stats]="analyticsStats"></app-admin-site-analytics-panel>
         </div>
       }
@@ -178,7 +181,7 @@
         <div class="mb-4">
           <app-planning-center-connect
             [activeTenantId]="activeTenant?.id ?? null"
-            (credentialsConfiguredChange)="pcoCredentialsConfigured = $event"
+            (credentialsConfiguredChange)="onPcoCredentialsConfigured($event)"
           />
         </div>
         @if (pcoCredentialsConfigured) {

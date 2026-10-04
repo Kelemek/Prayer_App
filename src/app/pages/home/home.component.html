@@ -310,6 +310,7 @@
 
       @if (!hidePrayerContentForLoading && activeFilter === 'personal') {
       <app-home-personal-category-filters
+        [namedCategoryReorder]="shell.personalCategory.namedCategoryReorder"
         [personalPrayersCount]="personalPrayersCount"
         [filterMode]="shell.personalCategory.filterMode"
         [personalCategoryActiveClass]="shell.personalCategory.personalCategoryActiveClass"
@@ -353,7 +354,8 @@
         [displayedPrompts]="catalog.displayedPrompts"
         [loadingPersonalPrayers$]="prayerService.loadingPersonalPrayers$"
         [loadingGroupPrayers$]="prayerGroupService.loadingPrayers$"
-        [canReorderPersonalPrayers]="shell.personalCategory.canReorderPersonalPrayers"
+        [personalPrayerDragActive]="shell.personalCategory.personalPrayerDragActive"
+        [personalReorderOverflowMenu]="shell.personalCategory.personalReorderOverflowMenu"
         [selectedPromptTypes]="selectedPromptTypes"
         [memorizedItems]="memorizationPanel.memorizedItems"
         [memorizeLoading$]="memorizationService.loading$"

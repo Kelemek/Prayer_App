@@ -41,14 +41,33 @@ const SECTIONS: HelpSection[] = [
   ),
 ];
 
-async function renderOpenHelp() {
+async function renderOpenHelp(
+  catalogMode: 'home' | 'admin' = 'home',
+  extraSections: HelpSection[] = []
+) {
+  const adminSection = section('admin_help_analytics', 'Site analytics', 1, 'Analytics tab');
   const result = await render(HelpModalComponent, {
-    componentInputs: { isOpen: true },
+    componentInputs: {
+      isOpen: true,
+      catalogMode,
+      ...(catalogMode === 'admin'
+        ? {
+            adminHelpTourVisibility: {
+              showAnalyticsTab: true,
+              isChurchTenant: true,
+              showFeedbackForm: false,
+              pcoCredentialsConfigured: false,
+              canWipeChurch: false,
+            },
+          }
+        : {}),
+    },
     providers: [
       {
         provide: HelpContentService,
         useValue: {
           getSections: () => of(SECTIONS),
+          getAdminSections: () => of([adminSection, ...extraSections]),
           isLoading$: of(false),
           error$: of(null),
         },
@@ -145,6 +164,52 @@ describe('HelpModalComponent', () => {
       'help_groups',
       'help_prayer_encouragement',
     ]);
+  });
+
+  it('hides admin Show me when the section is not visible for the tenant', async () => {
+    const feedbackSection = section(
+      'admin_help_tools_feedback',
+      'Send feedback',
+      2,
+      'Feedback form'
+    );
+    const { fixture } = await render(HelpModalComponent, {
+      componentInputs: {
+        isOpen: true,
+        catalogMode: 'admin',
+        adminHelpTourVisibility: {
+          showAnalyticsTab: true,
+          isChurchTenant: true,
+          showFeedbackForm: false,
+          pcoCredentialsConfigured: false,
+          canWipeChurch: false,
+        },
+      },
+      providers: [
+        {
+          provide: HelpContentService,
+          useValue: {
+            getSections: () => of(SECTIONS),
+            getAdminSections: () => of([feedbackSection]),
+            isLoading$: of(false),
+            error$: of(null),
+          },
+        },
+      ],
+    });
+    await userEvent.click(screen.getByRole('button', { name: /Send feedback/ }));
+    expect(screen.queryByRole('button', { name: 'Show me' })).toBeNull();
+    fixture.destroy();
+  });
+
+  it('admin catalog shows admin subtitle and Show me for admin tour sections', async () => {
+    const { fixture } = await renderOpenHelp('admin');
+    expect(screen.getByText('Admin settings, queues, and guided tours')).toBeTruthy();
+    const started: HelpSection[] = [];
+    fixture.componentInstance.startSectionTour.subscribe((s) => started.push(s));
+    await userEvent.click(screen.getByRole('button', { name: /Site analytics/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Show me' }));
+    expect(started.map((s) => s.id)).toEqual(['admin_help_analytics']);
   });
 
   it('close control emits closeModal', async () => {

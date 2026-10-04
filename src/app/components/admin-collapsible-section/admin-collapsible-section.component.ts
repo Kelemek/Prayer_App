@@ -5,6 +5,7 @@ import {
   Input,
   Output,
 } from '@angular/core';
+import { adminCollapsibleTourSectionId } from '../../lib/admin-help-tour-anchors';
 
 @Component({
   selector: 'app-admin-collapsible-section',
@@ -13,6 +14,7 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
+      [id]="tourSectionElementId"
       class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/40"
       [class.cursor-pointer]="!expanded"
       (click)="!expanded && onToggle()"
@@ -69,6 +71,10 @@ export class AdminCollapsibleSectionComponent {
   @Input() expanded = false;
 
   @Output() expandedChange = new EventEmitter<boolean>();
+
+  get tourSectionElementId(): string {
+    return adminCollapsibleTourSectionId(this.triggerId);
+  }
 
   onToggle(): void {
     this.expandedChange.emit(!this.expanded);

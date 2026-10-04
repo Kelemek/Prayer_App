@@ -88,6 +88,25 @@ describe("HomePersonalCategoryController", () => {
     expect(controller.canReorderPersonalPrayers).toBe(false);
   });
 
+  it("derives personal prayer drag active from eligibility and handle visibility", () => {
+    controller.personalCategoryFilterMode = "named";
+    controller.selectedPersonalCategories = ["Health"];
+    expect(controller.personalPrayerDragActive).toBe(false);
+    controller.namedCategoryReorder.toggle();
+    expect(controller.personalPrayerDragActive).toBe(true);
+    controller.selectPersonalCategoryFilterMode("total");
+    expect(controller.personalPrayerDragActive).toBe(false);
+  });
+
+  it("resets named reorder handles when leaving single-category mode", () => {
+    controller.personalCategoryFilterMode = "named";
+    controller.selectedPersonalCategories = ["Health"];
+    controller.namedCategoryReorder.toggle();
+    expect(controller.namedCategoryReorder.handlesVisible).toBe(true);
+    controller.selectPersonalCategoryFilterMode("total");
+    expect(controller.namedCategoryReorder.handlesVisible).toBe(false);
+  });
+
   it("togglePersonalCategory clears selection when already chosen", () => {
     controller.personalCategoryFilterMode = "named";
     controller.selectedPersonalCategories = ["Members"];

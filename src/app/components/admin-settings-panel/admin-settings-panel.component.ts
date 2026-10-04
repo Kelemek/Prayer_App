@@ -89,8 +89,9 @@ export class AdminSettingsPanelComponent implements OnInit {
   @Input() activeTenant: Tenant | null = null;
   /** Used when hosted via NgComponentOutlet (outputs are not wired on the outlet). */
   @Input() settingsTabChangeHandler?: (tab: AdminSettingsTab) => void;
+  @Input() pcoCredentialsConfigured = false;
+  @Input() pcoCredentialsConfiguredChangeHandler?: (configured: boolean) => void;
   showFeedbackForm = false;
-  pcoCredentialsConfigured = false;
   feedbackSectionExpanded = false;
 
   @Output() settingsTabChange = new EventEmitter<AdminSettingsTab>();
@@ -123,6 +124,11 @@ export class AdminSettingsPanelComponent implements OnInit {
   selectSettingsTab(tab: AdminSettingsTab): void {
     this.settingsTabChangeHandler?.(tab);
     this.settingsTabChange.emit(tab);
+  }
+
+  onPcoCredentialsConfigured(configured: boolean): void {
+    this.pcoCredentialsConfiguredChangeHandler?.(configured);
+    this.cdr?.markForCheck();
   }
 
   get visibleSettingsTabs(): AdminSettingsTabDef[] {

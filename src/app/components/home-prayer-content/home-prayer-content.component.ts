@@ -46,6 +46,7 @@ import {
   HOME_PRAYER_VIRTUAL_SCROLL_MIN_BUFFER_PX,
   scrollHomePrayerVirtualViewportToIndex,
 } from "../../lib/home-prayer-virtual-scroll";
+import type { CardActionsOverflowItem } from "../card-actions-overflow-menu/card-actions-overflow-menu.types";
 
 export type HomePersonalCategoryPickerOpenChange = {
   prayerId: string;
@@ -90,7 +91,8 @@ export class HomePrayerContentComponent implements OnChanges {
   @Input({ required: true }) displayedPrompts!: PrayerPrompt[];
   @Input({ required: true }) loadingPersonalPrayers$!: Observable<boolean>;
   @Input({ required: true }) loadingGroupPrayers$!: Observable<boolean>;
-  @Input({ required: true }) canReorderPersonalPrayers!: boolean;
+  @Input({ required: true }) personalPrayerDragActive!: boolean;
+  @Input() personalReorderOverflowMenu: CardActionsOverflowItem | null = null;
   @Input({ required: true }) selectedPromptTypes!: string[];
   @Input({ required: true }) memorizedItems!: MemorizedItem[];
   @Input({ required: true }) memorizeLoading$!: Observable<boolean>;
@@ -143,6 +145,14 @@ export class HomePrayerContentComponent implements OnChanges {
       this.promptTailReconciledContentEnd = null;
       this.schedulePromptVirtualScrollTailReconcile();
     }
+  }
+
+  /** Walkthrough prayer keeps a visible drag handle before the user enables reorder. */
+  personalWalkthroughDragHandle(prayer: PrayerRequest): boolean {
+    return (
+      this.personalReorderOverflowMenu != null &&
+      prayer.prayer_for === this.personalWalkthroughPrayerFor
+    );
   }
 
   isPromptTypeSelected(type: string): boolean {

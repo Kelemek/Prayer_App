@@ -3,14 +3,17 @@ export type CardActionsOverflowActionId =
   | 'answered'
   | 'edit'
   | 'members'
-  | 'delete';
+  | 'delete'
+  /** Home reorder surfaces — see {@link HomeReorderHandlesUi}. */
+  | 'reorder';
 
 export type CardActionsOverflowIcon =
   | 'bell'
   | 'check'
   | 'edit'
   | 'users'
-  | 'trash';
+  | 'trash'
+  | 'grip';
 
 export type CardActionsOverflowTone = 'blue' | 'green' | 'gray' | 'red';
 

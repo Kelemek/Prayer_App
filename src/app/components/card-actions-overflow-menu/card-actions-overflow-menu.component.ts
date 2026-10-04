@@ -48,7 +48,8 @@ import type {
       title="Card actions"
       [class]="
         iconButtonBaseClasses +
-        ' text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md cursor-pointer ' +
+        ' text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-md cursor-pointer ' +
+        (menuOpen ? 'ring-0 ' : '') +
         layoutClasses.iconButtonPaddingClasses
       "
       (click)="toggleMenu($event)"

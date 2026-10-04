@@ -91,7 +91,8 @@ function createComponent(): HomePrayerContentComponent {
   component.displayedPrompts = [];
   component.loadingPersonalPrayers$ = of(false);
   component.loadingGroupPrayers$ = of(false);
-  component.canReorderPersonalPrayers = false;
+  component.personalPrayerDragActive = false;
+  component.personalReorderOverflowMenu = null;
   component.selectedPromptTypes = ['Morning'];
   component.memorizedItems = [];
   component.memorizeLoading$ = of(false);
@@ -126,7 +127,8 @@ async function mountPublicEmptyState(options: {
   fixture.componentRef.setInput('displayedPrompts', []);
   fixture.componentRef.setInput('loadingPersonalPrayers$', of(false));
   fixture.componentRef.setInput('loadingGroupPrayers$', of(false));
-  fixture.componentRef.setInput('canReorderPersonalPrayers', false);
+  fixture.componentRef.setInput('personalPrayerDragActive', false);
+  fixture.componentRef.setInput('personalReorderOverflowMenu', null);
   fixture.componentRef.setInput('selectedPromptTypes', []);
   fixture.componentRef.setInput('memorizedItems', []);
   fixture.componentRef.setInput('memorizeLoading$', of(false));
@@ -163,6 +165,14 @@ describe('HomePrayerContentComponent', () => {
   it('shows church demo panel when shared access is blocked', () => {
     const component = createComponent();
     expect(component.showChurchDemo).toBe(true);
+  });
+
+  it('accepts personal reorder drag state from the shell controller', () => {
+    const component = createComponent();
+    component.personalPrayerDragActive = false;
+    expect(component.personalPrayerDragActive).toBe(false);
+    component.personalPrayerDragActive = true;
+    expect(component.personalPrayerDragActive).toBe(true);
   });
 
   it('hides public empty copy while community prayers are loading', async () => {

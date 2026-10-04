@@ -15,6 +15,7 @@ import type { AdminTab } from '../../lib/admin-pending-queues';
       @for (tile of tiles; track tile.tab) {
         <button
           type="button"
+          [id]="navTileDomId(tile.tab)"
           (click)="tabSelect.emit(tile.tab)"
           [class]="
             'bg-white dark:bg-gray-800 rounded-lg shadow-border p-1 sm:p-4 hover:shadow-border-hover transition-[box-shadow,transform] duration-150 ease-out active:scale-[0.96] flex flex-col justify-between cursor-pointer ' +
@@ -66,5 +67,22 @@ export class AdminNavTilesComponent {
 
   countFor(tab: AdminTab): number {
     return adminNavTileCount(tab, this.adminData, this.consolidatedApprovalsCount);
+  }
+
+  navTileDomId(tab: AdminTab): string {
+    switch (tab) {
+      case 'prayers':
+        return 'admin-nav-tab-prayers';
+      case 'deletions':
+        return 'admin-nav-tab-deletions';
+      case 'accounts':
+        return 'admin-nav-tab-accounts';
+      case 'settings':
+        return 'admin-nav-tab-settings';
+      default: {
+        const _exhaustive: never = tab;
+        return _exhaustive;
+      }
+    }
   }
 }

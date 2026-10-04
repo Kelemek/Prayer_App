@@ -121,6 +121,8 @@ export class PrayerCardMetaHeaderComponent {
   @Input() personalDeleteTourId: string | null = null;
   @Input() centerDragHandle = false;
   @Input() centerDragHandleId: string | null = null;
+  /** Prepended before reminder / edit / delete when reordering a named personal category. */
+  @Input() personalNamedReorderMenu: CardActionsOverflowItem | null = null;
 
   @Output() toggleAnswered = new EventEmitter<void>();
   @Output() edit = new EventEmitter<void>();
@@ -159,6 +161,9 @@ export class PrayerCardMetaHeaderComponent {
 
   get overflowItems(): CardActionsOverflowItem[] {
     const items: CardActionsOverflowItem[] = [];
+    if (this.personalNamedReorderMenu) {
+      items.push(this.personalNamedReorderMenu);
+    }
     if (this.showReminder) {
       items.push({
         id: 'reminder',

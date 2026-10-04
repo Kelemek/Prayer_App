@@ -101,6 +101,7 @@ import {
 } from '../prayer-add-update-modal/prayer-add-update-modal.component';
 import { PrayerDeleteRequestPayload } from '../prayer-delete-request-modal/prayer-delete-request-modal.component';
 import { PrayerCardMetaHeaderComponent } from '../prayer-card-meta-header/prayer-card-meta-header.component';
+import type { CardActionsOverflowItem } from '../card-actions-overflow-menu/card-actions-overflow-menu.types';
 import {
   getPrayerStatusLabel,
   getPrayerStatusPillClasses,
@@ -140,6 +141,7 @@ export class PrayerCardComponent
   @Input() isDragging = false;
   @Input() dragHandle: TemplateRef<unknown> | null = null;
   @Input() personalDragHandle = false;
+  @Input() personalNamedReorderMenu: CardActionsOverflowItem | null = null;
   @Input() personalDragTourId: string | null = null;
   @Input() deletionsAllowed: PrayerCardPermissionContext['deletionsAllowed'] =
     'everyone';

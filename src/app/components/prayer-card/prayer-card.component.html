@@ -30,6 +30,7 @@
         [personalDeleteTourId]="showTourAnchors && tourPersonalWalkthroughAnchors ? 'tour-walkthrough-personal-delete' : null"
         [centerDragHandle]="personalDragHandle && isPersonal"
         [centerDragHandleId]="personalDragTourId"
+        [personalNamedReorderMenu]="personalNamedReorderMenu"
         (toggleAnswered)="onAnsweredMenuClick()"
         (edit)="editPersonalPrayer.emit(prayer)"
         (delete)="handleDeleteClick()"

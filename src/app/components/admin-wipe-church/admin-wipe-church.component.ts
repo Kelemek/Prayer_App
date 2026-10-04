@@ -11,6 +11,7 @@ import { AdminWipeChurchDialogComponent } from '../admin-wipe-church-dialog/admi
   template: `
     @if (canWipe && tenant && tenant.slug !== 'default-tenant') {
       <div
+        id="admin-danger-zone-panel"
         class="mt-6 p-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10"
       >
         <h4 class="text-sm font-semibold text-red-800 dark:text-red-200 mb-2">Danger zone</h4>

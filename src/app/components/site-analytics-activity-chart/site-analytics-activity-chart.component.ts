@@ -29,6 +29,7 @@ type ChartDisplayMode = 'bar' | 'line';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
+      id="admin-analytics-activity-chart"
       class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6"
       role="region"
       aria-label="Site activity over time"

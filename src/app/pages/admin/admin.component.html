@@ -24,10 +24,36 @@
           <div class="flex items-center gap-2">
             <button
               type="button"
-              (click)="showLogoutConfirmation = true"
-              class="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm cursor-pointer border border-gray-200 dark:border-gray-600"
+              (click)="openHelp()"
+              class="shrink-0 flex items-center gap-1 px-3 py-2.5 text-sm font-medium btn-chip btn-chip-gray cursor-pointer"
+              title="Help"
+              aria-label="Admin help"
             >
-              Log out
+              <svg
+                class="w-5 h-5 flex-shrink-0"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                ></circle>
+                <text
+                  x="12"
+                  y="16"
+                  text-anchor="middle"
+                  fill="currentColor"
+                  font-size="14"
+                  font-weight="bold"
+                >
+                  ?
+                </text>
+              </svg>
             </button>
             <button
               type="button"
@@ -86,6 +112,7 @@
     @if (!adminData?.loading && !adminData?.error) {
       @switch (activeTab) {
         @case ('prayers') {
+          <div id="admin-approvals-panel">
           <app-admin-approvals-panel
             [approvals]="consolidatedApprovals"
             (approvePrayer)="approvePrayer($event)"
@@ -95,8 +122,10 @@
             (prayerEdited)="refresh()"
             (updateEdited)="refresh()"
           ></app-admin-approvals-panel>
+          </div>
         }
         @case ('deletions') {
+          <div id="admin-deletions-panel">
           <app-admin-deletions-panel
             [adminData]="adminData"
             (approveDeletion)="approveDeletionRequest($event)"
@@ -104,8 +133,10 @@
             (approveUpdateDeletion)="approveUpdateDeletionRequest($event)"
             (denyUpdateDeletion)="denyUpdateDeletionRequest($event.id, $event.reason)"
           ></app-admin-deletions-panel>
+          </div>
         }
         @case ('accounts') {
+          <div id="admin-accounts-panel">
           <app-admin-accounts-panel
             [adminData]="adminData"
             [approvingRequestId]="approvingAccountRequestId"
@@ -113,6 +144,7 @@
             (approveAccount)="approveAccountRequest($event)"
             (denyAccount)="denyAccountRequest($event.id, $event.reason)"
           ></app-admin-accounts-panel>
+          </div>
         }
         @case ('settings') {
           @if (settingsPanelComponent; as panel) {
@@ -152,14 +184,13 @@
     ></app-send-notification-dialog>
   }
 
-  @if (showLogoutConfirmation) {
-    <app-confirmation-dialog
-      title="Log Out?"
-      message="Are you sure you want to log out?"
-      confirmText="Log Out"
-      [isDangerous]="true"
-      (confirm)="handleLogout()"
-      (cancel)="showLogoutConfirmation = false"
-    />
-  }
+  <app-help-modal
+    catalogMode="admin"
+    [adminHelpTourVisibility]="adminHelpTourVisibilityContext()"
+    [isOpen]="showHelp"
+    (closeModal)="closeHelp()"
+    (startSectionTour)="onHelpSectionTour($event)"
+    (fullGuidedTourRequested)="onFullAdminGuidedTour($event)"
+  ></app-help-modal>
+
 </div>

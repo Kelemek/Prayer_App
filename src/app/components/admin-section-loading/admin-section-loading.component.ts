@@ -25,6 +25,7 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
       class="flex flex-col items-center justify-center gap-3 py-10"
       role="status"
       aria-live="polite"
+      data-admin-section-loading="true"
     >
       <div
         class="admin-section-spinner rounded-full h-10 w-10 border-2 border-blue-600 border-t-transparent dark:border-blue-400 dark:border-t-transparent"

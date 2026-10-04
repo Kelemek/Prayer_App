@@ -35,6 +35,23 @@ describe('PrayerCardMetaHeaderComponent overflow items', () => {
     );
   });
 
+  it('prepends overflow items before reminder and actions', () => {
+    const component = new PrayerCardMetaHeaderComponent();
+    component.prayerCreatedAt = '2026-01-01T00:00:00Z';
+    component.isPersonal = true;
+    component.showReminder = true;
+    component.personalNamedReorderMenu = {
+      id: 'reorder',
+      label: 'Enable reorder',
+      icon: 'grip',
+      tone: 'blue',
+      onSelect: () => undefined,
+    };
+
+    expect(component.overflowItems[0]?.id).toBe('reorder');
+    expect(component.overflowItems[1]?.id).toBe('reminder');
+  });
+
   it('shows a green Answered action when a personal prayer is answered', () => {
     const component = new PrayerCardMetaHeaderComponent();
     component.prayerCreatedAt = '2026-01-01T00:00:00Z';

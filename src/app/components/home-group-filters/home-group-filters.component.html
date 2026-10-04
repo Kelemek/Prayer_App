@@ -59,12 +59,13 @@
         cdkDrag
         [cdkDragData]="group"
         [attr.data-group-filter-chip]="group.id"
-        [cdkDragDisabled]="isGroupReordering"
+        [cdkDragDisabled]="chipReorder.isChipDragDisabled(isGroupReordering)"
         (cdkDragStarted)="onGroupDragStarted()"
         (cdkDragEnded)="onGroupDragEnded()"
         [class]="chipHostClass"
       >
         <div [class]="chipShellClass(group) + ' relative'">
+          @if (chipReorder.handlesVisible) {
           <span
             cdkDragHandle
             data-group-filter-drag-handle
@@ -94,6 +95,7 @@
               <circle cx="15" cy="19" r="1"></circle>
             </svg>
           </span>
+          }
           <button
             type="button"
             [id]="'tour-filter-group-' + group.id"

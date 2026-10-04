@@ -31,10 +31,12 @@ import {
   HOME_GROUPS_SUB_FILTER_GROUP_CLASS,
   HOME_PUBLIC_STATUS_CHIP_THEMES,
   HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS,
+  HOME_SUB_FILTER_CHIP_DRAG_STRETCH_NO_HANDLE_CLASS,
   HOME_SUB_FILTER_CHIP_ROW_CLASS,
   HOME_WRAP_FILTER_CHIP_FLEX_CLASS,
   HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_BLUE_CLASS,
 } from "../../lib/home-sub-filter-chip-classes";
+import { HomeReorderHandlesUi } from "../../lib/home-reorder-handles-ui";
 import { buildHomeSubFilterChipButtonClass } from "../../lib/home-sub-filter-chip-button-class";
 import { HOME_SHELL_SECTION_GAP_CLASSES } from "../../lib/home-shell-spacing";
 import {
@@ -104,11 +106,14 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
   renameDraft = "";
   groupActionSubmitting = false;
   isGroupReordering = false;
+  readonly chipReorder = new HomeReorderHandlesUi(() => this.cdr.markForCheck());
   private groupDragScrollLockTarget: HTMLElement | null = null;
   private groupPrayerCounts = new Map<string, number>();
 
   readonly chipHostClass = HOME_WRAP_FILTER_CHIP_FLEX_CLASS;
   readonly chipDragShellClass = HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS;
+  readonly chipDragShellNoHandleClass =
+    HOME_SUB_FILTER_CHIP_DRAG_STRETCH_NO_HANDLE_CLASS;
   /** Same equal-share status row as Personal (no 2-per-row wrap hosts). */
   readonly statusChipRowClass = HOME_SUB_FILTER_CHIP_ROW_CLASS;
   readonly chipRowClass = HOME_SUB_FILTER_CHIP_ROW_CLASS;
@@ -185,7 +190,10 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
 
   chipShellClass(group: PrayerGroup): string {
     return buildHomeSubFilterChipButtonClass({
-      base: this.chipDragShellClass,
+      base: this.chipReorder.chipShellBaseClass(
+        this.chipDragShellClass,
+        this.chipDragShellNoHandleClass
+      ),
       active: this.isGroupChipActive(group.id),
       activeClass: this.chipThemes.members.active,
       inactiveClass: this.chipThemes.members.inactive,
@@ -226,6 +234,7 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
       return [];
     }
     const items: CardActionsOverflowItem[] = [
+      this.chipReorder.reorderOverflowItem(),
       {
         id: "members",
         label: "Manage members",
@@ -240,6 +249,7 @@ export class HomeGroupFiltersComponent implements OnInit, OnChanges {
     }
     return [
       items[0]!,
+      items[1]!,
       {
         id: "edit",
         label: "Rename group",

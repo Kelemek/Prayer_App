@@ -55,12 +55,13 @@
       cdkDrag
       [cdkDragData]="category"
       [attr.data-personal-category-chip]="category"
-      [cdkDragDisabled]="isCategorySwapping(category)"
+      [cdkDragDisabled]="namedCategoryReorder.isChipDragDisabled(isCategorySwapping(category))"
       (cdkDragStarted)="categoryDragStarted.emit()"
       (cdkDragEnded)="categoryDragEnded.emit()"
       [class]="chipHostClass"
     >
       <div [class]="categoryChipButtonClass(category)">
+        @if (namedCategoryReorder.handlesVisible) {
         <span
           cdkDragHandle
           data-personal-category-drag-handle
@@ -90,6 +91,7 @@
             <circle cx="15" cy="19" r="1"></circle>
           </svg>
         </span>
+        }
         <button
           type="button"
           data-personal-category-select

@@ -307,7 +307,12 @@ describe("HomeGroupFiltersComponent", () => {
 
   it("includes manage members in overflow items for owners", () => {
     const items = fixture.componentInstance.overflowItems(familyGroup);
-    expect(items.map((item) => item.id)).toEqual(["members", "edit", "delete"]);
+    expect(items.map((item) => item.id)).toEqual([
+      "reorder",
+      "members",
+      "edit",
+      "delete",
+    ]);
   });
 
   it("uses the Groups tab slate fill instead of Public blue", () => {
@@ -339,7 +344,12 @@ describe("HomeGroupFiltersComponent", () => {
     expect(dropList.className).not.toContain("contents");
   });
 
-  it("shows a drag handle on group chips", () => {
+  it("shows a drag handle on group chips when reorder mode is on", () => {
+    expect(
+      fixture.nativeElement.querySelector("[data-group-filter-drag-handle]")
+    ).toBeFalsy();
+    fixture.componentInstance.chipReorder.toggle();
+    fixture.detectChanges();
     const handle = fixture.nativeElement.querySelector(
       "[data-group-filter-drag-handle]"
     );

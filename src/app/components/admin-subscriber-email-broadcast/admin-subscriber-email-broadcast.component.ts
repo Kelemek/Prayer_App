@@ -20,6 +20,7 @@ export type AdminBroadcastBodyFormat = 'html' | 'markdown';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
+      id="admin-subscriber-email-broadcast-section"
       class="mb-4 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/40"
       [class.cursor-pointer]="!sectionExpanded"
       (click)="!sectionExpanded && toggleSection()"

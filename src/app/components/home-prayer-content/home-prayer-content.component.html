@@ -226,13 +226,14 @@
   <div
     cdkDropList
     (cdkDropListDropped)="handlers.onPersonalPrayerDrop($event)"
-    [cdkDropListDisabled]="!canReorderPersonalPrayers"
+    [cdkDropListDisabled]="!personalPrayerDragActive"
     [class]="stackGapClass"
   >
     @for (prayer of filteredPersonalPrayers; track prayer.id; let
     isFirstPrayer = $first) {
     <div
       cdkDrag
+      [cdkDragDisabled]="!personalPrayerDragActive"
       [attr.id]="'prayer-card-' + prayer.id"
       [class.relative]="personalCategoryPickerPrayerId === prayer.id"
       [class.z-30]="personalCategoryPickerPrayerId === prayer.id"
@@ -244,7 +245,10 @@
         [isPersonal]="true"
         [deletionsAllowed]="'everyone'"
         [updatesAllowed]="'everyone'"
-        [personalDragHandle]="canReorderPersonalPrayers"
+        [personalDragHandle]="
+          personalPrayerDragActive || personalWalkthroughDragHandle(prayer)
+        "
+        [personalNamedReorderMenu]="personalReorderOverflowMenu"
         [personalDragTourId]="
           prayer.prayer_for === personalWalkthroughPrayerFor
             ? 'tour-walkthrough-personal-drag-handle'

@@ -1,6 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BehaviorSubject, Subject, of } from 'rxjs';
 import { AdminComponent } from './admin.component';
+import { markAdminIntroTourSeen } from '../../lib/admin-intro-tour-seen';
+
+vi.mock('../../lib/planning-center', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../lib/planning-center')>();
+  return {
+    ...actual,
+    fetchPlanningCenterCredentialsStatus: vi.fn().mockResolvedValue({
+      status: { configured: false, enabled: false, app_id_last4: null },
+      error: null,
+    }),
+  };
+});
 
 const MOCK_TENANT_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 
@@ -8,8 +20,11 @@ describe('AdminComponent', () => {
   let component: AdminComponent;
   let adminDataService: any;
   let analyticsService: any;
-  let adminAuthService: any;
   let userSessionService: any;
+  let feedbackService: any;
+  let supabaseService: any;
+  let adminHelpTourLauncher: any;
+  let adminHelpDriverTourService: any;
   let tenantContextService: any;
   let router: any;
   let route: any;
@@ -18,6 +33,8 @@ describe('AdminComponent', () => {
   let cdr: any;
 
   beforeEach(() => {
+    markAdminIntroTourSeen(MOCK_TENANT_ID, 'admin@example.com');
+
     adminDataService = {
       data$: new Subject<any>(),
       fetchAdminData: vi.fn(),
@@ -84,8 +101,27 @@ describe('AdminComponent', () => {
       refresh: vi.fn().mockResolvedValue(undefined),
     };
 
-    adminAuthService = {
-      user$: of({ email: 'admin@example.com' }),
+    feedbackService = {
+      isConfigured: vi.fn().mockResolvedValue(false),
+      submitFeedback: vi.fn().mockResolvedValue(undefined),
+    };
+
+    supabaseService = {
+      client: {},
+    };
+
+    adminHelpTourLauncher = {
+      bindHost: vi.fn(),
+      setMarkIntroSeenHandler: vi.fn(),
+      startSectionTour: vi.fn(),
+      startIntroGuidedTour: vi.fn(),
+      tryAutoStartIntroTour: vi.fn(),
+      interruptTours: vi.fn(),
+    };
+
+    adminHelpDriverTourService = {
+      interruptTours: vi.fn(),
+      isIntroChainActive: vi.fn(() => false),
     };
 
     userSessionService = {
@@ -106,12 +142,15 @@ describe('AdminComponent', () => {
       route,
       adminDataService,
       analyticsService,
-      adminAuthService,
       userSessionService,
       tenantContextService,
       toastService,
       ngZone,
-      cdr
+      cdr,
+      feedbackService,
+      supabaseService,
+      adminHelpTourLauncher,
+      adminHelpDriverTourService,
     );
   });
 

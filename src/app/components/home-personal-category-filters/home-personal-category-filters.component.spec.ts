@@ -10,6 +10,7 @@ import {
   HOME_WRAP_FILTER_CHIP_FLEX_CLASS,
 } from "../../lib/home-sub-filter-chip-classes";
 import { HomePersonalCategoryFiltersComponent } from "./home-personal-category-filters.component";
+import { HomeReorderHandlesUi } from "../../lib/home-reorder-handles-ui";
 
 const componentDir = dirname(fileURLToPath(import.meta.url));
 
@@ -36,6 +37,7 @@ describe("HomePersonalCategoryFiltersComponent", () => {
     }).compileComponents();
 
     fixture = TestBed.createComponent(HomePersonalCategoryFiltersComponent);
+    fixture.componentInstance.namedCategoryReorder = new HomeReorderHandlesUi();
     fixture.componentInstance.personalPrayersCount = 8;
     fixture.componentInstance.filterMode = "current";
     fixture.componentInstance.personalCategoryActiveClass = "active-class";
@@ -101,7 +103,7 @@ describe("HomePersonalCategoryFiltersComponent", () => {
       ).length
     ).toBe(2);
     const items = fixture.componentInstance.overflowItems("Family");
-    expect(items.map((item) => item.id)).toEqual(["edit", "delete"]);
+    expect(items.map((item) => item.id)).toEqual(["reorder", "edit", "delete"]);
   });
 
   it("emits renameCategory from the overflow rename action", () => {
@@ -109,7 +111,7 @@ describe("HomePersonalCategoryFiltersComponent", () => {
     fixture.componentInstance.renameCategory.subscribe((category) =>
       emitted.push(category)
     );
-    fixture.componentInstance.overflowItems("Health")[0]?.onSelect();
+    fixture.componentInstance.overflowItems("Health")[1]?.onSelect();
     expect(emitted).toEqual(["Health"]);
   });
 
@@ -155,7 +157,7 @@ describe("HomePersonalCategoryFiltersComponent", () => {
     fixture.componentInstance.deleteCategory.subscribe((category) =>
       emitted.push(category)
     );
-    fixture.componentInstance.overflowItems("Family")[1]?.onSelect();
+    fixture.componentInstance.overflowItems("Family")[2]?.onSelect();
     fixture.detectChanges();
     expect(fixture.componentInstance.pendingDeleteCategory).toBe("Family");
     expect(emitted).toEqual([]);

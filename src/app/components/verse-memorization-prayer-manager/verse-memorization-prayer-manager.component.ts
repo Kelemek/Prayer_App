@@ -30,6 +30,7 @@ import { AppTopChromeOverlayDirective } from '../../directives/app-top-chrome-ov
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
+      id="verse-memorization-prayer-manager-section"
       class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 transition-colors dark:hover:bg-gray-700/40"
       [class.cursor-pointer]="!sectionExpanded"
       (click)="!sectionExpanded && onSectionToggle()"

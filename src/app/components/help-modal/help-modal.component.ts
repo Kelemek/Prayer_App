@@ -18,6 +18,11 @@ import { Observable } from "rxjs";
 import { HelpContentService } from "../../services/help-content.service";
 import { HelpSection } from "../../types/help-content";
 import { isHomeHelpTourSectionId } from "../../lib/home-help-tour-dispatch";
+import { isAdminHelpTourSectionId } from "../../lib/admin-help-tour-dispatch";
+import {
+  isAdminHelpSectionVisibleInTour,
+  type AdminHelpTourVisibilityContext,
+} from "../../lib/admin-help-tour-visibility";
 import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
 import { CHURCH_GREEN_SHELL_BORDER_CLASS } from "../../lib/home-sub-filter-chip-classes";
 
@@ -53,7 +58,7 @@ import { CHURCH_GREEN_SHELL_BORDER_CLASS } from "../../lib/home-sub-filter-chip-
               Help & Guidance
             </h2>
             <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1 text-pretty">
-              Learn how to use the Prayer App
+              {{ catalogSubtitle }}
             </p>
             <button
               type="button"
@@ -301,6 +306,9 @@ import { CHURCH_GREEN_SHELL_BORDER_CLASS } from "../../lib/home-sub-filter-chip-
   ],
 })
 export class HelpModalComponent implements OnInit {
+  @Input() catalogMode: "home" | "admin" = "home";
+  /** When set, admin **Show me** only appears for sections visible in the current tenant UI. */
+  @Input() adminHelpTourVisibility: AdminHelpTourVisibilityContext | null = null;
   @Input() isOpen = false;
   @Output() closeModal = new EventEmitter<void>();
   @Output() startSectionTour = new EventEmitter<HelpSection>();
@@ -323,11 +331,20 @@ export class HelpModalComponent implements OnInit {
   private readonly sanitizer = inject(DomSanitizer);
   private readonly destroyRef = inject(DestroyRef);
 
+  get catalogSubtitle(): string {
+    return this.catalogMode === "admin"
+      ? "Admin settings, queues, and guided tours"
+      : "Learn how to use the Prayer App";
+  }
+
   ngOnInit(): void {
     this.isLoading$ = this.helpContentService.isLoading$;
     this.error$ = this.helpContentService.error$;
-    this.helpContentService
-      .getSections()
+    const sections$ =
+      this.catalogMode === "admin"
+        ? this.helpContentService.getAdminSections()
+        : this.helpContentService.getSections();
+    sections$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((sections) => {
         this.sections = sections;
@@ -348,6 +365,18 @@ export class HelpModalComponent implements OnInit {
   }
 
   hasTour(section: HelpSection): boolean {
+    if (this.catalogMode === "admin") {
+      if (!isAdminHelpTourSectionId(section.id)) {
+        return false;
+      }
+      if (!this.adminHelpTourVisibility) {
+        return true;
+      }
+      return isAdminHelpSectionVisibleInTour(
+        section.id,
+        this.adminHelpTourVisibility
+      );
+    }
     return isHomeHelpTourSectionId(section.id);
   }
 

@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { driver, type Driver, type DriveStep, type DriverHook, type Config } from 'driver.js';
+import { HelpDriverTourChain } from '../lib/help-driver-tour-chain';
 import type { HelpContent, HelpSection } from '../types/help-content';
 
 export const TOUR_REQUEST_BTN_MOBILE_ID = 'tour-btn-new-prayer-request-mobile';
@@ -513,14 +514,16 @@ export interface PersonalPrayersHelpSectionTourHooks {
 })
 export class HelpDriverTourService {
   private activeDriver: Driver | null = null;
-  /** Fired once when the active driver is destroyed (finished, closed, or `destroy()`). */
-  private tourFinishedCallback: (() => void) | null = null;
-  /** Drives how `tourFinishedCallback` runs when the **full guided tour** advances between sections. */
-  private tourChainMode: 'off' | 'sectionAdvance' | 'welcome' = 'off';
-  /** Set only when ending the driver via `killActiveDriver()` (tour code), not × / overlay / escape. */
-  private lastDriverDestroyWasProgrammatic = false;
-  /** User closed the overlay or popover close control during a chained section tour. */
-  private tourAbortedFullChainByUser = false;
+
+  private readonly tourChain = new HelpDriverTourChain({
+    onDriverTeardown: () => {
+      this.activeDriver = null;
+    },
+    onSectionAdvanceStopped: () => {
+      this.clearFullGuidedTourNavigationState();
+      this.clearFullGuidedTourProgress();
+    },
+  });
 
   private readonly fullGuidedTourProgressSubject = new BehaviorSubject<FullGuidedTourProgress | null>(null);
   /** Emits while **Full guided tour** is active (`null` when hidden). */
@@ -574,17 +577,13 @@ export class HelpDriverTourService {
    * Cleared when `destroy()` is called or when the next tour starts.
    */
   queueTourFinishedCallback(fn: (() => void) | null): void {
-    this.tourFinishedCallback = fn;
-    this.tourChainMode = fn ? 'sectionAdvance' : 'off';
+    this.tourChain.queueTourFinishedCallback(fn);
   }
 
   /** Tear down the active driver only (keeps `queueTourFinishedCallback` for full-tour chaining). */
   private killActiveDriver(): void {
-    if (this.activeDriver) {
-      this.lastDriverDestroyWasProgrammatic = true;
-      this.activeDriver.destroy();
-      this.activeDriver = null;
-    }
+    this.tourChain.killActiveDriver(this.activeDriver);
+    this.activeDriver = null;
   }
 
   /**
@@ -618,85 +617,7 @@ export class HelpDriverTourService {
   }
 
   private startTourDriver(config: Config): Driver {
-    const userOnDestroyed = config.onDestroyed;
-    const userOnCloseClick = config.onCloseClick;
-    const userOverlay = config.overlayClickBehavior;
-    const chainSection = this.tourChainMode === 'sectionAdvance';
-    const overlayClickBehavior: Config['overlayClickBehavior'] =
-      chainSection && userOverlay !== 'nextStep'
-        ? typeof userOverlay === 'function'
-          ? (element, step, opts) => {
-              this.tourAbortedFullChainByUser = true;
-              userOverlay(element, step, opts);
-            }
-          : (_element, _step, opts) => {
-              this.tourAbortedFullChainByUser = true;
-              opts.driver.destroy();
-            }
-        : userOverlay;
-
-    const d = driver({
-      ...config,
-      overlayClickBehavior,
-      onCloseClick: (element, step, opts) => {
-        if (chainSection) {
-          this.tourAbortedFullChainByUser = true;
-        }
-        if (userOnCloseClick) {
-          userOnCloseClick(element, step, opts);
-        } else {
-          opts.driver.destroy();
-        }
-      },
-      onDestroyed: (element, step, opts) => {
-        userOnDestroyed?.(element, step, opts);
-        const mode = this.tourChainMode;
-        const cb = this.tourFinishedCallback;
-        const steps = opts.config.steps ?? [];
-        const idx = opts.state.activeIndex;
-        const onLastIndex =
-          steps.length > 0 && typeof idx === 'number' && idx === steps.length - 1;
-        const programmatic = this.lastDriverDestroyWasProgrammatic;
-        this.lastDriverDestroyWasProgrammatic = false;
-
-        let runCallback = false;
-        if (cb) {
-          if (mode === 'sectionAdvance') {
-            const userAbort = this.tourAbortedFullChainByUser;
-            this.tourAbortedFullChainByUser = false;
-            if (programmatic) {
-              runCallback = true;
-            } else if (userAbort) {
-              runCallback = false;
-            } else {
-              runCallback = onLastIndex;
-            }
-            if (!runCallback) {
-              this.clearFullGuidedTourNavigationState();
-              this.clearFullGuidedTourProgress();
-            }
-          } else if (mode === 'welcome') {
-            runCallback = true;
-          } else {
-            runCallback = true;
-          }
-        }
-
-        this.tourFinishedCallback = null;
-        this.tourChainMode = 'off';
-        this.activeDriver = null;
-
-        if (runCallback && cb) {
-          window.setTimeout(() => {
-            try {
-              cb();
-            } catch {
-              /* ignore */
-            }
-          }, 0);
-        }
-      },
-    });
+    const d = driver(this.tourChain.wrapDriverConfig(config));
     this.activeDriver = d;
     return d;
   }
@@ -714,12 +635,11 @@ export class HelpDriverTourService {
     } else {
       this.clearFullGuidedTourProgress();
     }
-    this.tourFinishedCallback = onBegin;
-    this.tourChainMode = 'welcome';
+    this.tourChain.beginWelcomeChain(onBegin);
 
     /** Clears handoff only when the user aborts the **whole** full tour (not when tapping **Begin**). */
     const dismissWelcome = (): void => {
-      this.tourFinishedCallback = null;
+      this.tourChain.clearWelcomeChain();
       this.clearFullGuidedTourNavigationState();
       this.clearFullGuidedTourProgress();
     };
@@ -3022,7 +2942,7 @@ export class HelpDriverTourService {
         const idx = opts.state.activeIndex;
         const onLast =
           stepsArr.length > 0 && typeof idx === 'number' && idx === stepsArr.length - 1;
-        const prog = this.lastDriverDestroyWasProgrammatic;
+        const prog = this.tourChain.peekProgrammaticDestroyFlag();
         if (!onLast && !prog) {
           hooks.onFullGuidedTourInterrupted?.();
         }
@@ -3033,10 +2953,7 @@ export class HelpDriverTourService {
   }
 
   destroy(): void {
-    this.tourFinishedCallback = null;
-    this.tourChainMode = 'off';
-    this.lastDriverDestroyWasProgrammatic = false;
-    this.tourAbortedFullChainByUser = false;
+    this.tourChain.reset();
     this.killActiveDriver();
   }
 }

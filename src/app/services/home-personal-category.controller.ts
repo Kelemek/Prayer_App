@@ -15,6 +15,8 @@ import {
   renamePersonalCategoryWithColors,
   type RenamePersonalCategoryWithColorsResult,
 } from "../lib/personal-category-rename";
+import { HomeReorderHandlesUi } from "../lib/home-reorder-handles-ui";
+import type { CardActionsOverflowItem } from "../components/card-actions-overflow-menu/card-actions-overflow-menu.types";
 
 export interface HomePersonalCategoryHost {
   getPersonalPrayers(): PrayerRequest[];
@@ -48,6 +50,9 @@ export class HomePersonalCategoryController {
   isReorderingPersonalPrayers = false;
   isDeletingPersonalCategory = false;
 
+  /** Shared reorder-handle toggle for named single-category chips and prayer cards. */
+  readonly namedCategoryReorder = new HomeReorderHandlesUi();
+
   readonly personalCategoryActiveClass = HOME_PERSONAL_SUB_FILTER_CHIP_ACTIVE_CLASS;
 
   private host: HomePersonalCategoryHost | null = null;
@@ -69,6 +74,7 @@ export class HomePersonalCategoryController {
     this.prayerService = deps.prayerService;
     this.personalCategoryColorService = deps.personalCategoryColorService;
     this.toastService = deps.toastService;
+    this.namedCategoryReorder.setNotifyChange(() => this.requireHost().markForCheck());
   }
 
   dispose(): void {
@@ -79,6 +85,18 @@ export class HomePersonalCategoryController {
     return (
       this.personalCategoryFilterMode === "named" &&
       this.selectedPersonalCategories.length === 1
+    );
+  }
+
+  get personalPrayerDragActive(): boolean {
+    return this.namedCategoryReorder.isReorderActive(
+      this.canReorderPersonalPrayers
+    );
+  }
+
+  get personalReorderOverflowMenu(): CardActionsOverflowItem | null {
+    return this.namedCategoryReorder.reorderMenuWhen(
+      this.canReorderPersonalPrayers
     );
   }
 
@@ -119,6 +137,7 @@ export class HomePersonalCategoryController {
   ): void {
     this.personalCategoryFilterMode = mode;
     this.selectedPersonalCategories = [];
+    this.syncNamedReorderEligibility();
     this.requireHost().onFilterStateChanged();
   }
 
@@ -131,7 +150,14 @@ export class HomePersonalCategoryController {
     } else {
       this.personalCategoryFilterMode = "named";
       this.selectedPersonalCategories = [category];
+      this.syncNamedReorderEligibility();
       this.requireHost().onFilterStateChanged();
+    }
+  }
+
+  private syncNamedReorderEligibility(): void {
+    if (!this.canReorderPersonalPrayers) {
+      this.namedCategoryReorder.resetHandles();
     }
   }
 
@@ -323,6 +349,7 @@ export class HomePersonalCategoryController {
       this.showCreatePersonalCategory = false;
       this.personalCategoryFilterMode = "named";
       this.selectedPersonalCategories = [result.name];
+      this.syncNamedReorderEligibility();
       toastService.success("Category created.");
       this.requireHost().onFilterStateChanged();
       void colorService.loadColors(true);
@@ -379,6 +406,7 @@ export class HomePersonalCategoryController {
               this.selectedPersonalCategories.map((category) =>
                 category === oldName ? appliedCategory : category
               );
+            this.syncNamedReorderEligibility();
             this.requireHost().markForCheck();
           },
           isCancelled: () =>
@@ -396,6 +424,7 @@ export class HomePersonalCategoryController {
       }
       if (result.status === "failed" || result.status === "cancelled") {
         this.selectedPersonalCategories = previousSelection;
+        this.syncNamedReorderEligibility();
         this.requireHost().markForCheck();
         return;
       }
@@ -458,6 +487,7 @@ export class HomePersonalCategoryController {
     } else {
       this.selectedPersonalCategories = [];
     }
+    this.syncNamedReorderEligibility();
     this.requireHost().onFilterStateChanged();
   }
 
@@ -471,18 +501,21 @@ export class HomePersonalCategoryController {
       case "cancelled":
       case "failed":
         this.selectedPersonalCategories = previousSelection;
+        this.syncNamedReorderEligibility();
         this.requireHost().markForCheck();
         return;
       case "success":
         this.selectedPersonalCategories = previousSelection.map((category) =>
           category === oldName ? newName : category
         );
+        this.syncNamedReorderEligibility();
         this.requireHost().markForCheck();
         return;
       case "partial":
         this.selectedPersonalCategories = previousSelection.map((category) =>
           category === oldName ? result.appliedCategory : category
         );
+        this.syncNamedReorderEligibility();
         this.requireHost().markForCheck();
         return;
       default: {

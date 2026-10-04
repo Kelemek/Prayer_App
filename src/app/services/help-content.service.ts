@@ -3,6 +3,11 @@ import { BehaviorSubject, Observable } from 'rxjs';
 import { SupabaseService } from './supabase.service';
 import { HelpSection, HelpSectionInput } from '../types/help-content';
 import type { HomeHelpTourSectionId } from '../lib/home-help-tour-dispatch';
+import type { AdminHelpTourSectionId } from '../lib/admin-help-tour-ids';
+import {
+  ADMIN_HELP_SECTIONS_IN_DISPLAY_ORDER,
+  adminHelpSectionsFromCatalog,
+} from '../lib/admin-help-catalog';
 
 type HelpSectionRow = Pick<HelpSection, 'id' | 'title' | 'description' | 'icon' | 'content'>;
 
@@ -525,6 +530,12 @@ const _homeHelpTourIdsAreCatalogIds: HomeHelpTourSectionId extends HelpCatalogId
   ? true
   : never = true;
 
+type AdminHelpCatalogId = (typeof ADMIN_HELP_SECTIONS_IN_DISPLAY_ORDER)[number]['id'];
+
+const _adminHelpTourIdsAreCatalogIds: AdminHelpTourSectionId extends AdminHelpCatalogId
+  ? true
+  : never = true;
+
 function helpSectionsFromCatalog(now: Date): HelpSection[] {
   return HELP_SECTIONS_IN_DISPLAY_ORDER.map((row, index) => ({
     ...row,
@@ -541,6 +552,9 @@ function helpSectionsFromCatalog(now: Date): HelpSection[] {
 })
 export class HelpContentService {
   private sectionsSubject = new BehaviorSubject<HelpSection[]>(this.getDefaultSections());
+  private adminSectionsSubject = new BehaviorSubject<HelpSection[]>(
+    adminHelpSectionsFromCatalog(new Date())
+  );
   private isLoadingSubject = new BehaviorSubject<boolean>(false);
   private errorSubject = new BehaviorSubject<string | null>(null);
 
@@ -567,6 +581,10 @@ export class HelpContentService {
    */
   getSections(): Observable<HelpSection[]> {
     return this.sections$;
+  }
+
+  getAdminSections(): Observable<HelpSection[]> {
+    return this.adminSectionsSubject.asObservable();
   }
 
   /**

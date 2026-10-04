@@ -213,6 +213,13 @@ export const HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS = [
   "py-2 rounded-lg text-xs font-medium whitespace-nowrap",
 ].join(" ");
 
+/** Same shell as {@link HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS} without handle gutter padding. */
+export const HOME_SUB_FILTER_CHIP_DRAG_STRETCH_NO_HANDLE_CLASS = [
+  "relative flex min-h-9 w-full min-w-max items-center gap-0.5 text-center pl-0.5 pr-0.5",
+  HOME_SUB_FILTER_CHIP_MOTION_CLASS,
+  "py-2 rounded-lg text-xs font-medium whitespace-nowrap",
+].join(" ");
+
 /** Full-width solo-row chip button; label may truncate when constrained. */
 export const HOME_SUB_FILTER_CHIP_DRAG_SOLO_STRETCH_CLASS = [
   "relative flex w-full min-w-0 items-center gap-1 overflow-hidden text-center pl-7 pr-3",

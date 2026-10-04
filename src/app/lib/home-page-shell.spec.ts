@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHomePageShell, createHomePageShellHandlers } from "./home-page-shell";
+import { HomeReorderHandlesUi } from "./home-reorder-handles-ui";
 
 function minimalDeps(overrides: Record<string, unknown> = {}) {
   const modals = {
@@ -29,6 +30,7 @@ function minimalDeps(overrides: Record<string, unknown> = {}) {
       uniquePersonalCategories: ['Family'],
       isCategoryDropListDisabled: false,
       canReorderPersonalPrayers: true,
+      namedCategoryReorder: new HomeReorderHandlesUi(),
       showRenamePersonalCategory: false,
       renamingPersonalCategory: null,
       personalCategoryRenameDeferInputFocus: false,

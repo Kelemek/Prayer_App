@@ -10,7 +10,7 @@ import { TenantContextService } from '../../services/tenant-context.service';
   imports: [FormsModule, AdminSectionLoadingComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/40" [class.cursor-pointer]="!sectionExpanded" (click)="!sectionExpanded && onSectionToggle()">
+    <div id="app-branding-settings-section" class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/40" [class.cursor-pointer]="!sectionExpanded" (click)="!sectionExpanded && onSectionToggle()">
       <button
         type="button"
         id="app-branding-settings-trigger"
@@ -77,7 +77,7 @@ import { TenantContextService } from '../../services/tenant-context.service';
             [(ngModel)]="appTitle"
             name="appTitle"
             aria-label="Application title"
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-inset-surface text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-inset-surface text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Church Prayer Manager"
           />
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -96,7 +96,7 @@ import { TenantContextService } from '../../services/tenant-context.service';
             [(ngModel)]="churchWebsiteUrl"
             name="churchWebsiteUrl"
             aria-label="Church website URL for header logo link"
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-inset-surface text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-inset-surface text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="https://www.example.org"
           />
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">

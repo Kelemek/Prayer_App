@@ -9,10 +9,12 @@ import {
   HOME_PERSONAL_NAMED_CHIP_INACTIVE_CLASS,
   HOME_PERSONAL_SUB_FILTER_GROUP_CLASS,
   HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS,
+  HOME_SUB_FILTER_CHIP_DRAG_STRETCH_NO_HANDLE_CLASS,
   HOME_SUB_FILTER_CHIP_ROW_CLASS,
   HOME_WRAP_FILTER_CHIP_FLEX_CLASS,
   HOME_SUB_FILTER_ADD_CHIP_GHOST_INACTIVE_GREEN_CLASS,
 } from "../../lib/home-sub-filter-chip-classes";
+import type { HomeReorderHandlesUi } from "../../lib/home-reorder-handles-ui";
 import { buildHomeSubFilterChipButtonClass } from "../../lib/home-sub-filter-chip-button-class";
 import { HOME_SHELL_SECTION_GAP_CLASSES } from "../../lib/home-shell-spacing";
 import { HomeSubFilterChipComponent } from "../home-sub-filter-chip/home-sub-filter-chip.component";
@@ -36,6 +38,8 @@ import { ConfirmationDialogComponent } from "../confirmation-dialog/confirmation
   host: { class: "block" },
 })
 export class HomePersonalCategoryFiltersComponent {
+  @Input({ required: true }) namedCategoryReorder!: HomeReorderHandlesUi;
+
   @Input({ required: true }) personalPrayersCount!: number;
   @Input({ required: true }) filterMode!: PersonalCategoryFilterMode;
   @Input({ required: true }) personalCategoryActiveClass!: string;
@@ -64,6 +68,8 @@ export class HomePersonalCategoryFiltersComponent {
 
   readonly chipHostClass = HOME_WRAP_FILTER_CHIP_FLEX_CLASS;
   readonly chipButtonClass = HOME_SUB_FILTER_CHIP_DRAG_STRETCH_CLASS;
+  readonly chipButtonNoHandleClass =
+    HOME_SUB_FILTER_CHIP_DRAG_STRETCH_NO_HANDLE_CLASS;
   readonly namedChipInactiveClass = HOME_PERSONAL_NAMED_CHIP_INACTIVE_CLASS;
   /** Current / Answered / Total rest state matches the add control. */
   readonly statusChipInactiveClass =
@@ -76,7 +82,10 @@ export class HomePersonalCategoryFiltersComponent {
 
   categoryChipButtonClass(category: string): string {
     return buildHomeSubFilterChipButtonClass({
-      base: this.chipButtonClass,
+      base: this.namedCategoryReorder.chipShellBaseClass(
+        this.chipButtonClass,
+        this.chipButtonNoHandleClass
+      ),
       active: this.isPersonalCategorySelected(category),
       activeClass: this.personalCategoryActiveClass,
       inactiveClass: this.namedChipInactiveClass,
@@ -89,6 +98,7 @@ export class HomePersonalCategoryFiltersComponent {
       return [];
     }
     return [
+      this.namedCategoryReorder.reorderOverflowItem(),
       {
         id: "edit",
         label: "Rename category",

@@ -11,6 +11,7 @@ import { NgClass } from '@angular/common';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastService } from '../../services/toast.service';
 import { TenantContextService } from '../../services/tenant-context.service';
+import { adminCollapsibleTourSectionId } from '../../lib/admin-help-tour-anchors';
 
 export interface HourlyReminderTemplateOption {
   value: string;
@@ -25,6 +26,7 @@ export interface HourlyReminderTemplateOption {
   template: `
     <div class="mb-4">
       <div
+        [id]="tourSectionElementId"
         class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/40"
         [class.cursor-pointer]="!expanded"
         (click)="!expanded && toggleExpanded()"
@@ -241,6 +243,11 @@ export class HourlyReminderTemplateSectionComponent implements OnInit {
   @Output() loadFailed = new EventEmitter<string>();
 
   expanded = false;
+
+  get tourSectionElementId(): string {
+    return adminCollapsibleTourSectionId(this.triggerId);
+  }
+
   showDropdown = false;
   selectedKey = '';
   loading = false;

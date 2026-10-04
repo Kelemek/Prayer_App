@@ -4,6 +4,8 @@ import type { HomePrayerCardActionsController } from "../services/home-prayer-ca
 import type { HomeModalController } from "../services/home-modal.controller";
 import type { HomeFilterCoordinator } from "../services/home-filter.coordinator";
 import type { HomePersonalCategoryController } from "../services/home-personal-category.controller";
+import type { HomeReorderHandlesUi } from "./home-reorder-handles-ui";
+import type { CardActionsOverflowItem } from "../components/card-actions-overflow-menu/card-actions-overflow-menu.types";
 import type { HomeMemorizationPanelController } from "../services/home-memorization-panel.controller";
 import type { HomeHelpTourLauncher } from "../services/home-help-tour.launcher";
 import type { HomeAdminNavigationController } from "../services/home-admin-navigation.controller";
@@ -97,6 +99,9 @@ export interface HomePageShell {
     readonly uniqueCategories: string[];
     readonly isCategoryDropListDisabled: boolean;
     readonly canReorderPersonalPrayers: boolean;
+    readonly namedCategoryReorder: HomeReorderHandlesUi;
+    readonly personalPrayerDragActive: boolean;
+    readonly personalReorderOverflowMenu: CardActionsOverflowItem | null;
     personalCurrentCount(): number;
     personalAnsweredCount(): number;
     isCategorySwapping(category: string): boolean;
@@ -231,6 +236,15 @@ export function createHomePageShell(deps: HomePageShellDeps): HomePageShell {
     },
     get canReorderPersonalPrayers() {
       return deps.personalCategory.canReorderPersonalPrayers;
+    },
+    get namedCategoryReorder() {
+      return deps.personalCategory.namedCategoryReorder;
+    },
+    get personalPrayerDragActive() {
+      return deps.personalCategory.personalPrayerDragActive;
+    },
+    get personalReorderOverflowMenu() {
+      return deps.personalCategory.personalReorderOverflowMenu;
     },
     personalCurrentCount: () =>
       deps.personalCategory.personalCurrentPrayersCount(deps.getPersonalPrayers()),
