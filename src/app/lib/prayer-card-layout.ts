@@ -120,6 +120,10 @@ export function getMetaHeaderBandLayoutClasses(
   return META_HEADER_BAND_LAYOUT;
 }
 
+/** Home prayer card update body — same size/color as home `descriptionClasses`. */
+export const HOME_PRAYER_UPDATE_CONTENT_CLASS =
+  'block text-gray-600 dark:text-gray-300';
+
 export type PrayerCardVariant = 'home' | 'presentation';
 
 interface CardVariantChrome {
@@ -204,7 +208,7 @@ const HOME_PRAYER_CARD_VARIANT_LAYOUT: PrayerCardVariantLayout = {
     'w-20 h-20 rounded-full object-cover border border-gray-300 dark:border-gray-600 flex-shrink-0',
   updateRowSize: 'sm',
   updateShellClass: 'rounded-lg',
-  updateContentClass: 'block text-sm text-gray-700 dark:text-gray-300',
+  updateContentClass: HOME_PRAYER_UPDATE_CONTENT_CLASS,
   updateSectionSpacing: 'space-y-3',
   updateToggleButtonClasses:
     'text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center gap-1',

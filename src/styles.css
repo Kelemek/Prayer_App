@@ -964,6 +964,35 @@ html.dark .settings-modal-section-card {
   border-color: #2F5F54;
 }
 
+/* Help modal topic rows — same 1px green default as settings sections; hover/expand without Tailwind !important */
+.help-modal-topic-card {
+  background-color: #ffffff;
+  border: 1px solid #2F5F54;
+  transition:
+    border-color 150ms ease-out,
+    background-color 150ms ease-out;
+}
+html.dark .help-modal-topic-card {
+  background-color: transparent;
+  border-color: #2F5F54;
+}
+.help-modal-topic-card:not(.help-modal-topic-card--expanded):hover {
+  border-color: #93c5fd;
+  background-color: #eff6ff;
+}
+html.dark .help-modal-topic-card:not(.help-modal-topic-card--expanded):hover {
+  border-color: #2563eb;
+  background-color: rgb(30 58 138 / 0.2);
+}
+.help-modal-topic-card--expanded {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+}
+html.dark .help-modal-topic-card--expanded {
+  border-color: #3b82f6;
+  background-color: rgb(30 58 138 / 0.2);
+}
+
 /* Modal and settings chrome edges — church green medium #2F5F54 */
 .modal-panel-edge,
 .modal-shell-panel,

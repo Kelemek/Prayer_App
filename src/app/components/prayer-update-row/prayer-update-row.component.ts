@@ -14,6 +14,7 @@ import {
   PRAYER_CARD_HEADER_BLEED_CLASSES,
   PRAYER_CARD_HEADER_INSET_CLASSES,
   PRAYER_CARD_SHELL_PADDING_CLASSES,
+  HOME_PRAYER_UPDATE_CONTENT_CLASS,
   PRAYER_UPDATE_ROW_SHELL_FILL_CLASSES,
   getUpdateRowHeaderBandRoundedClasses,
 } from '../../lib/prayer-card-layout';
@@ -77,7 +78,7 @@ export class PrayerUpdateRowComponent {
   @Input() size = 'sm' as const;
   @Input() showUpdatedBy = false;
   @Input() shellClass = 'rounded-lg';
-  @Input() contentClass = 'block text-sm text-gray-700 dark:text-gray-300';
+  @Input() contentClass = HOME_PRAYER_UPDATE_CONTENT_CLASS;
   /**
    * Bleed matches this row's shell padding (px-4 sm:px-6), not the outer presentation card.
    */

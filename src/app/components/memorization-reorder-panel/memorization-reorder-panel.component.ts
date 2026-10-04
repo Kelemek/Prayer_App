@@ -50,7 +50,7 @@ function slotIndexUnderPointer(listRoot: HTMLElement, clientX: number, clientY: 
   template: `
     <div
       class="rounded-md"
-      [class.ring-2]="listFlashError"
+      [class.ring-1]="listFlashError"
       [class.ring-red-400]="listFlashError"
       [class.dark:ring-red-500]="listFlashError"
       [class.p-1]="listFlashError"
@@ -119,7 +119,7 @@ function slotIndexUnderPointer(listRoot: HTMLElement, clientX: number, clientY: 
       <div
         aria-hidden="true"
         data-testid="memorize-reorder-drag-preview"
-        class="fixed z-[200] w-max max-w-none whitespace-nowrap rounded-md px-2.5 py-1 text-base leading-relaxed font-serif pointer-events-none select-none shadow-xl border-2 border-amber-300 dark:border-amber-600/80 bg-amber-50/95 dark:bg-amber-950/90 text-gray-800 dark:text-gray-100"
+        class="fixed z-[200] w-max max-w-none whitespace-nowrap rounded-md px-2.5 py-1 text-base leading-relaxed font-serif pointer-events-none select-none shadow-xl border border-amber-300 dark:border-amber-600/80 bg-amber-50/95 dark:bg-amber-950/90 text-gray-800 dark:text-gray-100"
         [style.left.px]="pointerDragPreview.x"
         [style.top.px]="pointerDragPreview.y"
         [style.transform]="'translate(-50%, calc(-100% - 10px))'"
@@ -225,7 +225,7 @@ export class MemorizationReorderPanelComponent implements OnInit, OnChanges, OnD
       'py-1': needsAttention,
       'sm:px-2': needsAttention,
       'sm:py-0.5': needsAttention,
-      'ring-2': isDragOver || needsAttention,
+      'ring-1': isDragOver || needsAttention,
       'ring-blue-400': isDragOver,
       'dark:ring-blue-500': isDragOver,
       'ring-amber-300': needsAttention && !isDragOver,

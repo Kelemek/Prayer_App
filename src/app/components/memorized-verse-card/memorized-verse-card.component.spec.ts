@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { Component, Input } from '@angular/core';
 import { MemorizedVerseCardComponent } from './memorized-verse-card.component';
+import { CardActionTrashIconComponent } from '../icons/card-action-trash-icon.component';
 import type { MemorizedItem } from '../../types/memorization';
 
 @Component({
@@ -37,7 +38,12 @@ describe('MemorizedVerseCardComponent', () => {
       imports: [MemorizedVerseCardComponent],
     })
       .overrideComponent(MemorizedVerseCardComponent, {
-        set: { imports: [ScriptureHoverPreviewStubComponent] },
+        set: {
+          imports: [
+            ScriptureHoverPreviewStubComponent,
+            CardActionTrashIconComponent,
+          ],
+        },
       })
       .compileComponents();
 

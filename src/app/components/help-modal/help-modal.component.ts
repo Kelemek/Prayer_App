@@ -11,7 +11,7 @@ import {
   inject,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
-import { CommonModule, NgClass } from "@angular/common";
+import { CommonModule } from "@angular/common";
 import { DomSanitizer, SafeHtml } from "@angular/platform-browser";
 import { FormsModule } from "@angular/forms";
 import { Observable } from "rxjs";
@@ -24,12 +24,16 @@ import {
   type AdminHelpTourVisibilityContext,
 } from "../../lib/admin-help-tour-visibility";
 import { AppTopChromeOverlayDirective } from "../../directives/app-top-chrome-overlay.directive";
-import { CHURCH_GREEN_SHELL_BORDER_CLASS } from "../../lib/home-sub-filter-chip-classes";
+import {
+  CHURCH_GREEN_SHELL_BORDER_CLASS,
+  MODAL_CHROME_BORDER_TOP_CLASS,
+} from "../../lib/home-sub-filter-chip-classes";
+import { HOME_SEARCH_INPUT_FIELD_CLASS } from "../../lib/home-search-input-classes";
 
 @Component({
   selector: "app-help-modal",
   standalone: true,
-  imports: [CommonModule, NgClass, FormsModule, AppTopChromeOverlayDirective],
+  imports: [CommonModule, FormsModule, AppTopChromeOverlayDirective],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (isOpen) {
@@ -43,12 +47,12 @@ import { CHURCH_GREEN_SHELL_BORDER_CLASS } from "../../lib/home-sub-filter-chip-
       aria-labelledby="help-modal-title"
     >
       <div
-        class="help-modal-panel bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg lg:max-w-2xl max-h-full overflow-y-auto"
+        class="help-modal-panel settings-modal-panel bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg lg:max-w-2xl max-h-full overflow-y-auto"
         #contentArea
         (click)="$event.stopPropagation()"
       >
         <div
-          class="flex items-start justify-between gap-3 p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700"
+          class="modal-chrome-header flex items-start justify-between gap-3 p-4 sm:p-6"
         >
           <div class="min-w-0">
             <h2
@@ -138,7 +142,7 @@ import { CHURCH_GREEN_SHELL_BORDER_CLASS } from "../../lib/home-sub-filter-chip-
           @if (error$ | async; as error) { @if (error && error !== 'Using
           default help content.') {
           <div
-            class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4"
+            class="rounded-lg p-3 sm:p-4 {{ churchGreenShellBorder }}"
           >
             <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 text-pretty">
               {{ error }}
@@ -150,13 +154,10 @@ import { CHURCH_GREEN_SHELL_BORDER_CLASS } from "../../lib/home-sub-filter-chip-
           <div class="flex flex-col gap-1.5 sm:gap-2">
             @for (section of filteredSections; track section.id) {
             <div
-              class="rounded-lg border-2 overflow-hidden transition-colors duration-150 ease-out"
-              [ngClass]="{
-                'border-blue-500 bg-blue-50 dark:bg-blue-900/20':
-                  isSectionExpanded(section.id),
-                'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20':
-                  !isSectionExpanded(section.id)
-              }"
+              class="help-modal-topic-card rounded-lg overflow-hidden"
+              [class.help-modal-topic-card--expanded]="
+                isSectionExpanded(section.id)
+              "
             >
               <button
                 type="button"
@@ -198,7 +199,7 @@ import { CHURCH_GREEN_SHELL_BORDER_CLASS } from "../../lib/home-sub-filter-chip-
               @if (isSectionExpanded(section.id)) {
               <div
                 [id]="'section-content-' + section.id"
-                class="px-3 sm:px-4 pb-3 sm:pb-4 border-t border-gray-200 dark:border-gray-700"
+                class="px-3 sm:px-4 pb-3 sm:pb-4 {{ modalChromeBorderTop }}"
               >
                 @if (hasTour(section)) {
                 <div class="pt-3 flex items-center justify-between gap-3">
@@ -242,7 +243,7 @@ import { CHURCH_GREEN_SHELL_BORDER_CLASS } from "../../lib/home-sub-filter-chip-
 
                     @if (content.examples && content.examples.length > 0) {
                     <div
-                      class="mt-2 pl-3 border-l-2 border-blue-500 dark:border-blue-400"
+                      class="mt-2 pl-3 border-l border-blue-500 dark:border-blue-400"
                     >
                       @for (example of content.examples; track $index) {
                       <p
@@ -325,7 +326,10 @@ export class HelpModalComponent implements OnInit {
 
   /** Matches home prayer search (`app-prayer-filters`). */
   readonly helpSearchInputClass =
-    `w-full pl-10 pr-4 py-2 sm:py-3 rounded-md bg-inset-surface-muted text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base ${CHURCH_GREEN_SHELL_BORDER_CLASS}`;
+    `w-full pl-10 pr-4 py-2 sm:py-3 text-sm sm:text-base ${HOME_SEARCH_INPUT_FIELD_CLASS}`;
+
+  readonly churchGreenShellBorder = CHURCH_GREEN_SHELL_BORDER_CLASS;
+  readonly modalChromeBorderTop = MODAL_CHROME_BORDER_TOP_CLASS;
 
   private readonly helpContentService = inject(HelpContentService);
   private readonly sanitizer = inject(DomSanitizer);

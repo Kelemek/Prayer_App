@@ -375,7 +375,7 @@ describe('MemorizationPracticeSessionComponent', () => {
         expect(span.classList.contains('px-1')).toBe(true);
         expect(span.classList.contains('inline-block')).toBe(true);
       }
-      expect(cues.querySelector('.ring-2')).toBeTruthy();
+      expect(cues.querySelector('.ring-1')).toBeTruthy();
     });
 
     it('configures the practice input to discourage Safari contact AutoFill', async () => {

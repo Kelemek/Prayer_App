@@ -24,6 +24,7 @@ import {
   estimateCardActionsOverflowHeight,
 } from './card-actions-overflow-menu-placement';
 import { CardActionsOverflowIconComponent } from './card-actions-overflow-icon.component';
+import { getCardActionsOverflowToneClass } from '../../lib/card-action-tone-classes';
 import type {
   CardActionsOverflowItem,
   CardActionsOverflowTone,
@@ -131,20 +132,7 @@ export class CardActionsOverflowMenuComponent implements OnDestroy {
   }
 
   toneClass(tone: CardActionsOverflowTone): string {
-    switch (tone) {
-      case 'blue':
-        return 'text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20';
-      case 'green':
-        return 'text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20';
-      case 'gray':
-        return 'text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/40';
-      case 'red':
-        return 'text-red-500 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20';
-      default: {
-        const _exhaustive: never = tone;
-        return _exhaustive;
-      }
-    }
+    return getCardActionsOverflowToneClass(tone);
   }
 
   toggleMenu(event: Event): void {

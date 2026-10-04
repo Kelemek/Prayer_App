@@ -26,9 +26,11 @@ import {
 } from '../../lib/memorization/memorization-mastery';
 import { sortMemorizedItemsForTable } from '../../lib/memorization/memorization-table-sort';
 import { splitScriptureReferenceDisplay } from '../../lib/memorization/parse-scripture-reference';
+import { CARD_ACTIONS_OVERFLOW_RED_TONE_CLASS } from '../../lib/card-action-tone-classes';
 import { MEMORIZE_CARD_SHELL_BORDER_CLASS } from '../../lib/home-sub-filter-chip-classes';
 import type { MemorizedItem } from '../../types/memorization';
 import { ScriptureHoverPreviewComponent } from '../scripture-hover-preview/scripture-hover-preview.component';
+import { CardActionTrashIconComponent } from '../icons/card-action-trash-icon.component';
 
 /** Reference flexes; sessions column grows for "Sessions ↑/↓" on mobile. */
 const TABLE_COLS =
@@ -37,7 +39,11 @@ const TABLE_COLS =
 @Component({
   selector: 'app-memorized-verses-table',
   standalone: true,
-  imports: [CommonModule, ScriptureHoverPreviewComponent],
+  imports: [
+    CommonModule,
+    ScriptureHoverPreviewComponent,
+    CardActionTrashIconComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
@@ -140,25 +146,12 @@ const TABLE_COLS =
               <button
                 type="button"
                 data-testid="memorize-table-remove"
-                class="inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-gray-500 transition-colors hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
+                class="inline-flex cursor-pointer items-center justify-center rounded-md p-1 transition-colors {{ memorizeTableRemoveTone }}"
                 [attr.aria-label]="'Remove ' + item.reference"
                 title="Remove"
                 (click)="remove.emit(item)"
               >
-                <svg
-                  class="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
+                <app-card-action-trash-icon />
               </button>
             </div>
           </div>
@@ -182,6 +175,7 @@ export class MemorizedVersesTableComponent implements OnInit {
   readonly masterLevelLabel = masterLevelLabel;
   readonly splitReference = splitScriptureReferenceDisplay;
   readonly memorizeCardShellBorder = MEMORIZE_CARD_SHELL_BORDER_CLASS;
+  readonly memorizeTableRemoveTone = CARD_ACTIONS_OVERFLOW_RED_TONE_CLASS;
 
   private readonly cdr = inject(ChangeDetectorRef);
 
