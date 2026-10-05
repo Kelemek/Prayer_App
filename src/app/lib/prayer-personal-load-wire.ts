@@ -44,7 +44,7 @@ export async function runPersonalPrayerCatalogLoad(
     const paintedFromWarmCache = hasWarmCatalogCache(cachedPersonalPrayers);
     if (paintedFromWarmCache) {
       applyCachedPersonalPrayersSnapshot(
-        cachedPersonalPrayers!,
+        cachedPersonalPrayers,
         deps.cacheSnapshotActions()
       );
       afterWarmCatalogCachePainted(deps.setLoading);

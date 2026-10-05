@@ -17,7 +17,7 @@ export {
 
 export function hasWarmCatalogCache<T>(
   cached: readonly T[] | null | undefined
-): boolean {
+): cached is T[] {
   return Boolean(cached && cached.length > 0);
 }
 
