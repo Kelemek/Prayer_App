@@ -89,7 +89,7 @@ describe("HomePromptTypeFiltersComponent", () => {
     }
   });
 
-  it("uses outlined chips with an active ring on All Types when none selected", () => {
+  it("uses outlined chips with active border on All Types when none selected", () => {
     const allTypesButton = fixture.nativeElement.querySelector(
       "button"
     ) as HTMLButtonElement;
@@ -99,7 +99,12 @@ describe("HomePromptTypeFiltersComponent", () => {
     expect(allTypesButton.className).toContain(
       HOME_SUB_FILTER_CHIP_WRAP_STRETCH_CLASS.split(" ")[0]
     );
-    expect(allTypesButton.className).toContain("ring-[#0047AB]");
+    for (const token of PROMPT_TYPE_CHIP_ACTIVE_CLASS.split(" ")) {
+      if (token.length > 0) {
+        expect(allTypesButton.className).toContain(token);
+      }
+    }
+    expect(allTypesButton.className).not.toMatch(/\bring-\[#0047AB\]/);
     expect(allTypesButton.className).not.toContain("underline");
     const typeChip = fixture.nativeElement.querySelectorAll(
       "button"
