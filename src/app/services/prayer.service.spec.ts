@@ -7,14 +7,15 @@ const PRAYER_SPEC_SHARED_CACHE_KEY = `tenant_${PRAYER_SPEC_TEST_TENANT.id}_praye
 const PRAYER_SPEC_PERSONAL_CACHE_KEY = `personalTenant_${PRAYER_SPEC_TEST_TENANT.id}`;
 
 function createPrayerSpecTenantContext() {
+  const loadingSubject = new BehaviorSubject(true);
   const membershipPendingSubject = new BehaviorSubject(true);
   return {
     getActiveTenant: vi.fn(() => PRAYER_SPEC_TEST_TENANT),
     getIsSuperAdmin: vi.fn(() => false),
     getIsImpersonatingTenant: vi.fn(() => false),
     activeTenant$: new BehaviorSubject(PRAYER_SPEC_TEST_TENANT),
-    loading$: membershipPendingSubject.asObservable(),
-    loadingSubject: membershipPendingSubject,
+    loading$: loadingSubject.asObservable(),
+    loadingSubject,
     membershipPending$: membershipPendingSubject.asObservable(),
     membershipPendingSubject,
   };
@@ -132,6 +133,37 @@ describe('PrayerService', () => {
     tenantContext.loadingSubject.next(false);
   });
 
+  describe('tenant-scoped prayer loading', () => {
+    it('reloads when loading$ clears while membership refresh is still pending', async () => {
+      const ctx = createPrayerSpecTenantContext();
+      ctx.loadingSubject.next(true);
+      ctx.membershipPendingSubject.next(true);
+      const localService = new PrayerService(
+        supabase,
+        toast,
+        emailNotification,
+        verificationService as any,
+        cache,
+        badgeService,
+        userSessionService,
+        ctx as any,
+        connectivity as any,
+        prayedForSync as any
+      );
+      const loadSpy = vi
+        .spyOn(localService, 'loadPrayers')
+        .mockResolvedValue(undefined);
+      const loadPersonalSpy = vi
+        .spyOn(localService, 'loadPersonalPrayers')
+        .mockResolvedValue(undefined);
+
+      ctx.loadingSubject.next(false);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(loadSpy).toHaveBeenCalled();
+      expect(loadPersonalSpy).toHaveBeenCalled();
+    });
+  });
 
   describe('offline behavior', () => {
     it('addPrayer returns false when offline without calling supabase', async () => {

@@ -15,7 +15,13 @@ export {
   sharedPrayersCacheKey,
 } from './prayer-tenant';
 
-export function shouldSkipCommunityPrayersDbOnSilentRefresh(
+export function hasWarmCatalogCache<T>(
+  cached: readonly T[] | null | undefined
+): boolean {
+  return Boolean(cached && cached.length > 0);
+}
+
+export function shouldSkipCatalogDbOnSilentRefresh(
   silentRefresh: boolean,
   cachedPrayers: PrayerRequest[] | null | undefined,
   bypassWarmCache = false
@@ -23,14 +29,29 @@ export function shouldSkipCommunityPrayersDbOnSilentRefresh(
   if (bypassWarmCache) {
     return false;
   }
-  return Boolean(silentRefresh && cachedPrayers && cachedPrayers.length > 0);
+  return Boolean(silentRefresh && hasWarmCatalogCache(cachedPrayers));
 }
 
-export function shouldShowCommunityLoadingIndicator(
+/** @deprecated Use {@link shouldSkipCatalogDbOnSilentRefresh}. */
+export const shouldSkipCommunityPrayersDbOnSilentRefresh =
+  shouldSkipCatalogDbOnSilentRefresh;
+
+export function shouldShowCatalogSkeletonForLiveLoad(
   silentRefresh: boolean,
   cachedPrayers: PrayerRequest[] | null | undefined
 ): boolean {
-  return !silentRefresh && !cachedPrayers;
+  return !silentRefresh && !hasWarmCatalogCache(cachedPrayers);
+}
+
+/** @deprecated Use {@link shouldShowCatalogSkeletonForLiveLoad}. */
+export const shouldShowCommunityLoadingIndicator =
+  shouldShowCatalogSkeletonForLiveLoad;
+
+/** Drop catalog skeleton once a warm cache snapshot is on screen (DB refresh may continue). */
+export function afterWarmCatalogCachePainted(
+  setLoading: (loading: boolean) => void
+): void {
+  setLoading(false);
 }
 
 export function prayerLoadErrorMessage(err: unknown, defaultMessage: string): string {

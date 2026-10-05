@@ -3645,12 +3645,14 @@ describe('HomeComponent', () => {
       expect(comp.activeFilter).toBe('current');
     });
 
-    it('should apply current default view after tenant context loads', async () => {
+    it('should apply current default view after tenant snapshot loads without waiting for membership refresh', async () => {
       const mocks = makeMocks();
-      const tenantPendingSubject = new BehaviorSubject(true);
+      const tenantLoadingSubject = new BehaviorSubject(true);
+      const membershipPendingSubject = new BehaviorSubject(true);
+      mocks.tenantContextService.loading$ =
+        tenantLoadingSubject.asObservable();
       mocks.tenantContextService.membershipPending$ =
-        tenantPendingSubject.asObservable();
-      mocks.tenantContextService.loading$ = tenantPendingSubject.asObservable();
+        membershipPendingSubject.asObservable();
       mocks.tenantPermissionService.canAccessShared.mockReturnValue(true);
 
       const comp = createHomeComponent(
@@ -3675,7 +3677,8 @@ describe('HomeComponent', () => {
       await new Promise(resolve => setTimeout(resolve, 20));
       expect(comp.viewReady).toBe(false);
 
-      tenantPendingSubject.next(false);
+      tenantLoadingSubject.next(false);
+      membershipPendingSubject.next(true);
       await new Promise(resolve => setTimeout(resolve, 20));
 
       expect(comp.viewReady).toBe(true);

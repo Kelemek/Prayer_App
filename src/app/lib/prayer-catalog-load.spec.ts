@@ -10,7 +10,11 @@ import {
   planPersonalPrayerLoadCacheFallback,
   prayerLoadErrorMessage,
   personalCachedPrayersMatchUser,
+  afterWarmCatalogCachePainted,
+  hasWarmCatalogCache,
+  shouldShowCatalogSkeletonForLiveLoad,
   shouldShowCommunityLoadingIndicator,
+  shouldSkipCatalogDbOnSilentRefresh,
   shouldSkipCommunityPrayersDbOnSilentRefresh,
 } from './prayer-catalog-load';
 import type { PrayerRequest } from './prayer-types';
@@ -53,6 +57,30 @@ describe('prayer-catalog-load', () => {
     expect(shouldShowCommunityLoadingIndicator(false, undefined)).toBe(true);
     expect(shouldShowCommunityLoadingIndicator(true, undefined)).toBe(false);
     expect(shouldShowCommunityLoadingIndicator(false, [prayer('a@test.com')])).toBe(false);
+    expect(shouldShowCatalogSkeletonForLiveLoad(false, undefined)).toBe(true);
+    expect(shouldShowCatalogSkeletonForLiveLoad(false, [])).toBe(true);
+    expect(shouldShowCatalogSkeletonForLiveLoad(false, [prayer('a@test.com')])).toBe(
+      false
+    );
+  });
+
+  it('hasWarmCatalogCache requires a non-empty list', () => {
+    expect(hasWarmCatalogCache(null)).toBe(false);
+    expect(hasWarmCatalogCache([])).toBe(false);
+    expect(hasWarmCatalogCache([prayer('a@test.com')])).toBe(true);
+  });
+
+  it('shouldSkipCatalogDbOnSilentRefresh matches legacy community alias', () => {
+    const cached = [prayer('a@test.com')];
+    expect(shouldSkipCatalogDbOnSilentRefresh(true, cached)).toBe(
+      shouldSkipCommunityPrayersDbOnSilentRefresh(true, cached)
+    );
+  });
+
+  it('afterWarmCatalogCachePainted clears loading', () => {
+    const setLoading = vi.fn();
+    afterWarmCatalogCachePainted(setLoading);
+    expect(setLoading).toHaveBeenCalledWith(false);
   });
 
   it('prayerLoadErrorMessage prefers Error.message', () => {

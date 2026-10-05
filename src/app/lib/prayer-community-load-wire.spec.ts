@@ -32,6 +32,43 @@ describe('prayer-community-load-wire', () => {
     expect(setAllPrayersInMemory).toHaveBeenCalledWith(cached);
   });
 
+  it('runCommunityPrayerCatalogLoad clears loading after warm cache before the database returns', async () => {
+    const cached = [{ id: '1' } as PrayerRequest];
+    const setLoading = vi.fn();
+    let resolveFetch!: (value: Record<string, unknown>[]) => void;
+    const fetchApprovedFromDb = vi.fn(
+      () =>
+        new Promise<Record<string, unknown>[]>((resolve) => {
+          resolveFetch = resolve;
+        })
+    );
+
+    const loadPromise = runCommunityPrayerCatalogLoad(
+      {
+        readCache: () => cached,
+        setFetchInFlight: vi.fn(),
+        markDbFetchComplete: vi.fn(),
+        setAllPrayersInMemory: vi.fn(),
+        setCache: vi.fn(),
+        reapplyFilters: vi.fn(),
+        setLoading,
+        setError: vi.fn(),
+        refreshBadges: vi.fn(),
+        emitErrorToast: vi.fn(),
+        getLastErrorToastTime: () => 0,
+        loadErrorToastCooldownMs: 60_000,
+        isFetchInFlight: () => false,
+        fetchApprovedFromDb,
+      },
+      false
+    );
+    await Promise.resolve();
+    expect(setLoading).toHaveBeenCalledWith(false);
+    resolveFetch([]);
+    await loadPromise;
+    expect(setLoading).toHaveBeenLastCalledWith(false);
+  });
+
   it('runCommunityPrayerCatalogLoad hits the DB when a live refresh bypasses warm cache', async () => {
     const fetchApprovedFromDb = vi.fn().mockResolvedValue([]);
     const cached = [{ id: '1' } as PrayerRequest];

@@ -1,9 +1,11 @@
 import {
+  afterWarmCatalogCachePainted,
   applyCachedPersonalPrayersSnapshot,
   applyPersonalPrayerLoadCacheFallbackPlan,
+  hasWarmCatalogCache,
   planPersonalPrayerLoadCacheFallback,
   publishPersonalPrayersFromDb,
-  shouldSkipCommunityPrayersDbOnSilentRefresh,
+  shouldSkipCatalogDbOnSilentRefresh,
   type PersonalPrayersCacheSnapshotActions,
   type PrayerCatalogRefreshOptions,
 } from "./prayer-catalog-load";
@@ -29,8 +31,6 @@ export async function runPersonalPrayerCatalogLoad(
   options?: PrayerCatalogRefreshOptions
 ): Promise<void> {
   try {
-    deps.setLoading(true);
-
     const userEmail = await deps.getUserEmail();
     if (!userEmail) {
       console.warn(
@@ -41,14 +41,16 @@ export async function runPersonalPrayerCatalogLoad(
     }
 
     const cachedPersonalPrayers = deps.readCache();
-    if (cachedPersonalPrayers && cachedPersonalPrayers.length > 0) {
+    const paintedFromWarmCache = hasWarmCatalogCache(cachedPersonalPrayers);
+    if (paintedFromWarmCache) {
       applyCachedPersonalPrayersSnapshot(
-        cachedPersonalPrayers,
+        cachedPersonalPrayers!,
         deps.cacheSnapshotActions()
       );
+      afterWarmCatalogCachePainted(deps.setLoading);
 
       if (
-        shouldSkipCommunityPrayersDbOnSilentRefresh(
+        shouldSkipCatalogDbOnSilentRefresh(
           silentRefresh,
           cachedPersonalPrayers,
           options?.bypassWarmCache === true
@@ -56,6 +58,8 @@ export async function runPersonalPrayerCatalogLoad(
       ) {
         return;
       }
+    } else {
+      deps.setLoading(true);
     }
 
     const personalPrayers = await deps.fetchFromDb(userEmail);

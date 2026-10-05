@@ -318,9 +318,9 @@ export class HomeLifecycleCoordinator {
           take(1)
         )
       : of(false);
-    const tenantLoading$ = services.tenantContextService?.membershipPending$
-      ? services.tenantContextService.membershipPending$.pipe(
-          filter((pending) => !pending),
+    const tenantSnapshotReady$ = services.tenantContextService?.loading$
+      ? services.tenantContextService.loading$.pipe(
+          filter((loading) => !loading),
           take(1)
         )
       : of(false);
@@ -330,7 +330,7 @@ export class HomeLifecycleCoordinator {
         filter((session): session is UserSessionData => !!session)
       ),
       sessionLoading$,
-      tenantLoading$,
+      tenantSnapshotReady$,
     ])
       .pipe(take(1), takeUntil(destroy$))
       .subscribe(([session]) => {

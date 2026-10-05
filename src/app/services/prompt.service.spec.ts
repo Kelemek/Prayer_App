@@ -328,6 +328,37 @@ describe('PromptService', () => {
       expect(loadingValues[loadingValues.length - 1]).toBe(false);
     });
 
+    it('clears loading after warm cache before pray-for counts refresh', async () => {
+      mockCacheService.get.mockReturnValue([
+        {
+          id: '1',
+          type: 'Healing',
+          title: 'Cached',
+          created_at: '2024-01-01',
+        },
+      ]);
+      let resolveCounts!: (value: { data: unknown; error: null }) => void;
+      mockSupabaseService.client.rpc = vi.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveCounts = resolve;
+          })
+      );
+      userSessionSubject.next({ email: 'user@example.com' });
+      const publishSpy = vi.spyOn(service, 'publishPrompts');
+      service.loadingSubject.next(true);
+      const loadPromise = service.loadPrompts();
+      await Promise.resolve();
+      expect(await firstValueFrom(service.loading$)).toBe(false);
+      expect((await firstValueFrom(service.prompts$)).length).toBe(1);
+      expect(publishSpy).toHaveBeenCalledTimes(1);
+      resolveCounts({ data: {}, error: null });
+      await loadPromise;
+      expect(publishSpy).toHaveBeenCalledTimes(1);
+      expect(await firstValueFrom(service.loading$)).toBe(false);
+      publishSpy.mockRestore();
+    });
+
     it('should clear error on successful load', async () => {
       await service.loadPrompts();
 

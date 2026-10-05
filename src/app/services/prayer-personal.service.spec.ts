@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { firstValueFrom } from 'rxjs';
 import { PrayerPersonalService } from './prayer-personal.service';
 import type { PrayerRequest } from '../lib/prayer-types';
 import * as personalDb from '../lib/prayer-personal-db';
@@ -270,6 +271,26 @@ describe('PrayerPersonalService', () => {
     await service.loadPersonalPrayers(true);
     expect(service.getPersonalPrayersSnapshot()).toHaveLength(1);
     expect(personalDb.fetchPersonalPrayersList).not.toHaveBeenCalled();
+  });
+
+  it('loadPersonalPrayers clears loading after warm cache before the database returns', async () => {
+    const cached = [prayer('warm-1', 0)];
+    cache.get.mockReturnValue(cached);
+    let resolveFetch!: (value: { data: unknown[]; error: null }) => void;
+    vi.mocked(personalDb.fetchPersonalPrayersList).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        })
+    );
+    service.loadingPersonalPrayersSubject.next(true);
+    const loadPromise = service.loadPersonalPrayers(false);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(await firstValueFrom(service.loadingPersonalPrayers$)).toBe(false);
+    expect(service.getPersonalPrayersSnapshot()).toHaveLength(1);
+    resolveFetch({ data: [], error: null });
+    await loadPromise;
+    expect(service.loadingPersonalPrayersSubject.value).toBe(false);
   });
 
   it('loadPersonalPrayers applies cache fallback after fetch failure', async () => {

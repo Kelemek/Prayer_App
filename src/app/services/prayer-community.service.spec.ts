@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { firstValueFrom } from 'rxjs';
 import { PrayerCommunityService } from './prayer-community.service';
 import type { PrayerRequest } from '../lib/prayer-types';
 
@@ -169,6 +170,33 @@ describe('PrayerCommunityService', () => {
     expect(service.getAllCommunityPrayersSnapshot()).toHaveLength(1);
     expect(applyFilters).toHaveBeenCalled();
     expect(fetchApprovedSharedPrayers).not.toHaveBeenCalled();
+  });
+
+  it('loadPrayers clears loading after warm cache before the database returns', async () => {
+    const cached = [samplePrayer('cached')];
+    let resolveFetch!: (value: {
+      prayersData: unknown[];
+      error: null;
+    }) => void;
+    vi.mocked(fetchApprovedSharedPrayers).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        })
+    );
+    vi.mocked(fetchApprovedSharedPrayerUpdates).mockResolvedValue({
+      updatesData: [],
+      error: null,
+    });
+    const { service } = createService({ cacheGet: cached });
+    service.loadingSubject.next(true);
+    const loadPromise = service.loadPrayers(false);
+    await Promise.resolve();
+    expect(await firstValueFrom(service.loading$)).toBe(false);
+    expect(service.getAllCommunityPrayersSnapshot()).toHaveLength(1);
+    resolveFetch({ prayersData: [], error: null });
+    await loadPromise;
+    expect(service.loadingSubject.value).toBe(false);
   });
 
   it('loadPrayers serves stale cache while offline', async () => {

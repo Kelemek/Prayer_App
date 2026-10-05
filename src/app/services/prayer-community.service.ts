@@ -83,7 +83,10 @@ import {
 } from '../lib/prayer-prayed-for-increment';
 import { PRAYER_SERVICE_LOAD_ERROR_TOAST_COOLDOWN_MS } from '../lib/prayer-service-constants';
 import {
-  shouldSkipCommunityPrayersDbOnSilentRefresh,
+  afterWarmCatalogCachePainted,
+  hasWarmCatalogCache,
+  shouldShowCatalogSkeletonForLiveLoad,
+  shouldSkipCatalogDbOnSilentRefresh,
   type PrayerCatalogRefreshOptions,
 } from '../lib/prayer-catalog-load';
 import {
@@ -256,17 +259,20 @@ export class PrayerCommunityService {
 
     try {
       const cachedPrayers = this.getCachedSharedPrayers(tenantId);
-      const skipDbOnWarmCache = shouldSkipCommunityPrayersDbOnSilentRefresh(
+      const skipDbOnWarmCache = shouldSkipCatalogDbOnSilentRefresh(
         silentRefresh,
         cachedPrayers,
         options?.bypassWarmCache === true
       );
-      if (cachedPrayers && cachedPrayers.length > 0) {
+      if (hasWarmCatalogCache(cachedPrayers)) {
         this.seedCommunityServerCounts(cachedPrayers);
         this.allPrayersSubject.next(
           this.withCommunityDisplayCounts(cachedPrayers)
         );
         this.facadeHooks.applyFilters(this.currentFilters);
+        afterWarmCatalogCachePainted((loading) =>
+          this.loadingSubject.next(loading)
+        );
 
         if (skipDbOnWarmCache) {
           return;
@@ -287,7 +293,7 @@ export class PrayerCommunityService {
         return;
       }
 
-      if (!silentRefresh && !cachedPrayers?.length) {
+      if (shouldShowCatalogSkeletonForLiveLoad(silentRefresh, cachedPrayers)) {
         this.loadingSubject.next(true);
       }
       this.errorSubject.next(null);

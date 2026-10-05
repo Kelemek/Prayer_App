@@ -66,7 +66,9 @@ import {
 import {
   applyPersonalPrayerLoadCacheFallbackPlan,
   planPersonalPrayerLoadCacheFallback,
-  shouldSkipCommunityPrayersDbOnSilentRefresh,
+  afterWarmCatalogCachePainted,
+  hasWarmCatalogCache,
+  shouldSkipCatalogDbOnSilentRefresh,
   type PrayerCatalogRefreshOptions,
 } from "../lib/prayer-catalog-load";
 import {
@@ -298,8 +300,6 @@ export class PrayerPersonalService {
     options?: PrayerCatalogRefreshOptions
   ): Promise<void> {
     try {
-      this.loadingPersonalPrayersSubject.next(true);
-
       const tenantId = this.getActiveTenantId();
       const userEmail = await this.getUserEmail();
       if (!userEmail) {
@@ -316,24 +316,28 @@ export class PrayerPersonalService {
         (!this.connectivity.isOnline()
           ? this.cache.getStale<PrayerRequest[]>(cacheKey)
           : null);
-      if (cachedPersonalPrayers && cachedPersonalPrayers.length > 0) {
+      if (hasWarmCatalogCache(cachedPersonalPrayers)) {
         this.seedPersonalServerCounts(cachedPersonalPrayers);
         this.allPersonalPrayersSubject.next(
           this.withPersonalDisplayCounts(cachedPersonalPrayers)
         );
+        afterWarmCatalogCachePainted((loading) =>
+          this.loadingPersonalPrayersSubject.next(loading)
+        );
 
-        const skipDbOnWarmCache = shouldSkipCommunityPrayersDbOnSilentRefresh(
+        const skipDbOnWarmCache = shouldSkipCatalogDbOnSilentRefresh(
           silentRefresh,
           cachedPersonalPrayers,
           options?.bypassWarmCache === true
         );
         if (skipDbOnWarmCache || !this.connectivity.isOnline()) {
-          this.loadingPersonalPrayersSubject.next(false);
           if (this.connectivity.isOnline()) {
             void this.loadPersonalCategories(false);
           }
           return;
         }
+      } else {
+        this.loadingPersonalPrayersSubject.next(true);
       }
 
       if (!this.connectivity.isOnline()) {

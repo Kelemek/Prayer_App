@@ -248,14 +248,14 @@ export class PrayerService {
   }
 
   private setupTenantScopedPrayerLoading(): void {
-    const membershipPending$ = this.tenantContext.membershipPending$;
+    const tenantReady$ = this.tenantContext.loading$;
     const activeTenant$ = this.tenantContext.activeTenant$;
-    if (!membershipPending$ || !activeTenant$) {
+    if (!tenantReady$ || !activeTenant$) {
       return;
     }
 
     combineLatest([
-      membershipPending$.pipe(filter((pending) => !pending)),
+      tenantReady$.pipe(filter((loading) => !loading)),
       activeTenant$.pipe(filter((tenant): tenant is Tenant => !!tenant?.id)),
     ])
       .pipe(

@@ -10,6 +10,10 @@ import { PrayedForSyncService, type PrayedForSyncedEvent } from './prayed-for-sy
 import { UserSessionService } from './user-session.service';
 import { PrayerPrompt } from '../components/prompt-card/prompt-card.component';
 import { TenantContextService } from './tenant-context.service';
+import {
+  afterWarmCatalogCachePainted,
+  hasWarmCatalogCache,
+} from '../lib/prayer-catalog-load';
 
 @Injectable({
   providedIn: 'root'
@@ -165,7 +169,6 @@ export class PromptService {
    */
   async loadPrompts(): Promise<void> {
     try {
-      this.loadingSubject.next(true);
       this.errorSubject.next(null);
       const tenantId = this.tenantContext?.getActiveTenant()?.id;
 
@@ -176,11 +179,16 @@ export class PromptService {
 
       // Try to get from cache first (base prompts without user-specific counts)
       const cacheKey = tenantId ? `prompts:${tenantId}` : 'prompts';
-      let sortedPrompts =
+      const cachedPrompts =
         this.cache.get<PrayerPrompt[]>(cacheKey) ||
         (!this.connectivity.isOnline()
           ? this.cache.getStale<PrayerPrompt[]>(cacheKey)
           : null);
+      const warmCache = hasWarmCatalogCache(cachedPrompts);
+      if (!warmCache) {
+        this.loadingSubject.next(true);
+      }
+      let sortedPrompts = cachedPrompts;
 
       if (!sortedPrompts && !this.connectivity.isOnline()) {
         console.log('[PromptService] Offline with no cached prompts');
@@ -234,7 +242,9 @@ export class PromptService {
         this.cache.set(cacheKey, sortedPrompts);
       }
 
-      await this.publishPromptsWithFreshCounts(sortedPrompts);
+      await this.publishPromptsWithFreshCounts(sortedPrompts ?? [], {
+        paintListBeforeCounts: warmCache,
+      });
     } catch (err) {
       const cacheKey = this.tenantContext?.getActiveTenant()?.id
         ? `prompts:${this.tenantContext.getActiveTenant()!.id}`
@@ -266,7 +276,17 @@ export class PromptService {
    * load after logout cannot restore another user's private tallies. Retries once if generation
    * changes mid-flight.
    */
-  private async publishPromptsWithFreshCounts(base: PrayerPrompt[]): Promise<void> {
+  private async publishPromptsWithFreshCounts(
+    base: PrayerPrompt[],
+    options?: { paintListBeforeCounts?: boolean }
+  ): Promise<void> {
+    if (options?.paintListBeforeCounts && base.length > 0) {
+      this.publishPrompts(base);
+      afterWarmCatalogCachePainted((loading) =>
+        this.loadingSubject.next(loading)
+      );
+    }
+
     for (let attempt = 0; attempt < 2; attempt++) {
       const generation = this.countsHydrateGeneration;
       const sessionEmail = this.userSessionService.getUserEmail();
@@ -274,7 +294,12 @@ export class PromptService {
         ? await this.attachPrayedForCounts(base, sessionEmail)
         : base.map((p) => ({ ...p, prayed_for_count: 0 }));
       if (generation === this.countsHydrateGeneration) {
-        this.publishPrompts(withCounts);
+        if (options?.paintListBeforeCounts) {
+          this.seedPromptServerCounts(withCounts);
+          this.reprojectPromptCounts();
+        } else {
+          this.publishPrompts(withCounts);
+        }
         return;
       }
     }

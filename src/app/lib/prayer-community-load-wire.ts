@@ -1,10 +1,12 @@
 import {
+  afterWarmCatalogCachePainted,
   applyCommunityLoadErrorPlan,
   applyCommunityPrayersCacheSnapshot,
+  hasWarmCatalogCache,
   planCommunityLoadErrorFallback,
   publishCommunityPrayersFromDb,
-  shouldShowCommunityLoadingIndicator,
-  shouldSkipCommunityPrayersDbOnSilentRefresh,
+  shouldShowCatalogSkeletonForLiveLoad,
+  shouldSkipCatalogDbOnSilentRefresh,
   type PrayerCatalogRefreshOptions,
 } from './prayer-catalog-load';
 import { formatApprovedCommunityPrayersFromDb } from './prayer-community-load';
@@ -33,7 +35,7 @@ export async function runCommunityPrayerCatalogLoad(
   options?: PrayerCatalogRefreshOptions
 ): Promise<void> {
   const cachedPrayers = deps.readCache();
-  const skipDb = shouldSkipCommunityPrayersDbOnSilentRefresh(
+  const skipDb = shouldSkipCatalogDbOnSilentRefresh(
     silentRefresh,
     cachedPrayers,
     options?.bypassWarmCache === true
@@ -44,11 +46,12 @@ export async function runCommunityPrayerCatalogLoad(
       deps.setFetchInFlight(true);
     }
 
-    if (cachedPrayers && cachedPrayers.length > 0) {
+    if (hasWarmCatalogCache(cachedPrayers)) {
       applyCommunityPrayersCacheSnapshot(cachedPrayers, {
         setAllPrayers: (prayers) => deps.setAllPrayersInMemory(prayers),
         reapplyFilters: () => deps.reapplyFilters(),
       });
+      afterWarmCatalogCachePainted(deps.setLoading);
 
       if (skipDb) {
         if (!deps.isFetchInFlight()) {
@@ -58,7 +61,7 @@ export async function runCommunityPrayerCatalogLoad(
       }
     }
 
-    if (shouldShowCommunityLoadingIndicator(silentRefresh, cachedPrayers)) {
+    if (shouldShowCatalogSkeletonForLiveLoad(silentRefresh, cachedPrayers)) {
       deps.setLoading(true);
     }
     deps.setError(null);
